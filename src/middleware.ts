@@ -7,7 +7,8 @@ export function middleware(request: NextRequest) {
   // Các route công khai (không cần đăng nhập)
   const publicRoutes = [
     '/',           // Trang login
-    '/not-found'   // Trang 404
+    '/not-found',  // Trang 404
+    '/order',      // Trang order cho khách hàng (QR)
   ];
   
   // Các route có thực trong hệ thống (dựa trên navigation.ts)
@@ -51,7 +52,13 @@ export function middleware(request: NextRequest) {
     '/nhanvien',
     '/settings/store-info',
     '/settingdata',
-    '/user-guide'
+    '/settingdata',
+    '/user-guide',
+    // Customer QR Order (public)
+    '/order',
+    '/order/menu',
+    '/order/cart',
+    '/order/status',
   ];
   
   // Kiểm tra token trong cookie
@@ -77,7 +84,7 @@ export function middleware(request: NextRequest) {
   }
   
   // Tự động bảo vệ tất cả route (trừ publicRoutes và static files)
-  const isPublicRoute = publicRoutes.includes(pathname);
+  const isPublicRoute = publicRoutes.includes(pathname) || pathname.startsWith('/order');
   
   if (!isStaticFile && !isPublicRoute && !authToken) {
     // Redirect về login với returnUrl
