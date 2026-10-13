@@ -1,0 +1,78 @@
+[
+  {
+    "IDGiaoDich": "GD001",
+    "LoaiGiaoDich": "Nhập kho",
+    "NgayGiaoDich": "04/08/2025 08:30:00",
+    "NhaCungCap": "Công ty TNHH ABC",
+    "NhanVienThucHien": "Nguyễn Văn A",
+    "GhiChu": "Nhập hàng định kỳ tháng 8",
+    "TongTien": 2500000,
+    "TrangThai": "Hoàn thành",
+    "ChiTiet": [
+      {
+        "IDNguyenLieu": "NVL001",
+        "TenNguyenLieu": "Cà phê hạt Robusta",
+        "SoLuong": 50,
+        "DonViTinh": "Kg",
+        "DonGia": 45000,
+        "ThanhTien": 2250000
+      },
+      {
+        "IDNguyenLieu": "NVL002",
+        "TenNguyenLieu": "Sữa tươi không đường",
+        "SoLuong": 20,
+        "DonViTinh": "Hộp 1L",
+        "DonGia": 12500,
+        "ThanhTien": 250000
+      }
+    ]
+  },
+  {
+    "IDGiaoDich": "GD002",
+    "LoaiGiaoDich": "Xuất kho",
+    "NgayGiaoDich": "04/08/2025 14:15:00",
+    "NhaCungCap": "",
+    "NhanVienThucHien": "Trần Thị B",
+    "GhiChu": "Xuất kho cho sản xuất",
+    "TongTien": 0,
+    "TrangThai": "Hoàn thành",
+    "ChiTiet": [
+      {
+        "IDNguyenLieu": "NVL001",
+        "TenNguyenLieu": "Cà phê hạt Robusta",
+        "SoLuong": 5,
+        "DonViTinh": "Kg",
+        "DonGia": 0,
+        "ThanhTien": 0
+      }
+    ]
+  },
+  {
+    "IDGiaoDich": "GD003",
+    "LoaiGiaoDich": "Nhập kho",
+    "NgayGiaoDich": "03/08/2025 10:00:00",
+    "NhaCungCap": "Công ty XYZ",
+    "NhanVienThucHien": "Lê Văn C",
+    "GhiChu": "Nhập syrup và bột matcha",
+    "TongTien": 1800000,
+    "TrangThai": "Hoàn thành",
+    "ChiTiet": [
+      {
+        "IDNguyenLieu": "NVL004",
+        "TenNguyenLieu": "Syrup Caramel",
+        "SoLuong": 10,
+        "DonViTinh": "Chai 750ml",
+        "DonGia": 120000,
+        "ThanhTien": 1200000
+      },
+      {
+        "IDNguyenLieu": "NVL006",
+        "TenNguyenLieu": "Bột Matcha Nhật Bản",
+        "SoLuong": 15,
+        "DonViTinh": "Túi 100g",
+        "DonGia": 40000,
+        "ThanhTien": 600000
+      }
+    ]
+  }
+] 

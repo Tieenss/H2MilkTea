@@ -1,0 +1,70 @@
+[
+  {
+    "IDKiemKe": "KK001",
+    "NgayKiemKe": "01/08/2025",
+    "LoaiKiemKe": "Định kỳ",
+    "NhanVienThucHien": "Nguyễn Văn A",
+    "TrangThai": "Hoàn thành",
+    "GhiChu": "Kiểm kê định kỳ tháng 8",
+    "TongMatHang": 15,
+    "TongGiaTri": 8500000,
+    "ChiTiet": [
+      {
+        "IDNguyenLieu": "NVL001",
+        "TenNguyenLieu": "Cà phê hạt Robusta",
+        "SoLuongTheoSo": 45,
+        "SoLuongThucTe": 43,
+        "ChenhLech": -2,
+        "DonViTinh": "Kg",
+        "DonGia": 45000,
+        "GiaTriChenhLech": -90000,
+        "LyDo": "Hao hụt tự nhiên"
+      },
+      {
+        "IDNguyenLieu": "NVL002",
+        "TenNguyenLieu": "Sữa tươi không đường",
+        "SoLuongTheoSo": 18,
+        "SoLuongThucTe": 18,
+        "ChenhLech": 0,
+        "DonViTinh": "Hộp 1L",
+        "DonGia": 12500,
+        "GiaTriChenhLech": 0,
+        "LyDo": "Khớp sổ sách"
+      }
+    ]
+  },
+  {
+    "IDKiemKe": "KK002",
+    "NgayKiemKe": "15/07/2025",
+    "LoaiKiemKe": "Đột xuất",
+    "NhanVienThucHien": "Trần Thị B",
+    "TrangThai": "Hoàn thành",
+    "GhiChu": "Kiểm kê đột xuất do nghi ngờ mất mát",
+    "TongMatHang": 12,
+    "TongGiaTri": 6500000,
+    "ChiTiet": [
+      {
+        "IDNguyenLieu": "NVL004",
+        "TenNguyenLieu": "Syrup Caramel",
+        "SoLuongTheoSo": 8,
+        "SoLuongThucTe": 7,
+        "ChenhLech": -1,
+        "DonViTinh": "Chai 750ml",
+        "DonGia": 120000,
+        "GiaTriChenhLech": -120000,
+        "LyDo": "Vỡ chai trong quá trình vận chuyển"
+      }
+    ]
+  },
+  {
+    "IDKiemKe": "KK003",
+    "NgayKiemKe": "01/07/2025",
+    "LoaiKiemKe": "Định kỳ",
+    "NhanVienThucHien": "Lê Văn C",
+    "TrangThai": "Đang thực hiện",
+    "GhiChu": "Kiểm kê định kỳ tháng 7",
+    "TongMatHang": 0,
+    "TongGiaTri": 0,
+    "ChiTiet": []
+  }
+] 

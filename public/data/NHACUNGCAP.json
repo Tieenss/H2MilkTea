@@ -1,0 +1,79 @@
+[
+  {
+    "IDNhaCungCap": "NCC001",
+    "TenNhaCungCap": "Công ty TNHH ABC",
+    "MaSoThue": "0123456789",
+    "DiaChi": "123 Đường ABC, Quận 1, TP.HCM",
+    "SoDienThoai": "028-1234-5678",
+    "Email": "info@abc.com.vn",
+    "NguoiDaiDien": "Nguyễn Văn An",
+    "SoDienThoaiLienHe": "090-123-4567",
+    "EmailLienHe": "an.nguyen@abc.com.vn",
+    "NgayHopTac": "01/01/2024",
+    "TrangThai": "Đang hợp tác",
+    "GhiChu": "Nhà cung cấp chính cho cà phê và sữa",
+    "DanhGia": 4.5,
+    "ThoiGianGiaoHang": "2-3 ngày",
+    "PhuongThucThanhToan": "Chuyển khoản 30 ngày",
+    "LichSuDatHang": [
+      {
+        "NgayDat": "01/08/2025",
+        "TongTien": 2500000,
+        "TrangThai": "Đã giao"
+      },
+      {
+        "NgayDat": "01/07/2025",
+        "TongTien": 1800000,
+        "TrangThai": "Đã giao"
+      }
+    ]
+  },
+  {
+    "IDNhaCungCap": "NCC002",
+    "TenNhaCungCap": "Công ty XYZ",
+    "MaSoThue": "9876543210",
+    "DiaChi": "456 Đường XYZ, Quận 3, TP.HCM",
+    "SoDienThoai": "028-9876-5432",
+    "Email": "contact@xyz.com.vn",
+    "NguoiDaiDien": "Trần Thị Bình",
+    "SoDienThoaiLienHe": "091-987-6543",
+    "EmailLienHe": "binh.tran@xyz.com.vn",
+    "NgayHopTac": "15/03/2024",
+    "TrangThai": "Đang hợp tác",
+    "GhiChu": "Chuyên cung cấp syrup và bột matcha",
+    "DanhGia": 4.2,
+    "ThoiGianGiaoHang": "1-2 ngày",
+    "PhuongThucThanhToan": "Tiền mặt khi giao hàng",
+    "LichSuDatHang": [
+      {
+        "NgayDat": "28/07/2025",
+        "TongTien": 1800000,
+        "TrangThai": "Đã giao"
+      }
+    ]
+  },
+  {
+    "IDNhaCungCap": "NCC003",
+    "TenNhaCungCap": "Công ty DEF",
+    "MaSoThue": "1122334455",
+    "DiaChi": "789 Đường DEF, Quận 7, TP.HCM",
+    "SoDienThoai": "028-1122-3344",
+    "Email": "info@def.com.vn",
+    "NguoiDaiDien": "Lê Văn Cường",
+    "SoDienThoaiLienHe": "092-112-2334",
+    "EmailLienHe": "cuong.le@def.com.vn",
+    "NgayHopTac": "01/06/2024",
+    "TrangThai": "Tạm ngưng",
+    "GhiChu": "Cung cấp trà và các loại bột",
+    "DanhGia": 3.8,
+    "ThoiGianGiaoHang": "3-5 ngày",
+    "PhuongThucThanhToan": "Chuyển khoản 15 ngày",
+    "LichSuDatHang": [
+      {
+        "NgayDat": "15/06/2025",
+        "TongTien": 1200000,
+        "TrangThai": "Đã giao"
+      }
+    ]
+  }
+] 

@@ -1,0 +1,36 @@
+[
+    {
+        "_RowNumber": "2",
+        "username": "phuocnv",
+        "password": "123123",
+        "Họ và Tên": "Ninh Phước",
+        "Chức vụ": "RND",
+        "Phòng": "RND",
+        "Phân quyền": "Admin",
+        "Email": "ninhphuoc@phuocnv.io.vn",
+        "Image": "http://res.cloudinary.com/duv9pccwi/image/upload/v1750774343/cue7a5xzw1klg5wpsmbo.jpg",
+        "Quyền View": "",
+        "Số điện thoại": "",
+        "Địa chỉ": "",
+        "Ngày sinh": "20/03/2001",
+        "Ngày vào làm": "",
+        "Ghi chú": ""
+    },
+    {
+        "_RowNumber": "3",
+        "username": "admin",
+        "password": "admin",
+        "Họ và Tên": "Admin",
+        "Chức vụ": "RND",
+        "Phòng": "RND",
+        "Phân quyền": "Admin",
+        "Email": "admin@gmail.com",
+        "Image": "https://res.cloudinary.com/duv9pccwi/image/upload/v1750644112/riuxzl1ti3j8mzuvwg9b.jpg",
+        "Quyền View": "",
+        "Số điện thoại": "",
+        "Địa chỉ": "",
+        "Ngày sinh": "",
+        "Ngày vào làm": "",
+        "Ghi chú": ""
+    }
+]

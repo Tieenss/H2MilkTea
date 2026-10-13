@@ -1,0 +1,172 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 9% 17%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Smooth transitions for sidebar */
+.sidebar-transition {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Prevent text selection during animation */
+.sidebar-transition * {
+  user-select: none;
+}
+
+/* GPU acceleration for smooth animations */
+.sidebar-transition {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+/* Optimize text rendering during animations */
+.sidebar-text {
+  will-change: opacity, width;
+}
+
+/* Liquid glass animations */
+@keyframes liquid-float {
+  0%, 100% {
+    transform: translateY(0px) translateX(0px) scale(1);
+  }
+  33% {
+    transform: translateY(-30px) translateX(20px) scale(1.1);
+  }
+  66% {
+    transform: translateY(20px) translateX(-15px) scale(0.9);
+  }
+}
+
+@keyframes liquid-float-delayed {
+  0%, 100% {
+    transform: translateY(0px) translateX(0px) scale(1);
+  }
+  33% {
+    transform: translateY(25px) translateX(-20px) scale(0.95);
+  }
+  66% {
+    transform: translateY(-20px) translateX(25px) scale(1.05);
+  }
+}
+
+@keyframes liquid-float-slow {
+  0%, 100% {
+    transform: translateY(0px) translateX(0px) scale(1);
+  }
+  50% {
+    transform: translateY(-15px) translateX(15px) scale(1.02);
+  }
+}
+
+@keyframes liquid-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+}
+
+.animate-liquid-float {
+  animation: liquid-float 8s ease-in-out infinite;
+}
+
+.animate-liquid-float-delayed {
+  animation: liquid-float-delayed 10s ease-in-out infinite;
+  animation-delay: -2s;
+}
+
+.animate-liquid-float-slow {
+  animation: liquid-float-slow 12s ease-in-out infinite;
+  animation-delay: -4s;
+}
+
+.animate-liquid-pulse {
+  animation: liquid-pulse 6s ease-in-out infinite;
+  animation-delay: -1s;
+}
+
+
+/* Tùy chỉnh scrollbar cho webkit browsers (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 6px; /* Chiều rộng scrollbar dọc */
+  height: 6px; /* Chiều cao scrollbar ngang */
+}
+
+::-webkit-scrollbar-track {
+  background: transparent; /* Nền trong suốt */
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.5); /* Màu xám nhạt */
+  border-radius: 3px;
+  transition: background 0.3s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.8); /* Màu đậm hơn khi hover */
+}
+
+/* Ẩn scrollbar khi không cần thiết */
+::-webkit-scrollbar-corner {
+  background: transparent;
+}

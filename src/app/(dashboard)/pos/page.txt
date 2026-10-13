@@ -1,0 +1,270 @@
+'use client';
+
+import React from 'react';
+import { Search, RefreshCw, Users, Filter, X, GalleryVertical } from 'lucide-react';
+
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { CustomerSelectModal } from './components/CustomerSelectModal';
+
+import { usePOS } from './hooks/usePOS';
+import { BarcodeScanner } from './components/BarcodeScanner';
+import { ProductGrid } from './components/ProductGrid';
+import { CartSidebar } from './components/CartSidebar';
+import { TableModal } from './components/TableModal';
+import { CheckoutModal } from './components/CheckoutModal';
+import { TransferModal } from './components/TransferModal';
+import { NoteModal } from './components/NoteModal';
+import authUtils from '@/utils/authUtils';
+import './styles/pos.css';
+
+export default function POSPage() {
+  const {
+    // State
+    products,
+    filteredProducts,
+    tables,
+    cart,
+    selectedTableId,
+    activeOrders,
+    isLoading,
+    loadingText,
+    categories,
+    searchTerm,
+    categoryFilter,
+    priceFilter,
+
+    // Modals
+    showTableModal,
+    showCheckoutModal,
+    showTransferModal,
+    showNoteModal,
+    selectedItemForNote,
+    noteInput,
+    selectedCustomer,
+    showCustomerModal,
+    setShowCustomerModal,
+    handleSelectCustomer,
+
+    // Actions
+    setShowTableModal,
+    setShowCheckoutModal,
+    setShowTransferModal,
+    setShowNoteModal,
+    setSearchTerm,
+    setCategoryFilter,
+    setPriceFilter,
+    setNoteInput,
+    setSelectedItemForNote,
+    updateCartItemNote,
+    // Operations
+    addToCart,
+    removeFromCart,
+    adjustQuantity,
+    clearCart,
+    selectTable,
+    transferTable,
+    processPayment,
+    syncData,
+    resetFilters,
+    // Calculations
+    subtotal,
+    vat,
+    total,
+    selectedTableName,
+
+  } = usePOS();
+
+  const userData = authUtils.getUserData();
+  const nhanvien = userData?.['Họ và Tên'] || userData?.username;
+
+  return (
+    <div className="bg-background ">
+      {/* Header Controls */}
+      <Card className="p-4  border-b">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          {/* Control Buttons */}
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={syncData}
+              disabled={isLoading}
+              variant="outline"
+              size="sm"
+              className="border-green-200 text-green-700 hover:bg-green-50"
+            >
+              {isLoading ? (
+                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4 mr-2" />
+              )}
+              {isLoading ? loadingText : 'Đồng bộ'}
+            </Button>
+
+            <Button
+              onClick={() => setShowTableModal(true)}
+              variant="outline"
+              size="sm"
+              className="border-purple-200 text-purple-700 hover:bg-purple-50"
+            >
+              <GalleryVertical className="w-4 h-4 mr-2" />
+              {selectedTableName ? (
+                <Badge variant="secondary" className="ml-1">
+                  {selectedTableName}
+                </Badge>
+              ) : (
+                'Chọn bàn'
+              )}
+            </Button>
+          </div>
+
+          {/* Barcode Scanner */}
+          <BarcodeScanner onBarcodeScanned={addToCart} />
+
+          {/* Search and Filters */}
+          <div className="flex items-center gap-2 ml-auto w-full sm:w-auto">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+              <Input
+                type="text"
+                placeholder="Tìm kiếm sản phẩm..."
+                className="pl-10 w-48"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Chọn danh mục" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tất cả danh mục</SelectItem>
+                {categories.map(cat => (
+                  <SelectItem key={cat.name} value={cat.name}>
+                    <div className="flex items-center justify-between w-full">
+                      <span>{cat.name}</span>
+                      <Badge variant="secondary" className="ml-2">
+                        {cat.count}
+                      </Badge>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={priceFilter} onValueChange={setPriceFilter}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Chọn giá" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tất cả giá</SelectItem>
+                <SelectItem value="0-20000">0đ - 20,000đ</SelectItem>
+                <SelectItem value="20000-50000">20,000đ - 50,000đ</SelectItem>
+                <SelectItem value="50000+">Trên 50,000đ</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Button
+              onClick={resetFilters}
+              variant="outline"
+              size="sm"
+              className="border-red-200 text-red-700 hover:bg-red-50"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+
+
+      </Card>
+
+      {/* Main Content */}
+      <div className="flex flex-col  lg:flex-row ">
+        {/* Product Grid */}
+        <ProductGrid
+          products={filteredProducts}
+          onAddToCart={addToCart}
+        />
+
+        {/* Cart Sidebar */}
+        <CartSidebar
+          cart={cart}
+          subtotal={subtotal}
+          vat={vat}
+          total={total}
+          selectedTableId={selectedTableId}
+          onRemoveFromCart={removeFromCart}
+          onAdjustQuantity={adjustQuantity}
+          onClearCart={clearCart}
+          onCheckout={() => setShowCheckoutModal(true)}
+          onShowTableModal={() => setShowTableModal(true)}
+          onShowNoteModal={(item) => {
+            setSelectedItemForNote(item);
+            setNoteInput(item.note || '');
+            setShowNoteModal(true);
+          }}
+        />
+      </div>
+
+      {/* Modals */}
+      {showTableModal && (
+        <TableModal
+          tables={tables}
+          activeOrders={activeOrders}
+          selectedTableId={selectedTableId}
+          onSelectTable={selectTable}
+          onClose={() => setShowTableModal(false)}
+          onShowTransfer={() => setShowTransferModal(true)}
+        />
+      )}
+
+      {showTransferModal && (
+        <TransferModal
+          tables={tables}
+          selectedTableId={selectedTableId}
+          activeOrders={activeOrders}
+          cart={cart}
+          subtotal={subtotal}
+          onTransfer={transferTable}
+          onClose={() => setShowTransferModal(false)}
+        />
+      )}
+      
+      {showCheckoutModal && (
+        <CheckoutModal
+          cart={cart}
+          subtotal={subtotal}
+          vat={vat}
+            onSelectCustomer={() => setShowCustomerModal(true)}
+          total={total}
+          selectedTableName={selectedTableName}
+          employee={nhanvien}
+          onProcessPayment={processPayment}
+          onClose={() => setShowCheckoutModal(false)}
+        />
+      )}
+
+      {showNoteModal && selectedItemForNote && (
+        <NoteModal
+          item={selectedItemForNote}
+          note={noteInput}
+          onNoteChange={setNoteInput}
+          onSave={(note) => {
+            updateCartItemNote(selectedItemForNote.id, note);
+            setShowNoteModal(false);
+            setSelectedItemForNote(null);
+            setNoteInput('');
+          }}
+          onClose={() => {
+            setShowNoteModal(false);
+            setSelectedItemForNote(null);
+            setNoteInput('');
+          }}
+        />
+      )}
+    </div>
+  );
+}

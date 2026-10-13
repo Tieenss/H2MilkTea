@@ -1,0 +1,26 @@
+{
+    "name": "H2 MilkTea POS",
+    "short_name": "H2 MilkTea POS",
+    "description": "Phần mềm quản lý bán hàng H2 MilkTea",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#ffffff",
+    "icons": [
+        {
+            "src": "logo1.png",
+            "sizes": "64x64 32x32 24x24 16x16",
+            "type": "image/x-icon"
+        },
+        {
+            "src": "logo1.png",
+            "type": "image/png",
+            "sizes": "192x192"
+        },
+        {
+            "src": "logo1.png",
+            "type": "image/png",
+            "sizes": "512x512"
+        }
+    ]
+}

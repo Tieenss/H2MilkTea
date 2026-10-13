@@ -1,0 +1,1773 @@
+'use client';
+
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import {
+  Plus, Edit, Trash, X, Eye, EyeOff,
+  ChevronDown, UserPlus, Users, Shield, Mail, User, CalendarIcon,
+  Briefcase, ArrowUpDown, CheckCircle2, MoreHorizontal, Check,
+  Phone, MapPin, FileText,
+  Save, Loader2
+} from 'lucide-react';
+
+// TanStack Table imports
+import {
+  ColumnDef,
+  ColumnFiltersState,
+  SortingState,
+  VisibilityState,
+  flexRender,
+  getCoreRowModel,
+  getFacetedRowModel,
+  getFacetedUniqueValues,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from '@tanstack/react-table';
+import type { Table } from '@tanstack/react-table';
+import { DataTableFacetedFilter } from '@/components/ui/DataTableFacetedFilter';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Calendar } from '@/components/ui/calendar';
+
+import {
+  Table as ShadcnTable,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from '@/components/ui/command';
+import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
+import { vi } from 'date-fns/locale';
+import toast from 'react-hot-toast';
+import authUtils from '@/utils/authUtils';
+
+// Types
+interface Employee {
+  username: string;
+  password: string;
+  'Họ và Tên': string;
+  'Chức vụ': string;
+  'Phòng': string;
+  'Email': string;
+  'Image': string;
+  'Phân quyền': string;
+  'Quyền View': string;
+  'Số điện thoại': string;
+  'Địa chỉ': string;
+  'Ngày sinh': string;
+  'Ngày vào làm': string;
+  'Ghi chú': string;
+  [key: string]: any;
+}
+
+// Filter options
+const roles = [
+  { value: 'Admin', label: 'Admin', icon: Shield },
+  { value: 'Giám đốc', label: 'Giám đốc', icon: Briefcase },
+  { value: 'Nhân viên', label: 'Nhân viên', icon: User }
+];
+
+// Debounce hook for search optimization
+function useDebounce(value: string, delay: number) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
+// Lazy Image Component với memo
+const LazyImage = React.memo<{
+  src: string;
+  alt: string;
+  className?: string;
+}>(({ src, alt, className }) => {
+  const [imageSrc, setImageSrc] = useState<string>('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    if (src && src.trim() !== '') {
+      setLoading(true);
+      setError(false);
+
+      const img = new Image();
+      img.onload = () => {
+        setImageSrc(src);
+        setLoading(false);
+      };
+      img.onerror = () => {
+        setError(true);
+        setLoading(false);
+      };
+      img.src = src;
+    } else {
+      setLoading(false);
+      setError(true);
+    }
+  }, [src]);
+
+  if (loading) {
+    return (
+      <div className={cn("animate-pulse bg-gray-200 rounded-full", className)} />
+    );
+  }
+
+  if (error || !imageSrc) {
+    return null; // Để AvatarFallback handle
+  }
+
+  return (
+    <img
+      src={imageSrc}
+      alt={alt}
+      className={className}
+      onError={() => setError(true)}
+    />
+  );
+});
+
+LazyImage.displayName = 'LazyImage';
+
+// Editable Select Component với memo
+interface EditableSelectProps {
+  value: string;
+  onValueChange: (value: string) => void;
+  options: string[];
+  placeholder: string;
+  label: string;
+}
+
+const EditableSelect = React.memo<EditableSelectProps>(({
+  value,
+  onValueChange,
+  options,
+  placeholder,
+  label
+}) => {
+  const [open, setOpen] = useState(false);
+  const [inputValue, setInputValue] = useState(value);
+
+  useEffect(() => {
+    setInputValue(value);
+  }, [value]);
+
+  const handleSelect = useCallback((selectedValue: string) => {
+    setInputValue(selectedValue);
+    onValueChange(selectedValue);
+    setOpen(false);
+  }, [onValueChange]);
+
+  const handleInputChange = useCallback((newValue: string) => {
+    setInputValue(newValue);
+    onValueChange(newValue);
+  }, [onValueChange]);
+
+  return (
+    <div>
+      <Label>{label}</Label>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className="w-full justify-between"
+          >
+            <Input
+              value={inputValue}
+              onChange={(e) => handleInputChange(e.target.value)}
+              placeholder={placeholder}
+              className="border-none p-0 h-auto focus-visible:ring-0"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-full p-0">
+          <Command>
+            <CommandInput placeholder={`Tìm kiếm ${label.toLowerCase()}...`} />
+            <CommandEmpty>
+              <div className="p-2 text-sm text-muted-foreground">
+                Không tìm thấy. Nhập trực tiếp để thêm mới.
+              </div>
+            </CommandEmpty>
+            <CommandGroup>
+              {options.map((option) => (
+                <CommandItem
+                  key={option}
+                  value={option}
+                  onSelect={() => handleSelect(option)}
+                >
+                  <CheckCircle2
+                    className={cn(
+                      "mr-2 h-4 w-4",
+                      value === option ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  {option}
+                </CommandItem>
+              ))}
+              {inputValue && !options.includes(inputValue) && (
+                <CommandItem
+                  value={inputValue}
+                  onSelect={() => handleSelect(inputValue)}
+                  className="border-t"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Thêm mới: "{inputValue}"
+                </CommandItem>
+              )}
+            </CommandGroup>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+});
+
+EditableSelect.displayName = 'EditableSelect';
+
+// DatePicker Component với memo
+interface DatePickerProps {
+  date?: Date;
+  onDateChange: (date: Date | undefined) => void;
+  placeholder?: string;
+  label?: string;
+  required?: boolean;
+}
+
+const DatePicker = React.memo<DatePickerProps>(({
+  date,
+  onDateChange,
+  placeholder = "Chọn ngày",
+  label,
+  required = false
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const handleDateSelect = useCallback((selectedDate: Date | undefined) => {
+    onDateChange(selectedDate);
+    setIsOpen(false);
+  }, [onDateChange]);
+
+  return (
+    <div className="space-y-2">
+      {label && (
+        <Label>
+          {label} {required && <span className="text-red-500">*</span>}
+        </Label>
+      )}
+      <Popover open={isOpen} onOpenChange={setIsOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            className={cn(
+              "w-full justify-start text-left font-normal",
+              !date && "text-muted-foreground"
+            )}
+          >
+            <CalendarIcon className="mr-2 h-4 w-4" />
+            {date ? format(date, "dd/MM/yyyy", { locale: vi }) : placeholder}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <Calendar
+            mode="single"
+            selected={date}
+            onSelect={handleDateSelect}
+            disabled={(date) =>
+              date > new Date() || date < new Date("1900-01-01")
+            }
+            initialFocus
+            locale={vi}
+          />
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+});
+
+DatePicker.displayName = 'DatePicker';
+
+// =================================================================================
+// DATA TABLE COMPONENTS
+// =================================================================================
+
+interface DataTableToolbarProps<TData> {
+  table: Table<TData>;
+  departments: string[];
+  positions: string[];
+  onAddNew: () => void;
+  isAdmin: boolean;
+  isManager: boolean;
+  searchValue: string;
+  onSearchChange: (value: string) => void;
+}
+
+const DataTableToolbar = React.memo<DataTableToolbarProps<any>>(({
+  table,
+  departments,
+  positions,
+  onAddNew,
+  isAdmin,
+  isManager,
+  searchValue,
+  onSearchChange
+}) => {
+  const isFiltered = table.getState().columnFilters.length > 0 || 
+                    (table.getState().globalFilter && table.getState().globalFilter.length > 0);
+
+  const departmentOptions = useMemo(() =>
+    departments.map(dept => ({ label: dept, value: dept })),
+    [departments]
+  );
+
+  const positionOptions = useMemo(() =>
+    positions.map(pos => ({ label: pos, value: pos })),
+    [positions]
+  );
+
+  const handleSearchChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    onSearchChange(event.target.value);
+  }, [onSearchChange]);
+
+  const handleResetFilters = useCallback(() => {
+    table.resetColumnFilters();
+    table.setGlobalFilter('');
+    onSearchChange('');
+  }, [table, onSearchChange]);
+
+  return (
+    <div className="flex flex-col space-y-3 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
+      <div className="flex flex-1 flex-col space-y-2 sm:flex-row sm:items-center sm:space-x-2 sm:space-y-0">
+        <Input
+          placeholder="Tìm kiếm nhân viên..."
+          value={searchValue}
+          onChange={handleSearchChange}
+          className="h-8 w-full sm:w-[150px] lg:w-[250px]"
+        />
+
+        <div className="flex flex-wrap gap-2">
+          {table.getColumn('Phân quyền') && (
+            <DataTableFacetedFilter
+              column={table.getColumn('Phân quyền')}
+              title="Phân quyền"
+              options={roles}
+            />
+          )}
+          {table.getColumn('Phòng') && (
+            <DataTableFacetedFilter
+              column={table.getColumn('Phòng')}
+              title="Phòng ban"
+              options={departmentOptions}
+            />
+          )}
+          {table.getColumn('Chức vụ') && (
+            <DataTableFacetedFilter
+              column={table.getColumn('Chức vụ')}
+              title="Chức vụ"
+              options={positionOptions}
+            />
+          )}
+          {isFiltered && (
+            <Button
+              variant="ghost"
+              onClick={handleResetFilters}
+              className="h-8 px-2 lg:px-3"
+            >
+              Xóa
+              <X className="ml-2 h-4 w-4" />
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <div className="flex items-center space-x-2">
+        {(isAdmin || isManager) && (
+          <Button
+            onClick={onAddNew}
+            size="sm"
+            className="bg-blue-600 hover:bg-blue-700 flex items-center gap-1"
+          >
+            <UserPlus className="w-4 h-4" />
+            <span className="hidden sm:inline">Thêm nhân viên</span>
+            <span className="sm:hidden">Thêm</span>
+          </Button>
+        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="h-8">
+              <ChevronDown className="mr-2 h-4 w-4" />
+              <span className="hidden lg:inline">Hiển thị</span>
+              <span className="lg:hidden">Cột</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-[150px]">
+            <DropdownMenuLabel>Bật/tắt cột</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {table
+              .getAllColumns()
+              .filter((column) => column.getCanHide())
+              .map((column) => {
+                const headerText = {
+                  'Họ và Tên': 'Họ và tên',
+                  'username': 'Tài khoản',
+                  'Email': 'Email',
+                  'Chức vụ': 'Chức vụ',
+                  'Phòng': 'Phòng ban',
+                  'Phân quyền': 'Phân quyền',
+                  'Số điện thoại': 'Số điện thoại'
+                }[column.id] || column.id;
+                return (
+                  <DropdownMenuCheckboxItem
+                    key={column.id}
+                    className="capitalize"
+                    checked={column.getIsVisible()}
+                    onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                  >
+                    {headerText}
+                  </DropdownMenuCheckboxItem>
+                );
+              })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
+  );
+});
+
+DataTableToolbar.displayName = 'DataTableToolbar';
+
+interface DataTableProps<TData, TValue> {
+  columns: ColumnDef<TData, TValue>[];
+  data: TData[];
+  departments: string[];
+  positions: string[];
+  onAddNew: () => void;
+  isAdmin: boolean;
+  isManager: boolean;
+  searchValue: string;
+  onSearchChange: (value: string) => void;
+}
+
+const DataTable = React.memo<DataTableProps<any, any>>(({
+  columns,
+  data,
+  departments,
+  positions,
+  onAddNew,
+  isAdmin,
+  isManager,
+  searchValue,
+  onSearchChange
+}) => {
+  const [rowSelection, setRowSelection] = useState({})
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
+    'select': true,
+    'Họ và Tên': true,
+    'username': true,
+    'Chức vụ': true,
+    'Phòng': true,
+    'Phân quyền': true,
+    'Số điện thoại': false, // Ẩn mặc định
+    'actions': true
+  })
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const [sorting, setSorting] = useState<SortingState>([])
+  const [globalFilter, setGlobalFilter] = useState<string>('')
+
+  // Load column visibility từ localStorage
+  useEffect(() => {
+    const savedVisibility = localStorage.getItem('employee-table-visibility');
+    if (savedVisibility) {
+      try {
+        const parsed = JSON.parse(savedVisibility);
+        setColumnVisibility(parsed);
+      } catch (error) {
+        console.error('Error loading column visibility:', error);
+      }
+    }
+  }, []);
+
+  // Save column visibility to localStorage
+  useEffect(() => {
+    localStorage.setItem('employee-table-visibility', JSON.stringify(columnVisibility));
+  }, [columnVisibility]);
+
+  const table = useReactTable({
+    data,
+    columns,
+    state: { 
+      sorting, 
+      columnVisibility, 
+      rowSelection, 
+      columnFilters,
+      globalFilter
+    },
+    enableRowSelection: true,
+    onRowSelectionChange: setRowSelection,
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    onColumnVisibilityChange: setColumnVisibility,
+    onGlobalFilterChange: setGlobalFilter,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFacetedRowModel: getFacetedRowModel(),
+    getFacetedUniqueValues: getFacetedUniqueValues(),
+    globalFilterFn: (row, columnId, value) => {
+      const search = value.toLowerCase()
+      return (
+        row.original['Họ và Tên']?.toLowerCase().includes(search) ||
+        row.original['username']?.toLowerCase().includes(search) ||
+        row.original['Email']?.toLowerCase().includes(search) ||
+        row.original['Chức vụ']?.toLowerCase().includes(search) ||
+        row.original['Phòng']?.toLowerCase().includes(search) ||
+        row.original['Số điện thoại']?.toLowerCase().includes(search) ||
+        row.original['Địa chỉ']?.toLowerCase().includes(search)
+      )
+    }
+  });
+
+  // Update global filter when searchValue changes
+  useEffect(() => {
+    setGlobalFilter(searchValue);
+  }, [searchValue]);
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex-shrink-0 mb-4">
+        <DataTableToolbar
+          table={table}
+          departments={departments}
+          positions={positions}
+          onAddNew={onAddNew}
+          isAdmin={isAdmin}
+          isManager={isManager}
+          searchValue={searchValue}
+          onSearchChange={onSearchChange}
+        />
+      </div>
+
+      <div className="flex-1 rounded-md border overflow-hidden">
+        <div className="h-full overflow-auto">
+          <ShadcnTable>
+            <TableHeader className="sticky top-0 bg-white z-10 border-b">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => {
+                    return (
+                      <TableHead key={header.id} className="bg-gray-50">
+                        {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                      </TableHead>
+                    );
+                  })}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows?.length ? (
+                table.getRowModel().rows.map((row) => (
+                  <TableRow key={row.id} data-state={row.getIsSelected() && 'selected'}>
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={columns.length} className="h-24 text-center">
+                    Không có kết quả.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </ShadcnTable>
+        </div>
+      </div>
+
+      <div className="flex-shrink-0 flex items-center justify-end space-x-2 py-4 border-t bg-white">
+        <div className="flex-1 text-sm text-muted-foreground">
+          {table.getFilteredSelectedRowModel().rows.length} của{' '}
+          {table.getFilteredRowModel().rows.length} dòng được chọn.
+        </div>
+        <div className="space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+          >
+            Trước
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+          >
+            Sau
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  return (
+    prevProps.data.length === nextProps.data.length &&
+    prevProps.isAdmin === nextProps.isAdmin &&
+    prevProps.isManager === nextProps.isManager &&
+    prevProps.searchValue === nextProps.searchValue &&
+    JSON.stringify(prevProps.data) === JSON.stringify(nextProps.data) &&
+    JSON.stringify(prevProps.departments) === JSON.stringify(nextProps.departments) &&
+    JSON.stringify(prevProps.positions) === JSON.stringify(nextProps.positions)
+  );
+});
+
+DataTable.displayName = 'DataTable';
+
+// =================================================================================
+// COLUMN DEFINITIONS
+// =================================================================================
+
+interface GetColumnsProps {
+  onEdit: (employee: Employee) => void;
+  onDelete: (employee: Employee) => void;
+  isAdmin: boolean;
+  isManager: boolean;
+}
+
+export const getColumns = ({ onEdit, onDelete, isAdmin, isManager }: GetColumnsProps): ColumnDef<Employee>[] => [
+  {
+    id: 'select',
+    header: ({ table }) => (
+      <Checkbox
+        checked={
+          table.getIsAllPageRowsSelected() ||
+          (table.getIsSomePageRowsSelected() && "indeterminate")
+        }
+        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        aria-label="Select all"
+        className="translate-y-[2px]"
+      />
+    ),
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={(value) => row.toggleSelected(!!value)}
+        aria-label="Select row"
+        className="translate-y-[2px]"
+      />
+    ),
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'Họ và Tên',
+    id: 'Họ và Tên',
+    header: ({ column }) => (
+      <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>
+        Họ và tên
+        <ArrowUpDown className="ml-2 h-4 w-4" />
+      </Button>
+    ),
+    cell: ({ row }) => {
+      const employee = row.original;
+      return (
+        <div className="flex items-center">
+          <Avatar className="h-10 w-10 mr-3">
+            <AvatarImage
+              src={employee['Image'] || ''}
+              alt={employee['Họ và Tên']}
+              className="object-cover"
+            />
+            <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white font-semibold">
+              {employee['Họ và Tên']?.[0]?.toUpperCase() || '?'}
+            </AvatarFallback>
+          </Avatar>
+          <div>
+            <div className="font-medium">{row.getValue('Họ và Tên')}</div>
+            <div className="text-sm text-gray-500 flex items-center">
+              <Mail className="w-3 h-3 mr-1" />
+              {employee['Email'] || 'Chưa cập nhật'}
+            </div>
+          </div>
+        </div>
+      );
+    },
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'username',
+    id: 'username',
+    header: 'Tài khoản',
+    cell: ({ row }) => (
+      <div className="flex items-center">
+        <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center mr-3">
+          <User className="w-4 h-4 text-blue-600" />
+        </div>
+        <div>
+          <div className="font-medium">{row.getValue('username')}</div>
+          <div className="text-xs text-gray-500">Tài khoản đăng nhập</div>
+        </div>
+      </div>
+    ),
+    enableHiding: true,
+  },
+  {
+    accessorKey: 'Chức vụ',
+    id: 'Chức vụ',
+    header: 'Chức vụ',
+    cell: ({ row }) => {
+      const employee = row.original;
+      return (
+        <div className="space-y-1">
+          <div className="text-sm font-medium text-gray-900 flex items-center">
+            <Briefcase className="w-3 h-3 mr-2 text-blue-600" />
+            {employee['Chức vụ'] || 'Chưa cập nhật'}
+          </div>
+        </div>
+      );
+    },
+    filterFn: (row, id, value) => {
+      const cellValue = row.getValue(id);
+      return Array.isArray(value) ? (value.length === 0 || value.includes(cellValue)) : true;
+    },
+    enableHiding: true,
+  },
+  {
+    accessorKey: 'Phòng',
+    id: 'Phòng',
+    header: 'Phòng ban',
+    cell: ({ row }) => <Badge variant="secondary">{row.getValue('Phòng') || 'Chưa cập nhật'}</Badge>,
+    filterFn: (row, id, value) => {
+      const cellValue = row.getValue(id);
+      return Array.isArray(value) ? (value.length === 0 || value.includes(cellValue)) : true;
+    },
+    enableHiding: true,
+  },
+  {
+    accessorKey: 'Phân quyền',
+    id: 'Phân quyền',
+    header: 'Phân quyền',
+    cell: ({ row }) => {
+      const role = roles.find((r) => r.value === row.getValue('Phân quyền'));
+      if (!role) return null;
+      return (
+        <div className="flex w-[120px] items-center">
+          {role.icon && (<role.icon className="mr-2 h-4 w-4 text-muted-foreground" />)}
+          <Badge
+            variant={
+              role.value === 'Admin' ? 'destructive' :
+                role.value === 'Giám đốc' ? 'default' : 'secondary'
+            }
+          >
+            {role.label}
+          </Badge>
+        </div>
+      );
+    },
+    filterFn: (row, id, value) => {
+      const cellValue = row.getValue(id);
+      return Array.isArray(value) ? (value.length === 0 || value.includes(cellValue)) : true;
+    },
+    enableHiding: true,
+  },
+  {
+    accessorKey: 'Số điện thoại',
+    id: 'Số điện thoại',
+    header: 'Liên hệ',
+    cell: ({ row }) => {
+      const employee = row.original;
+      return (
+        <div className="space-y-1">
+          <div className="text-sm text-gray-900 flex items-center">
+            <Phone className="w-3 h-3 mr-2 text-green-600" />
+            {employee['Số điện thoại'] || 'Chưa cập nhật'}
+          </div>
+          <div className="text-sm text-gray-500 flex items-center">
+            <MapPin className="w-3 h-3 mr-2 text-blue-600" />
+            <span className="truncate max-w-32">
+              {employee['Địa chỉ'] || 'Chưa cập nhật'}
+            </span>
+          </div>
+        </div>
+      );
+    },
+    enableHiding: true,
+  },
+  {
+    id: 'actions',
+    enableHiding: false,
+    cell: ({ row }) => {
+      const employee = row.original;
+      const [isAlertDialogOpen, setIsAlertDialogOpen] = useState(false);
+
+      if (!isAdmin && !isManager) return null;
+
+      return (
+      <AlertDialog open={isAlertDialogOpen} onOpenChange={setIsAlertDialogOpen}>
+         <DropdownMenu>
+           <DropdownMenuTrigger asChild>
+             <Button variant="ghost" className="h-8 w-8 p-0">
+               <span className="sr-only">Open menu</span>
+               <MoreHorizontal className="h-4 w-4" />
+             </Button>
+           </DropdownMenuTrigger>
+           <DropdownMenuContent align="end">
+             <DropdownMenuLabel>Hành động</DropdownMenuLabel>
+             <DropdownMenuItem onClick={() => onEdit(employee)}>
+               <Edit className="mr-2 h-4 w-4" />
+               <span>Chỉnh sửa</span>
+             </DropdownMenuItem>
+             <DropdownMenuSeparator />
+             <AlertDialogTrigger asChild>
+               <DropdownMenuItem className="text-red-600 focus:text-red-600 focus:bg-red-50">
+                 <Trash className="mr-2 h-4 w-4" />
+                 <span>Xóa</span>
+               </DropdownMenuItem>
+             </AlertDialogTrigger>
+           </DropdownMenuContent>
+         </DropdownMenu>
+         <AlertDialogContent>
+           <AlertDialogHeader>
+             <AlertDialogTitle>Xác nhận xóa</AlertDialogTitle>
+             <AlertDialogDescription>
+               Bạn có chắc chắn muốn xóa nhân viên "{employee['Họ và Tên']}"? Hành động này không thể hoàn tác.
+             </AlertDialogDescription>
+           </AlertDialogHeader>
+           <AlertDialogFooter>
+             <AlertDialogCancel>Hủy</AlertDialogCancel>
+             <AlertDialogAction
+               onClick={() => {
+                 onDelete(employee);
+                 setIsAlertDialogOpen(false);
+               }}
+               className="bg-red-600 hover:bg-red-700"
+             >
+               Xóa
+             </AlertDialogAction>
+           </AlertDialogFooter>
+         </AlertDialogContent>
+       </AlertDialog>
+     );
+   },
+ },
+];
+
+// =================================================================================
+// MAIN COMPONENT
+// =================================================================================
+const EmployeeManagement: React.FC = () => {
+ const router = useRouter();
+
+ // State Management
+ const [employees, setEmployees] = useState<Employee[]>([]);
+ const [currentEmployee, setCurrentEmployee] = useState<Employee>({
+   'Họ và Tên': '',
+   'Chức vụ': '',
+   'Phòng': '',
+   'username': '',
+   'password': '123',
+   'Phân quyền': 'Nhân viên',
+   'Email': '',
+   'Image': '',
+   'Quyền View': '',
+   'Số điện thoại': '',
+   'Địa chỉ': '',
+   'Ngày sinh': '',
+   'Ngày vào làm': '',
+   'Ghi chú': ''
+ });
+ const [birthDate, setBirthDate] = useState<Date | undefined>();
+ const [startDate, setStartDate] = useState<Date | undefined>();
+ const [showModal, setShowModal] = useState<boolean>(false);
+ const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+ const [isEditMode, setIsEditMode] = useState<boolean>(false);
+ const [selectedImage, setSelectedImage] = useState<string | null>(null);
+ const [showPassword, setShowPassword] = useState<boolean>(false);
+ const [isAdmin, setIsAdmin] = useState<boolean>(false);
+ const [isManager, setIsManager] = useState<boolean>(false);
+ const [isDragging, setIsDragging] = useState<boolean>(false);
+ const [loading, setLoading] = useState<boolean>(true);
+ const [searchTerm, setSearchTerm] = useState<string>('');
+
+ // Refs
+ const dropZoneRef = useRef<HTMLDivElement>(null);
+
+ // Debounced search
+ const debouncedSearchTerm = useDebounce(searchTerm, 300);
+
+ // Utility functions
+ const dateToString = useCallback((date: Date | undefined): string => {
+   return date ? format(date, 'yyyy-MM-dd') : '';
+ }, []);
+
+ const stringToDate = useCallback((dateString: string): Date | undefined => {
+   if (!dateString) return undefined;
+   try {
+     return new Date(dateString);
+   } catch {
+     return undefined;
+   }
+ }, []);
+
+ // Memoized derived data
+ const departmentsList = useMemo(() =>
+   Array.from(new Set(employees.map(emp => emp['Phòng']).filter(Boolean))),
+   [employees]
+ );
+
+ const positionsList = useMemo(() =>
+   Array.from(new Set(employees.map(emp => emp['Chức vụ']).filter(Boolean))),
+   [employees]
+ );
+
+ // Check user permissions
+ useEffect(() => {
+   const checkUserPermission = () => {
+     const userData = authUtils.getUserData();
+     if (!userData) {
+       router.push('/login');
+       return;
+     }
+
+     const isAdminUser = userData['Phân quyền'] === 'Admin';
+     const isManagerUser = userData['Phân quyền'] === 'Quản lý';
+     setIsAdmin(isAdminUser);
+     setIsManager(isManagerUser);
+   };
+
+   checkUserPermission();
+   fetchEmployees();
+ }, [router]);
+
+ // Fetch employees data (only called once on mount)
+ const fetchEmployees = useCallback(async () => {
+   try {
+     setLoading(true);
+     const response = await authUtils.apiRequest('DSNV', 'Find', {});
+     setEmployees(response || []);
+     toast.success("Đã tải dữ liệu thành công");
+   } catch (error) {
+     console.error('Error fetching employee list:', error);
+     toast.error('Lỗi khi tải danh sách nhân viên');
+   } finally {
+     setLoading(false);
+   }
+ }, []);
+
+ // Optimized update functions - no re-fetch
+ const addEmployeeToState = useCallback((newEmployee: Employee) => {
+   setEmployees(prev => [...prev, newEmployee]);
+ }, []);
+
+ const updateEmployeeInState = useCallback((updatedEmployee: Employee) => {
+   setEmployees(prev => prev.map(emp =>
+     emp.username === updatedEmployee.username ? updatedEmployee : emp
+   ));
+ }, []);
+
+ const removeEmployeeFromState = useCallback((username: string) => {
+   setEmployees(prev => prev.filter(emp => emp.username !== username));
+ }, []);
+
+ // Image upload handler
+ const handleImageUpload = useCallback(async (file: File) => {
+   if (!file) return;
+
+   try {
+     const reader = new FileReader();
+     reader.onloadend = () => {
+       setSelectedImage(reader.result as string);
+     };
+     reader.readAsDataURL(file);
+
+     const toastId = toast.loading("Đang tải ảnh lên...");
+
+     const result = await authUtils.uploadImage(file);
+
+     if (result && result.success && result.url) {
+       handleInputChange('Image', result.url);
+       setSelectedImage(result.url);
+       toast.success("Tải ảnh thành công", { id: toastId });
+     } else {
+       throw new Error("Không thể lấy URL ảnh");
+     }
+   } catch (error) {
+     console.error('Error uploading image:', error);
+     toast.error('Lỗi khi tải ảnh: ' + (error as Error).message);
+     setSelectedImage(null);
+   }
+ }, []);
+
+ // Drag and drop handlers
+ const handleDragEnter = useCallback((e: React.DragEvent) => {
+   e.preventDefault();
+   e.stopPropagation();
+   setIsDragging(true);
+ }, []);
+
+ const handleDragLeave = useCallback((e: React.DragEvent) => {
+   e.preventDefault();
+   e.stopPropagation();
+   setIsDragging(false);
+ }, []);
+
+ const handleDragOver = useCallback((e: React.DragEvent) => {
+   e.preventDefault();
+   e.stopPropagation();
+ }, []);
+
+ const handleDrop = useCallback((e: React.DragEvent) => {
+   e.preventDefault();
+   e.stopPropagation();
+   setIsDragging(false);
+
+   if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+     const file = e.dataTransfer.files[0];
+
+     const validation = authUtils.validateImage(file);
+
+     if (!validation.isValid) {
+       toast.error(validation.errors.join('\n'));
+       return;
+     }
+
+     const reader = new FileReader();
+     reader.onloadend = () => {
+       setSelectedImage(reader.result as string);
+     };
+     reader.readAsDataURL(file);
+
+     handleImageUpload(file);
+   }
+ }, [handleImageUpload]);
+
+ // Modal handlers
+ const handleOpenModal = useCallback((employee: Employee | null = null) => {
+   if (!isAdmin && !isManager) {
+     toast.error('Bạn không có quyền thực hiện chức năng này!');
+     return;
+   }
+
+   if (employee) {
+     setIsEditMode(true);
+     setCurrentEmployee({
+       'Họ và Tên': employee['Họ và Tên'] || '',
+       'Chức vụ': employee['Chức vụ'] || '',
+       'Phòng': employee['Phòng'] || '',
+       'username': employee['username'] || '',
+       'password': employee['password'] || '',
+       'Phân quyền': employee['Phân quyền'] || 'Nhân viên',
+       'Email': employee['Email'] || '',
+       'Image': employee['Image'] || '',
+       'Quyền View': employee['Quyền View'] || '',
+       'Số điện thoại': employee['Số điện thoại'] || '',
+       'Địa chỉ': employee['Địa chỉ'] || '',
+       'Ngày sinh': employee['Ngày sinh'] || '',
+       'Ngày vào làm': employee['Ngày vào làm'] || '',
+       'Ghi chú': employee['Ghi chú'] || ''
+     });
+     setSelectedImage(employee['Image'] || null);
+     setBirthDate(stringToDate(employee['Ngày sinh']));
+     setStartDate(stringToDate(employee['Ngày vào làm']));
+   } else {
+     setIsEditMode(false);
+     setCurrentEmployee({
+       'Họ và Tên': '',
+       'Chức vụ': '',
+       'Phòng': '',
+       'username': '',
+       'password': '123',
+       'Phân quyền': 'Nhân viên',
+       'Email': '',
+       'Image': '',
+       'Quyền View': '',
+       'Số điện thoại': '',
+       'Địa chỉ': '',
+       'Ngày sinh': '',
+       'Ngày vào làm': '',
+       'Ghi chú': ''
+     });
+     setSelectedImage(null);
+     setBirthDate(undefined);
+     setStartDate(undefined);
+   }
+   setShowPassword(false);
+   setShowModal(true);
+ }, [isAdmin, isManager, stringToDate]);
+
+ const handleCloseModal = useCallback(() => {
+   setShowModal(false);
+   setIsEditMode(false);
+   setSelectedImage(null);
+   setBirthDate(undefined);
+   setStartDate(undefined);
+   setCurrentEmployee({
+     'Họ và Tên': '',
+     'Chức vụ': '',
+     'Phòng': '',
+     'username': '',
+     'password': '',
+     'Phân quyền': 'Nhân viên',
+     'Email': '',
+     'Image': '',
+     'Quyền View': '',
+     'Số điện thoại': '',
+     'Địa chỉ': '',
+     'Ngày sinh': '',
+     'Ngày vào làm': '',
+     'Ghi chú': ''
+   });
+ }, []);
+
+ // Form handlers
+ const handleInputChange = useCallback((field: string, value: string) => {
+   setCurrentEmployee(prev => ({
+     ...prev,
+     [field]: value
+   }));
+ }, []);
+
+ const handleImageChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+   if (event.target.files && event.target.files[0]) {
+     const file = event.target.files[0];
+
+     const validation = authUtils.validateImage(file);
+
+     if (!validation.isValid) {
+       toast.error(validation.errors.join('\n'));
+       return;
+     }
+
+     const reader = new FileReader();
+     reader.onloadend = () => {
+       setSelectedImage(reader.result as string);
+     };
+     reader.readAsDataURL(file);
+
+     handleImageUpload(file);
+   }
+ }, [handleImageUpload]);
+
+ const validateEmployee = useCallback((employee: Employee): string[] => {
+   const errors: string[] = [];
+   if (!employee['Họ và Tên']) errors.push('Họ và tên không được để trống');
+   if (!employee['username']) errors.push('Tên đăng nhập không được để trống');
+   if (!isEditMode && !employee['password']) errors.push('Mật khẩu không được để trống');
+   if (!employee['Email']) errors.push('Email không được để trống');
+
+   if (employee['Số điện thoại'] && !/^[0-9+\-\s()]+$/.test(employee['Số điện thoại'])) {
+     errors.push('Số điện thoại không hợp lệ');
+   }
+
+   if (employee['Email'] && !/\S+@\S+\.\S+/.test(employee['Email'])) {
+     errors.push('Email không hợp lệ');
+   }
+
+   if (!isEditMode && employee['password'] && employee['password'].length < 6) {
+     errors.push('Mật khẩu phải có ít nhất 6 ký tự');
+   }
+
+   return errors;
+ }, [isEditMode]);
+
+ // Optimized save employee - no re-fetch
+ const handleSaveEmployee = useCallback(async () => {
+   if (isSubmitting || (!isAdmin && !isManager)) {
+     if (!isAdmin && !isManager) {
+       toast.error('Bạn không có quyền thực hiện chức năng này!');
+     }
+     return;
+   }
+
+   try {
+     setIsSubmitting(true);
+
+     const employeeToValidate = {
+       ...currentEmployee,
+       'Ngày sinh': dateToString(birthDate),
+       'Ngày vào làm': dateToString(startDate)
+     };
+
+     const errors = validateEmployee(employeeToValidate);
+     if (errors.length > 0) {
+       toast.error(errors.join('\n'));
+       return;
+     }
+
+     if (!isAdmin && ['Admin', 'Giám đốc'].includes(employeeToValidate['Phân quyền'])) {
+       toast.error('Bạn không có quyền tạo/sửa Admin hoặc Giám đốc!');
+       return;
+     }
+
+     if (isEditMode) {
+       // Update existing employee
+       await authUtils.apiRequest('DSNV', 'Edit', {
+         "Rows": [employeeToValidate]
+       });
+
+       // Update state immediately - no re-fetch
+       updateEmployeeInState(employeeToValidate);
+       toast.success('Cập nhật thông tin nhân viên thành công!');
+     } else {
+       // Check for existing username in current state
+       const exists = employees.some(emp =>
+         emp.username.toLowerCase() === employeeToValidate.username.toLowerCase()
+       );
+
+       if (exists) {
+         toast.error('Tên đăng nhập này đã tồn tại!');
+         return;
+       }
+
+       // Add new employee
+       await authUtils.apiRequest('DSNV', 'Add', {
+         "Rows": [employeeToValidate]
+       });
+
+       // Add to state immediately - no re-fetch
+       addEmployeeToState(employeeToValidate);
+       toast.success('Thêm nhân viên mới thành công!');
+     }
+
+     handleCloseModal();
+   } catch (error) {
+     console.error('Error saving employee:', error);
+     toast.error('Có lỗi xảy ra: ' + ((error as Error).message || 'Không thể lưu thông tin nhân viên'));
+   } finally {
+     setIsSubmitting(false);
+   }
+ }, [
+   isSubmitting, isAdmin, isManager, currentEmployee, birthDate, startDate,
+   validateEmployee, isEditMode, employees, updateEmployeeInState,
+   addEmployeeToState, handleCloseModal, dateToString
+ ]);
+
+ // Optimized delete with optimistic updates
+ const handleDeleteEmployee = useCallback(async (employee: Employee) => {
+   if (!isAdmin && !isManager) {
+     toast.error('Bạn không có quyền xóa nhân viên!');
+     return;
+   }
+
+   if (employee['Phân quyền'] === 'Admin' && !isAdmin) {
+     toast.error('Bạn không có quyền xóa Admin!');
+     return;
+   }
+
+   // Store original state for potential rollback
+   const originalEmployees = employees;
+
+   try {
+     // Optimistic update - remove from UI immediately
+     removeEmployeeFromState(employee.username);
+
+     // Show optimistic feedback
+     const toastId = toast.loading('Đang xóa nhân viên...');
+
+     // Call API
+     await authUtils.apiRequest('DSNV', 'Delete', {
+       "Rows": [{ "username": employee.username }]
+     });
+
+     toast.success('Xóa nhân viên thành công!', { id: toastId });
+   } catch (error) {
+     // Rollback on error
+     setEmployees(originalEmployees);
+     console.error('Error deleting employee:', error);
+     toast.error('Có lỗi xảy ra khi xóa nhân viên');
+   }
+ }, [isAdmin, isManager, employees, removeEmployeeFromState]);
+
+ // Toggle password visibility
+ const togglePasswordVisibility = useCallback(() => {
+   setShowPassword(prev => !prev);
+ }, []);
+
+ // Search handler
+ const handleSearchChange = useCallback((value: string) => {
+   setSearchTerm(value);
+ }, []);
+
+ // Memoized columns to prevent recreation
+ const columns = useMemo(() =>
+   getColumns({
+     onEdit: handleOpenModal,
+     onDelete: handleDeleteEmployee,
+     isAdmin,
+     isManager
+   }),
+   [handleOpenModal, handleDeleteEmployee, isAdmin, isManager]
+ );
+
+ if (loading) {
+   return (
+     <div className="h-full flex items-center justify-center">
+       <div className="animate-pulse space-y-4 w-full max-w-4xl">
+         <div className="h-8 bg-gray-200 rounded w-64 mb-4"></div>
+         <div className="h-64 bg-gray-200 rounded mb-4"></div>
+         <div className="h-96 bg-gray-200 rounded"></div>
+       </div>
+     </div>
+   );
+ }
+
+ return (
+   <div className="h-full flex flex-col space-y-6">
+     {/* Header cố định */}
+     <div className="flex-shrink-0">
+       <div className="flex justify-between items-center">
+         <h2 className="text-3xl font-bold text-gray-800 flex items-center">
+           <Users className="mr-2 h-6 w-6 text-blue-600" />
+           Quản lý nhân viên
+         </h2>
+       </div>
+     </div>
+
+     {/* Data Table với scroll riêng */}
+     <Card className="flex-1 flex flex-col overflow-hidden">
+       <CardHeader className="flex-shrink-0">
+         <CardTitle>Danh sách nhân viên</CardTitle>
+       </CardHeader>
+       <CardContent className="flex-1 flex flex-col overflow-hidden p-6">
+         <DataTable
+           columns={columns}
+           data={employees}
+           departments={departmentsList}
+           positions={positionsList}
+           onAddNew={handleOpenModal}
+           isAdmin={isAdmin}
+           isManager={isManager}
+           searchValue={debouncedSearchTerm}
+           onSearchChange={handleSearchChange}
+         />
+       </CardContent>
+     </Card>
+
+     {/* Add/Edit Employee Modal */}
+     <Dialog open={showModal} onOpenChange={setShowModal}>
+       <DialogContent className="max-w-7xl h-[90vh] flex flex-col p-0">
+         {/* Fixed Header */}
+         <div className="flex-shrink-0 border-b border-gray-200 bg-white">
+           <DialogHeader className="p-6 pb-4">
+             <DialogTitle className="flex items-center">
+               {isEditMode ? (
+                 <>
+                   <Edit className="mr-2 h-5 w-5 text-blue-600" />
+                   Cập nhật thông tin nhân viên
+                 </>
+               ) : (
+                 <>
+                   <UserPlus className="mr-2 h-5 w-5 text-blue-600" />
+                   Thêm nhân viên mới
+                 </>
+               )}
+             </DialogTitle>
+           </DialogHeader>
+         </div>
+
+         {/* Scrollable Content */}
+         <div className="flex-1 overflow-y-auto px-6 py-4">
+           <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+             {/* Column 1 - Basic Information */}
+             <div className="space-y-6">
+               <h3 className="text-sm font-semibold text-gray-700 border-b pb-2">
+                 Thông tin cơ bản
+               </h3>
+
+               <div className="space-y-2">
+                 <Label htmlFor="fullName" className="text-sm font-medium text-gray-700">
+                   Họ và tên <span className="text-red-500">*</span>
+                 </Label>
+                 <Input
+                   id="fullName"
+                   value={currentEmployee['Họ và Tên']}
+                   onChange={(e) => handleInputChange('Họ và Tên', e.target.value)}
+                   placeholder="Nhập họ và tên"
+                   className="h-10"
+                   required
+                 />
+               </div>
+
+               <EditableSelect
+                 value={currentEmployee['Chức vụ']}
+                 onValueChange={(value: string) => handleInputChange('Chức vụ', value)}
+                 options={positionsList}
+                 placeholder="Chọn hoặc nhập chức vụ"
+                 label="Chức vụ"
+               />
+
+               <EditableSelect
+                 value={currentEmployee['Phòng']}
+                 onValueChange={(value: string) => handleInputChange('Phòng', value)}
+                 options={departmentsList}
+                 placeholder="Chọn hoặc nhập phòng ban"
+                 label="Phòng ban"
+               />
+
+               <DatePicker
+                 date={birthDate}
+                 onDateChange={setBirthDate}
+                 placeholder="Chọn ngày sinh"
+                 label="Ngày sinh"
+               />
+
+               <DatePicker
+                 date={startDate}
+                 onDateChange={setStartDate}
+                 placeholder="Chọn ngày vào làm"
+                 label="Ngày vào làm"
+               />
+             </div>
+
+             {/* Column 2 - Contact Information */}
+             <div className="space-y-6">
+               <h3 className="text-sm font-semibold text-gray-700 border-b pb-2">
+                 Thông tin liên hệ
+               </h3>
+
+               <div className="space-y-2">
+                 <Label htmlFor="email" className="text-sm font-medium text-gray-700">
+                   Email <span className="text-red-500">*</span>
+                 </Label>
+                 <div className="relative">
+                   <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                   <Input
+                     id="email"
+                     type="email"
+                     className="pl-10 h-10"
+                     value={currentEmployee['Email']}
+                     onChange={(e) => handleInputChange('Email', e.target.value)}
+                     placeholder="Nhập địa chỉ email"
+                     required
+                   />
+                 </div>
+               </div>
+
+               <div className="space-y-2">
+                 <Label htmlFor="phone" className="text-sm font-medium text-gray-700">
+                   Số điện thoại
+                 </Label>
+                 <div className="relative">
+                   <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                   <Input
+                     id="phone"
+                     type="tel"
+                     className="pl-10 h-10"
+                     value={currentEmployee['Số điện thoại']}
+                     onChange={(e) => handleInputChange('Số điện thoại', e.target.value)}
+                     placeholder="Nhập số điện thoại"
+                   />
+                 </div>
+               </div>
+
+               <div className="space-y-2">
+                 <Label htmlFor="address" className="text-sm font-medium text-gray-700">
+                   Địa chỉ
+                 </Label>
+                 <div className="relative">
+                   <MapPin className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                   <Textarea
+                     id="address"
+                     className="pl-10 resize-none min-h-[100px]"
+                     rows={4}
+                     value={currentEmployee['Địa chỉ']}
+                     onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleInputChange('Địa chỉ', e.target.value)}
+                     placeholder="Nhập địa chỉ"
+                   />
+                 </div>
+               </div>
+
+               <div className="space-y-2">
+                 <Label htmlFor="notes" className="text-sm font-medium text-gray-700">
+                   Ghi chú
+                 </Label>
+                 <div className="relative">
+                   <FileText className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                   <Textarea
+                     id="notes"
+                     className="pl-10 resize-none min-h-[100px]"
+                     rows={4}
+                     value={currentEmployee['Ghi chú']}
+                     onChange={(e) => handleInputChange('Ghi chú', e.target.value)}
+                     placeholder="Nhập ghi chú"
+                   />
+                 </div>
+               </div>
+             </div>
+
+             {/* Column 3 - Account Information */}
+             <div className="space-y-6">
+               <h3 className="text-sm font-semibold text-gray-700 border-b pb-2">
+                 Thông tin tài khoản
+               </h3>
+
+               <div className="space-y-2">
+                 <Label htmlFor="username" className="text-sm font-medium text-gray-700">
+                   Tên đăng nhập <span className="text-red-500">*</span>
+                 </Label>
+                 <div className="relative">
+                   <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                   <Input
+                     id="username"
+                     className={`pl-10 h-10 ${isEditMode ? 'bg-gray-100' : ''}`}
+                     value={currentEmployee['username']}
+                     onChange={(e) => handleInputChange('username', e.target.value)}
+                     placeholder="Nhập tên đăng nhập"
+                     readOnly={isEditMode}
+                     required
+                   />
+                 </div>
+                 {isEditMode && (
+                   <p className="text-xs text-gray-500 mt-1">
+                     Tên đăng nhập không thể thay đổi sau khi đã tạo.
+                   </p>
+                 )}
+               </div>
+
+               <div className="space-y-2">
+                 <Label htmlFor="password" className="text-sm font-medium text-gray-700">
+                   Mật khẩu {!isEditMode && <span className="text-red-500">*</span>}
+                 </Label>
+                 <div className="relative">
+                   <Input
+                     id="password"
+                     type={showPassword ? 'text' : 'password'}
+                     className="pr-10 h-10"
+                     value={currentEmployee['password']}
+                     onChange={(e) => handleInputChange('password', e.target.value)}
+                     placeholder={isEditMode ? 'Nhập để thay đổi mật khẩu' : 'Nhập mật khẩu'}
+                     required={!isEditMode}
+                   />
+                   <Button
+                     type="button"
+                     onClick={togglePasswordVisibility}
+                     variant="ghost"
+                     size="sm"
+                     className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+                   >
+                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                   </Button>
+                 </div>
+                 {isEditMode && (
+                   <p className="text-xs text-gray-500 mt-1">
+                     Để trống nếu không muốn thay đổi mật khẩu.
+                   </p>
+                 )}
+               </div>
+
+               <div className="space-y-3">
+                 <Label className="text-sm font-medium text-gray-700">
+                   Phân quyền <span className="text-red-500">*</span>
+                 </Label>
+                 <div className="space-y-3">
+                   {[
+                     { value: 'Admin', label: 'Admin', desc: 'Quản trị viên hệ thống', icon: Shield, disabled: !isAdmin },
+                     { value: 'Giám đốc', label: 'Giám đốc', desc: 'Quản lý cấp cao', icon: Briefcase, disabled: !isAdmin },
+                     { value: 'Nhân viên', label: 'Nhân viên', desc: 'Người dùng thông thường', icon: User, disabled: false }
+                  ].map((role) => (
+                     <Label key={role.value} className="flex items-start space-x-3 cursor-pointer p-3 border rounded-lg hover:bg-gray-50 transition-colors">
+                       <input
+                         type="radio"
+                         name="role"
+                         value={role.value}
+                         checked={currentEmployee['Phân quyền'] === role.value}
+                         onChange={(e) => handleInputChange('Phân quyền', e.target.value)}
+                         disabled={role.disabled}
+                         className="h-4 w-4 text-blue-600 focus:ring-blue-500 mt-0.5"
+                       />
+                       <div className="flex items-start space-x-2 flex-1">
+                         <role.icon className="h-4 w-4 text-gray-500 mt-0.5 flex-shrink-0" />
+                         <div className="flex-1">
+                           <div className={`font-medium ${role.disabled ? 'text-gray-400' : 'text-gray-700'}`}>
+                             {role.label}
+                           </div>
+                           <div className={`text-xs ${role.disabled ? 'text-gray-300' : 'text-gray-500'}`}>
+                             {role.desc}
+                           </div>
+                         </div>
+                       </div>
+                     </Label>
+                   ))}
+                 </div>
+                 {!isAdmin && (
+                   <p className="text-xs text-red-500 mt-2 flex items-center">
+                     <Shield className="h-3 w-3 mr-1 flex-shrink-0" />
+                     Chỉ Admin mới có quyền tạo/sửa tài khoản Admin và Giám đốc
+                   </p>
+                 )}
+               </div>
+             </div>
+
+             {/* Column 4 - Image Upload */}
+             <div className="space-y-6 xl:block lg:col-span-3 xl:col-span-1">
+               <h3 className="text-sm font-semibold text-gray-700 border-b pb-2">
+                 Hình ảnh
+               </h3>
+
+               <div
+                 ref={dropZoneRef}
+                 onDragEnter={handleDragEnter}
+                 onDragOver={handleDragOver}
+                 onDragLeave={handleDragLeave}
+                 onDrop={handleDrop}
+                 className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer hover:bg-gray-50 ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
+               >
+                 <div className="flex flex-col items-center">
+                   <div className="w-24 h-24 border-2 rounded-full flex items-center justify-center bg-white overflow-hidden mb-4">
+                     {selectedImage && selectedImage.trim() !== '' ? (
+                       <LazyImage
+                         src={selectedImage}
+                         alt="Preview"
+                         className="w-full h-full object-cover rounded-full"
+                       />
+                     ) : (
+                       <User className="h-12 w-12 text-gray-300" />
+                     )}
+                   </div>
+                   <div className="text-sm text-gray-600 mb-2 text-center">
+                     Kéo thả ảnh vào đây hoặc{' '}
+                     <label htmlFor="imageUpload" className="text-blue-600 cursor-pointer hover:underline">
+                       chọn file
+                     </label>
+                   </div>
+                   <input
+                     id="imageUpload"
+                     type="file"
+                     accept="image/*"
+                     onChange={handleImageChange}
+                     className="hidden"
+                   />
+                   <p className="text-xs text-gray-400">PNG, JPG, GIF tối đa 5MB</p>
+
+                   {selectedImage && selectedImage.trim() !== '' && (
+                     <Button
+                       type="button"
+                       variant="outline"
+                       size="sm"
+                       onClick={() => {
+                         setSelectedImage(null);
+                         handleInputChange('Image', '');
+                       }}
+                       className="mt-3 text-xs"
+                     >
+                       <X className="h-3 w-3 mr-1" />
+                       Xóa ảnh
+                     </Button>
+                   )}
+                 </div>
+               </div>
+
+               {/* Additional Info Section */}
+               <div className="bg-blue-50 p-4 rounded-lg">
+                 <h4 className="text-sm font-medium text-blue-900 mb-2">Lưu ý</h4>
+                 <ul className="text-xs text-blue-700 space-y-1">
+                   <li>• Các trường có dấu (*) là bắt buộc</li>
+                   <li>• Email phải là địa chỉ hợp lệ</li>
+                   <li>• Tên đăng nhập không thể thay đổi sau khi tạo</li>
+                   <li>• Hình ảnh nên có tỷ lệ vuông (1:1)</li>
+                 </ul>
+               </div>
+             </div>
+           </div>
+         </div>
+
+         {/* Fixed Footer */}
+         <div className="flex-shrink-0 border-t border-gray-200 bg-white">
+           <DialogFooter className="p-6 pt-4">
+             <div className="flex justify-between items-center w-full">
+               <div className="text-sm text-gray-500">
+                 {/* Space for additional info if needed */}
+               </div>
+               <div className="flex gap-3">
+                 <Button
+                   onClick={handleCloseModal}
+                   variant="outline"
+                   disabled={isSubmitting}
+                 >
+                   <X className="h-4 w-4 mr-2" />
+                   Hủy
+                 </Button>
+                 <Button
+                   onClick={handleSaveEmployee}
+                   disabled={isSubmitting}
+                   className="bg-blue-600 hover:bg-blue-700"
+                 >
+                   {isSubmitting ? (
+                     <>
+                       <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                       Đang lưu...
+                     </>
+                   ) : (
+                     <>
+                       <Save className="h-4 w-4 mr-2" />
+                       {isEditMode ? 'Cập nhật nhân viên' : 'Thêm nhân viên'}
+                     </>
+                   )}
+                 </Button>
+               </div>
+             </div>
+           </DialogFooter>
+         </div>
+       </DialogContent>
+     </Dialog>
+   </div>
+ );
+};
+
+export default EmployeeManagement;

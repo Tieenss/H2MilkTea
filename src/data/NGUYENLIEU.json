@@ -1,0 +1,522 @@
+[
+    {
+        "_RowNumber": "2",
+        "IDNguyenLieu": "NVL001",
+        "Tên nguyên liệu": "Cà phê hạt Robusta",
+        "Đơn vị tính": "Kg",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "5",
+        "Đơn vị cơ sở": "Gram",
+        "Hệ số quy đổi": "1000"
+    },
+    {
+        "_RowNumber": "3",
+        "IDNguyenLieu": "NVL002",
+        "Tên nguyên liệu": "Sữa tươi không đường",
+        "Đơn vị tính": "Hộp 1L",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "10",
+        "Đơn vị cơ sở": "Ml",
+        "Hệ số quy đổi": "1000"
+    },
+    {
+        "_RowNumber": "4",
+        "IDNguyenLieu": "NVL003",
+        "Tên nguyên liệu": "Sữa đặc có đường",
+        "Đơn vị tính": "Lon",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "24",
+        "Đơn vị cơ sở": "Cái",
+        "Hệ số quy đổi": "1"
+    },
+    {
+        "_RowNumber": "5",
+        "IDNguyenLieu": "NVL004",
+        "Tên nguyên liệu": "Syrup Caramel",
+        "Đơn vị tính": "Chai 750ml",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "2",
+        "Đơn vị cơ sở": "Ml",
+        "Hệ số quy đổi": "750"
+    },
+    {
+        "_RowNumber": "6",
+        "IDNguyenLieu": "NVL005",
+        "Tên nguyên liệu": "Trà đen (Hồng trà)",
+        "Đơn vị tính": "Túi 500g",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "3",
+        "Đơn vị cơ sở": "Gram",
+        "Hệ số quy đổi": "500"
+    },
+    {
+        "_RowNumber": "7",
+        "IDNguyenLieu": "NVL006",
+        "Tên nguyên liệu": "Bột Matcha Nhật Bản",
+        "Đơn vị tính": "Túi 100g",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "5",
+        "Đơn vị cơ sở": "Gram",
+        "Hệ số quy đổi": "100"
+    },
+    {
+        "_RowNumber": "8",
+        "IDNguyenLieu": "NVL007",
+        "Tên nguyên liệu": "Bột Frappe (Bột nền)",
+        "Đơn vị tính": "Túi 1Kg",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "2",
+        "Đơn vị cơ sở": "Gram",
+        "Hệ số quy đổi": "1000"
+    },
+    {
+        "_RowNumber": "9",
+        "IDNguyenLieu": "NVL008",
+        "Tên nguyên liệu": "Chanh tươi không hạt",
+        "Đơn vị tính": "Kg",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "2",
+        "Đơn vị cơ sở": "Gram",
+        "Hệ số quy đổi": "1000"
+    },
+    {
+        "_RowNumber": "10",
+        "IDNguyenLieu": "NVL009",
+        "Tên nguyên liệu": "Đường cát trắng",
+        "Đơn vị tính": "Kg",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "10",
+        "Đơn vị cơ sở": "Gram",
+        "Hệ số quy đổi": "1000"
+    },
+    {
+        "_RowNumber": "11",
+        "IDNguyenLieu": "NVL010",
+        "Tên nguyên liệu": "Ly nhựa PET 500ml",
+        "Đơn vị tính": "Cây 50 cái",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "20",
+        "Đơn vị cơ sở": "Cái",
+        "Hệ số quy đổi": "50"
+    },
+    {
+        "_RowNumber": "12",
+        "IDNguyenLieu": "NVL011",
+        "Tên nguyên liệu": "Thùng carton đựng ly",
+        "Đơn vị tính": "Thùng",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "5",
+        "Đơn vị cơ sở": "Cái",
+        "Hệ số quy đổi": "1000"
+    },
+    {
+        "_RowNumber": "13",
+        "IDNguyenLieu": "NVL012",
+        "Tên nguyên liệu": "Nắp ly nhựa có lỗ hút",
+        "Đơn vị tính": "Túi 100 cái",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "15",
+        "Đơn vị cơ sở": "Cái",
+        "Hệ số quy đổi": "100"
+    },
+    {
+        "_RowNumber": "14",
+        "IDNguyenLieu": "NVL013",
+        "Tên nguyên liệu": "Cà phê hạt Arabica",
+        "Đơn vị tính": "Kg",
+        "Ghi chú": "Vùng Cầu Đất",
+        "Số lượng cảnh báo": "5",
+        "Đơn vị cơ sở": "Gram",
+        "Hệ số quy đổi": "1000"
+    },
+    {
+        "_RowNumber": "15",
+        "IDNguyenLieu": "NVL014",
+        "Tên nguyên liệu": "Trà Oolong",
+        "Đơn vị tính": "Túi 500g",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "3",
+        "Đơn vị cơ sở": "Gram",
+        "Hệ số quy đổi": "500"
+    },
+    {
+        "_RowNumber": "16",
+        "IDNguyenLieu": "NVL015",
+        "Tên nguyên liệu": "Bột Cacao nguyên chất",
+        "Đơn vị tính": "Túi 500g",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "4",
+        "Đơn vị cơ sở": "Gram",
+        "Hệ số quy đổi": "500"
+    },
+    {
+        "_RowNumber": "17",
+        "IDNguyenLieu": "NVL016",
+        "Tên nguyên liệu": "Syrup Vani",
+        "Đơn vị tính": "Chai 750ml",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "2",
+        "Đơn vị cơ sở": "Ml",
+        "Hệ số quy đổi": "750"
+    },
+    {
+        "_RowNumber": "18",
+        "IDNguyenLieu": "NVL017",
+        "Tên nguyên liệu": "Syrup Dâu",
+        "Đơn vị tính": "Chai 750ml",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "2",
+        "Đơn vị cơ sở": "Ml",
+        "Hệ số quy đổi": "750"
+    },
+    {
+        "_RowNumber": "19",
+        "IDNguyenLieu": "NVL018",
+        "Tên nguyên liệu": "Dâu tây tươi",
+        "Đơn vị tính": "Kg",
+        "Ghi chú": "Bảo quản lạnh",
+        "Số lượng cảnh báo": "1",
+        "Đơn vị cơ sở": "Gram",
+        "Hệ số quy đổi": "1000"
+    },
+    {
+        "_RowNumber": "20",
+        "IDNguyenLieu": "NVL019",
+        "Tên nguyên liệu": "Xoài tươi",
+        "Đơn vị tính": "Kg",
+        "Ghi chú": "Bảo quản lạnh",
+        "Số lượng cảnh báo": "1",
+        "Đơn vị cơ sở": "Gram",
+        "Hệ số quy đổi": "1000"
+    },
+    {
+        "_RowNumber": "21",
+        "IDNguyenLieu": "NVL020",
+        "Tên nguyên liệu": "Chanh dây",
+        "Đơn vị tính": "Kg",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "2",
+        "Đơn vị cơ sở": "Gram",
+        "Hệ số quy đổi": "1000"
+    },
+    {
+        "_RowNumber": "22",
+        "IDNguyenLieu": "NVL021",
+        "Tên nguyên liệu": "Sữa chua không đường",
+        "Đơn vị tính": "Thùng 12 hộp",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "3",
+        "Đơn vị cơ sở": "Hộp",
+        "Hệ số quy đổi": "12"
+    },
+    {
+        "_RowNumber": "23",
+        "IDNguyenLieu": "NVL022",
+        "Tên nguyên liệu": "Trân châu đen",
+        "Đơn vị tính": "Túi 1Kg",
+        "Ghi chú": "Chưa luộc",
+        "Số lượng cảnh báo": "5",
+        "Đơn vị cơ sở": "Gram",
+        "Hệ số quy đổi": "1000"
+    },
+    {
+        "_RowNumber": "24",
+        "IDNguyenLieu": "NVL023",
+        "Tên nguyên liệu": "Thạch dừa",
+        "Đơn vị tính": "Hộp 2Kg",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "3",
+        "Đơn vị cơ sở": "Gram",
+        "Hệ số quy đổi": "2000"
+    },
+    {
+        "_RowNumber": "25",
+        "IDNguyenLieu": "NVL024",
+        "Tên nguyên liệu": "Bột khoai môn",
+        "Đơn vị tính": "Túi 1Kg",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "2",
+        "Đơn vị cơ sở": "Gram",
+        "Hệ số quy đổi": "1000"
+    },
+    {
+        "_RowNumber": "26",
+        "IDNguyenLieu": "NVL025",
+        "Tên nguyên liệu": "Whipping Cream",
+        "Đơn vị tính": "Hộp 1L",
+        "Ghi chú": "Bảo quản lạnh",
+        "Số lượng cảnh báo": "5",
+        "Đơn vị cơ sở": "Ml",
+        "Hệ số quy đổi": "1000"
+    },
+    {
+        "_RowNumber": "27",
+        "IDNguyenLieu": "NVL026",
+        "Tên nguyên liệu": "Lá bạc hà",
+        "Đơn vị tính": "Bó",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "10",
+        "Đơn vị cơ sở": "Gram",
+        "Hệ số quy đổi": "50"
+    },
+    {
+        "_RowNumber": "28",
+        "IDNguyenLieu": "NVL027",
+        "Tên nguyên liệu": "Đường phèn",
+        "Đơn vị tính": "Kg",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "5",
+        "Đơn vị cơ sở": "Gram",
+        "Hệ số quy đổi": "1000"
+    },
+    {
+        "_RowNumber": "29",
+        "IDNguyenLieu": "NVL028",
+        "Tên nguyên liệu": "Mật ong",
+        "Đơn vị tính": "Chai 1L",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "2",
+        "Đơn vị cơ sở": "Ml",
+        "Hệ số quy đổi": "1000"
+    },
+    {
+        "_RowNumber": "30",
+        "IDNguyenLieu": "NVL029",
+        "Tên nguyên liệu": "Hạt chia",
+        "Đơn vị tính": "Hộp 500g",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "3",
+        "Đơn vị cơ sở": "Gram",
+        "Hệ số quy đổi": "500"
+    },
+    {
+        "_RowNumber": "31",
+        "IDNguyenLieu": "NVL030",
+        "Tên nguyên liệu": "Ống hút tre",
+        "Đơn vị tính": "Hộp 100 cái",
+        "Ghi chú": "Tái sử dụng",
+        "Số lượng cảnh báo": "1",
+        "Đơn vị cơ sở": "Cái",
+        "Hệ số quy đổi": "100"
+    },
+    {
+        "_RowNumber": "32",
+        "IDNguyenLieu": "NVL031",
+        "Tên nguyên liệu": "Khăn giấy",
+        "Đơn vị tính": "Tệp",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "50",
+        "Đơn vị cơ sở": "Tờ",
+        "Hệ số quy đổi": "100"
+    },
+    {
+        "_RowNumber": "33",
+        "IDNguyenLieu": "NVL032",
+        "Tên nguyên liệu": "Nước đóng chai",
+        "Đơn vị tính": "Thùng 24 chai",
+        "Ghi chú": "500ml/chai",
+        "Số lượng cảnh báo": "5",
+        "Đơn vị cơ sở": "Chai",
+        "Hệ số quy đổi": "24"
+    },
+    {
+        "_RowNumber": "34",
+        "IDNguyenLieu": "NVL033",
+        "Tên nguyên liệu": "Đá viên",
+        "Đơn vị tính": "Bao",
+        "Ghi chú": "10kg",
+        "Số lượng cảnh báo": "3",
+        "Đơn vị cơ sở": "Kg",
+        "Hệ số quy đổi": "10"
+    },
+    {
+        "_RowNumber": "35",
+        "IDNguyenLieu": "NVL034",
+        "Tên nguyên liệu": "Cam tươi",
+        "Đơn vị tính": "Kg",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "3",
+        "Đơn vị cơ sở": "Gram",
+        "Hệ số quy đổi": "1000"
+    },
+    {
+        "_RowNumber": "36",
+        "IDNguyenLieu": "NVL035",
+        "Tên nguyên liệu": "Cốt dừa",
+        "Đơn vị tính": "Lon 400ml",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "10",
+        "Đơn vị cơ sở": "Ml",
+        "Hệ số quy đổi": "400"
+    },
+    {
+        "_RowNumber": "37",
+        "IDNguyenLieu": "NVL036",
+        "Tên nguyên liệu": "Trứng gà",
+        "Đơn vị tính": "Vỉ 10 quả",
+        "Ghi chú": "Trứng tươi",
+        "Số lượng cảnh báo": "5",
+        "Đơn vị cơ sở": "Quả",
+        "Hệ số quy đổi": "10"
+    },
+    {
+        "_RowNumber": "38",
+        "IDNguyenLieu": "NVL037",
+        "Tên nguyên liệu": "Muối tinh",
+        "Đơn vị tính": "Túi 1Kg",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "1",
+        "Đơn vị cơ sở": "Gram",
+        "Hệ số quy đổi": "1000"
+    },
+    {
+        "_RowNumber": "39",
+        "IDNguyenLieu": "NVL038",
+        "Tên nguyên liệu": "Bột năng",
+        "Đơn vị tính": "Túi 500g",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "2",
+        "Đơn vị cơ sở": "Gram",
+        "Hệ số quy đổi": "500"
+    },
+    {
+        "_RowNumber": "40",
+        "IDNguyenLieu": "NVL039",
+        "Tên nguyên liệu": "Bột gelatin",
+        "Đơn vị tính": "Hộp 50g",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "5",
+        "Đơn vị cơ sở": "Gram",
+        "Hệ số quy đổi": "50"
+    },
+    {
+        "_RowNumber": "41",
+        "IDNguyenLieu": "NVL040",
+        "Tên nguyên liệu": "Phô mai Con Bò Cười",
+        "Đơn vị tính": "Hộp 8 miếng",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "10",
+        "Đơn vị cơ sở": "Miếng",
+        "Hệ số quy đổi": "8"
+    },
+    {
+        "_RowNumber": "42",
+        "IDNguyenLieu": "NVL041",
+        "Tên nguyên liệu": "Hạt sen tươi",
+        "Đơn vị tính": "Kg",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "1",
+        "Đơn vị cơ sở": "Gram",
+        "Hệ số quy đổi": "1000"
+    },
+    {
+        "_RowNumber": "43",
+        "IDNguyenLieu": "NVL042",
+        "Tên nguyên liệu": "Táo đỏ",
+        "Đơn vị tính": "Túi 200g",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "3",
+        "Đơn vị cơ sở": "Gram",
+        "Hệ số quy đổi": "200"
+    },
+    {
+        "_RowNumber": "44",
+        "IDNguyenLieu": "NVL043",
+        "Tên nguyên liệu": "Nhãn nhục",
+        "Đơn vị tính": "Hộp 300g",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "3",
+        "Đơn vị cơ sở": "Gram",
+        "Hệ số quy đổi": "300"
+    },
+    {
+        "_RowNumber": "45",
+        "IDNguyenLieu": "NVL044",
+        "Tên nguyên liệu": "Syrup đường đen",
+        "Đơn vị tính": "Chai 1L",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "4",
+        "Đơn vị cơ sở": "Ml",
+        "Hệ số quy đổi": "1000"
+    },
+    {
+        "_RowNumber": "46",
+        "IDNguyenLieu": "NVL045",
+        "Tên nguyên liệu": "Bánh quy Oreo",
+        "Đơn vị tính": "Cây",
+        "Ghi chú": "137g",
+        "Số lượng cảnh báo": "10",
+        "Đơn vị cơ sở": "Gram",
+        "Hệ số quy đổi": "137"
+    },
+    {
+        "_RowNumber": "47",
+        "IDNguyenLieu": "NVL046",
+        "Tên nguyên liệu": "Trà túi lọc Lipton",
+        "Đơn vị tính": "Hộp 25 gói",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "5",
+        "Đơn vị cơ sở": "Gói",
+        "Hệ số quy đổi": "25"
+    },
+    {
+        "_RowNumber": "48",
+        "IDNguyenLieu": "NVL047",
+        "Tên nguyên liệu": "Sả cây",
+        "Đơn vị tính": "Bó",
+        "Ghi chú": "500g",
+        "Số lượng cảnh báo": "3",
+        "Đơn vị cơ sở": "Gram",
+        "Hệ số quy đổi": "500"
+    },
+    {
+        "_RowNumber": "49",
+        "IDNguyenLieu": "NVL048",
+        "Tên nguyên liệu": "Tắc (quất)",
+        "Đơn vị tính": "Kg",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "1",
+        "Đơn vị cơ sở": "Gram",
+        "Hệ số quy đổi": "1000"
+    },
+    {
+        "_RowNumber": "50",
+        "IDNguyenLieu": "NVL049",
+        "Tên nguyên liệu": "Đậu phộng rang",
+        "Đơn vị tính": "Hộp 500g",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "2",
+        "Đơn vị cơ sở": "Gram",
+        "Hệ số quy đổi": "500"
+    },
+    {
+        "_RowNumber": "51",
+        "IDNguyenLieu": "NVL050",
+        "Tên nguyên liệu": "Kem béo thực vật",
+        "Đơn vị tính": "Hộp 1L",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "5",
+        "Đơn vị cơ sở": "Ml",
+        "Hệ số quy đổi": "1000"
+    },
+    {
+        "_RowNumber": "52",
+        "IDNguyenLieu": "NVL051",
+        "Tên nguyên liệu": "Bánh flan",
+        "Đơn vị tính": "Cái",
+        "Ghi chú": "Tự làm",
+        "Số lượng cảnh báo": "20",
+        "Đơn vị cơ sở": "Cái",
+        "Hệ số quy đổi": "1"
+    },
+    {
+        "_RowNumber": "53",
+        "IDNguyenLieu": "NVL052",
+        "Tên nguyên liệu": "Dưa lưới",
+        "Đơn vị tính": "Kg",
+        "Ghi chú": "",
+        "Số lượng cảnh báo": "2",
+        "Đơn vị cơ sở": "Gram",
+        "Hệ số quy đổi": "1000"
+    }
+]

@@ -1,0 +1,194 @@
+[
+    {
+        "_RowNumber": "2",
+        "IDBAN": "Khách mua về",
+        "Tên bàn": "Khách mua về",
+        "Sức chứa tối đa": "1",
+        "Trạng thái": "Đang hoạt động",
+        "Lịch sử  bàn": "INV1750688036060140"
+    },
+    {
+        "_RowNumber": "3",
+        "IDBAN": "B001",
+        "Tên bàn": "Bàn 01",
+        "Sức chứa tối đa": "2",
+        "Trạng thái": "Đang hoạt động",
+        "Lịch sử  bàn": "INV1750664249298892"
+    },
+    {
+        "_RowNumber": "4",
+        "IDBAN": "BAN001",
+        "Tên bàn": "Bàn 03",
+        "Sức chứa tối đa": "4",
+        "Trạng thái": "Đang hoạt động",
+        "Lịch sử  bàn": "INV1750665788982977 , INV1750667108759248 , INV1750729143846916 , INV1750729776462674 , INV1750729869783875 , INV1750729907332116 , INV1750729953288764"
+    },
+    {
+        "_RowNumber": "5",
+        "IDBAN": "BAN002",
+        "Tên bàn": "Bàn 04",
+        "Sức chứa tối đa": "6",
+        "Trạng thái": "Đang hoạt động",
+        "Lịch sử  bàn": ""
+    },
+    {
+        "_RowNumber": "6",
+        "IDBAN": "B002",
+        "Tên bàn": "Bàn 02",
+        "Sức chứa tối đa": "2",
+        "Trạng thái": "Đang hoạt động",
+        "Lịch sử  bàn": ""
+    },
+    {
+        "_RowNumber": "7",
+        "IDBAN": "BAN003",
+        "Tên bàn": "Bàn 05",
+        "Sức chứa tối đa": "4",
+        "Trạng thái": "Đang hoạt động",
+        "Lịch sử  bàn": ""
+    },
+    {
+        "_RowNumber": "8",
+        "IDBAN": "BAN004",
+        "Tên bàn": "Bàn 06",
+        "Sức chứa tối đa": "4",
+        "Trạng thái": "Đang hoạt động",
+        "Lịch sử  bàn": ""
+    },
+    {
+        "_RowNumber": "9",
+        "IDBAN": "BAN005",
+        "Tên bàn": "Bàn 07",
+        "Sức chứa tối đa": "6",
+        "Trạng thái": "Bảo trì",
+        "Lịch sử  bàn": ""
+    },
+    {
+        "_RowNumber": "10",
+        "IDBAN": "BAN006",
+        "Tên bàn": "Bàn 08",
+        "Sức chứa tối đa": "8",
+        "Trạng thái": "Đang hoạt động",
+        "Lịch sử  bàn": ""
+    },
+    {
+        "_RowNumber": "11",
+        "IDBAN": "B003",
+        "Tên bàn": "Bàn 09 (Ngoài trời)",
+        "Sức chứa tối đa": "2",
+        "Trạng thái": "Đang hoạt động",
+        "Lịch sử  bàn": ""
+    },
+    {
+        "_RowNumber": "12",
+        "IDBAN": "B004",
+        "Tên bàn": "Bàn 10 (Ngoài trời)",
+        "Sức chứa tối đa": "2",
+        "Trạng thái": "Đang hoạt động",
+        "Lịch sử  bàn": ""
+    },
+    {
+        "_RowNumber": "13",
+        "IDBAN": "BAN007",
+        "Tên bàn": "Bàn 11 (Ngoài trời)",
+        "Sức chứa tối đa": "4",
+        "Trạng thái": "Đang hoạt động",
+        "Lịch sử  bàn": ""
+    },
+    {
+        "_RowNumber": "14",
+        "IDBAN": "BAN008",
+        "Tên bàn": "Bàn 12 (Ngoài trời)",
+        "Sức chứa tối đa": "4",
+        "Trạng thái": "Đang hoạt động",
+        "Lịch sử  bàn": ""
+    },
+    {
+        "_RowNumber": "15",
+        "IDBAN": "SOFA01",
+        "Tên bàn": "Sofa 01 (Tầng 2)",
+        "Sức chứa tối đa": "6",
+        "Trạng thái": "Đang hoạt động",
+        "Lịch sử  bàn": ""
+    },
+    {
+        "_RowNumber": "16",
+        "IDBAN": "SOFA02",
+        "Tên bàn": "Sofa 02 (Tầng 2)",
+        "Sức chứa tối đa": "6",
+        "Trạng thái": "Đang hoạt động",
+        "Lịch sử  bàn": ""
+    },
+    {
+        "_RowNumber": "17",
+        "IDBAN": "T2-B01",
+        "Tên bàn": "Bàn 13 (Tầng 2)",
+        "Sức chứa tối đa": "2",
+        "Trạng thái": "Đang hoạt động",
+        "Lịch sử  bàn": ""
+    },
+    {
+        "_RowNumber": "18",
+        "IDBAN": "T2-B02",
+        "Tên bàn": "Bàn 14 (Tầng 2)",
+        "Sức chứa tối đa": "2",
+        "Trạng thái": "Đang hoạt động",
+        "Lịch sử  bàn": ""
+    },
+    {
+        "_RowNumber": "19",
+        "IDBAN": "T2-B03",
+        "Tên bàn": "Bàn 15 (Tầng 2)",
+        "Sức chứa tối đa": "4",
+        "Trạng thái": "Đang hoạt động",
+        "Lịch sử  bàn": ""
+    },
+    {
+        "_RowNumber": "20",
+        "IDBAN": "PHONGVIP01",
+        "Tên bàn": "Phòng VIP 01",
+        "Sức chứa tối đa": "10",
+        "Trạng thái": "Đang hoạt động",
+        "Lịch sử  bàn": ""
+    },
+    {
+        "_RowNumber": "21",
+        "IDBAN": "PHONGVIP02",
+        "Tên bàn": "Phòng VIP 02",
+        "Sức chứa tối đa": "12",
+        "Trạng thái": "Ngừng hoạt động",
+        "Lịch sử  bàn": ""
+    },
+    {
+        "_RowNumber": "22",
+        "IDBAN": "QUAYBAR01",
+        "Tên bàn": "Ghế quầy bar 01",
+        "Sức chứa tối đa": "1",
+        "Trạng thái": "Đang hoạt động",
+        "Lịch sử  bàn": ""
+    },
+    {
+        "_RowNumber": "23",
+        "IDBAN": "QUAYBAR02",
+        "Tên bàn": "Ghế quầy bar 02",
+        "Sức chứa tối đa": "1",
+        "Trạng thái": "Đang hoạt động",
+        "Lịch sử  bàn": ""
+    },
+    {
+        "_RowNumber": "24",
+        "IDBAN": "QUAYBAR03",
+        "Tên bàn": "Ghế quầy bar 03",
+        "Sức chứa tối đa": "1",
+        "Trạng thái": "Đang hoạt động",
+        "Lịch sử  bàn": ""
+    },
+    {
+        "_RowNumber": "25",
+        "IDBAN": "QUAYBAR04",
+        "Tên bàn": "Ghế quầy bar 04",
+        "Sức chứa tối đa": "1",
+        "Trạng thái": "Đang hoạt động",
+        "Lịch sử  bàn": ""
+    }
+]
