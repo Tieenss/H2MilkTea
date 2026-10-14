@@ -25,6 +25,7 @@ import { useTables } from './hooks/useTables';
 import { TableStats } from './components/TableStats';
 import { TableCard } from './components/TableCard';
 import { TableForm } from './components/TableForm';
+import { BulkQRCodeGenerator } from './components/BulkQRCodeGenerator';
 import type { Table, TableFormData } from './types/table';
 import { INITIAL_TABLE_FORM_DATA, TABLE_STATUS } from './utils/constants';
 import authUtils from '@/utils/authUtils';
@@ -194,7 +195,9 @@ const tablesByStatus = useMemo(() => {
          Quản lý bàn
        </h3>
        
-       <Dialog
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          <BulkQRCodeGenerator tables={tables} />
+        <Dialog
          open={isDialogOpen}
          onOpenChange={(isOpen) => {
            if (!isOpen) resetForm();
@@ -240,8 +243,9 @@ const tablesByStatus = useMemo(() => {
              />
            </div>
          </DialogContent>
-       </Dialog>
-     </div>
+        </Dialog>
+        </div>
+      </div>
 
      {/* Stats */}
      <TableStats tables={tables} />

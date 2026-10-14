@@ -26,7 +26,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import type { Table } from '../types/table';
 import { TABLE_STATUS } from '../utils/constants';
-import { QRCodeGenerator } from './QRCodeGenerator';
 
 interface TableCardProps {
   table: Table;
@@ -70,9 +69,6 @@ export const TableCard: React.FC<TableCardProps> = ({
               <p className="text-sm text-gray-500 font-mono">
                 {table.IDBAN}
               </p>
-              <div className="mt-2 w-36">
-                <QRCodeGenerator table={table} />
-              </div>
             </div>
           </div>
           
