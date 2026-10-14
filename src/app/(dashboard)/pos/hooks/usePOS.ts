@@ -12,6 +12,7 @@ import { printReceipt } from '../utils/receipt';
 import authUtils from '@/utils/authUtils';
 import { Customer } from '@/app/(dashboard)/khachhang/types/customer';
 import { calculatePointsFromSpending } from '@/app/(dashboard)/khachhang/utils/customerFormatters';
+import { useSharedCartDraft } from './useSharedCartDraft';
 
 // Helper function to format date to Vietnamese format (DD/MM/YYYY HH:mm:ss)
 const formatToVietnameseDateTime = (date: Date): string => {
@@ -73,6 +74,22 @@ export const usePOS = () => {
     setSelectedTableId,
     updateCartItemNote
   } = useCart();
+
+  const applyRemoteCart = useCallback((tableId: string, nextCart: CartItem[]) => {
+    setActiveOrders((current) => {
+      const next = new Map(current);
+      if (nextCart.length === 0) next.delete(tableId);
+      else next.set(tableId, nextCart);
+      return next;
+    });
+  }, [setActiveOrders]);
+
+  const { status: sharedCartStatus, clearDraft: clearSharedCartDraft } = useSharedCartDraft({
+    tableId: selectedTableId,
+    cart,
+    setCart,
+    onRemoteCart: applyRemoteCart,
+  });
 
   // Modal state
   const [modalState, setModalState] = useState<ModalState>({
@@ -675,6 +692,9 @@ export const usePOS = () => {
   const resetAfterPayment = useCallback(() => {
     // Clear active order
     if (selectedTableId) {
+      void clearSharedCartDraft().catch((error) => {
+        console.error('Không thể xóa giỏ hàng dùng chung sau thanh toán:', error);
+      });
       const newActiveOrders = new Map(activeOrders);
       newActiveOrders.delete(selectedTableId);
       setActiveOrders(newActiveOrders);
@@ -692,7 +712,7 @@ export const usePOS = () => {
 
     // Clear selected customer
     setSelectedCustomer(null);
-  }, [selectedTableId, activeOrders, setActiveOrders, updateTableStatus, setSelectedTableId, clearCart]);
+  }, [selectedTableId, activeOrders, setActiveOrders, updateTableStatus, setSelectedTableId, clearCart, clearSharedCartDraft]);
 
   // Data synchronization
   const syncData = useCallback(async () => {
@@ -854,6 +874,7 @@ export const usePOS = () => {
     categoryFilter,
     priceFilter,
     isProcessingPayment,
+    sharedCartStatus,
 
     // Customer state
     customers,
