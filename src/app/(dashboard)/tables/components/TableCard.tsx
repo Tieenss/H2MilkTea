@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import type { Table } from '../types/table';
 import { TABLE_STATUS } from '../utils/constants';
+import { QRCodeGenerator } from './QRCodeGenerator';
 
 interface TableCardProps {
   table: Table;
@@ -148,6 +149,10 @@ export const TableCard: React.FC<TableCardProps> = ({
             )}
             <span>{statusInfo?.label || table['Trạng thái']}</span>
           </Badge>
+        </div>
+
+        <div className="border-t pt-3">
+          <QRCodeGenerator table={table} />
         </div>
 
         {/* Quick actions for non-admin users */}
