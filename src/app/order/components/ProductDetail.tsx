@@ -217,8 +217,7 @@ export function ProductDetail({ product, isOpen, onClose }: ProductDetailProps) 
         <div className="absolute bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
           <button
             onClick={handleAdd}
-            className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-red-500 to-orange-500 text-white font-bold text-base
-                       shadow-lg shadow-red-200/50 active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
+            className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-red-500 to-orange-500 text-white font-bold text-base shadow-lg shadow-red-200/50 active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
           >
             <Plus className="w-5 h-5" />
             Thêm vào giỏ · {totalPrice.toLocaleString('vi-VN')}đ
