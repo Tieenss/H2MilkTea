@@ -70,6 +70,9 @@ export const TableCard: React.FC<TableCardProps> = ({
               <p className="text-sm text-gray-500 font-mono">
                 {table.IDBAN}
               </p>
+              <div className="mt-2 w-36">
+                <QRCodeGenerator table={table} />
+              </div>
             </div>
           </div>
           
@@ -149,10 +152,6 @@ export const TableCard: React.FC<TableCardProps> = ({
             )}
             <span>{statusInfo?.label || table['Trạng thái']}</span>
           </Badge>
-        </div>
-
-        <div className="border-t pt-3">
-          <QRCodeGenerator table={table} />
         </div>
 
         {/* Quick actions for non-admin users */}
