@@ -21,6 +21,7 @@ import { ReceiptSettings } from './components/ReceiptSettings';
 import authUtils from '@/utils/authUtils';
 import './styles/pos.css';
 import { CustomerSelectModal } from '@/app/(dashboard)/pos/components/CustomerSelectModal';
+import { QROrderInbox } from './components/QROrderInbox';
 import type { Customer } from '@/app/(dashboard)/khachhang/types/customer';
 
 export default function POSPage() {
@@ -65,6 +66,8 @@ export default function POSPage() {
     selectTable,
     transferTable,
     processPayment,
+    sendToKitchen,
+    settleQrOrder,
     syncData,
     resetFilters,
     subtotal,
@@ -322,6 +325,8 @@ export default function POSPage() {
         </Card>
       </div>
 
+      <QROrderInbox onSettle={settleQrOrder} />
+
       {/* Main Content */}
       <div className="flex flex-col lg:flex-row h-[calc(100vh-8rem)] lg:h-[calc(100vh-12rem)]">
         {/* Product Grid - Full width on mobile */}
@@ -348,6 +353,10 @@ export default function POSPage() {
             onAdjustQuantity={adjustQuantity}
             onClearCart={clearCart}
             onCheckout={() => setShowCheckoutModal(true)}
+            onSendToKitchen={() => sendToKitchen({
+              tableId: selectedTableId || '', tableName: selectedTableName,
+              items: cart, employee: nhanvien || 'Thu ngân',
+            })}
             onShowTableModal={() => setShowTableModal(true)}
             onShowCustomerModal={() => setShowCustomerModal(true)}
             onShowNoteModal={(item) => {
@@ -396,6 +405,12 @@ export default function POSPage() {
                   setShowMobileCart(false);
                   setShowCheckoutModal(true);
                 }}
+                selectedTableName={selectedTableName}
+                employee={nhanvien}
+                onSendToKitchen={() => sendToKitchen({
+                  tableId: selectedTableId || '', tableName: selectedTableName,
+                  items: cart, employee: nhanvien || 'Thu ngân',
+                })}
                 onShowTableModal={() => {
                   setShowMobileCart(false);
                   setShowTableModal(true);

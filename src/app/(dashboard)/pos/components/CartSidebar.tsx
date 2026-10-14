@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -27,7 +27,7 @@ interface CartSidebarProps {
   onShowTableModal: () => void;
   onShowCustomerModal: () => void;
   onShowNoteModal: (item: CartItem) => void;
-  onSendToKitchen?: () => void; // Thêm prop này
+  onSendToKitchen?: () => Promise<void> | void;
 }
 
 export const CartSidebar: React.FC<CartSidebarProps> = ({
@@ -49,6 +49,31 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
   onShowNoteModal,
   onSendToKitchen
 }) => {
+  const [isSendingKitchen, setIsSendingKitchen] = useState(false);
+  const [sentKitchenSignature, setSentKitchenSignature] = useState<string | null>(null);
+  const cartSignature = JSON.stringify(cart.map((item) => [item.id, item.quantity, item.note]));
+  const previousCartSignature = useRef(cartSignature);
+
+  useEffect(() => {
+    if (previousCartSignature.current !== cartSignature) {
+      previousCartSignature.current = cartSignature;
+      setSentKitchenSignature(null);
+    }
+  }, [cartSignature]);
+
+  const handleSendKitchen = async () => {
+    if (!onSendToKitchen) return;
+    setIsSendingKitchen(true);
+    try {
+      await onSendToKitchen();
+      setSentKitchenSignature(cartSignature);
+    } catch {
+      // The POS hook already displays the server error to the cashier.
+    } finally {
+      setIsSendingKitchen(false);
+    }
+  };
+
   return (
     <div className="w-full h-full bg-white rounded-lg shadow-lg flex flex-col lg:h-[calc(100vh-12rem)]">
       {/* Cart Header */}
@@ -162,7 +187,9 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
             selectedTableId={selectedTableId}
             onCheckout={onCheckout}
             onShowTableModal={onShowTableModal}
-            onSendToKitchen={onSendToKitchen}
+            onSendToKitchen={handleSendKitchen}
+            isSendingKitchen={isSendingKitchen}
+            isKitchenSent={sentKitchenSignature === cartSignature}
           />
         </div>
       )}
@@ -358,8 +385,10 @@ const ActionButtons: React.FC<{
   selectedTableId: string | null;
   onCheckout: () => void;
   onShowTableModal: () => void;
-  onSendToKitchen?: () => void;
-}> = ({ cart, selectedTableId, onCheckout, onShowTableModal, onSendToKitchen }) => {
+  onSendToKitchen?: () => Promise<void>;
+  isSendingKitchen: boolean;
+  isKitchenSent: boolean;
+}> = ({ cart, selectedTableId, onCheckout, onShowTableModal, onSendToKitchen, isSendingKitchen, isKitchenSent }) => {
   const handleCheckoutClick = () => {
     if (cart.length === 0) {
       return;
@@ -376,7 +405,7 @@ const ActionButtons: React.FC<{
     } else if (!selectedTableId) {
       onShowTableModal();
     } else if (onSendToKitchen) {
-      onSendToKitchen();
+      void onSendToKitchen();
     }
   };
 
@@ -389,7 +418,7 @@ const ActionButtons: React.FC<{
       {onSendToKitchen && (
         <Button
           onClick={handleKitchenClick}
-          disabled={isDisabled}
+          disabled={isDisabled || isSendingKitchen || isKitchenSent}
           className={`w-full py-2.5 px-4 rounded-lg flex items-center justify-center space-x-2 transition-colors touch-target text-sm ${
             isDisabled
               ? 'bg-gray-300 cursor-not-allowed text-gray-500'
@@ -397,7 +426,7 @@ const ActionButtons: React.FC<{
           }`}
         >
           <ChefHat className="w-4 h-4" />
-          <span>{needTable ? 'Chọn bàn để gửi bếp' : 'Gửi đến bếp'}</span>
+          <span>{needTable ? 'Chọn bàn để gửi bếp' : isSendingKitchen ? 'Đang gửi...' : isKitchenSent ? 'Đã gửi đến bếp' : 'Gửi đến bếp'}</span>
         </Button>
       )}
 

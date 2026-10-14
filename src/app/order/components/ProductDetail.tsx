@@ -25,15 +25,14 @@ export function ProductDetail({ product, isOpen, onClose }: ProductDetailProps) 
   if (!isOpen || !product) return null;
 
   const basePrice = parseInt(product['Đơn giá']);
-  const sizeAdjust = SIZE_OPTIONS.find(s => s.value === size)?.priceAdjust || 0;
+  const isFood = ['Ăn vặt', 'Bánh ngọt'].includes(product['Loại sản phẩm']);
+  const sizeAdjust = isFood ? 0 : SIZE_OPTIONS.find(s => s.value === size)?.priceAdjust || 0;
   const unitPrice = basePrice + sizeAdjust;
   const totalPrice = unitPrice * quantity;
   const isPlaceholder = product['Hình ảnh']?.includes('placeholder');
   const hasValidImage = product['Hình ảnh'] && !isPlaceholder && !imgError;
 
   // Check if this is a food item (no drink customization needed)
-  const isFood = ['Ăn vặt', 'Bánh ngọt'].includes(product['Loại sản phẩm']);
-
   const handleAdd = () => {
     addItem(product, { size, sugar, ice, note, quantity });
     toast.success(`Đã thêm ${product['Tên sản phẩm']}`, { duration: 1500 });

@@ -142,14 +142,14 @@ const LoginPage = () => {
         {
             name: 'YouTube',
             icon: Youtube,
-            url: 'https://www.youtube.com/@PoalCRM',
+            url: 'https://www.youtube.com/maillvn',
             color: 'bg-red-500 hover:bg-red-600',
             description: 'Video hướng dẫn sử dụng'
         },
         {
             name: 'Facebook',
             icon: Facebook,
-            url: 'https://www.facebook.com/NinhPhuocz',
+            url: 'https://www.facebook.com/maillovn',
             color: 'bg-blue-600 hover:bg-blue-700',
             description: 'Cộng đồng người dùng'
         },

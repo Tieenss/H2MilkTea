@@ -87,6 +87,7 @@ export const usePOS = () => {
   // Loading state
   const [loadingText, setLoadingText] = useState('Đang tải dữ liệu...');
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [activePOSOrderIds, setActivePOSOrderIds] = useState<string[]>([]);
 
   // Customer display reference
   const customerDisplayWindow = useRef<Window | null>(null);
@@ -113,39 +114,42 @@ export const usePOS = () => {
     notes?: string;
   }) => {
     try {
+      const idempotencyKey = crypto.randomUUID();
       const kitchenOrder = {
-        id: generateId('ORD'),
+        source: 'POS_COUNTER',
         tableId: orderData.tableId,
         tableName: orderData.tableName,
         items: orderData.items.map(item => ({
-          id: item.id,
-          name: item.name,
+          productId: item.id,
+          productName: item.name,
+          unitPrice: item.price,
           quantity: item.quantity,
           note: item.note,
           unit: item.unit
         })),
-        orderTime: new Date().toISOString(),
         employee: orderData.employee,
-        status: 'pending',
-        priority: 'normal',
-        notes: orderData.notes
+        note: orderData.notes,
+        idempotencyKey,
       };
 
-      const response = await fetch('/api/kitchen/new-order', {
+      const response = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(kitchenOrder)
       });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || 'Không lưu được đơn bếp.');
+      setActivePOSOrderIds((current) => current.includes(result.orderId) ? current : [...current, result.orderId]);
 
-      if (response.ok) {
-        showNotification('Đã gửi đơn hàng đến bếp!');
+      {
+        showNotification(`Đã gửi đơn ${String(result.orderId).slice(-6)} đến bếp!`);
         
         // Print kitchen receipt
         try {
           const { printReceiptWithSettings } = await import('../utils/receiptPrint');
           
           const kitchenReceiptData = {
-            receiptNumber: kitchenOrder.id,
+            receiptNumber: result.orderId,
             date: new Date(),
             cashier: orderData.employee,
             customer: 'Đơn bếp',
@@ -170,13 +174,32 @@ export const usePOS = () => {
           console.error('Error printing kitchen receipt:', printError);
           // Don't show error to user as kitchen order was sent successfully
         }
-      } else {
-        throw new Error('Failed to send order to kitchen');
       }
     } catch (error) {
       console.error('Error sending to kitchen:', error);
-      showNotification('Lỗi gửi đơn hàng đến bếp!', 'error');
+      showNotification(error instanceof Error ? error.message : 'Lỗi gửi đơn hàng đến bếp!', 'error');
+      throw error;
     }
+  }, []);
+
+  const settleQrOrder = useCallback((order: {
+    id: string;
+    table_id: string;
+    items: Array<{ productId: string; productName: string; quantity: number; unitPrice: number; note?: string; size?: string; sugar?: string; ice?: string; unit?: string }>;
+  }) => {
+    setSelectedTableId(order.table_id);
+    setCart(order.items.map((item) => ({
+      id: item.productId,
+      name: item.productName,
+      price: Number(item.unitPrice),
+      quantity: Number(item.quantity),
+      unit: item.unit || 'Ly',
+      image: undefined,
+      note: [item.size && `Size ${item.size}`, item.sugar && `Đường ${item.sugar}`, item.ice && `Đá ${item.ice}`, item.note].filter(Boolean).join(' · '),
+    })));
+    setActivePOSOrderIds([order.id]);
+    setSelectedCustomer(null);
+    setShowCheckoutModal(true);
   }, []);
   // Fetch customers
   const fetchCustomers = useCallback(async () => {
@@ -562,7 +585,34 @@ export const usePOS = () => {
       }
 
       // Save to database using AuthUtils
+      let linkedOrderIds = [...activePOSOrderIds];
+      if (linkedOrderIds.length === 0) {
+        const createOrderResponse = await fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            source: 'POS_COUNTER',
+            tableId: selectedTableId,
+            tableName,
+            employee: nhanvien,
+            items: cart.map((item) => ({ productId: item.id, productName: item.name, unitPrice: item.price, quantity: item.quantity, unit: item.unit, note: item.note || '' })),
+            note,
+            idempotencyKey: `pos-payment-${invoiceId}`,
+          }),
+        });
+        const createdOrder = await createOrderResponse.json();
+        if (!createOrderResponse.ok || !createdOrder.success) throw new Error(createdOrder.error || 'Không thể gửi đơn sang bếp.');
+        linkedOrderIds = [createdOrder.orderId];
+      }
       await saveInvoice(invoice, invoiceDetails);
+      const paymentUpdates = await Promise.all(linkedOrderIds.map((id) => fetch('/api/orders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, paymentStatus: 'paid', paymentMethod: paymentType, invoiceId }),
+      })));
+      if (paymentUpdates.some((response) => !response.ok)) {
+        showNotification('Hóa đơn đã lưu nhưng chưa đồng bộ trạng thái thanh toán của đơn bếp.', 'warning');
+      }
 
       // Update customer if selected
       if (selectedCustomer) {
@@ -620,7 +670,7 @@ export const usePOS = () => {
     } finally {
       setIsProcessingPayment(false);
     }
-  }, [cart, selectedTableId, nhanvien, tables, selectedCustomer, saveInvoice, updateCustomerAfterPurchase, showLoading, showNotification, setShowCheckoutModal]);
+  }, [cart, selectedTableId, nhanvien, tables, selectedCustomer, activePOSOrderIds, saveInvoice, updateCustomerAfterPurchase, showLoading, showNotification, setShowCheckoutModal]);
 
   const resetAfterPayment = useCallback(() => {
     // Clear active order
@@ -638,6 +688,7 @@ export const usePOS = () => {
 
     // Clear cart
     clearCart();
+    setActivePOSOrderIds([]);
 
     // Clear selected customer
     setSelectedCustomer(null);
@@ -838,7 +889,8 @@ export const usePOS = () => {
     syncData,
     resetFilters,
     updateCartItemNote,
-  sendToKitchen,
+    sendToKitchen,
+    settleQrOrder,
     // Calculations
     subtotal,
     vat,

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, Suspense } from 'react';
+import React, { useRef, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Minus, Plus, Trash2, ShoppingBag, MessageSquare, Send, CheckCircle2 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
@@ -17,6 +17,7 @@ function CartPageContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [orderId, setOrderId] = useState('');
+  const idempotencyKey = useRef<string | null>(null);
 
   const tableParam = searchParams.get('table') || tableId;
 
@@ -28,12 +29,13 @@ function CartPageContent() {
 
     setIsSubmitting(true);
     try {
-      const res = await fetch('/api/customer-order', {
+      idempotencyKey.current ||= crypto.randomUUID();
+      const res = await fetch('/api/orders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey.current },
         body: JSON.stringify({
+          source: 'QR_TABLE',
           tableId: tableParam,
-          tableName,
           items: items.map(item => ({
             productId: item.product.IDSP,
             productName: item.product['Tên sản phẩm'],
@@ -57,6 +59,7 @@ function CartPageContent() {
         setOrderSuccess(true);
         clearCart();
         toast.success('Đặt món thành công!');
+        if (data.trackingToken) router.push(`/order/status?token=${encodeURIComponent(data.trackingToken)}`);
       } else {
         toast.error(data.error || 'Có lỗi xảy ra, vui lòng thử lại');
       }

@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/app/(dashboard)/pos/utils/formatters';
+import { createClient } from '@/lib/supabase/client';
 
 interface KitchenOrder {
   id: string;
@@ -23,6 +24,7 @@ interface KitchenOrder {
   priority: 'normal' | 'urgent';
   estimatedTime?: number;
   notes?: string;
+  source?: 'POS_COUNTER' | 'QR_TABLE';
 }
 
 interface KitchenDisplayProps {
@@ -38,24 +40,22 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isConnected, setIsConnected] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const [lastOrderCount, setLastOrderCount] = useState(0);
+  const knownOrderIds = React.useRef(new Set<string>());
+  const soundEnabledRef = React.useRef(soundEnabled);
+  soundEnabledRef.current = soundEnabled;
 
-  // Polling để nhận đơn hàng mới (thay thế WebSocket)
+  // Supabase Realtime delivers updates immediately; periodic snapshots recover missed events.
   useEffect(() => {
+    let active = true;
     const fetchOrders = async () => {
       try {
         const response = await fetch('/api/kitchen/orders');
         if (response.ok) {
           const data = await response.json();
           const newOrders = data.orders || [];
-          
-          // Check for new orders to play sound
-          if (newOrders.length > lastOrderCount && lastOrderCount > 0 && soundEnabled) {
-            playNotificationSound();
-          }
-          
+          if (!active) return;
+          knownOrderIds.current = new Set(newOrders.map((order: KitchenOrder) => order.id));
           setOrders(newOrders);
-          setLastOrderCount(newOrders.length);
           setIsConnected(true);
         } else {
           setIsConnected(false);
@@ -66,14 +66,26 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
       }
     };
 
-    // Initial fetch
     fetchOrders();
-    
-    // Poll every 3 seconds
-    const interval = setInterval(fetchOrders, 3000);
+    const supabase = createClient();
+    const channel = supabase.channel('staff-pos-orders')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_orders' }, (payload) => {
+        const row = payload.new as Partial<KitchenOrder> & { order_status?: string };
+        const id = String(row.id || '');
+        if (payload.eventType === 'INSERT' && row.order_status === 'accepted' && id && !knownOrderIds.current.has(id) && soundEnabledRef.current) {
+          playNotificationSound();
+        }
+        fetchOrders();
+      })
+      .subscribe((status) => setIsConnected(status === 'SUBSCRIBED'));
+    const interval = setInterval(fetchOrders, 15000);
 
-    return () => clearInterval(interval);
-  }, [lastOrderCount, soundEnabled]);
+    return () => {
+      active = false;
+      clearInterval(interval);
+      void supabase.removeChannel(channel);
+    };
+  }, []);
 
   // Update current time every second
   useEffect(() => {
@@ -84,7 +96,7 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  const playNotificationSound = () => {
+  function playNotificationSound() {
     try {
       // Create a simple beep sound using Web Audio API
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -109,10 +121,10 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
 
   const updateOrderStatus = async (orderId: string, status: KitchenOrder['status']) => {
     try {
-      const response = await fetch('/api/kitchen/update-order', {
-        method: 'POST',
+      const response = await fetch('/api/orders', {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId, status })
+        body: JSON.stringify({ id: orderId, kitchenStatus: status === 'pending' ? 'queued' : status })
       });
 
       if (response.ok) {
@@ -157,7 +169,7 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
       case 'preparing': return 'ĐANG LÀM';
       case 'ready': return 'HOÀN THÀNH';
       case 'served': return 'ĐÃ PHỤC VỤ';
-      default: return status.toUpperCase();
+      default: return String(status).toUpperCase();
     }
   };
 
@@ -235,6 +247,9 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
                       <p className="text-sm text-gray-600">
                         #{order.id.slice(-6)} • {order.employee}
                       </p>
+                      <Badge className={`mt-1 ${order.source === 'QR_TABLE' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>
+                        {order.source === 'QR_TABLE' ? 'Khách gọi QR' : 'Gọi tại quầy'}
+                      </Badge>
                     </div>
                     
                     <div className="text-right">

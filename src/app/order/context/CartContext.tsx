@@ -71,7 +71,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     product: Product,
     options: { size: 'S' | 'M' | 'L'; sugar: string; ice: string; note: string; quantity: number }
   ) => {
-    const sizeAdjust = SIZE_OPTIONS.find(s => s.value === options.size)?.priceAdjust || 0;
+    const isFood = ['Ăn vặt', 'Bánh ngọt'].includes(product['Loại sản phẩm']);
+    const sizeAdjust = isFood ? 0 : SIZE_OPTIONS.find(s => s.value === options.size)?.priceAdjust || 0;
     const unitPrice = parseInt(product['Đơn giá']) + sizeAdjust;
 
     // Generate unique id based on product + options

@@ -21,6 +21,7 @@ function OrderWelcomeContent() {
   const [tableName, setTableName] = useState<string>('');
   const [isValidTable, setIsValidTable] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [tableError, setTableError] = useState('');
 
   useEffect(() => {
     const table = searchParams.get('table');
@@ -45,11 +46,8 @@ function OrderWelcomeContent() {
         }
       })
       .catch(() => {
-        // Fallback: accept the table ID and use it directly
-        setIsValidTable(true);
-        const displayName = table === 'takeaway' ? 'Mua về' : table;
-        setTableName(displayName);
-        setTableInfo(table, displayName);
+        setIsValidTable(false);
+        setTableError('Không thể xác thực bàn lúc này. Vui lòng thử lại hoặc gọi nhân viên.');
       })
       .finally(() => setIsLoading(false));
   }, [searchParams, setTableInfo]);
@@ -86,7 +84,7 @@ function OrderWelcomeContent() {
           </div>
           <h1 className="text-xl font-bold text-gray-900 mb-2">Không tìm thấy bàn</h1>
           <p className="text-sm text-gray-500 mb-6">
-            Mã QR không hợp lệ hoặc bàn không tồn tại. Vui lòng quét lại mã QR trên bàn của bạn.
+            {tableError || 'Mã QR không hợp lệ hoặc bàn không tồn tại. Vui lòng quét lại mã QR trên bàn của bạn.'}
           </p>
           <div className="p-4 rounded-2xl bg-orange-50 border border-orange-100">
             <p className="text-xs text-orange-700">

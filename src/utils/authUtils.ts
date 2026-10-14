@@ -1274,8 +1274,8 @@ private validateDataIntegrity(data: any): boolean {
         try {
             const base64Image = await this.getImageAsBase64(file);
 
-            const CLOUDINARY_CLOUD_NAME = config.CLOUD_NAME || 'duv9pccwi';
-            const CLOUDINARY_UPLOAD_PRESET = config.UPLOAD_PRESET || 'poalupload';
+            const CLOUDINARY_CLOUD_NAME = config.CLOUD_NAME || 'dbwy4uh6d';
+            const CLOUDINARY_UPLOAD_PRESET = config.UPLOAD_PRESET || 'demo123';
 
             const formData = new FormData();
             formData.append('file', base64Image);
