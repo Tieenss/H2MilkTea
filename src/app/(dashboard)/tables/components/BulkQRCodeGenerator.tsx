@@ -40,6 +40,13 @@ async function makeBrandedQr(table: Table, origin: string) {
     qrImage.onerror = () => reject(new Error(`Không thể tạo QR cho ${table['Tên bàn']}`));
   });
 
+  const brandLogo = new Image();
+  brandLogo.src = '/logo-h2.png';
+  await new Promise<void>((resolve, reject) => {
+    brandLogo.onload = () => resolve();
+    brandLogo.onerror = () => reject(new Error('Không tải được logo H2 MilkTea.'));
+  });
+
   const canvas = document.createElement('canvas');
   canvas.width = 800;
   canvas.height = 960;
@@ -49,17 +56,32 @@ async function makeBrandedQr(table: Table, origin: string) {
   context.fillStyle = '#fff';
   context.fillRect(0, 0, canvas.width, canvas.height);
   context.textAlign = 'center';
-  context.fillStyle = '#dc2626';
-  context.font = 'bold 42px Arial';
+  context.save();
+  context.shadowColor = 'rgba(15, 118, 110, 0.18)';
+  context.shadowBlur = 12;
+  context.shadowOffsetY = 3;
+  context.font = '800 48px "Trebuchet MS", "Segoe UI", sans-serif';
+  const brandGradient = context.createLinearGradient(190, 0, 610, 0);
+  brandGradient.addColorStop(0, '#9a3412');
+  brandGradient.addColorStop(0.48, '#0f766e');
+  brandGradient.addColorStop(1, '#0369a1');
+  context.fillStyle = brandGradient;
+  context.textAlign = 'center';
   context.fillText('H2 MilkTea', 400, 68);
+  context.restore();
+  const accentGradient = context.createLinearGradient(300, 0, 500, 0);
+  accentGradient.addColorStop(0, '#f59e0b');
+  accentGradient.addColorStop(1, '#14b8a6');
+  context.fillStyle = accentGradient;
+  context.beginPath();
+  context.roundRect(335, 82, 130, 5, 3);
+  context.fill();
   context.drawImage(qrImage, 80, 105, 640, 640);
   context.fillStyle = '#fff';
   context.beginPath();
-  context.roundRect(350, 375, 100, 100, 18);
+  context.roundRect(344, 369, 112, 112, 22);
   context.fill();
-  context.fillStyle = '#dc2626';
-  context.font = 'bold 42px Arial';
-  context.fillText('H2', 400, 440);
+  context.drawImage(brandLogo, 352, 377, 96, 96);
   context.fillStyle = '#111827';
   context.font = 'bold 34px Arial';
   context.fillText(table['Tên bàn'], 400, 805, 720);
