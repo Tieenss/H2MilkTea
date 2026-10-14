@@ -946,7 +946,7 @@ export default function UserGuidePage() {
                     </div>
                     <div>
                       <h4 className="font-medium">Hotline</h4>
-                      <p className="text-green-600 font-semibold">0326132124</p>
+                      <p className="text-green-600 font-semibold">0985561909</p>
                     </div>
                   </div>
                 </CardContent>

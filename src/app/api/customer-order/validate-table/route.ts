@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
+import bundledTables from '@/data/DSBAN.json';
 
 // Validate table exists
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const tableId = searchParams.get('table');
+  const tableId = searchParams.get('table')?.trim();
 
   if (!tableId) {
     return NextResponse.json({ valid: false, error: 'Missing table parameter' }, { status: 400 });
   }
 
   try {
-    // Try loading from Supabase first, fall back to JSON
-    let tables: Array<Record<string, string>> = [];
+    // Use the bundled table data as a reliable fallback in serverless deployments.
+    const tables = bundledTables as Array<Record<string, string>>;
     
     try {
       // Dynamic import to avoid build-time errors
@@ -28,30 +29,18 @@ export async function GET(request: NextRequest) {
           .single();
         
         if (data && !error) {
-          return NextResponse.json({
-            valid: true,
-            tableId: data.IDBAN,
-            tableName: data['Tên bàn'],
-            status: data['Trạng thái'],
-          });
+          if (data['Trạng thái'] === 'Ngừng hoạt động' || data['Trạng thái'] === 'Bảo trì') {
+            return NextResponse.json({ valid: false, error: 'Bàn này hiện không hoạt động' });
+          }
+          return NextResponse.json({ valid: true, tableId: data.IDBAN, tableName: data['Tên bàn'], status: data['Trạng thái'] });
         }
       }
     } catch {
       // Supabase not available, fall back to JSON
     }
 
-    // Fallback: read from local JSON data
-    const fs = await import('fs');
-    const path = await import('path');
-    
-    const dataPath = path.join(process.cwd(), 'src', 'data', 'DSBAN.json');
-    if (fs.existsSync(dataPath)) {
-      const rawData = fs.readFileSync(dataPath, 'utf-8');
-      tables = JSON.parse(rawData);
-    }
-
     // Handle special "takeaway" table
-    if (tableId === 'takeaway') {
+    if (tableId.toLocaleLowerCase('vi') === 'takeaway') {
       const takeawayTable = tables.find(t => t['IDBAN'] === 'Khách mua về');
       return NextResponse.json({
         valid: true,
@@ -62,7 +51,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Find table by IDBAN
-    const table = tables.find(t => t['IDBAN'] === tableId);
+    const table = tables.find(t => String(t['IDBAN']).trim().toLocaleLowerCase('vi') === tableId.toLocaleLowerCase('vi'));
     
     if (table) {
       if (table['Trạng thái'] === 'Ngừng hoạt động' || table['Trạng thái'] === 'Bảo trì') {

@@ -203,8 +203,8 @@ const generateInvoiceHtml = (invoice: Invoice, details: InvoiceDetail[]): string
         <div id="content">
             <div class="header">
                 <div class="company-name">H2 MilkTea</div>
-                <div><strong>Địa chỉ: Lâm Đồng</strong></div>
-                <div>SĐT: 0326132124</div>
+                <div><strong>Địa chỉ: Phúc Xuân, Trung Giã, Hà Nội</strong></div>
+                <div>SĐT: 0985561909</div>
                 <div>Website: h2milktea.vn</div>
             </div>
 
@@ -302,7 +302,7 @@ const generateInvoiceHtml = (invoice: Invoice, details: InvoiceDetail[]): string
                     <div><strong>Cảm ơn quý khách đã mua hàng!</strong></div>
                     <div>Hẹn gặp lại quý khách</div>
                     <div style="margin-top: 2mm;">
-                        Liên hệ hỗ trợ: 0326132124
+                        Liên hệ hỗ trợ: 0985561909 - Trần Văn Hà
                     </div>
                     <div style="margin-top: 2mm;">
                         Trạng thái: ${invoice['Trạng thái']}

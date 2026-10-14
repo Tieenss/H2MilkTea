@@ -100,8 +100,8 @@ A: Có, nhưng nên backup thủ công định kỳ qua **Cài đặt Data**
 ## 🆘 Hỗ trợ nhanh
 
 **Gặp vấn đề?**
-- 📞 Hotline: **0326132124**
-- 📧 Email: **support@gigapos.com**
+- 📞 Hotline: **0985561909**
+- 📧 Email: **tiengame2k5@gmail.com**
 - 💬 Chat: Góc phải màn hình
 - 📖 Hướng dẫn chi tiết: Menu **Hướng dẫn sử dụng**
 

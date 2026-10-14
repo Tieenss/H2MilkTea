@@ -103,10 +103,10 @@ export default function ReceiptSettingsPage() {
       companyInfo: {
         name: 'H2 MilkTea SYSTEM',
         address: '123 Đường ABC, Quận 1, TP.HCM',
-        phone: '0901234567',
-        email: 'contact@h2milktea.vn',
-        taxCode: '0326132124',
-        website: 'www.h2milktea.vn'
+        phone: '0985561909',
+        email: 'tiengame@gmail.com',
+        taxCode: '0985561909',
+        website: 'https://h2milktea.vercel.app/'
       }
     },
     report: {

@@ -269,8 +269,8 @@ Sau khi đăng nhập thành công, bạn sẽ thấy:
 ## 📞 Hỗ trợ kỹ thuật
 
 ### Thông tin liên hệ:
-- **📧 Email**: support@gigapos.com
-- **📱 Hotline**: 0326132124
+- **📧 Email**: tiengame2k5@gmail.com
+- **📱 Hotline**: 0985561909
 - **🕐 Thời gian**: 8:00 - 22:00 (T2-CN)
 
 ### Tài liệu bổ sung:
