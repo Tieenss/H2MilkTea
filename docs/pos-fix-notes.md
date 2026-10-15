@@ -4,10 +4,41 @@
 
 Ổn định các luồng POS cốt lõi và đồng bộ đa thiết bị trước khi tích hợp AI Assistant. Không triển khai AI order lên production khi các luồng bên dưới chưa đạt.
 
+## AI POS MVP
+
+Trợ lý hiện chỉ phân tích lệnh món, hiển thị xem trước và thêm món sau khi thu ngân xác nhận.
+Không cho chatbot tự thanh toán, giảm giá, đổi bàn hoặc ghi đơn trực tiếp.
+Vercel cần thêm biến server-side `OPENAI_API_KEY` (không có tiền tố `NEXT_PUBLIC_`) và có thể thêm `OPENAI_MODEL`.
+
+## Vercel deployment bắt buộc
+
+Nếu deployment báo:
+
+```text
+@supabase/ssr: Your project's URL and API key are required
+```
+
+thì Vercel đang thiếu một trong hai biến public sau:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key-cua-project>
+```
+
+Vào **Vercel → Project → Settings → Environment Variables**, thêm cả hai biến cho đúng environment đang deploy (`Production` và/hoặc `Preview`), sau đó tạo **Redeploy**. Không dùng `DATABASE_URL` thay cho `NEXT_PUBLIC_SUPABASE_URL`, và không dùng `SUPABASE_SERVICE_ROLE_KEY` thay cho anon key.
+
+Kiểm tra thêm:
+
+- [ ] URL và anon key thuộc cùng một Supabase project.
+- [ ] Biến được thêm cho đúng environment của deployment.
+- [ ] Đã redeploy sau khi thêm/sửa biến.
+- [ ] `SUPABASE_SERVICE_ROLE_KEY` không được đưa vào frontend hoặc tên `NEXT_PUBLIC_*`.
+
 ## P0 - Phải sửa trước khi sang giai đoạn AI
 
 ### 1. Đồng bộ đổi bàn
 
+- **Tạm ghi nhận:** luồng chuyển bàn vẫn còn lỗi khi sử dụng thực tế; chưa xử lý trong giai đoạn chatbot, sẽ quay lại fix sau khi MVP AI ổn định.
 - Khi chuyển từ bàn 3 sang bàn 4, không được chỉ sao chép cart sang bàn 4.
 - Bản nháp của bàn 3 phải được xóa hoặc chuyển sang trạng thái không còn hoạt động.
 - Máy A và máy B phải cùng thấy:
