@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedStaff } from '@/lib/supabase/server';
+import menuData from '@/data/DMHH.json';
+import { createAdminSupabaseClient } from '@/lib/supabase/server';
 
 interface CatalogItem {
   id: string;
@@ -29,14 +31,32 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const body = await request.json() as { message?: unknown; catalog?: unknown };
+    const body = await request.json() as { message?: unknown };
     const message = typeof body.message === 'string' ? body.message.trim() : '';
-    const catalog = Array.isArray(body.catalog) ? body.catalog as CatalogItem[] : [];
 
-    if (!message || catalog.length === 0) {
+    if (!message) {
       return NextResponse.json(
-        { success: false, error: 'Cần nhập câu lệnh và danh sách sản phẩm.' },
+        { success: false, error: 'Cần nhập câu lệnh món.' },
         { status: 400 },
+      );
+    }
+
+    const supabase = createAdminSupabaseClient();
+    const { data: liveProducts } = supabase
+      ? await supabase.from('DMHH').select('IDSP, Tên sản phẩm, Đơn giá, Trạng thái')
+      : { data: null };
+    const catalog: CatalogItem[] = (liveProducts?.length ? liveProducts : menuData)
+      .filter((product) => product['Trạng thái'] === 'Hoạt động')
+      .map((product) => ({
+        id: String(product.IDSP),
+        name: String(product['Tên sản phẩm']),
+        price: Number(product['Đơn giá']) || 0,
+      }));
+
+    if (catalog.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'Chưa tải được danh sách món đang bán.' },
+        { status: 503 },
       );
     }
 

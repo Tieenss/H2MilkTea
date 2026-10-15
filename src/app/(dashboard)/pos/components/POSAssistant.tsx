@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { Bot, Check, Loader2, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import type { Product } from '../types/pos';
 
 interface AssistantItem {
   productId: string;
@@ -14,11 +13,10 @@ interface AssistantItem {
 }
 
 interface POSAssistantProps {
-  products: Product[];
   onAddToCart: (productId: string) => void;
 }
 
-export function POSAssistant({ products, onAddToCart }: POSAssistantProps) {
+export function POSAssistant({ onAddToCart }: POSAssistantProps) {
   const [message, setMessage] = useState('');
   const [items, setItems] = useState<AssistantItem[]>([]);
   const [reply, setReply] = useState('');
@@ -35,11 +33,6 @@ export function POSAssistant({ products, onAddToCart }: POSAssistantProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message,
-          catalog: products.map((product) => ({
-            id: product.IDSP,
-            name: product['Tên sản phẩm'],
-            price: Number(product['Đơn giá']) || 0,
-          })),
         }),
       });
       const result = await response.json();
