@@ -36,7 +36,7 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
   const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>('CLOSED');
   const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null);
   const versionRef = useRef(0);
-  const ignoreNextPublishRef = useRef(false);
+  const pendingRemoteCartRef = useRef<string | null>(null);
   const cartRef = useRef(cart);
   const writeInFlightRef = useRef(false);
   cartRef.current = cart;
@@ -45,8 +45,8 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
     const remoteVersion = draft?.version || 0;
     if (!force && remoteVersion < versionRef.current) return;
     versionRef.current = remoteVersion;
-    ignoreNextPublishRef.current = true;
     const nextCart = draft?.cart || [];
+    pendingRemoteCartRef.current = JSON.stringify(nextCart);
     setCart(nextCart);
     if (tableId) onRemoteCart?.(tableId, nextCart);
     setLastSyncAt(new Date());
@@ -64,6 +64,7 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
     if (!tableId) {
       setStatus('disabled');
       versionRef.current = 0;
+      pendingRemoteCartRef.current = null;
       return;
     }
 
@@ -113,8 +114,9 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
 
   useEffect(() => {
     if (!tableId) return;
-    if (ignoreNextPublishRef.current) {
-      ignoreNextPublishRef.current = false;
+    const cartSnapshot = JSON.stringify(cart);
+    if (pendingRemoteCartRef.current === cartSnapshot) {
+      pendingRemoteCartRef.current = null;
       return;
     }
 
