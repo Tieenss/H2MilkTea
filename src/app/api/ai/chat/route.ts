@@ -44,6 +44,12 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createAdminSupabaseClient();
+    const { data: setting } = supabase
+      ? await supabase.from('app_settings').select('value').eq('key', 'ai_assistant_enabled').maybeSingle()
+      : { data: null };
+    if (setting && setting.value === false) {
+      return NextResponse.json({ success: false, error: 'Chatbot đang được Admin tắt.' }, { status: 403 });
+    }
     const { data: liveProducts } = supabase
       ? await supabase.from('DMHH').select('IDSP, Tên sản phẩm, Đơn giá, Trạng thái')
       : { data: null };

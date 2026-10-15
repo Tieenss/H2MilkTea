@@ -22,7 +22,8 @@ import {
   Info,
   Lightbulb,
   Star,
-  Gift
+  Gift,
+  Bot
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -1015,7 +1016,28 @@ export default function UserGuidePage() {
           </div>
         </div>
       )
-    }
+    },
+    {
+      id: 'ai-assistant',
+      title: 'Trợ lý AI POS',
+      icon: Bot,
+      color: 'bg-indigo-600',
+      content: (
+        <div className="space-y-4">
+          <h2 className="text-xl font-bold">Cách sử dụng trợ lý AI POS</h2>
+          <p>Mở nút robot nổi trên màn hình POS, nhập hoặc đọc câu lệnh bằng tiếng Việt, xem bản xem trước rồi bấm Xác nhận.</p>
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            Chưa phát triển: thanh toán, đổi bàn, giảm giá, báo cáo, tồn kho và thay đổi menu bằng chatbot.
+          </div>
+          <ul className="list-disc space-y-1 pl-5 text-sm">
+            <li>Ví dụ thêm món: “Thêm 2 trà sữa khoai môn”.</li>
+            <li>Ví dụ bớt món: “Bỏ 1 ly vừa thêm”.</li>
+            <li>Dùng nút microphone để chuyển giọng nói tiếng Việt thành văn bản.</li>
+            <li>Chatbot chỉ thay đổi giỏ hàng sau khi thu ngân xác nhận.</li>
+          </ul>
+        </div>
+      ),
+    },
   ];
 
   return (

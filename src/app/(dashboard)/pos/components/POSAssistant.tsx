@@ -1,8 +1,33 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Bot, Check, Loader2, Send, X } from 'lucide-react';
+import { Bot, Check, Loader2, Mic, Send, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+
+interface SpeechRecognitionEvent extends Event {
+  results: {
+    [index: number]: {
+      [index: number]: { transcript: string };
+    };
+  };
+}
+
+interface SpeechRecognitionInstance {
+  lang: string;
+  interimResults: boolean;
+  onstart: () => void;
+  onend: () => void;
+  onerror: () => void;
+  onresult: (event: SpeechRecognitionEvent) => void;
+  start: () => void;
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition?: new () => SpeechRecognitionInstance;
+    webkitSpeechRecognition?: new () => SpeechRecognitionInstance;
+  }
+}
 
 interface AssistantItem {
   productId: string;
@@ -31,8 +56,19 @@ export function POSAssistant({ onAddToCart, onAdjustQuantity, cart, selectedTabl
   const [open, setOpen] = useState(false);
   const [action, setAction] = useState<'add' | 'remove' | 'none'>('none');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [enabled, setEnabled] = useState(true);
+  const [recording, setRecording] = useState(false);
   const storageKey = `h2-pos-ai-chat:${selectedTableName}`;
   const loadedStorageKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/ai/settings')
+      .then(async (response) => {
+        const result = await response.json();
+        if (response.ok && result.success) setEnabled(result.enabled);
+      })
+      .catch((error) => console.error('Không thể tải trạng thái chatbot:', error));
+  }, []);
 
   useEffect(() => {
     try {
@@ -109,6 +145,29 @@ export function POSAssistant({ onAddToCart, onAdjustQuantity, cart, selectedTabl
       else if (action === 'add') {
         for (let index = 0; index < item.quantity; index += 1) onAddToCart(item.productId);
       }
+
+      function startVoiceInput() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+          setReply('Trình duyệt này chưa hỗ trợ nhập giọng nói.');
+          return;
+        }
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'vi-VN';
+        recognition.interimResults = false;
+        recognition.onstart = () => setRecording(true);
+        recognition.onend = () => setRecording(false);
+        recognition.onerror = () => {
+          setRecording(false);
+          setReply('Không nhận diện được giọng nói. Vui lòng thử lại.');
+        };
+        recognition.onresult = (event: SpeechRecognitionEvent) => {
+          setMessage(event.results[0][0].transcript);
+        };
+        recognition.start();
+      }
+
+      if (!enabled) return null;
     });
     setReply(action === 'remove' ? 'Đã bớt món khỏi giỏ hàng.' : 'Đã thêm món vào giỏ hàng.');
     setItems([]);
@@ -126,6 +185,7 @@ export function POSAssistant({ onAddToCart, onAdjustQuantity, cart, selectedTabl
               <X className="h-4 w-4" />
             </Button>
           </div>
+          <p className="text-xs text-red-600">Chưa phát triển: thanh toán, đổi bàn, giảm giá và báo cáo.</p>
           <div className="max-h-48 space-y-2 overflow-y-auto text-sm">
             {messages.map((chatMessage, index) => (
               <p key={`${chatMessage.role}-${index}`} className={chatMessage.role === 'user' ? 'text-right text-indigo-700' : 'text-muted-foreground'}>
@@ -152,6 +212,9 @@ export function POSAssistant({ onAddToCart, onAdjustQuantity, cart, selectedTabl
             />
             <Button onClick={() => void analyzeOrder()} disabled={loading || !message.trim()} size="sm" aria-label="Gửi yêu cầu">
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            </Button>
+            <Button onClick={startVoiceInput} disabled={loading || recording} size="sm" variant={recording ? 'destructive' : 'outline'} aria-label="Nhập bằng giọng nói">
+              <Mic className="h-4 w-4" />
             </Button>
           </div>
         </div>
