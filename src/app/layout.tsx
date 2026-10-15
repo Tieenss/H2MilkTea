@@ -1,12 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import { Open_Sans } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
-
-const openSans = Open_Sans({
-  subsets: ["latin", "latin-ext"],
-  weight: ["300", "400", "500", "600", "700"]
-});
 
 export const viewport: Viewport = {
   themeColor: "#000000",
@@ -38,7 +32,7 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.json" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
       </head>
-      <body className={openSans.className}>
+      <body>
         {children}
         <Toaster
           position="top-right"
