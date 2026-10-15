@@ -22,11 +22,13 @@ import authUtils from '@/utils/authUtils';
 import './styles/pos.css';
 import { CustomerSelectModal } from '@/app/(dashboard)/pos/components/CustomerSelectModal';
 import { QROrderInbox } from './components/QROrderInbox';
+import { POSAssistant } from './components/POSAssistant';
 
 export default function POSPage() {
   const {
     // ... existing props
     filteredProducts,
+    products,
     tables,
     cart,
     selectedTableId,
@@ -340,6 +342,7 @@ export default function POSPage() {
       </div>
 
       <QROrderInbox onSettle={settleQrOrder} />
+      <POSAssistant products={products} onAddToCart={addToCart} />
 
       {/* Main Content */}
       <div className="flex flex-col lg:flex-row h-[calc(100vh-8rem)] lg:h-[calc(100vh-12rem)]">

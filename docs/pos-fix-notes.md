@@ -4,6 +4,12 @@
 
 Ổn định các luồng POS cốt lõi và đồng bộ đa thiết bị trước khi tích hợp AI Assistant. Không triển khai AI order lên production khi các luồng bên dưới chưa đạt.
 
+## AI POS MVP
+
+Trợ lý hiện chỉ phân tích lệnh món, hiển thị xem trước và thêm món sau khi thu ngân xác nhận.
+Không cho chatbot tự thanh toán, giảm giá, đổi bàn hoặc ghi đơn trực tiếp.
+Vercel cần thêm biến server-side `OPENAI_API_KEY` (không có tiền tố `NEXT_PUBLIC_`) và có thể thêm `OPENAI_MODEL`.
+
 ## Vercel deployment bắt buộc
 
 Nếu deployment báo:
@@ -32,6 +38,7 @@ Kiểm tra thêm:
 
 ### 1. Đồng bộ đổi bàn
 
+- **Tạm ghi nhận:** luồng chuyển bàn vẫn còn lỗi khi sử dụng thực tế; chưa xử lý trong giai đoạn chatbot, sẽ quay lại fix sau khi MVP AI ổn định.
 - Khi chuyển từ bàn 3 sang bàn 4, không được chỉ sao chép cart sang bàn 4.
 - Bản nháp của bàn 3 phải được xóa hoặc chuyển sang trạng thái không còn hoạt động.
 - Máy A và máy B phải cùng thấy:
