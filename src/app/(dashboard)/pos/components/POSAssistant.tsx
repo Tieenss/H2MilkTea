@@ -61,10 +61,23 @@ export function POSAssistant({ onAddToCart, onAdjustQuantity, cart, selectedTabl
     setItems([]);
     const userMessage = message.trim();
     setMessages((current) => [...current, { role: 'user', content: userMessage }]);
+
+    if (/^(xin chào|chào|hello|hi|alo|hey)[!. ]*$/i.test(userMessage)) {
+      const greeting = 'Xin chào! Tôi có thể giúp thêm hoặc bớt món trong giỏ của bàn hiện tại.';
+      setReply(greeting);
+      setMessages((current) => [...current, { role: 'assistant', content: greeting }]);
+      setMessage('');
+      setLoading(false);
+      return;
+    }
+
     try {
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 30000);
       const response = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           message: userMessage,
           history: messages,
@@ -72,6 +85,7 @@ export function POSAssistant({ onAddToCart, onAdjustQuantity, cart, selectedTabl
           cart,
         }),
       });
+      window.clearTimeout(timeout);
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || 'Không thể xử lý câu lệnh.');
       setItems(result.items || []);
@@ -79,7 +93,9 @@ export function POSAssistant({ onAddToCart, onAdjustQuantity, cart, selectedTabl
       setAction(result.action || 'none');
       setMessages((current) => [...current, { role: 'assistant', content: result.message || '' }]);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Không thể xử lý câu lệnh.';
+      const errorMessage = error instanceof DOMException && error.name === 'AbortError'
+        ? 'Gemini phản hồi quá lâu. Vui lòng thử lại.'
+        : error instanceof Error ? error.message : 'Không thể xử lý câu lệnh.';
       setReply(errorMessage);
       setMessages((current) => [...current, { role: 'assistant', content: errorMessage }]);
     } finally {

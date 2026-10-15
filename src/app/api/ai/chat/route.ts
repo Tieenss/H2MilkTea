@@ -69,11 +69,14 @@ export async function POST(request: NextRequest) {
     const currentCart = Array.isArray(body.cart) ? body.cart : [];
     const table = typeof body.table === 'string' ? body.table : 'Chưa chọn bàn';
     const model = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 25000);
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           systemInstruction: {
             parts: [{
@@ -102,6 +105,7 @@ export async function POST(request: NextRequest) {
         }),
       },
     );
+    clearTimeout(timeout);
 
     const result = await response.json() as {
       candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
