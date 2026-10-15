@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Bot, Check, Loader2, Send, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -11,34 +11,77 @@ interface AssistantItem {
   note?: string;
 }
 
-interface POSAssistantProps {
-  onAddToCart: (productId: string) => void;
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
 }
 
-export function POSAssistant({ onAddToCart }: POSAssistantProps) {
+interface POSAssistantProps {
+  onAddToCart: (productId: string) => void;
+  onAdjustQuantity: (productId: string, amount: number) => void;
+  cart: Array<{ id: string; name: string; quantity: number }>;
+  selectedTableName: string;
+}
+
+export function POSAssistant({ onAddToCart, onAdjustQuantity, cart, selectedTableName }: POSAssistantProps) {
   const [message, setMessage] = useState('');
   const [items, setItems] = useState<AssistantItem[]>([]);
   const [reply, setReply] = useState('');
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [action, setAction] = useState<'add' | 'remove' | 'none'>('none');
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const storageKey = `h2-pos-ai-chat:${selectedTableName}`;
+  const loadedStorageKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(storageKey);
+      setMessages(saved ? JSON.parse(saved) as ChatMessage[] : []);
+      loadedStorageKeyRef.current = storageKey;
+    } catch (error) {
+      console.error('Không thể tải lịch sử chat POS:', error);
+      setMessages([]);
+    }
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (loadedStorageKeyRef.current !== storageKey) return;
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify(messages.slice(-20)));
+    } catch (error) {
+      console.error('Không thể lưu lịch sử chat POS:', error);
+    }
+  }, [messages, storageKey]);
 
   async function analyzeOrder() {
     if (!message.trim() || loading) return;
     setLoading(true);
     setReply('');
     setItems([]);
+    const userMessage = message.trim();
+    setMessages((current) => [...current, { role: 'user', content: userMessage }]);
     try {
       const response = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({
+          message: userMessage,
+          history: messages,
+          table: selectedTableName,
+          cart,
+        }),
       });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || 'Không thể xử lý câu lệnh.');
       setItems(result.items || []);
       setReply(result.message || '');
+      setAction(result.action || 'none');
+      setMessages((current) => [...current, { role: 'assistant', content: result.message || '' }]);
     } catch (error) {
-      setReply(error instanceof Error ? error.message : 'Không thể xử lý câu lệnh.');
+      const errorMessage = error instanceof Error ? error.message : 'Không thể xử lý câu lệnh.';
+      setReply(errorMessage);
+      setMessages((current) => [...current, { role: 'assistant', content: errorMessage }]);
     } finally {
       setLoading(false);
     }
@@ -46,11 +89,15 @@ export function POSAssistant({ onAddToCart }: POSAssistantProps) {
 
   function confirmItems() {
     items.forEach((item) => {
-      for (let index = 0; index < item.quantity; index += 1) onAddToCart(item.productId);
+      if (action === 'remove') onAdjustQuantity(item.productId, -item.quantity);
+      else if (action === 'add') {
+        for (let index = 0; index < item.quantity; index += 1) onAddToCart(item.productId);
+      }
     });
-    setReply('Đã thêm món vào giỏ hàng.');
+    setReply(action === 'remove' ? 'Đã bớt món khỏi giỏ hàng.' : 'Đã thêm món vào giỏ hàng.');
     setItems([]);
     setMessage('');
+    setAction('none');
   }
 
   return (
@@ -63,12 +110,17 @@ export function POSAssistant({ onAddToCart }: POSAssistantProps) {
               <X className="h-4 w-4" />
             </Button>
           </div>
-          <div className="max-h-48 overflow-y-auto text-sm">
-            {reply ? <p className="text-muted-foreground">{reply}</p> : <p className="text-muted-foreground">Nhập món cần thêm vào giỏ.</p>}
+          <div className="max-h-48 space-y-2 overflow-y-auto text-sm">
+            {messages.map((chatMessage, index) => (
+              <p key={`${chatMessage.role}-${index}`} className={chatMessage.role === 'user' ? 'text-right text-indigo-700' : 'text-muted-foreground'}>
+                <span className="font-medium">{chatMessage.role === 'user' ? 'Bạn: ' : 'AI: '}</span>{chatMessage.content}
+              </p>
+            ))}
+            {!messages.length && <p className="text-muted-foreground">Nhập món cần thêm hoặc bớt khỏi giỏ.</p>}
           </div>
           {items.length > 0 && (
             <div className="flex items-center justify-between gap-2 rounded-md bg-indigo-50 p-2 text-sm">
-              <span>{items.map((item) => `${item.quantity}x ${item.productName}`).join(', ')}</span>
+              <span>{action === 'remove' ? 'Bớt ' : 'Thêm '}{items.map((item) => `${item.quantity}x ${item.productName}`).join(', ')}?</span>
               <Button onClick={confirmItems} size="sm"><Check className="h-4 w-4" /> Xác nhận</Button>
             </div>
           )}
