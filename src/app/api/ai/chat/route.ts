@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedStaff } from '@/lib/supabase/server';
 import menuData from '@/data/DMHH.json';
-import { createAdminSupabaseClient } from '@/lib/supabase/server';
+import { createAdminSupabaseClient, getAuthenticatedStaff } from '@/lib/supabase/server';
 
 interface CatalogItem {
   id: string;
@@ -22,23 +21,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Phiên đăng nhập đã hết hạn.' }, { status: 401 });
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return NextResponse.json(
-      { success: false, error: 'Thiếu OPENAI_API_KEY trên server.' },
-      { status: 503 },
-    );
+    return NextResponse.json({ success: false, error: 'Thiếu GEMINI_API_KEY trên server.' }, { status: 503 });
   }
 
   try {
     const body = await request.json() as { message?: unknown };
     const message = typeof body.message === 'string' ? body.message.trim() : '';
-
     if (!message) {
-      return NextResponse.json(
-        { success: false, error: 'Cần nhập câu lệnh món.' },
-        { status: 400 },
-      );
+      return NextResponse.json({ success: false, error: 'Cần nhập câu lệnh món.' }, { status: 400 });
     }
 
     const supabase = createAdminSupabaseClient();
@@ -54,48 +46,44 @@ export async function POST(request: NextRequest) {
       }));
 
     if (catalog.length === 0) {
-      return NextResponse.json(
-        { success: false, error: 'Chưa tải được danh sách món đang bán.' },
-        { status: 503 },
-      );
+      return NextResponse.json({ success: false, error: 'Chưa tải được danh sách món đang bán.' }, { status: 503 });
     }
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-        temperature: 0,
-        response_format: { type: 'json_object' },
-        messages: [
-          {
-            role: 'system',
-            content: [
-              'Bạn là trợ lý POS H2 MilkTea.',
-              'Phân tích câu lệnh tiếng Việt thành JSON chỉ gồm {"items":[...],"message":"..."} .',
-              'Mỗi item phải có productId, productName, quantity là số nguyên dương; note là chuỗi tùy chọn.',
-              'Chỉ chọn productId có trong catalog. Nếu không chắc chắn, không thêm item và giải thích trong message.',
-              'Không tự áp mã giảm giá, thanh toán, đổi bàn hoặc thực hiện hành động khác.',
-              `Catalog: ${JSON.stringify(catalog)}`,
-            ].join('\n'),
+    const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [{
+              text: [
+                'Bạn là trợ lý POS H2 MilkTea.',
+                'Phân tích câu lệnh tiếng Việt thành JSON chỉ gồm {"items":[...],"message":"..."}',
+                'Mỗi item phải có productId, productName, quantity là số nguyên dương; note là chuỗi tùy chọn.',
+                'Chỉ chọn productId có trong catalog. Nếu không chắc chắn, không thêm item và giải thích trong message.',
+                'Không tự áp mã giảm giá, thanh toán, đổi bàn hoặc thực hiện hành động khác.',
+                `Catalog: ${JSON.stringify(catalog)}`,
+              ].join('\n'),
+            }],
           },
-          { role: 'user', content: message },
-        ],
-      }),
-    });
+          contents: [{ role: 'user', parts: [{ text: message }] }],
+          generationConfig: { temperature: 0, responseMimeType: 'application/json' },
+        }),
+      },
+    );
 
     const result = await response.json() as {
-      choices?: Array<{ message?: { content?: string } }>;
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
       error?: { message?: string };
     };
     if (!response.ok) {
-      throw new Error(result.error?.message || 'OpenAI không xử lý được yêu cầu.');
+      throw new Error(result.error?.message || 'Gemini không xử lý được yêu cầu.');
     }
 
-    const parsed = JSON.parse(result.choices?.[0]?.message?.content || '{}') as {
+    const responseText = result.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+    const parsed = JSON.parse(responseText.replace(/^```json\s*|\s*```$/g, '')) as {
       items?: ParsedItem[];
       message?: string;
     };
@@ -110,7 +98,7 @@ export async function POST(request: NextRequest) {
       message: parsed.message || (items.length ? 'Đã nhận diện món. Vui lòng xác nhận.' : 'Chưa nhận diện được món.'),
     });
   } catch (error) {
-    console.error('AI POS chat failed:', error);
+    console.error('Gemini POS chat failed:', error);
     return NextResponse.json(
       { success: false, error: error instanceof Error ? error.message : 'Không thể xử lý câu lệnh AI.' },
       { status: 502 },

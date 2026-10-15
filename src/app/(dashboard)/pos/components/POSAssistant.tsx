@@ -1,9 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Bot, Check, Loader2, Send } from 'lucide-react';
+import { Bot, Check, Loader2, Send, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 
 interface AssistantItem {
   productId: string;
@@ -21,6 +20,7 @@ export function POSAssistant({ onAddToCart }: POSAssistantProps) {
   const [items, setItems] = useState<AssistantItem[]>([]);
   const [reply, setReply] = useState('');
   const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
 
   async function analyzeOrder() {
     if (!message.trim() || loading) return;
@@ -31,9 +31,7 @@ export function POSAssistant({ onAddToCart }: POSAssistantProps) {
       const response = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message,
-        }),
+        body: JSON.stringify({ message }),
       });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || 'Không thể xử lý câu lệnh.');
@@ -56,30 +54,47 @@ export function POSAssistant({ onAddToCart }: POSAssistantProps) {
   }
 
   return (
-    <Card className="m-3 gap-3 border-indigo-200 p-3">
-      <div className="flex items-center gap-2 text-sm font-semibold text-indigo-700">
-        <Bot className="h-4 w-4" /> Trợ lý POS
-      </div>
-      <div className="flex gap-2">
-        <input
-          className="min-w-0 flex-1 rounded-md border px-3 py-2 text-sm"
-          value={message}
-          onChange={(event) => setMessage(event.target.value)}
-          onKeyDown={(event) => { if (event.key === 'Enter') void analyzeOrder(); }}
-          placeholder="Ví dụ: 2 trà sữa nướng, 1 hồng trà..."
-          disabled={loading}
-        />
-        <Button onClick={() => void analyzeOrder()} disabled={loading || !message.trim()} size="sm">
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-        </Button>
-      </div>
-      {reply && <p className="text-sm text-muted-foreground">{reply}</p>}
-      {items.length > 0 && (
-        <div className="flex items-center justify-between rounded-md bg-indigo-50 p-2 text-sm">
-          <span>{items.map((item) => `${item.quantity}x ${item.productName}`).join(', ')}</span>
-          <Button onClick={confirmItems} size="sm"><Check className="h-4 w-4" /> Xác nhận</Button>
+    <>
+      {open && (
+        <div className="fixed bottom-24 right-4 z-50 flex w-[calc(100vw-2rem)] max-w-[420px] flex-col gap-3 rounded-xl border border-indigo-200 bg-white p-4 shadow-2xl">
+          <div className="flex items-center justify-between text-sm font-semibold text-indigo-700">
+            <span className="flex items-center gap-2"><Bot className="h-4 w-4" /> Trợ lý POS</span>
+            <Button onClick={() => setOpen(false)} variant="ghost" size="icon" aria-label="Đóng trợ lý POS">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="max-h-48 overflow-y-auto text-sm">
+            {reply ? <p className="text-muted-foreground">{reply}</p> : <p className="text-muted-foreground">Nhập món cần thêm vào giỏ.</p>}
+          </div>
+          {items.length > 0 && (
+            <div className="flex items-center justify-between gap-2 rounded-md bg-indigo-50 p-2 text-sm">
+              <span>{items.map((item) => `${item.quantity}x ${item.productName}`).join(', ')}</span>
+              <Button onClick={confirmItems} size="sm"><Check className="h-4 w-4" /> Xác nhận</Button>
+            </div>
+          )}
+          <div className="flex gap-2">
+            <input
+              autoFocus
+              className="min-w-0 flex-1 rounded-md border px-3 py-2 text-sm"
+              value={message}
+              onChange={(event) => setMessage(event.target.value)}
+              onKeyDown={(event) => { if (event.key === 'Enter') void analyzeOrder(); }}
+              placeholder="Ví dụ: 2 trà sữa nướng..."
+              disabled={loading}
+            />
+            <Button onClick={() => void analyzeOrder()} disabled={loading || !message.trim()} size="sm" aria-label="Gửi yêu cầu">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            </Button>
+          </div>
         </div>
       )}
-    </Card>
+      <Button
+        onClick={() => setOpen((current) => !current)}
+        className="fixed bottom-4 right-4 z-50 h-14 w-14 rounded-full bg-indigo-600 p-0 text-white shadow-lg hover:bg-indigo-700"
+        aria-label={open ? 'Đóng trợ lý POS' : 'Mở trợ lý POS'}
+      >
+        {open ? <X className="h-5 w-5" /> : <Bot className="h-6 w-6" />}
+      </Button>
+    </>
   );
 }
