@@ -1,0 +1,163 @@
+'use client';
+
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { CartItem } from '../types/pos';
+import { createClient } from '@/lib/supabase/client';
+
+interface CartDraft {
+  table_id: string;
+  cart: CartItem[];
+  version: number;
+}
+
+export type SharedCartStatus =
+  | 'disabled'
+  | 'loading'
+  | 'connected'
+  | 'offline'
+  | 'conflict';
+
+export type RealtimeStatus =
+  | 'CONNECTING'
+  | 'SUBSCRIBED'
+  | 'CHANNEL_ERROR'
+  | 'TIMED_OUT'
+  | 'CLOSED';
+
+interface UseSharedCartDraftOptions {
+  tableId: string | null;
+  cart: CartItem[];
+  setCart: (cart: CartItem[]) => void;
+  onRemoteCart?: (tableId: string, cart: CartItem[]) => void;
+}
+
+export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: UseSharedCartDraftOptions) {
+  const [status, setStatus] = useState<SharedCartStatus>('disabled');
+  const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>('CLOSED');
+  const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null);
+  const versionRef = useRef(0);
+  const ignoreNextPublishRef = useRef(false);
+  const cartRef = useRef(cart);
+  const writeInFlightRef = useRef(false);
+  cartRef.current = cart;
+
+  const applyDraft = useCallback((draft: CartDraft | null, force = false) => {
+    const remoteVersion = draft?.version || 0;
+    if (!force && remoteVersion < versionRef.current) return;
+    versionRef.current = remoteVersion;
+    ignoreNextPublishRef.current = true;
+    const nextCart = draft?.cart || [];
+    setCart(nextCart);
+    if (tableId) onRemoteCart?.(tableId, nextCart);
+    setLastSyncAt(new Date());
+  }, [onRemoteCart, setCart, tableId]);
+
+  const fetchDraft = useCallback(async (currentTableId: string) => {
+    if (writeInFlightRef.current) return;
+    const response = await fetch(`/api/pos/cart-draft?tableId=${encodeURIComponent(currentTableId)}`, { cache: 'no-store' });
+    const result = await response.json();
+    if (!response.ok || !result.success) throw new Error(result.error || 'Không tải được giỏ hàng dùng chung.');
+    applyDraft(result.draft, versionRef.current === 0);
+  }, [applyDraft]);
+
+  useEffect(() => {
+    if (!tableId) {
+      setStatus('disabled');
+      versionRef.current = 0;
+      return;
+    }
+
+    let active = true;
+    const client = createClient();
+    const channel = client
+      .channel(`pos-cart-draft:${tableId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'pos_cart_drafts',
+        filter: `table_id=eq.${tableId}`,
+      }, (payload) => {
+        if (!active || payload.eventType === 'DELETE') {
+          if (payload.eventType === 'DELETE') applyDraft(null, true);
+          return;
+        }
+        applyDraft(payload.new as CartDraft);
+      })
+      .subscribe((connectionStatus) => {
+        if (!active) return;
+        setRealtimeStatus(connectionStatus as RealtimeStatus);
+        setStatus(connectionStatus === 'SUBSCRIBED' ? 'connected' : 'offline');
+        console.info('[POS Realtime]', {
+          channel: `pos-cart-draft:${tableId}`,
+          status: connectionStatus,
+          timestamp: new Date().toISOString(),
+        });
+      });
+
+    setStatus('loading');
+    fetchDraft(tableId).catch((error) => {
+      console.error('Load shared cart draft failed:', error);
+      if (active) setStatus('offline');
+    });
+
+    const fallback = window.setInterval(() => {
+      fetchDraft(tableId).catch((error) => console.error('Refresh shared cart draft failed:', error));
+    }, 15000);
+
+    return () => {
+      active = false;
+      window.clearInterval(fallback);
+      void client.removeChannel(channel);
+    };
+  }, [applyDraft, fetchDraft, tableId]);
+
+  useEffect(() => {
+    if (!tableId) return;
+    if (ignoreNextPublishRef.current) {
+      ignoreNextPublishRef.current = false;
+      return;
+    }
+
+    const timeout = window.setTimeout(async () => {
+      writeInFlightRef.current = true;
+      try {
+        const response = await fetch('/api/pos/cart-draft', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tableId,
+            cart: cartRef.current,
+            expectedVersion: versionRef.current,
+          }),
+        });
+        const result = await response.json();
+        if (response.status === 409) {
+          setStatus('conflict');
+          writeInFlightRef.current = false;
+          await fetchDraft(tableId);
+          return;
+        }
+        if (!response.ok || !result.success) throw new Error(result.error || 'Không lưu được giỏ hàng dùng chung.');
+        versionRef.current = result.draft.version;
+        setLastSyncAt(new Date());
+        setStatus('connected');
+      } catch (error) {
+        console.error('Save shared cart draft failed:', error);
+        setStatus('offline');
+      } finally {
+        writeInFlightRef.current = false;
+      }
+    }, 350);
+
+    return () => window.clearTimeout(timeout);
+  }, [cart, fetchDraft, tableId]);
+
+  const clearDraft = useCallback(async () => {
+    if (!tableId) return;
+    const response = await fetch(`/api/pos/cart-draft?tableId=${encodeURIComponent(tableId)}`, { method: 'DELETE' });
+    if (!response.ok) throw new Error('Không xóa được giỏ hàng dùng chung.');
+    versionRef.current = 0;
+  }, [tableId]);
+
+  return { status, realtimeStatus, lastSyncAt, clearDraft };
+}

@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "check-env": "node -e \"console.log('CLIENT_ID:', process.env.NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID ? 'Set' : 'Not Set'); console.log('API_KEY:', process.env.NEXT_PUBLIC_GOOGLE_DRIVE_API_KEY ? 'Set' : 'Not Set');\""
   },
   "dependencies": {
@@ -72,6 +74,7 @@
     "postcss": "^8.5.4",
     "tailwindcss": "^3.4.17",
     "tw-animate-css": "^1.3.4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.7"
   }
 }
