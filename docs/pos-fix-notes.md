@@ -4,6 +4,30 @@
 
 Ổn định các luồng POS cốt lõi và đồng bộ đa thiết bị trước khi tích hợp AI Assistant. Không triển khai AI order lên production khi các luồng bên dưới chưa đạt.
 
+## Vercel deployment bắt buộc
+
+Nếu deployment báo:
+
+```text
+@supabase/ssr: Your project's URL and API key are required
+```
+
+thì Vercel đang thiếu một trong hai biến public sau:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key-cua-project>
+```
+
+Vào **Vercel → Project → Settings → Environment Variables**, thêm cả hai biến cho đúng environment đang deploy (`Production` và/hoặc `Preview`), sau đó tạo **Redeploy**. Không dùng `DATABASE_URL` thay cho `NEXT_PUBLIC_SUPABASE_URL`, và không dùng `SUPABASE_SERVICE_ROLE_KEY` thay cho anon key.
+
+Kiểm tra thêm:
+
+- [ ] URL và anon key thuộc cùng một Supabase project.
+- [ ] Biến được thêm cho đúng environment của deployment.
+- [ ] Đã redeploy sau khi thêm/sửa biến.
+- [ ] `SUPABASE_SERVICE_ROLE_KEY` không được đưa vào frontend hoặc tên `NEXT_PUBLIC_*`.
+
 ## P0 - Phải sửa trước khi sang giai đoạn AI
 
 ### 1. Đồng bộ đổi bàn
