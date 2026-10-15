@@ -84,7 +84,12 @@ export const usePOS = () => {
     });
   }, [setActiveOrders]);
 
-  const { status: sharedCartStatus, clearDraft: clearSharedCartDraft } = useSharedCartDraft({
+  const {
+    status: sharedCartStatus,
+    realtimeStatus,
+    lastSyncAt,
+    clearDraft: clearSharedCartDraft,
+  } = useSharedCartDraft({
     tableId: selectedTableId,
     cart,
     setCart,
@@ -875,6 +880,8 @@ export const usePOS = () => {
     priceFilter,
     isProcessingPayment,
     sharedCartStatus,
+    realtimeStatus,
+    lastSyncAt,
 
     // Customer state
     customers,

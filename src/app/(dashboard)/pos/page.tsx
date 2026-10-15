@@ -76,6 +76,8 @@ export default function POSPage() {
     customerDiscount,
     selectedTableName,
     sharedCartStatus,
+    realtimeStatus,
+    lastSyncAt,
   } = usePOS();
 
   const userData = authUtils.getUserData();
@@ -84,7 +86,7 @@ export default function POSPage() {
   const [showMobileCart, setShowMobileCart] = React.useState(false);
   const [isSearchExpanded, setIsSearchExpanded] = React.useState(false);
   const sharedCartLabel = sharedCartStatus === 'connected'
-    ? 'Đồng bộ giỏ hàng'
+    ? `Đồng bộ giỏ hàng (${realtimeStatus})`
     : sharedCartStatus === 'conflict'
       ? 'Xung đột giỏ hàng'
       : sharedCartStatus === 'offline'
@@ -96,6 +98,7 @@ export default function POSPage() {
       {sharedCartLabel && (
         <div className={`px-3 py-1 text-xs ${sharedCartStatus === 'connected' ? 'text-green-700' : 'text-amber-700'}`} role="status">
           {sharedCartLabel}
+          {lastSyncAt && ` · ${lastSyncAt.toLocaleTimeString('vi-VN')}`}
         </div>
       )}
       {/* Mobile Header - Simplified */}

@@ -10,6 +10,20 @@ interface CartDraft {
   version: number;
 }
 
+export type SharedCartStatus =
+  | 'disabled'
+  | 'loading'
+  | 'connected'
+  | 'offline'
+  | 'conflict';
+
+export type RealtimeStatus =
+  | 'CONNECTING'
+  | 'SUBSCRIBED'
+  | 'CHANNEL_ERROR'
+  | 'TIMED_OUT'
+  | 'CLOSED';
+
 interface UseSharedCartDraftOptions {
   tableId: string | null;
   cart: CartItem[];
@@ -18,25 +32,32 @@ interface UseSharedCartDraftOptions {
 }
 
 export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: UseSharedCartDraftOptions) {
-  const [status, setStatus] = useState<'disabled' | 'loading' | 'connected' | 'offline' | 'conflict'>('disabled');
+  const [status, setStatus] = useState<SharedCartStatus>('disabled');
+  const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>('CLOSED');
+  const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null);
   const versionRef = useRef(0);
   const ignoreNextPublishRef = useRef(false);
   const cartRef = useRef(cart);
+  const writeInFlightRef = useRef(false);
   cartRef.current = cart;
 
-  const applyDraft = useCallback((draft: CartDraft | null) => {
-    versionRef.current = draft?.version || 0;
+  const applyDraft = useCallback((draft: CartDraft | null, force = false) => {
+    const remoteVersion = draft?.version || 0;
+    if (!force && remoteVersion < versionRef.current) return;
+    versionRef.current = remoteVersion;
     ignoreNextPublishRef.current = true;
     const nextCart = draft?.cart || [];
     setCart(nextCart);
     if (tableId) onRemoteCart?.(tableId, nextCart);
+    setLastSyncAt(new Date());
   }, [onRemoteCart, setCart, tableId]);
 
   const fetchDraft = useCallback(async (currentTableId: string) => {
+    if (writeInFlightRef.current) return;
     const response = await fetch(`/api/pos/cart-draft?tableId=${encodeURIComponent(currentTableId)}`, { cache: 'no-store' });
     const result = await response.json();
     if (!response.ok || !result.success) throw new Error(result.error || 'Không tải được giỏ hàng dùng chung.');
-    applyDraft(result.draft);
+    applyDraft(result.draft, versionRef.current === 0);
   }, [applyDraft]);
 
   useEffect(() => {
@@ -57,14 +78,20 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
         filter: `table_id=eq.${tableId}`,
       }, (payload) => {
         if (!active || payload.eventType === 'DELETE') {
-          if (payload.eventType === 'DELETE') applyDraft(null);
+          if (payload.eventType === 'DELETE') applyDraft(null, true);
           return;
         }
         applyDraft(payload.new as CartDraft);
       })
       .subscribe((connectionStatus) => {
         if (!active) return;
+        setRealtimeStatus(connectionStatus as RealtimeStatus);
         setStatus(connectionStatus === 'SUBSCRIBED' ? 'connected' : 'offline');
+        console.info('[POS Realtime]', {
+          channel: `pos-cart-draft:${tableId}`,
+          status: connectionStatus,
+          timestamp: new Date().toISOString(),
+        });
       });
 
     setStatus('loading');
@@ -92,6 +119,7 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
     }
 
     const timeout = window.setTimeout(async () => {
+      writeInFlightRef.current = true;
       try {
         const response = await fetch('/api/pos/cart-draft', {
           method: 'PUT',
@@ -105,15 +133,19 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
         const result = await response.json();
         if (response.status === 409) {
           setStatus('conflict');
+          writeInFlightRef.current = false;
           await fetchDraft(tableId);
           return;
         }
         if (!response.ok || !result.success) throw new Error(result.error || 'Không lưu được giỏ hàng dùng chung.');
         versionRef.current = result.draft.version;
+        setLastSyncAt(new Date());
         setStatus('connected');
       } catch (error) {
         console.error('Save shared cart draft failed:', error);
         setStatus('offline');
+      } finally {
+        writeInFlightRef.current = false;
       }
     }, 350);
 
@@ -127,5 +159,5 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
     versionRef.current = 0;
   }, [tableId]);
 
-  return { status, clearDraft };
+  return { status, realtimeStatus, lastSyncAt, clearDraft };
 }
