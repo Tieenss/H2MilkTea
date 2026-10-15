@@ -1,14 +1,23 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Trash, User, Gift, Plus, Minus, ChefHat, Info } from 'lucide-react';
+import { Trash, User, Gift, Plus, Minus, ChefHat } from 'lucide-react';
 import { formatCurrency, formatPoints } from '../utils/formatters';
 import type { CartItem } from '../types/pos';
 import { Customer } from '@/app/(dashboard)/khachhang/types/customer';
 import { getCustomerTypeColor } from '@/app/(dashboard)/khachhang/utils/customerFormatters';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface CartSidebarProps {
   cart: CartItem[];
@@ -39,7 +48,6 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
   selectedTableId,
   selectedCustomer,
   selectedTableName,
-  employee,
   onRemoveFromCart,
   onAdjustQuantity,
   onClearCart,
@@ -50,6 +58,7 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
   onSendToKitchen
 }) => {
   const [isSendingKitchen, setIsSendingKitchen] = useState(false);
+  const [showClearConfirmation, setShowClearConfirmation] = useState(false);
   const [sentKitchenSignature, setSentKitchenSignature] = useState<string | null>(null);
   const cartSignature = JSON.stringify(cart.map((item) => [item.id, item.quantity, item.note]));
   const previousCartSignature = useRef(cartSignature);
@@ -74,6 +83,11 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
     }
   };
 
+  const handleClearCart = () => {
+    if (cart.length === 0) return;
+    setShowClearConfirmation(true);
+  };
+
   return (
     <div className="w-full h-full bg-white rounded-lg shadow-lg flex flex-col lg:h-[calc(100vh-12rem)]">
       {/* Cart Header */}
@@ -88,7 +102,7 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
             )}
           </h3>
           <button
-            onClick={onClearCart}
+            onClick={handleClearCart}
             disabled={cart.length === 0}
             className={`px-2 lg:px-3 py-1.5 rounded-lg text-sm flex items-center transition-colors touch-target ${cart.length === 0
                 ? 'bg-gray-300 cursor-not-allowed text-gray-500'
@@ -154,6 +168,30 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
           )}
         </div>
       </div>
+
+      <AlertDialog open={showClearConfirmation} onOpenChange={setShowClearConfirmation}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Xóa toàn bộ giỏ hàng?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bạn có chắc chắn muốn xóa {cart.reduce((sum, item) => sum + item.quantity, 0)} món
+              {selectedTableName ? ` của ${selectedTableName}` : ''}? Thao tác này sẽ cập nhật các thiết bị đang mở bàn.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => {
+                onClearCart();
+                setShowClearConfirmation(false);
+              }}
+            >
+              Xóa tất cả
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Cart Items */}
       <div className="flex-1 overflow-y-auto p-2 space-y-1 hide-scrollbar">

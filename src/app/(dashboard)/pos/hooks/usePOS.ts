@@ -58,7 +58,8 @@ export const usePOS = () => {
     tables,
     isLoading: tablesLoading,
     fetchTables,
-    updateTableStatus
+    updateTableStatus,
+    updateTableStatusInDB
   } = useTables();
 
   const {
@@ -68,7 +69,7 @@ export const usePOS = () => {
     addToCart: addItemToCart,
     removeFromCart,
     adjustQuantity,
-    clearCart,
+    clearCart: clearLocalCart,
     setCart,
     setActiveOrders,
     setSelectedTableId,
@@ -95,6 +96,13 @@ export const usePOS = () => {
     setCart,
     onRemoteCart: applyRemoteCart,
   });
+
+  const clearCart = useCallback(() => {
+    clearLocalCart();
+    void clearSharedCartDraft().catch((error) => {
+      console.error('Không thể xóa giỏ hàng dùng chung:', error);
+    });
+  }, [clearLocalCart, clearSharedCartDraft]);
 
   // Modal state
   const [modalState, setModalState] = useState<ModalState>({
@@ -364,10 +372,10 @@ export const usePOS = () => {
 
       // Update tables status
       if (sourceTable && sourceTable['Tên bàn'] !== 'Khách mua về') {
-        updateTableStatus(sourceTableId!, 'Trống');
+        await updateTableStatusInDB(sourceTableId!, 'Trống');
       }
       if (targetTable && targetTable['Tên bàn'] !== 'Khách mua về') {
-        updateTableStatus(targetTableId, 'Đang sử dụng');
+        await updateTableStatusInDB(targetTableId, 'Đang sử dụng');
       }
 
       // Transfer orders
@@ -375,6 +383,10 @@ export const usePOS = () => {
       newActiveOrders.set(targetTableId, [...cart]);
       newActiveOrders.delete(sourceTableId!);
       setActiveOrders(newActiveOrders);
+
+      // Remove the source table's shared draft so other POS devices do not
+      // keep displaying the old cart after the transfer.
+      await clearSharedCartDraft();
 
       // Update selected table
       setSelectedTableId(targetTableId);
@@ -389,7 +401,7 @@ export const usePOS = () => {
       console.error('Lỗi chuyển bàn:', error);
       showNotification('Có lỗi xảy ra khi chuyển bàn!', 'error');
     }
-  }, [selectedTableId, tables, cart, activeOrders, setActiveOrders, setSelectedTableId, updateTableStatus, showNotification, setShowTransferModal, showLoading]);
+  }, [selectedTableId, tables, cart, activeOrders, setActiveOrders, setSelectedTableId, updateTableStatusInDB, clearSharedCartDraft, showNotification, setShowTransferModal, showLoading]);
 
   const updateCustomerDisplay = useCallback((cartData = cart, tableInfo: Table | null = null) => {
     if (!customerDisplayWindow.current || customerDisplayWindow.current.closed) return;

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Search, RefreshCw, Users, Filter, X, GalleryVertical } from 'lucide-react';
+import { Search, RefreshCw, Users, X, GalleryVertical } from 'lucide-react';
 
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,12 +22,10 @@ import authUtils from '@/utils/authUtils';
 import './styles/pos.css';
 import { CustomerSelectModal } from '@/app/(dashboard)/pos/components/CustomerSelectModal';
 import { QROrderInbox } from './components/QROrderInbox';
-import type { Customer } from '@/app/(dashboard)/khachhang/types/customer';
 
 export default function POSPage() {
   const {
     // ... existing props
-    products,
     filteredProducts,
     tables,
     cart,
@@ -364,7 +362,6 @@ export default function POSPage() {
             selectedTableId={selectedTableId}
             selectedCustomer={selectedCustomer}
             selectedTableName={selectedTableName}
-            employee={nhanvien}
             onRemoveFromCart={removeFromCart}
             onAdjustQuantity={adjustQuantity}
             onClearCart={clearCart}
@@ -422,7 +419,6 @@ export default function POSPage() {
                   setShowCheckoutModal(true);
                 }}
                 selectedTableName={selectedTableName}
-                employee={nhanvien}
                 onSendToKitchen={() => sendToKitchen({
                   tableId: selectedTableId || '', tableName: selectedTableName,
                   items: cart, employee: nhanvien || 'Thu ngân',
