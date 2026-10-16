@@ -145,35 +145,35 @@ export function POSAssistant({ onAddToCart, onAdjustQuantity, cart, selectedTabl
       else if (action === 'add') {
         for (let index = 0; index < item.quantity; index += 1) onAddToCart(item.productId);
       }
-
-      function startVoiceInput() {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) {
-          setReply('Trình duyệt này chưa hỗ trợ nhập giọng nói.');
-          return;
-        }
-        const recognition = new SpeechRecognition();
-        recognition.lang = 'vi-VN';
-        recognition.interimResults = false;
-        recognition.onstart = () => setRecording(true);
-        recognition.onend = () => setRecording(false);
-        recognition.onerror = () => {
-          setRecording(false);
-          setReply('Không nhận diện được giọng nói. Vui lòng thử lại.');
-        };
-        recognition.onresult = (event: SpeechRecognitionEvent) => {
-          setMessage(event.results[0][0].transcript);
-        };
-        recognition.start();
-      }
-
-      if (!enabled) return null;
     });
     setReply(action === 'remove' ? 'Đã bớt món khỏi giỏ hàng.' : 'Đã thêm món vào giỏ hàng.');
     setItems([]);
     setMessage('');
     setAction('none');
   }
+
+  function startVoiceInput() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setReply('Trình duyệt này chưa hỗ trợ nhập giọng nói.');
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'vi-VN';
+    recognition.interimResults = false;
+    recognition.onstart = () => setRecording(true);
+    recognition.onend = () => setRecording(false);
+    recognition.onerror = () => {
+      setRecording(false);
+      setReply('Không nhận diện được giọng nói. Vui lòng thử lại.');
+    };
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      setMessage(event.results[0][0].transcript);
+    };
+    recognition.start();
+  }
+
+  if (!enabled) return null;
 
   return (
     <>
