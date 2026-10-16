@@ -49,19 +49,38 @@ export function toActiveCatalog(products: RawProduct[]): CatalogProduct[] {
     .filter((product) => product.status === 'Hoạt động');
 }
 
+export const COMMON_ALIASES: Record<string, string> = {
+  'ts': 'tra sua',
+  'cf': 'ca phe',
+  'cafe': 'ca phe',
+  'dcs': 'tra dao cam sa',
+  'bx': 'bac xiu',
+  'tt': 'truyen thong',
+  'tc': 'tran chau',
+  'olong': 'tra o long',
+};
+
+export function expandAliases(text: string): string {
+  const normalized = normalizeSearchText(text);
+  const words = normalized.split(' ');
+  const replaced = words.map((w) => COMMON_ALIASES[w] || w);
+  return replaced.join(' ');
+}
+
 function scoreProduct(query: string, product: CatalogProduct): ProductMatch {
   const normalizedQuery = normalizeSearchText(query);
+  const expandedQuery = expandAliases(query);
   const normalizedName = normalizeSearchText(product.name);
 
-  if (normalizedQuery === normalizedName) {
+  if (normalizedQuery === normalizedName || expandedQuery === normalizedName) {
     return { product, score: 1, exact: true };
   }
 
-  if (normalizedName.includes(normalizedQuery)) {
-    return { product, score: 0.9, exact: false };
+  if (normalizedName.includes(normalizedQuery) || normalizedName.includes(expandedQuery)) {
+    return { product, score: 0.92, exact: false };
   }
 
-  const queryTokens = new Set(normalizedQuery.split(' ').filter(Boolean));
+  const queryTokens = new Set([...normalizedQuery.split(' '), ...expandedQuery.split(' ')].filter(Boolean));
   const nameTokens = new Set(normalizedName.split(' ').filter(Boolean));
   const matchedTokens = [...queryTokens].filter((token) => nameTokens.has(token)).length;
   const score = queryTokens.size === 0 ? 0 : matchedTokens / queryTokens.size;

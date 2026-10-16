@@ -1,166 +1,126 @@
-# Roadmap phát triển AI POS
+# Roadmap phát triển AI POS H2 MilkTea
 
-## Nguyên tắc chung
+## Nguyên tắc cốt lõi
 
-1. Mỗi giai đoạn phải có test và tiêu chí nghiệm thu trước khi sang giai đoạn tiếp theo.
-2. Không cho AI tự thực hiện thao tác làm thay đổi dữ liệu nếu chưa có preview và xác nhận.
-3. AI chỉ được chọn món từ catalog server-side đang hoạt động.
-4. Không gửi secret Gemini xuống browser.
-5. Các thay đổi schema phải có migration idempotent và hướng dẫn chạy trên Supabase production.
-6. Giữ các thay đổi theo từng commit nhỏ để agent khác dễ review/rollback.
+1. **Safety First**: Không cho AI tự thay đổi dữ liệu (cart, bàn, tiền) nếu chưa có bước Xem trước (Preview) và Xác nhận (Confirm) từ nhân viên.
+2. **Context-Aware Permissions**: Chatbot tự động kiểm tra quyền hạn của tài khoản đăng nhập hiện tại từ bảng `DSNV`. Nếu tài khoản không có quyền đối với thao tác yêu cầu (hoặc chức năng không tồn tại), AI từ chối rõ ràng và giải thích nguyên nhân.
+3. **Server-Side Validation**: AI chỉ là bộ phân tích ngôn ngữ (NLP/NLU). Mọi `productId`, `tableId` và số lượng đều phải được validate chặt chẽ trên server từ catalog `DMHH` và danh sách `DSBAN`.
+4. **Không lộ bí mật**: API keys và service-role secrets chỉ nằm trên server, không truyền xuống browser.
+5. **Tiến độ minh bạch**: Mỗi giai đoạn đều có tiêu chí nghiệm thu và bộ unit test tự động đi kèm.
 
-## Giai đoạn 0 - Ổn định nền tảng hiện tại
+---
 
-### Mục tiêu
+## 🎯 Phân loại mức độ ưu tiên (Priority Matrix)
 
-Xác nhận chatbot hiện tại hoạt động sau khi deploy và migration đã được chạy đúng project.
+| Mức độ | Mục tiêu chính | Trọng tâm tính năng |
+| :--- | :--- | :--- |
+| **P0 (Làm ngay)** | Nền tảng gọi món thông minh & Hỏi đáp nghiệp vụ | Chuẩn hóa món tiếng Việt + Nhận diện & Mở bàn + Tra cứu Hướng dẫn sử dụng + Setting Auto-submit giọng nói + Giới hạn an toàn |
+| **P1 (Kế tiếp)** | Trải nghiệm nâng cao & Đa kênh | Quản lý FAQ tùy biến (hỗ trợ cả QR bàn khách) + Cart safety nâng cao + Size/Đường/Đá/Topping + AI Audit Log |
+| **P2 (Tương lai)** | Bán hàng thông minh & Mở rộng hệ thống | Sổ tay công thức/Ghi chú nội bộ cho AI đọc + Gợi ý bán thêm (Upsell) + Bảng tin nội bộ trong ngày |
 
-### Việc cần làm
+---
 
-- [ ] Chạy migration `202610150003_ai_settings.sql`.
-- [ ] Kiểm tra bảng `app_settings` và row `ai_assistant_enabled`.
-- [ ] Kiểm tra Vercel environment variables.
-- [ ] Test Admin bật/tắt.
-- [ ] Test nhân viên thường không được PUT setting.
-- [ ] Test popup POS và voice-to-text.
-- [ ] Thu thập browser console nếu vẫn có lỗi client-side.
+## Giai đoạn 0: Ổn định nền tảng & Hạ tầng AI (Đã hoàn thành)
+- [x] Popup trợ lý AI nổi trên giao diện POS, lưu lịch sử theo bàn vào `localStorage`.
+- [x] API chat server-side tích hợp Google Gemini với cơ chế **Multi-Model Auto Fallback** (`gemini-2.5-flash` ➔ `gemini-flash-latest` ➔ `gemini-3.7-flash`...).
+- [x] Trang Admin `/settings/ai` bật/tắt toàn hệ thống (`ai_assistant_enabled`).
+- [x] Nhập liệu giọng nói tiếng Việt bằng Web Speech API.
+- [x] Bộ lọc câu chào phản hồi tức thì 0ms không tốn quota API.
 
-### Tiêu chí nghiệm thu
+---
 
-- Không còn màn hình trắng khi mở POS.
-- Popup ẩn/hiện theo setting.
-- HTTP status lỗi hiển thị đúng cho người dùng.
-- `npm test` và `npm run build` pass.
+## Giai đoạn 1 (P0): Chuẩn hóa nhận diện Món & Bàn + Hỏi đáp Hướng dẫn sử dụng
 
-## Giai đoạn 1 - Chuẩn hóa nhận diện món
+### 1.1. Chuẩn hóa nhận diện Món & Alias tiếng Việt (`src/lib/ai/catalog.ts`)
+- [ ] Bổ sung từ điển Alias & Viết tắt thông dụng:
+  - `ts` ➔ *Trà sữa*
+  - `cf`, `cafe` ➔ *Cà phê*
+  - `dcs` ➔ *Trà đào cam sả*
+  - `bx` ➔ *Bạc xỉu*
+  - `tt` / `truyền thống` ➔ *Trà sữa truyền thống*
+  - `nướng` ➔ *Trà sữa nướng*
+- [ ] Chuẩn hóa tìm kiếm tiếng Việt không dấu (`tra dao cam sa` ➔ `Trà đào cam sả`).
+- [ ] Server-side Matching: Map chính xác về `IDSP` đang hoạt động trong `DMHH`. Nếu món không có, AI giải thích rõ và gợi ý món tương tự.
 
-### Mục tiêu
+### 1.2. Nhận diện & Thao tác Bàn tự động (`src/lib/ai/table.ts`)
+- [ ] Nhận diện câu lệnh có chỉ định bàn:
+  - `bàn 3`, `bàn 03`, `bàn số 3`, `b3`, `table 3` ➔ Khớp chính xác `IDBAN` ("BAN001") và `Tên bàn` ("Bàn 03").
+  - `mang về`, `mua mang về`, `khách mua về` ➔ Khớp với bàn `Khách mua về`.
+- [ ] Tự động chuyển/mở bàn trên POS:
+  - Khi nhân viên xác nhận câu lệnh *"cho 3 trà sữa vào bàn 3"*, POS tự động chuyển sang Bàn 3 và thêm món vào giỏ hàng của Bàn 3.
+  - Lệnh điều hướng thuần túy: *"chuyển sang bàn 2"* hoặc *"mở bàn 4"* chỉ chuyển bàn mà không thêm món thừa.
+- [ ] Thông báo nếu số bàn không tồn tại trong quán.
 
-Giảm lỗi AI chọn nhầm món và chuẩn bị cho size/topping.
+### 1.3. Đọc Hướng dẫn sử dụng & Hỏi đáp nghiệp vụ (Knowledge Base Q&A)
+- [ ] Tích hợp nguồn tri thức từ `/user-guide`:
+  - Cách thêm món mới, sửa giá, phân loại sản phẩm.
+  - Phím tắt bán hàng: F1 (Reset), F3 (Khách hàng), F4 (Thanh toán), F5 (Đồng bộ), Esc (Xóa giỏ).
+  - Hướng dẫn cài đặt máy in, khổ giấy, mẫu in bếp.
+  - Xử lý các lỗi thường gặp: Mất kết nối, xung đột giỏ hàng.
+- [ ] Phân loại intent câu lệnh:
+  - Nếu là **lệnh order/chuyển bàn**: Trả về `action: "add" | "remove" | "select_table"` kèm items để nhân viên bấm xác nhận.
+  - Nếu là **câu hỏi nghiệp vụ**: Trả về `action: "qa"`, giải thích từng bước rõ ràng bằng tiếng Việt, không hiện nút xác nhận thêm món.
 
-### Thiết kế đề xuất
+### 1.4. Phân quyền Context-Aware & Giới hạn an toàn (Safety Guardrails)
+- [ ] Chatbot tự động đọc quyền từ phiên đăng nhập nhân viên (`DSNV`). Nếu nhân viên yêu cầu thao tác vượt quyền (như xem doanh thu, cấu hình hệ thống), chatbot từ chối: *"Tài khoản của bạn không có quyền thực hiện thao tác này."*
+- [ ] Cài đặt giới hạn số lượng món tối đa cho mỗi lệnh AI (mặc định tối đa 10 ly/lệnh để phòng ngừa gọi nhầm hoặc spam).
 
-Tách dữ liệu thành:
+### 1.5. Cấu hình Giọng nói thông minh (Voice Settings)
+- [ ] Bổ sung cài đặt trong `/settings/ai`:
+  - **Tự động gửi sau khi dứt câu (Auto-submit on Speech Silence)**: Bật/Tắt.
+  - **Thời gian chờ dứt câu**: Tùy chỉnh từ 1.0s đến 3.0s (mặc định 1.5s).
 
-```ts
-interface CatalogItem {
-  id: string;
-  name: string;
-  price: number;
-  options?: ProductOption[];
-}
-```
+### Tiêu chí nghiệm thu Giai đoạn 1:
+- Thử thành công câu lệnh: *"cho 3 trà sữa nướng vào bàn 3"* ➔ POS mở Bàn 3 và đưa 3 ly vào preview.
+- Thử hỏi: *"Làm sao để thêm món mới vào menu?"* ➔ Chatbot hướng dẫn chi tiết các bước.
+- Bộ Unit Test tối thiểu 15 kịch bản thực tế pass 100%.
 
-Không dùng tên món làm ID. Mọi kết quả AI phải map về ID từ catalog.
+---
 
-### Việc cần làm
+## Giai đoạn 2 (P1): Nâng cấp Trải nghiệm Bán hàng & Quản lý
 
-- [ ] Viết hàm normalize tên món và alias tiếng Việt.
-- [ ] Thêm test cho dấu, viết tắt và tên gần giống.
-- [ ] Xử lý trường hợp nhiều món cùng tên khác ID.
-- [ ] Từ chối kết quả có product ID không tồn tại.
-- [ ] Hiển thị cảnh báo khi AI không chắc chắn.
+### 2.1. Quản lý FAQ tùy biến (Áp dụng cả POS và Khách quét QR bàn)
+- [ ] Trang quản lý danh sách Câu hỏi - Trả lời nhanh trong Admin:
+  - Mật khẩu Wifi, giờ mở cửa, chính sách gửi xe.
+  - Chính sách tích điểm thành viên (VIP giảm 10%, Kim Cương giảm 20%).
+- [ ] Tái sử dụng nguồn FAQ này cho tính năng **Khách hàng quét mã QR tại bàn** để tra cứu thông tin quán mà không cần gọi phục vụ.
 
-### Tiêu chí nghiệm thu
+### 2.2. Cart Action an toàn nâng cao
+- [ ] Ngăn chặn bớt món vượt quá số lượng đang có trong giỏ hàng.
+- [ ] Nếu giỏ có nhiều món trà sữa khác nhau mà người dùng bảo *"bỏ 1 ly trà sữa"*, chatbot hỏi lại cụ thể ly nào.
+- [ ] Hiển thị preview so sánh rõ ràng: Giỏ hàng hiện tại ➔ Giỏ hàng sau khi thay đổi.
 
-- Không có item ngoài catalog được đưa vào preview.
-- Món không rõ ràng phải hỏi lại.
-- Có test cho ít nhất 10 câu lệnh tiếng Việt thực tế.
+### 2.3. Hỗ trợ Size, Đường, Đá và Topping (Item Options)
+- [ ] Nhận diện câu lệnh phức tạp: *"2 trà sữa size L 50% đường ít đá, thêm trân châu đen"*.
+- [ ] Lưu trữ và hiển thị chi tiết options trong giỏ hàng và đơn bếp.
 
-## Giai đoạn 2 - Cart action an toàn
+### 2.4. Nhật ký lệnh AI (AI Audit Log)
+- [ ] Bảng lưu trữ lịch sử câu lệnh AI trong Supabase: Thời gian, nhân viên, câu lệnh, kết quả phân tích, trạng thái xác nhận hay hủy.
+- [ ] Báo cáo thống kê: Tỉ lệ hiểu lệnh thành công, danh sách các câu lệnh AI chưa nhận diện được để tiếp tục tinh chỉnh.
 
-### Mục tiêu
+---
 
-Làm cho add/remove hoạt động đáng tin cậy với cart thực tế.
+## Giai đoạn 3 (P2): Bán hàng thông minh & Mở rộng tính năng tương lai
 
-### Việc cần làm
+### 3.1. Sổ tay Công thức & Ghi chú nội bộ (App Notes & Recipes)
+- [ ] Module ghi chú nội bộ trong app: Quản lý/pha chế có thể ghi lại công thức pha chế, bí quyết và lưu ý nguyên liệu.
+- [ ] Chatbot được cấp quyền đọc sổ tay này: Khi nhân viên hoặc khách hỏi về công thức, thành phần hoặc dị ứng (lactose, đậu phộng...), chatbot tra cứu và giải đáp ngay.
 
-- [ ] Kiểm tra remove không vượt quá số lượng trong cart.
-- [ ] Nếu người dùng nói “bỏ 2 ly” nhưng có nhiều món phù hợp, hỏi lại món.
-- [ ] Không cho quantity âm hoặc số thập phân.
-- [ ] Preview phải hiển thị cart trước và cart sau.
-- [ ] Xác nhận phải gắn với snapshot cart đã phân tích.
-- [ ] Nếu cart đã thay đổi trước khi xác nhận, yêu cầu phân tích lại.
+### 3.2. Bảng tin nội bộ trong ngày (Daily Store Notice for AI)
+- [ ] Ô nhập ghi chú nhanh mỗi ca làm việc của Quản lý:
+  - *"Hôm nay hết trân châu trắng."*
+  - *"Đang có chương trình mua 2 trà đào tặng 1 bánh quy."*
+- [ ] AI tự động ghi nhớ thông báo này để cảnh báo thu ngân khi khách gọi món hết, hoặc nhắc ưu đãi trong ngày.
 
-### Tiêu chí nghiệm thu
+### 3.3. Gợi ý bán thêm thông minh (Auto Upsell / Cross-sell)
+- [ ] Tự động nhắc nhân viên gợi ý món kèm theo:
+  - Khách gọi trà sữa ➔ Gợi ý thêm topping trân châu hoặc bánh tráng/bánh ngọt.
+  - Khách gọi cà phê ➔ Gợi ý bạc xỉu hoặc hướng dương.
 
-- Không thể làm âm quantity.
-- Không thể xác nhận preview cũ lên cart mới.
-- Add/remove có test unit và test thủ công.
+---
 
-## Giai đoạn 3 - Option món
+## Quy chuẩn kỹ thuật & Bảo mật
 
-### Mục tiêu
-
-Hỗ trợ size, mức đường, mức đá và topping mà không phá cấu trúc cart hiện tại.
-
-### Việc cần làm
-
-- [ ] Khảo sát schema sản phẩm/nguyên liệu hiện tại.
-- [ ] Xác định option nào là bắt buộc/tùy chọn.
-- [ ] Thiết kế `CartItem` có `options` ổn định.
-- [ ] Xác định cách so sánh hai item cùng món nhưng khác option.
-- [ ] Hiển thị option trong preview và POS.
-- [ ] Chỉ triển khai sau khi có migration hoặc type contract rõ ràng.
-
-### Tiêu chí nghiệm thu
-
-- “2 trà sữa, một ít đá và một không đá” tạo đúng hai dòng hoặc hai cấu hình.
-- Không gộp nhầm item khác option.
-- Giá topping/size tính đúng.
-
-## Giai đoạn 4 - Voice-to-text production
-
-### Mục tiêu
-
-Làm voice input đáng tin cậy hơn mà không biến voice recognition thành một backend rủi ro.
-
-### Việc cần làm
-
-- [ ] Kiểm tra browser support.
-- [ ] Hiển thị trạng thái đang nghe.
-- [ ] Cho phép dừng ghi âm.
-- [ ] Không gửi audio lên server nếu chỉ cần Web Speech API.
-- [ ] Xử lý permission denied, no speech, timeout.
-- [ ] Không giữ microphone sau khi đóng popup hoặc rời trang.
-
-### Tiêu chí nghiệm thu
-
-- Permission bị từ chối vẫn có hướng dẫn nhập text.
-- Không treo trạng thái recording.
-- Microphone được release khi recognition kết thúc.
-
-## Giai đoạn 5 - Action mở rộng có kiểm soát
-
-Chỉ triển khai từng action, không bật tất cả cùng lúc:
-
-1. Ghi chú món.
-2. Gửi bếp.
-3. Đổi bàn.
-4. Giảm giá.
-5. Thanh toán.
-6. Báo cáo/tồn kho.
-
-Mỗi action bắt buộc có:
-
-- quyền rõ ràng;
-- endpoint riêng hoặc contract rõ ràng;
-- validation server-side;
-- preview;
-- xác nhận;
-- audit log;
-- test lỗi và retry;
-- cơ chế idempotency nếu có ghi dữ liệu.
-
-Không cho Gemini gọi trực tiếp database hoặc tự gọi tool không qua server validation.
-
-## Giai đoạn 6 - Quan sát và vận hành
-
-- [ ] Log request ID, không log API key.
-- [ ] Không log toàn bộ thông tin nhạy cảm của khách hàng.
-- [ ] Đo latency Gemini, timeout và lỗi 4xx/5xx.
-- [ ] Có fallback message thân thiện.
-- [ ] Có rate limit theo nhân viên hoặc session nếu cần.
-- [ ] Có cơ chế tắt toàn hệ thống đã kiểm thử.
-- [ ] Có tài liệu rollback.
-
+1. Không lưu cache token hay key của AI vào git.
+2. Mọi migration vào Supabase đều phải dùng cú pháp an toàn (`if exists`, `if not exists`, `on conflict`).
+3. Khả năng chịu lỗi: Mọi lệnh gọi AI đều phải có timeout (25s) và cơ chế chuyển model tự động khi Google API quá tải.

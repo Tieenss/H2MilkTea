@@ -348,6 +348,9 @@ export default function POSPage() {
         onAdjustQuantity={adjustQuantity}
         cart={cart}
         selectedTableName={selectedTableName}
+        selectedTableId={selectedTableId}
+        tables={tables}
+        onSelectTable={selectTable}
       />
 
       {/* Main Content */}

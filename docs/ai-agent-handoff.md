@@ -149,20 +149,21 @@ Lưu ý:
 12. Mở lại cùng bàn; history được giữ trong localStorage.
 13. Kiểm tra microphone trên Chrome/Edge; nếu browser không hỗ trợ phải có thông báo rõ ràng.
 
-## 7. Giới hạn không được tự ý mở rộng
+## 7. Phạm vi hỗ trợ và giới hạn hiện tại
 
-Chatbot hiện chưa hỗ trợ:
+Đang triển khai trong Giai đoạn 1 (P0):
+- Chuẩn hóa nhận diện món & Alias tiếng Việt.
+- Nhận diện bàn và tự động chuyển/mở bàn trên POS theo câu lệnh.
+- Đọc Hướng dẫn sử dụng (`/user-guide`) để giải đáp nghiệp vụ, phím tắt, cách thêm món.
+- Setting giọng nói tự động gửi sau khi dứt câu (Auto-submit on speech silence).
+- Giới hạn an toàn (tối đa 10 ly/lệnh).
 
-- thanh toán;
-- đổi bàn;
-- mã giảm giá;
-- truy vấn tồn kho;
-- báo cáo doanh thu;
-- chỉnh size/đường/đá/topping theo cấu trúc option;
-- gửi bếp trực tiếp;
-- tự động xác nhận hành động nguy hiểm.
-
-Không thêm các hành động trên chỉ bằng cách sửa prompt. Mỗi hành động mới cần thiết kế API, quyền, preview, xác nhận, log và test riêng.
+Chưa hỗ trợ (nằm ở P1 & P2):
+- Thanh toán và in hóa đơn tự động bằng AI.
+- Mã giảm giá.
+- Truy vấn tồn kho và báo cáo doanh thu.
+- Tùy chỉnh size/đường/đá/topping theo cấu trúc option (P1).
+- Tự động xác nhận hành động nguy hiểm mà không qua nhân viên.
 
 ## 8. Các vấn đề nền POS cần nhớ
 
