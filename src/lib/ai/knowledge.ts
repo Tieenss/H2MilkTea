@@ -102,6 +102,59 @@ export const POS_KNOWLEDGE_BASE: KnowledgeTopic[] = [
   },
 ];
 
+import defaultStoreFaqs from '@/data/store_faq.json';
+
+export interface StoreFAQItem {
+  id: string;
+  category: string;
+  question: string;
+  answer: string;
+  keywords: string[];
+  isActive: boolean;
+  order: number;
+}
+
+/**
+ * Tìm kiếm câu hỏi FAQ quán phù hợp nhất dựa trên từ khóa câu hỏi
+ */
+export function findRelevantFAQ(query: string, faqs?: StoreFAQItem[] | null): StoreFAQItem | null {
+  const normalized = query.toLowerCase();
+  const list = Array.isArray(faqs) && faqs.length > 0 ? faqs : (defaultStoreFaqs as StoreFAQItem[]);
+  let bestItem: StoreFAQItem | null = null;
+  let maxMatched = 0;
+
+  for (const item of list) {
+    if (item.isActive === false) continue;
+    let score = 0;
+    if (normalized.includes(item.question.toLowerCase())) score += 3;
+    for (const kw of item.keywords || []) {
+      if (kw && normalized.includes(kw.toLowerCase())) score += 1;
+    }
+    if (score > maxMatched) {
+      maxMatched = score;
+      bestItem = item;
+    }
+  }
+
+  return maxMatched > 0 ? bestItem : null;
+}
+
+/**
+ * Tạo prompt danh sách FAQ tùy biến của quán
+ */
+export function getStoreFAQPrompt(faqs?: StoreFAQItem[] | null): string {
+  const activeFaqs = Array.isArray(faqs) && faqs.length > 0
+    ? faqs.filter((f) => f.isActive !== false)
+    : (defaultStoreFaqs as StoreFAQItem[]).filter((f) => f.isActive !== false);
+
+  if (activeFaqs.length === 0) return '';
+
+  return [
+    'THÔNG TIN & TIỆN ÍCH QUÁN H2 MILKTEA (Dùng để trả lời khi khách hoặc thu ngân hỏi thông tin quán):',
+    ...activeFaqs.map((f, i) => `${i + 1}. [${f.category}] ${f.question}\n   ➔ Trả lời: ${f.answer}`),
+  ].join('\n\n');
+}
+
 /**
  * Tìm kiếm thông tin hướng dẫn liên quan nhất dựa trên câu hỏi
  */
@@ -124,8 +177,9 @@ export function findRelevantKnowledge(query: string): KnowledgeTopic | null {
 /**
  * Tạo prompt kiến thức rút gọn để tiêm vào System Instruction của AI
  */
-export function getKnowledgeBasePrompt(): string {
-  return [
+export function getKnowledgeBasePrompt(customFaqs?: StoreFAQItem[] | null): string {
+  const faqSection = getStoreFAQPrompt(customFaqs);
+  const userGuideSection = [
     'HƯỚNG DẪN SỬ DỤNG HỆ THỐNG POS H2 MILKTEA (dùng để trả lời khi người dùng hỏi nghiệp vụ):',
     ...POS_KNOWLEDGE_BASE.map((topic) => {
       const parts = [`- ${topic.title}: ${topic.summary}`];
@@ -139,4 +193,7 @@ export function getKnowledgeBasePrompt(): string {
       return parts.join('\n');
     }),
   ].join('\n\n');
+
+  return faqSection ? `${faqSection}\n\n${userGuideSection}` : userGuideSection;
 }
+

@@ -1,0 +1,47 @@
+[
+  {
+    "id": "faq-wifi",
+    "category": "Tiện ích",
+    "question": "Mật khẩu Wifi của quán là gì?",
+    "answer": "Tên Wifi: H2_MilkTea_Free (hoặc H2_VIP) - Mật khẩu: 88888888 (tám số 8). Quý khách kết nối miễn phí tốc độ cao.",
+    "keywords": ["wifi", "wi-fi", "mạng", "pass wifi", "mật khẩu wifi", "pass mạng"],
+    "isActive": true,
+    "order": 1
+  },
+  {
+    "id": "faq-hours",
+    "category": "Hoạt động",
+    "question": "Giờ mở cửa và đóng cửa của quán?",
+    "answer": "Quán mở cửa từ 08:00 sáng đến 22:30 tối tất cả các ngày trong tuần (kể cả Thứ Bảy, Chủ Nhật và ngày Lễ). Giờ chốt nhận order cuối ngày là 22:15.",
+    "keywords": ["giờ mở cửa", "giờ đóng cửa", "mấy giờ mở", "mấy giờ đóng", "thời gian hoạt động", "lễ có mở không"],
+    "isActive": true,
+    "order": 2
+  },
+  {
+    "id": "faq-parking",
+    "category": "Tiện ích",
+    "question": "Chính sách gửi xe và bãi đỗ xe như thế nào?",
+    "answer": "Quán có bãi gửi xe máy miễn phí ngay trước cửa có bảo vệ trông coi. Xe ô tô quý khách có thể đỗ tại bãi xe đối diện quán (miễn phí cho khách có hóa đơn dùng nước).",
+    "keywords": ["gửi xe", "bãi xe", "đỗ xe", "chỗ để xe", "xe máy", "ô tô", "giữ xe"],
+    "isActive": true,
+    "order": 3
+  },
+  {
+    "id": "faq-payment",
+    "category": "Thanh toán",
+    "question": "Quán chấp nhận những hình thức thanh toán nào?",
+    "answer": "Quán hỗ trợ thanh toán bằng Tiền mặt, Chuyển khoản quét mã QR (VietQR/MoMo/ZaloPay) và Thẻ ngân hàng (Visa/Mastercard/Napas).",
+    "keywords": ["thanh toán", "chuyển khoản", "quẹt thẻ", "momo", "qr", "tiền mặt", "vietqr"],
+    "isActive": true,
+    "order": 4
+  },
+  {
+    "id": "faq-loyalty",
+    "category": "Ưu đãi",
+    "question": "Chính sách tích điểm và ưu đãi thành viên ra sao?",
+    "answer": "Quý khách chỉ cần đọc số điện thoại khi order: Khách VIP được tự động giảm giá 10% trên tổng bill; Khách Kim Cương được giảm 20%. Điểm thưởng còn có thể đổi các món topping hoặc voucher nước miễn phí.",
+    "keywords": ["tích điểm", "thành viên", "vip", "kim cương", "giảm giá", "voucher", "khách quen", "đọc sđt"],
+    "isActive": true,
+    "order": 5
+  }
+]

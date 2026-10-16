@@ -80,10 +80,11 @@
 ## Giai đoạn 2 (P1): Nâng cấp Trải nghiệm Bán hàng & Quản lý
 
 ### 2.1. Quản lý FAQ tùy biến (Áp dụng cả POS và Khách quét QR bàn)
-- [ ] Trang quản lý danh sách Câu hỏi - Trả lời nhanh trong Admin:
-  - Mật khẩu Wifi, giờ mở cửa, chính sách gửi xe.
-  - Chính sách tích điểm thành viên (VIP giảm 10%, Kim Cương giảm 20%).
-- [ ] Tái sử dụng nguồn FAQ này cho tính năng **Khách hàng quét mã QR tại bàn** để tra cứu thông tin quán mà không cần gọi phục vụ.
+- [x] Trang quản lý danh sách Câu hỏi - Trả lời nhanh trong Admin (`/settings/ai`):
+  - Mật khẩu Wifi, giờ mở cửa, chính sách gửi xe, thanh toán, ưu đãi tích điểm.
+  - Thêm, sửa, xóa, tìm kiếm, bật/tắt và bảo vệ phân quyền Admin.
+- [x] Tái sử dụng nguồn FAQ này cho tính năng **Khách hàng quét mã QR tại bàn** (`/order`): Modal xem tiện ích quán và nút chép nhanh pass Wifi.
+- [x] Chatbot POS tự động học và trả lời chính xác các câu hỏi này.
 
 ### 2.2. Cart Action an toàn nâng cao
 - [ ] Ngăn chặn bớt món vượt quá số lượng đang có trong giỏ hàng.

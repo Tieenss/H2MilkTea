@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import authUtils from '@/utils/authUtils';
+import { FAQManager } from './components/FAQManager';
 
 interface AISettingsConfig {
   enabled: boolean;
@@ -241,30 +242,34 @@ export default function AISettingsPage() {
         </Button>
       </div>
 
-      {/* 4. Khả năng hiện có & Lộ trình */}
-      <div className="grid md:grid-cols-2 gap-6 pt-4">
+      {/* 4. Quản lý FAQ tùy biến */}
+      <FAQManager isAdmin={isAdmin} />
+
+      {/* 5. Khả năng hiện có & Lộ trình */}
+      <div className="grid md:grid-cols-2 gap-6 pt-2">
         <Card className="border-indigo-100 bg-indigo-50/40">
           <CardHeader>
             <CardTitle className="text-indigo-900 text-base flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-indigo-600" /> Khả năng đã kích hoạt (P0)
+              <Sparkles className="h-4 w-4 text-indigo-600" /> Khả năng đã kích hoạt (P0 & P1)
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-indigo-950">
             <p>✓ <strong>Gọi món tiếng Việt</strong>: Hiểu viết tắt (ts, dcs, bx...), gõ không dấu, chuẩn hóa theo menu.</p>
             <p>✓ <strong>Tự động nhận diện bàn</strong>: Lệnh "bàn 3", "b3", "mang về" tự động mở đúng bàn trên POS.</p>
-            <p>✓ <strong>Hỏi đáp nghiệp vụ</strong>: Hướng dẫn sử dụng POS, phím tắt F1-F5, kết nối máy in nhiệt K80/K57.</p>
+            <p>✓ <strong>Hỏi đáp nghiệp vụ POS</strong>: Hướng dẫn sử dụng POS, phím tắt F1-F5, kết nối máy in nhiệt K80/K57.</p>
+            <p>✓ <strong>FAQ quán tùy biến (P1)</strong>: Quản lý câu hỏi tiện ích (Wifi, giờ mở cửa, gửi xe, ưu đãi) cho POS & Quét mã bàn.</p>
             <p>✓ <strong>Phân quyền Context-aware</strong>: Tự động từ chối nếu tài khoản không đủ quyền quản trị.</p>
           </CardContent>
         </Card>
 
         <Card className="border-slate-200">
           <CardHeader>
-            <CardTitle className="text-slate-800 text-base">Kế hoạch mở rộng sắp tới (P1 & P2)</CardTitle>
+            <CardTitle className="text-slate-800 text-base">Kế hoạch mở rộng tiếp theo (P1 & P2)</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-slate-600">
-            <p>• <strong>FAQ tùy biến</strong>: Áp dụng cho cả POS và khách quét mã QR bàn.</p>
+            <p>• <strong>Tùy chọn chi tiết</strong>: Size M/L, % đường, % đá, topping chi tiết.</p>
+            <p>• <strong>Cart Action nâng cao</strong>: Chặn bớt món âm giỏ, hỏi rõ món trùng loại, Diff so sánh trực quan.</p>
             <p>• <strong>Sổ tay công thức & Ghi chú</strong>: Ghi chú công thức cho AI đọc trả lời dị ứng/thành phần.</p>
-            <p>• <strong>Tùy chọn chi tiết</strong>: Size M/L, % đường, % đá, topping.</p>
             <p>• <strong>AI Audit Log</strong>: Nhật ký theo dõi hiệu quả và độ chuẩn xác của câu lệnh.</p>
           </CardContent>
         </Card>

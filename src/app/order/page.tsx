@@ -2,8 +2,9 @@
 
 import React, { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { MapPin, ArrowRight, Coffee, Star, Clock, Wifi } from 'lucide-react';
+import { MapPin, ArrowRight, Coffee, Star, Clock, Wifi, Sparkles } from 'lucide-react';
 import { useCart } from './context/CartContext';
+import { StoreFAQModal } from './components/StoreFAQModal';
 
 export default function OrderWelcomePage() {
   return (
@@ -22,6 +23,8 @@ function OrderWelcomeContent() {
   const [isValidTable, setIsValidTable] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [tableError, setTableError] = useState('');
+  const [showFaqModal, setShowFaqModal] = useState(false);
+  const [faqCategory, setFaqCategory] = useState('Tất cả');
 
   useEffect(() => {
     const table = searchParams.get('table');
@@ -128,7 +131,7 @@ function OrderWelcomeContent() {
           </div>
 
           {/* Features */}
-          <div className="grid grid-cols-3 gap-3 mb-10">
+          <div className="grid grid-cols-3 gap-3 mb-4">
             <div className="flex flex-col items-center gap-1.5 p-3 rounded-2xl bg-white/80 border border-gray-100 shadow-sm">
               <Coffee className="w-5 h-5 text-orange-500" />
               <span className="text-[11px] text-gray-600 font-medium">50+ Món</span>
@@ -137,11 +140,32 @@ function OrderWelcomeContent() {
               <Clock className="w-5 h-5 text-orange-500" />
               <span className="text-[11px] text-gray-600 font-medium">Phục vụ nhanh</span>
             </div>
-            <div className="flex flex-col items-center gap-1.5 p-3 rounded-2xl bg-white/80 border border-gray-100 shadow-sm">
+            <button
+              onClick={() => {
+                setFaqCategory('Tiện ích');
+                setShowFaqModal(true);
+              }}
+              className="flex flex-col items-center gap-1.5 p-3 rounded-2xl bg-white/80 hover:bg-orange-50/60 border border-gray-100 hover:border-orange-200 shadow-sm active:scale-95 transition-all cursor-pointer"
+            >
               <Wifi className="w-5 h-5 text-orange-500" />
-              <span className="text-[11px] text-gray-600 font-medium">Free Wifi</span>
-            </div>
+              <span className="text-[11px] text-orange-600 font-semibold underline">Pass Wifi</span>
+            </button>
           </div>
+
+          {/* Quick FAQ & Utilities Banner */}
+          <button
+            onClick={() => {
+              setFaqCategory('Tất cả');
+              setShowFaqModal(true);
+            }}
+            className="w-full mb-8 py-2.5 px-4 rounded-2xl bg-gradient-to-r from-orange-50 to-amber-50 hover:from-orange-100/70 hover:to-amber-100/70 border border-orange-200/70 text-orange-800 text-xs font-semibold flex items-center justify-between transition-all shadow-xs active:scale-[0.98]"
+          >
+            <span className="flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4 text-orange-500 shrink-0" />
+              <span>Tiện ích: Wifi, Giờ mở cửa, Bãi xe, Ưu đãi...</span>
+            </span>
+            <span className="text-[11px] text-orange-600 font-bold underline">Xem chi tiết</span>
+          </button>
 
           {/* CTA Button */}
           <button
@@ -168,6 +192,13 @@ function OrderWelcomeContent() {
           <p className="mt-6 text-xs text-gray-400">
             Không cần tải ứng dụng · Đặt món ngay trên trình duyệt
           </p>
+
+          {/* Modal Tiện ích quán */}
+          <StoreFAQModal
+            isOpen={showFaqModal}
+            onClose={() => setShowFaqModal(false)}
+            initialCategory={faqCategory}
+          />
         </div>
       </div>
     </div>

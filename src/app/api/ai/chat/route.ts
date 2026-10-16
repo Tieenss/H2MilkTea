@@ -49,12 +49,21 @@ export async function POST(request: NextRequest) {
 
     const supabase = createAdminSupabaseClient();
     
-    // 1. Kiểm tra setting bật/tắt toàn hệ thống
-    const { data: setting } = supabase
-      ? await supabase.from('app_settings').select('value').eq('key', 'ai_assistant_enabled').maybeSingle()
-      : { data: null };
-    if (setting && setting.value === false) {
-      return NextResponse.json({ success: false, error: 'Chatbot đang được Admin tắt.' }, { status: 403 });
+    // 1. Kiểm tra setting bật/tắt toàn hệ thống và tải FAQ tùy biến của quán
+    let customFaqs: any = null;
+    if (supabase) {
+      const [settingRes, faqRes] = await Promise.all([
+        supabase.from('app_settings').select('value').eq('key', 'ai_assistant_enabled').maybeSingle(),
+        supabase.from('app_settings').select('value').eq('key', 'store_custom_faq').maybeSingle(),
+      ]);
+
+      if (settingRes.data && settingRes.data.value === false) {
+        return NextResponse.json({ success: false, error: 'Chatbot đang được Admin tắt.' }, { status: 403 });
+      }
+
+      if (faqRes.data && Array.isArray(faqRes.data.value)) {
+        customFaqs = faqRes.data.value;
+      }
     }
 
     // 2. Lấy thông tin phân quyền nhân viên
@@ -112,7 +121,7 @@ export async function POST(request: NextRequest) {
       'gemini-3.1-flash-lite',
     ]));
 
-    const knowledgePrompt = getKnowledgeBasePrompt();
+    const knowledgePrompt = getKnowledgeBasePrompt(customFaqs);
 
     const payload = JSON.stringify({
       systemInstruction: {
@@ -131,10 +140,10 @@ export async function POST(request: NextRequest) {
             '   - Chỉ chọn productId có trong catalog. Nếu món không có trong catalog, không thêm món và giải thích trong message quán không có, gợi ý món tương đương.',
             '   - Nếu số lượng > 10 ly, giải thích trong message cần quản lý xác nhận số lượng lớn.',
             '',
-            '2. HỎI ĐÁP NGHIỆP VỤ & HƯỚNG DẪN SỬ DỤNG (action: "qa"):',
-            '   - Nếu người dùng hỏi cách sử dụng phần mềm, cách thêm món mới, sửa giá, phím tắt, cài máy in, xử lý lỗi...',
+            '2. HỎI ĐÁP NGHIỆP VỤ & THÔNG TIN TIỆN ÍCH QUÁN (action: "qa"):',
+            '   - Nếu người dùng hỏi thông tin quán (pass wifi, giờ mở cửa, gửi xe, thanh toán, ưu đãi thành viên...) HOẶC hỏi cách sử dụng phần mềm (thêm món, sửa giá, phím tắt, cài máy in, lỗi)...',
             '   - Đặt action = "qa", targetTable = null, items = [].',
-            '   - Trả lời bằng tiếng Việt rõ ràng, từng bước dễ hiểu dựa trên CẨM NANG HƯỚNG DẪN SỬ DỤNG bên dưới.',
+            '   - Trả lời bằng tiếng Việt thân thiện, rõ ràng dựa trên THÔNG TIN & TIỆN ÍCH QUÁN và CẨM NANG HƯỚNG DẪN bên dưới.',
             '',
             '3. PHÂN QUYỀN AN TOÀN (Context-Aware):',
             '   - Nếu nhân viên không phải Admin mà yêu cầu các chức năng quản trị cấp cao (như xem báo cáo doanh thu tài chính, cấu hình hệ thống), đặt action = "none" và giải thích tài khoản hiện tại không có quyền.',
