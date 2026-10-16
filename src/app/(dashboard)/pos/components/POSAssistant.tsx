@@ -98,7 +98,7 @@ export function POSAssistant({ onAddToCart, onAdjustQuantity, cart, selectedTabl
     const userMessage = message.trim();
     setMessages((current) => [...current, { role: 'user', content: userMessage }]);
 
-    if (/^(xin chào|chào|hello|hi|alo|hey)[!. ]*$/i.test(userMessage)) {
+    if (/^(xin chào(\s+(bạn|bot|em|shop|ad))?|chào(\s+(bạn|bot|em|shop|ad|buổi sáng|buổi trưa|buổi chiều|buổi tối))?|hello(\s+(bạn|bot))?|hi(\s+(bạn|bot))?|alo(\s+(bạn|bot))?|hey)[!. ]*$/i.test(userMessage)) {
       const greeting = 'Xin chào! Tôi có thể giúp thêm hoặc bớt món trong giỏ của bàn hiện tại.';
       setReply(greeting);
       setMessages((current) => [...current, { role: 'assistant', content: greeting }]);
@@ -129,9 +129,12 @@ export function POSAssistant({ onAddToCart, onAdjustQuantity, cart, selectedTabl
       setAction(result.action || 'none');
       setMessages((current) => [...current, { role: 'assistant', content: result.message || '' }]);
     } catch (error) {
-      const errorMessage = error instanceof DOMException && error.name === 'AbortError'
+      const rawMessage = error instanceof DOMException && error.name === 'AbortError'
         ? 'Gemini phản hồi quá lâu. Vui lòng thử lại.'
         : error instanceof Error ? error.message : 'Không thể xử lý câu lệnh.';
+      const errorMessage = /high demand|overloaded|spikes in demand|quá tải|503/i.test(rawMessage)
+        ? 'Hệ thống AI hiện đang bận hoặc quá tải. Vui lòng thử lại sau giây lát.'
+        : rawMessage;
       setReply(errorMessage);
       setMessages((current) => [...current, { role: 'assistant', content: errorMessage }]);
     } finally {

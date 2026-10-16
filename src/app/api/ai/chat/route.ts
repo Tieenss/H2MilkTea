@@ -74,51 +74,90 @@ export async function POST(request: NextRequest) {
       : [];
     const currentCart = Array.isArray(body.cart) ? body.cart : [];
     const table = typeof body.table === 'string' ? body.table : 'Chưa chọn bàn';
-    const model = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 25000);
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
-        body: JSON.stringify({
-          systemInstruction: {
-            parts: [{
-              text: [
-                'Bạn là trợ lý POS H2 MilkTea.',
-                'Phân tích câu lệnh tiếng Việt thành JSON gồm {"action":"add"|"remove"|"none","items":[...],"message":"..."}',
-                'Mỗi item phải có productId, productName, quantity là số nguyên dương; note là chuỗi tùy chọn.',
-                'Chỉ chọn productId có trong catalog. Nếu không chắc chắn, không thêm item và giải thích trong message.',
-                'Nếu người dùng nói thêm/gọi món, action là add. Nếu nói bỏ/xóa/bớt món, action là remove.',
-                'Chỉ được remove món đang có trong giỏ hiện tại. Nếu không đủ thông tin, action là none và hỏi lại.',
-                'Không tự áp mã giảm giá, thanh toán, đổi bàn hoặc thực hiện hành động khác.',
-                `Bàn hiện tại: ${table}`,
-                `Giỏ hàng hiện tại: ${JSON.stringify(currentCart)}`,
-                `Catalog: ${JSON.stringify(catalog)}`,
-              ].join('\n'),
-            }],
-          },
-          contents: [
-            ...history.map((turn) => ({
-              role: turn.role === 'assistant' ? 'model' : 'user',
-              parts: [{ text: turn.content }],
-            })),
-            { role: 'user', parts: [{ text: message }] },
-          ],
-          generationConfig: { temperature: 0, responseMimeType: 'application/json' },
-        }),
-      },
-    );
-    clearTimeout(timeout);
+    const primaryModel = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+    const candidateModels = Array.from(new Set([
+      primaryModel,
+      'gemini-2.5-flash',
+      'gemini-flash-latest',
+      'gemini-flash-lite-latest',
+      'gemini-3.7-flash',
+      'gemini-3.5-flash',
+      'gemini-3.1-flash-lite',
+    ]));
 
-    const result = await response.json() as {
+    const payload = JSON.stringify({
+      systemInstruction: {
+        parts: [{
+          text: [
+            'Bạn là trợ lý POS H2 MilkTea.',
+            'Phân tích câu lệnh tiếng Việt thành JSON gồm {"action":"add"|"remove"|"none","items":[...],"message":"..."}',
+            'Mỗi item phải có productId, productName, quantity là số nguyên dương; note là chuỗi tùy chọn.',
+            'Chỉ chọn productId có trong catalog. Nếu không chắc chắn, không thêm item và giải thích trong message.',
+            'Nếu người dùng nói thêm/gọi món, action là add. Nếu nói bỏ/xóa/bớt món, action là remove.',
+            'Chỉ được remove món đang có trong giỏ hiện tại. Nếu không đủ thông tin, action là none và hỏi lại.',
+            'Không tự áp mã giảm giá, thanh toán, đổi bàn hoặc thực hiện hành động khác.',
+            `Bàn hiện tại: ${table}`,
+            `Giỏ hàng hiện tại: ${JSON.stringify(currentCart)}`,
+            `Catalog: ${JSON.stringify(catalog)}`,
+          ].join('\n'),
+        }],
+      },
+      contents: [
+        ...history.map((turn) => ({
+          role: turn.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: turn.content }],
+        })),
+        { role: 'user', parts: [{ text: message }] },
+      ],
+      generationConfig: { temperature: 0, responseMimeType: 'application/json' },
+    });
+
+    let result: {
       candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
       error?: { message?: string };
-    };
-    if (!response.ok) {
-      throw new Error(result.error?.message || 'Gemini không xử lý được yêu cầu.');
+    } | null = null;
+    let lastError: Error | null = null;
+
+    for (const currentModel of candidateModels) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 25000);
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
+            body: payload,
+          },
+        );
+        clearTimeout(timeout);
+
+        const data = await response.json() as {
+          candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+          error?: { message?: string };
+        };
+
+        if (response.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
+          result = data;
+          break;
+        }
+
+        console.warn(`Gemini model ${currentModel} returned status ${response.status} (${data.error?.message}), trying fallback...`);
+        lastError = new Error(data.error?.message || `Model ${currentModel} gặp lỗi ${response.status}`);
+      } catch (err) {
+        clearTimeout(timeout);
+        lastError = err instanceof Error ? err : new Error(String(err));
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          console.warn(`Gemini model ${currentModel} timeout, trying fallback...`);
+        } else {
+          console.warn(`Gemini model ${currentModel} failed:`, err);
+        }
+      }
+    }
+
+    if (!result) {
+      throw lastError || new Error('Các model AI hiện đang bận hoặc quá tải. Vui lòng thử lại sau.');
     }
 
     const responseText = result.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
