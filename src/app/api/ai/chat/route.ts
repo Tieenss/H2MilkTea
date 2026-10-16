@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import menuData from '@/data/DMHH.json';
 import tableData from '@/data/DSBAN.json';
-import { createAdminSupabaseClient, getAuthenticatedStaff } from '@/lib/supabase/server';
+import { createAdminSupabaseClient, getAuthenticatedStaff, getStaffRole } from '@/lib/supabase/server';
 import { resolveTableFromMessage, TableInfo } from '@/lib/ai/table';
 import { getKnowledgeBasePrompt } from '@/lib/ai/knowledge';
 import { resolveProduct, toActiveCatalog } from '@/lib/ai/catalog';
@@ -58,11 +58,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Lấy thông tin phân quyền nhân viên
-    const { data: staffData } = supabase
-      ? await supabase.from('DSNV').select('"Phân quyền"').eq('Email', staff.email).maybeSingle()
-      : { data: null };
-    const staffRole = staffData?.['Phân quyền'] || 'Nhân viên';
-    const isAdmin = staffRole === 'Admin';
+    const { role: staffRole, isAdmin } = await getStaffRole(supabase, staff);
 
     // 3. Tải danh mục món ăn (DMHH)
     const { data: liveProducts } = supabase

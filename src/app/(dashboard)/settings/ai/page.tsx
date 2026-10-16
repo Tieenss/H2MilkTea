@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import authUtils from '@/utils/authUtils';
 
 interface AISettingsConfig {
   enabled: boolean;
@@ -23,16 +24,29 @@ export default function AISettingsPage() {
     voiceSilenceTimeoutMs: 1500,
     maxItemQuantity: 10,
   });
+  const [isAdmin, setIsAdmin] = useState<boolean>(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
+    try {
+      const localUser = authUtils.getUserData();
+      if (localUser) {
+        const localRole = localUser['Phân quyền'] || '';
+        const isLocalAdmin = localRole === 'Admin' || localUser.username?.toLowerCase() === 'admin';
+        setIsAdmin(isLocalAdmin);
+      }
+    } catch {
+      // Bỏ qua lỗi đọc localStorage nếu có
+    }
+
     fetch('/api/ai/settings')
       .then(async (response) => {
         const result = await response.json();
         if (!response.ok || !result.success) throw new Error(result.error || 'Không tải được cài đặt.');
+        if (typeof result.isAdmin === 'boolean') setIsAdmin(result.isAdmin);
         if (result.settings) setSettings(result.settings);
         else if (typeof result.enabled === 'boolean') setSettings((prev) => ({ ...prev, enabled: result.enabled }));
       })
@@ -52,6 +66,7 @@ export default function AISettingsPage() {
       });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || 'Không lưu được cài đặt.');
+      if (typeof result.isAdmin === 'boolean') setIsAdmin(result.isAdmin);
       setSettings(result.settings);
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 3000);
@@ -106,6 +121,13 @@ export default function AISettingsPage() {
 
       {error && <p className="text-sm text-red-600 bg-red-50 p-3 rounded-lg border border-red-200">{error}</p>}
 
+      {!isAdmin && !loading && (
+        <div className="p-3 rounded-lg bg-amber-50 text-amber-800 text-sm border border-amber-200 flex items-center gap-2">
+          <ShieldAlert className="h-4 w-4 text-amber-600 shrink-0" />
+          <span>Tài khoản hiện tại có quyền <strong>Nhân viên</strong> (chỉ xem). Để thay đổi cài đặt Chatbot, vui lòng đăng nhập tài khoản <strong>Admin</strong>.</span>
+        </div>
+      )}
+
       {/* 1. Công tắc chính */}
       <Card>
         <CardHeader>
@@ -117,7 +139,7 @@ export default function AISettingsPage() {
             {loading || saving ? (
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             ) : (
-              <Switch checked={settings.enabled} onCheckedChange={handleToggleEnabled} />
+              <Switch checked={settings.enabled} onCheckedChange={handleToggleEnabled} disabled={!isAdmin} />
             )}
           </div>
         </CardHeader>
@@ -146,7 +168,7 @@ export default function AISettingsPage() {
             <Switch
               checked={settings.autoSubmitVoice}
               onCheckedChange={handleToggleAutoSubmit}
-              disabled={!settings.enabled}
+              disabled={!isAdmin || !settings.enabled}
             />
           </div>
 
@@ -161,7 +183,7 @@ export default function AISettingsPage() {
               <Select
                 value={String(settings.voiceSilenceTimeoutMs)}
                 onValueChange={handleChangeSilenceTimeout}
-                disabled={!settings.enabled || !settings.autoSubmitVoice}
+                disabled={!isAdmin || !settings.enabled || !settings.autoSubmitVoice}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Chọn thời gian" />
@@ -200,7 +222,7 @@ export default function AISettingsPage() {
                 max="50"
                 value={settings.maxItemQuantity}
                 onChange={(e) => handleChangeMaxQuantity(e.target.value)}
-                disabled={!settings.enabled}
+                disabled={!isAdmin || !settings.enabled}
               />
             </div>
           </div>
@@ -211,7 +233,7 @@ export default function AISettingsPage() {
       <div className="flex justify-end">
         <Button
           onClick={() => saveSettings(settings)}
-          disabled={loading || saving}
+          disabled={!isAdmin || loading || saving}
           className="bg-indigo-600 hover:bg-indigo-700 text-white min-w-[140px]"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}

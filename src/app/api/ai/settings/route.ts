@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminSupabaseClient, getAuthenticatedStaff } from '@/lib/supabase/server';
+import { createAdminSupabaseClient, getAuthenticatedStaff, getStaffRole } from '@/lib/supabase/server';
 
 export interface AISettingsConfig {
   enabled: boolean;
@@ -21,16 +21,13 @@ async function getContext(request: NextRequest) {
 
   const supabase = createAdminSupabaseClient();
   if (!supabase) return { staff, supabase: null, isAdmin: false };
-  const { data } = await supabase
-    .from('DSNV')
-    .select('"Phân quyền"')
-    .eq('Email', staff.email)
-    .maybeSingle();
-  return { staff, supabase, isAdmin: data?.['Phân quyền'] === 'Admin' };
+
+  const { isAdmin } = await getStaffRole(supabase, staff);
+  return { staff, supabase, isAdmin };
 }
 
 export async function GET(request: NextRequest) {
-  const { staff, supabase } = await getContext(request);
+  const { staff, supabase, isAdmin } = await getContext(request);
   if (!staff || !supabase) return NextResponse.json({ success: false, error: 'Không có quyền truy cập.' }, { status: 401 });
 
   // Đọc cài đặt chi tiết hoặc fallback về ai_assistant_enabled
@@ -44,6 +41,7 @@ export async function GET(request: NextRequest) {
     const val = configData.value as Partial<AISettingsConfig>;
     return NextResponse.json({
       success: true,
+      isAdmin,
       settings: {
         enabled: typeof val.enabled === 'boolean' ? val.enabled : true,
         autoSubmitVoice: typeof val.autoSubmitVoice === 'boolean' ? val.autoSubmitVoice : true,
@@ -62,6 +60,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     success: true,
+    isAdmin,
     settings: {
       ...DEFAULT_SETTINGS,
       enabled: legacyData?.value !== false,
@@ -102,5 +101,5 @@ export async function PUT(request: NextRequest) {
     }),
   ]);
 
-  return NextResponse.json({ success: true, settings: nextSettings });
+  return NextResponse.json({ success: true, isAdmin: true, settings: nextSettings });
 }
