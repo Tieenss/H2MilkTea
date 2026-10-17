@@ -1,0 +1,1 @@
+order_id,staff_code,scenario_id,item_count,has_customizations,start_time,items_selected_time,checkout_completed_time,input_duration_seconds,total_duration_seconds,error_corrections_count,payment_method,source,notes
