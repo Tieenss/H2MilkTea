@@ -74,7 +74,7 @@ async function runBackup() {
     'HOADONDETAIL',
     'pos_orders',
     'pos_cart_drafts',
-    'ai_settings'
+    'app_settings'
   ];
 
   const recordCounts = {};

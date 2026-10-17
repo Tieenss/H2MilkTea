@@ -69,3 +69,24 @@ FEATURE_QR_TOKEN=false
 FEATURE_SMART_SYNC=false
 ```
 Khởi động lại ứng dụng. Mọi tính năng đang thử nghiệm sẽ tự động ẩn và fallback về chế độ truyền thống mà không làm gián đoạn POS.
+
+---
+
+## 3. Biên bản Diễn tập Sao lưu & Khôi phục STAGING (Phase 0.4 Rehearsal)
+
+- **Thời điểm diễn tập**: 2026-10-18 02:40 (GMT+7)
+- **Project STAGING**: `uhnrkyzicqhozwlimvew`
+- **Mã bản backup**: `20261017-194019-rehearsal`
+- **Thư mục lưu**: `backups/db/20261017-194019-rehearsal/`
+
+### Tiến trình thực nghiệm:
+1. **Sao lưu STAGING**: Chạy `npm run db:backup rehearsal`. Kết xuất thành công dữ liệu 8 bảng nghiệp vụ, xuất `record_counts.json`, `manifest.json` và mã băm SHA-256 cho toàn bộ file vào `checksums.json`.
+2. **Kiểm định ban đầu**: Chạy `npm run db:verify`, kết quả **KHỚP 100%** (11/11 file hash, 8/8 bảng dữ liệu).
+3. **Mô phỏng sai lệch dữ liệu**: Thêm bản ghi `TEST_REHEARSAL` vào bảng `DMHH` (tăng từ 53 lên 54 bản ghi). Chạy lại `npm run db:verify` -> Script phát hiện chính xác lỗi lệch số bản ghi trên `DMHH` và ngắt tiến trình với exit code 1.
+4. **Khôi phục từ backup**: Xóa bản ghi test và chạy `npm run db:restore backups/db/20261017-194019-rehearsal -- --confirm-ref=uhnrkyzicqhozwlimvew`. Script xác minh checksums hợp lệ, kiểm tra ref trùng khớp và nạp lại toàn bộ dữ liệu sạch.
+5. **Kiểm định sau khôi phục**: Chạy `npm run db:verify`. Kết quả:
+   - Toàn bộ 11 file checksum SHA-256: **KHỚP 100%**.
+   - Toàn bộ số lượng bản ghi 8 bảng: **KHỚP 100%** (`DMHH: 53`, `DSBAN: 24`, `DSNV: 4`, `HOADON: 9`, `HOADONDETAIL: 25`, `pos_orders: 0`, `pos_cart_drafts: 0`, `app_settings: 2`).
+
+> [!NOTE]
+> **Kết luận diễn tập**: Quy trình sao lưu, phát hiện sai lệch và khôi phục dữ liệu trên STAGING hoạt động ổn định, chính xác và an toàn tuyệt đối. Đạt điều kiện thông qua mục 0.4 của hiến pháp.
