@@ -3,13 +3,18 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/check-env.mjs",
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "pretest": "node scripts/check-env.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check-env": "node -e \"console.log('CLIENT_ID:', process.env.NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID ? 'Set' : 'Not Set'); console.log('API_KEY:', process.env.NEXT_PUBLIC_GOOGLE_DRIVE_API_KEY ? 'Set' : 'Not Set');\""
+    "check-env": "node scripts/check-env.mjs",
+    "db:backup": "node scripts/db/backup.mjs",
+    "db:restore": "node scripts/db/restore.mjs",
+    "db:verify": "node scripts/db/verify-backup.mjs"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
