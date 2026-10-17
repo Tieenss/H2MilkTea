@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Search, RefreshCw, Users, X, GalleryVertical } from 'lucide-react';
+import { Search, RefreshCw, Users, Filter, X, GalleryVertical } from 'lucide-react';
 
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,7 @@ import authUtils from '@/utils/authUtils';
 import './styles/pos.css';
 import { CustomerSelectModal } from '@/app/(dashboard)/pos/components/CustomerSelectModal';
 import { QROrderInbox } from './components/QROrderInbox';
+import type { Customer } from '@/app/(dashboard)/khachhang/types/customer';
 import { POSAssistant } from './components/POSAssistant';
 
 export default function POSPage() {
@@ -342,7 +343,15 @@ export default function POSPage() {
       </div>
 
       <QROrderInbox onSettle={settleQrOrder} />
-      <POSAssistant products={products} onAddToCart={addToCart} />
+      <POSAssistant
+        onAddToCart={addToCart}
+        onAdjustQuantity={adjustQuantity}
+        cart={cart}
+        selectedTableName={selectedTableName}
+        selectedTableId={selectedTableId}
+        tables={tables}
+        onSelectTable={selectTable}
+      />
 
       {/* Main Content */}
       <div className="flex flex-col lg:flex-row h-[calc(100vh-8rem)] lg:h-[calc(100vh-12rem)]">
@@ -365,6 +374,7 @@ export default function POSPage() {
             selectedTableId={selectedTableId}
             selectedCustomer={selectedCustomer}
             selectedTableName={selectedTableName}
+            employee={nhanvien}
             onRemoveFromCart={removeFromCart}
             onAdjustQuantity={adjustQuantity}
             onClearCart={clearCart}
@@ -422,6 +432,7 @@ export default function POSPage() {
                   setShowCheckoutModal(true);
                 }}
                 selectedTableName={selectedTableName}
+                employee={nhanvien}
                 onSendToKitchen={() => sendToKitchen({
                   tableId: selectedTableId || '', tableName: selectedTableName,
                   items: cart, employee: nhanvien || 'Thu ngân',

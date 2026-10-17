@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import dsnvDataFallback from '@/data/DSNV.json';
 
 export function createAdminSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -32,5 +33,67 @@ export async function getAuthenticatedStaff(cookieHeader = '') {
 
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) return null;
-  return { id: user.id, email: user.email || '' };
+  return { id: user.id, email: user.email || '', user_metadata: user.user_metadata };
 }
+
+export interface StaffRoleResult {
+  role: string;
+  isAdmin: boolean;
+}
+
+export async function getStaffRole(
+  supabase: ReturnType<typeof createAdminSupabaseClient> | any,
+  staff: { id: string; email: string; user_metadata?: Record<string, any> } | null
+): Promise<StaffRoleResult> {
+  if (!staff || !staff.email) {
+    return { role: 'Khách', isAdmin: false };
+  }
+
+  const emailLower = staff.email.toLowerCase().trim();
+  const username = emailLower.includes('@') ? emailLower.split('@')[0] : emailLower;
+
+  // 1. Nhận diện trực tiếp nếu username là 'admin' hoặc email bắt đầu bằng admin@ hoặc user_metadata role là admin
+  if (
+    username === 'admin' ||
+    emailLower.startsWith('admin@') ||
+    staff.user_metadata?.role?.toLowerCase() === 'admin' ||
+    staff.user_metadata?.['Phân quyền'] === 'Admin'
+  ) {
+    return { role: 'Admin', isAdmin: true };
+  }
+
+  // 2. Tra cứu bảng DSNV trên Supabase (tìm theo username hoặc Email)
+  if (supabase) {
+    try {
+      const { data } = await supabase
+        .from('DSNV')
+        .select('"Phân quyền", username, Email')
+        .or(`username.eq.${username},Email.eq.${emailLower},Email.ilike.%${username}%`)
+        .maybeSingle();
+
+      if (data) {
+        const role = data['Phân quyền'] || 'Nhân viên';
+        const isAdmin = role === 'Admin' || data.username?.toLowerCase() === 'admin';
+        return { role, isAdmin };
+      }
+    } catch (err) {
+      console.warn('Lỗi kiểm tra DSNV từ Supabase:', err);
+    }
+  }
+
+  // 3. Fallback đối chiếu với file dữ liệu DSNV.json
+  const fallbackUser = (dsnvDataFallback as Array<{ username?: string; Email?: string; 'Phân quyền'?: string }>).find(
+    (u) =>
+      (u.username && u.username.toLowerCase() === username) ||
+      (u.Email && (u.Email.toLowerCase() === emailLower || u.Email.toLowerCase().startsWith(`${username}@`)))
+  );
+
+  if (fallbackUser) {
+    const role = fallbackUser['Phân quyền'] || 'Nhân viên';
+    const isAdmin = role === 'Admin' || fallbackUser.username?.toLowerCase() === 'admin';
+    return { role, isAdmin };
+  }
+
+  return { role: 'Nhân viên', isAdmin: false };
+}
+

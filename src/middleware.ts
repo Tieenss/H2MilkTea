@@ -52,6 +52,7 @@ export function middleware(request: NextRequest) {
     '/nhanvien',
     '/settings/store-info',
     '/settingdata',
+    '/settings/ai',
     '/settingdata',
     '/user-guide',
     // Customer QR Order (public)

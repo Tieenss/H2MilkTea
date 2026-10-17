@@ -8,7 +8,7 @@
 
 Trợ lý hiện chỉ phân tích lệnh món, hiển thị xem trước và thêm món sau khi thu ngân xác nhận.
 Không cho chatbot tự thanh toán, giảm giá, đổi bàn hoặc ghi đơn trực tiếp.
-Vercel cần thêm biến server-side `OPENAI_API_KEY` (không có tiền tố `NEXT_PUBLIC_`) và có thể thêm `OPENAI_MODEL`.
+Vercel cần thêm biến server-side `GEMINI_API_KEY` (không có tiền tố `NEXT_PUBLIC_`) và có thể thêm `GEMINI_MODEL`.
 
 ## Vercel deployment bắt buộc
 

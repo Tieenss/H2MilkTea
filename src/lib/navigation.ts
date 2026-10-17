@@ -27,6 +27,7 @@ import {
     BarChart,
     Calendar,
     AlertTriangle,
+    Bot,
 } from 'lucide-react';
 
 export interface NavigationItem {
@@ -270,6 +271,15 @@ export const navigation: NavigationItem[] = [
                 description: 'Cấu hình data hệ thống'
             },
             {
+                name: 'Cài đặt chatbot AI',
+                href: '/settings/ai',
+                icon: Bot,
+                dashboard: true,
+                sidebar: true,
+                color: '#4F46E5',
+                description: 'Bật/tắt trợ lý AI cho toàn hệ thống'
+            },
+            {
                 name: 'Cài đặt mẫu in',
                 href: '/receipt-settings',
                 icon: Printer,
@@ -381,4 +391,3 @@ export const getSystemManagementFeatures = (): NavigationItem[] => {
         item.name.includes('Cài đặt mẫu in')
     ) || [];
 };
-
