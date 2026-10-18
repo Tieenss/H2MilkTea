@@ -1,0 +1,51 @@
+name: H2 MilkTea CI Pipeline
+
+on:
+  push:
+    branches:
+      - master
+      - main
+      - 'exp/**'
+  pull_request:
+    branches:
+      - master
+      - main
+      - 'exp/**'
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://uhnrkyzicqhozwlimvew.supabase.co' }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.dummy_anon_key_for_ci' }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.dummy_service_role_key_for_ci' }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || 'dummy_gemini_api_key_for_ci' }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Check Environment Guardrails
+        run: node scripts/check-env.mjs
+
+      - name: Run Unit Tests
+        run: npm test
+
+      - name: Run AI Accuracy Benchmark
+        run: npm run eval:ai
+
+      - name: Run AI Latency Benchmark
+        run: npm run eval:latency
+
+      - name: Build Production Application
+        run: npm run build

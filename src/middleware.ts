@@ -3,6 +3,22 @@ import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // 1. Quản lý Correlation ID cho truy vết lỗi
+  const correlationId = request.headers.get('x-correlation-id') || crypto.randomUUID();
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-correlation-id', correlationId);
+
+  // Đối với các API endpoints: chuyển tiếp với correlation-id và bỏ qua route check UI
+  if (pathname.startsWith('/api')) {
+    const response = NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    });
+    response.headers.set('x-correlation-id', correlationId);
+    return response;
+  }
   
   // Các route công khai (không cần đăng nhập)
   const publicRoutes = [
@@ -42,7 +58,7 @@ export function middleware(request: NextRequest) {
     '/inventory/orders',
     '/inventory/reports',
     
-    // Báo cáo & Thống kêwuwatracker
+    // Báo cáo & Thống kê
     '/reports/dashboard',
     '/reports/sales',
     '/reports/bestsellers',
@@ -53,7 +69,6 @@ export function middleware(request: NextRequest) {
     '/settings/store-info',
     '/settingdata',
     '/settings/ai',
-    '/settingdata',
     '/user-guide',
     // Customer QR Order (public)
     '/order',
@@ -66,39 +81,45 @@ export function middleware(request: NextRequest) {
   const authToken = request.cookies.get('authToken')?.value;
   
   // Kiểm tra route có tồn tại không (ngoại trừ static files)
-  const isStaticFile = pathname.startsWith('/_next') || 
-                      pathname.startsWith('/api') || 
-                      pathname.includes('.');
+  const isStaticFile = pathname.startsWith('/_next') || pathname.includes('.');
   
   if (!isStaticFile && !validRoutes.includes(pathname)) {
-    return NextResponse.rewrite(new URL('/not-found', request.url));
+    const notFoundRes = NextResponse.rewrite(new URL('/not-found', request.url));
+    notFoundRes.headers.set('x-correlation-id', correlationId);
+    return notFoundRes;
   }
   
   // Kiểm tra nếu đang ở login page với token
   if (pathname === '/' && authToken) {
     const returnUrl = request.nextUrl.searchParams.get('returnUrl');
-    if (returnUrl) {
-      return NextResponse.redirect(new URL(decodeURIComponent(returnUrl), request.url));
-    } else {
-      return NextResponse.redirect(new URL('/dashboard', request.url));
-    }
+    const redirectUrl = returnUrl ? decodeURIComponent(returnUrl) : '/dashboard';
+    const redirectRes = NextResponse.redirect(new URL(redirectUrl, request.url));
+    redirectRes.headers.set('x-correlation-id', correlationId);
+    return redirectRes;
   }
   
   // Tự động bảo vệ tất cả route (trừ publicRoutes và static files)
   const isPublicRoute = publicRoutes.includes(pathname) || pathname.startsWith('/order');
   
   if (!isStaticFile && !isPublicRoute && !authToken) {
-    // Redirect về login với returnUrl
     const loginUrl = new URL('/', request.url);
     loginUrl.searchParams.set('returnUrl', pathname);
-    return NextResponse.redirect(loginUrl);
+    const loginRes = NextResponse.redirect(loginUrl);
+    loginRes.headers.set('x-correlation-id', correlationId);
+    return loginRes;
   }
   
-  return NextResponse.next();
+  const response = NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
+  response.headers.set('x-correlation-id', correlationId);
+  return response;
 }
 
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+    '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
-};
+};

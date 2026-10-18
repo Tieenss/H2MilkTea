@@ -141,6 +141,30 @@
 - **Lựa chọn**: Ánh xạ toàn bộ tri thức của `POS_KNOWLEDGE_BASE` vào 13 đề mục cẩm nang chuẩn của `/user-guide`. Bắt buộc mọi câu trả lời `action: "qa"` phải có trích dẫn nguồn theo cú pháp chuẩn markdown link: `[Nguồn: Hướng dẫn sử dụng > {Tên mục}](/user-guide#{sectionId})`. Hàm `appendCitationIfMissing` đóng vai trò chốt chặn an toàn phía server.
 - **Đánh đổi**: Câu trả lời dài hơn một dòng, nhưng tăng tính thẩm quyền của thông tin và cho phép nhân viên bấm trực tiếp vào anchor link để đọc cẩm nang chi tiết.
 
+---
+
+## Quyết định 18: Chuẩn hóa Khả Năng Quan Sát (Observability) qua Middleware `x-correlation-id` và Module Logger Tập Trung
+- **Thời điểm**: 2026-10-18 (Phase 5)
+- **Bối cảnh**: Khi hệ thống mở rộng nhiều route API (`/api/pos/*`, `/api/ai/*`), việc dùng `console.log` thuần không có định danh duy nhất khiến việc xâu chuỗi một luồng gọi món/thanh toán qua nhiều tầng gặp khó khăn khi có sự cố.
+- **Lựa chọn**: Thiết lập module `src/lib/logger.ts` xuất log JSON có cấu trúc (`timestamp`, `level`, `correlationId`, `message`, `metadata`). Cập nhật `src/middleware.ts` tự động sinh UUID `x-correlation-id` nếu client chưa gửi, đính kèm vào header chuyển tiếp tới route API và trả về client trong response header.
+- **Đánh đổi**: Thêm một bước xử lý header nhỏ (<0.1ms) ở middleware, nhưng cho phép tra cứu toàn diện lịch sử một phiên giao dịch từ frontend qua backend.
+
+---
+
+## Quyết định 19: Đo Lường Thực Nghiệm Độ Trễ AI (Latency Benchmark) với Script Tự Động
+- **Thời điểm**: 2026-10-18 (Phase 5)
+- **Bối cảnh**: Cần số liệu định lượng khách quan chứng minh tính ưu việt của kiến trúc Rule Engine + LLM fallback nhằm phục vụ thuyết minh đồ án và đảm bảo trải nghiệm POS mượt mà.
+- **Lựa chọn**: Viết script `scripts/measure-latency.ts` đo đạc 200 mẫu thử ngẫu nhiên trên menu thực tế, tính toán phân vị p50, p95, min, max và tự động xuất báo cáo markdown (`docs/agent/ai-latency-report.md`).
+- **Đánh đổi**: Cần duy trì script benchmark, nhưng cung cấp bằng chứng thực nghiệm rõ ràng: p50 = 0.31 ms, p95 = 0.65 ms, vượt trội so với SLA đề ra ($\le 500$ ms).
+
+---
+
+## Quyết định 20: Tự Động Hóa Kiểm Định Toàn Diện Qua CI GitHub Actions và Kịch Bản Seed Demo An Toàn
+- **Thời điểm**: 2026-10-18 (Phase 5)
+- **Bối cảnh**: Tránh hiện tượng "chạy được trên máy tôi nhưng lỗi trên máy khác", đồng thời cần chuẩn bị môi trường demo hoàn chỉnh trên STAGING mà không làm ảnh hưởng đến dữ liệu sản xuất.
+- **Lựa chọn**: Tạo GitHub Actions workflow `.github/workflows/ci.yml` kiểm tra 7 bước (lint, check-env, unit test, eval:ai, eval:latency, build). Viết script `scripts/db/seed-demo.mjs` có guardrail chống chạy vào production, nạp dữ liệu mẫu có gắn nhãn `[DEMO - Đồ án Tốt nghiệp]`.
+- **Đánh đổi**: Tốn tài nguyên chạy CI khi push code, nhưng bảo đảm mã nguồn luôn ở trạng thái sẵn sàng xuất xưởng và demo trước hội đồng.
+
 
 
 

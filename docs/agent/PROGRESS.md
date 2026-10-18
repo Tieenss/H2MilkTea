@@ -1,7 +1,7 @@
 # Tiến Độ Dự Án (PROGRESS.md)
 
 - **Nhánh chính**: `exp/thesis-perfect`
-- **Phiên bản hiện tại**: Phase 0 — Nền móng và hiện trạng
+- **Phiên bản hiện tại**: Phase 5 — Hoàn thiện và tài liệu (HOÀN TẤT TOÀN DIỆN KHÓA LUẬN)
 
 ---
 
@@ -115,3 +115,38 @@
   - Benchmark AI `npm run eval:ai` đạt **100.0%** (55/55 câu trên `test.jsonl` và 30/30 câu trên `dev.jsonl`).
   - Build production `npm run build` thành công 100% (50 static & dynamic routes).
   - Lập báo cáo nghiệm thu `docs/agent/phase-4-report.md`.
+
+---
+
+## Kế hoạch Thực hiện Phase 5 — Hoàn thiện và tài liệu (HOÀN TẤT)
+
+- [x] **5.1 Quét Secret Toàn Bộ Codebase & Kiểm Toán Bảo Mật**:
+  - Quét toàn bộ `src/` và `scripts/`: Xác nhận 0 secret bị lộ, không có hardcoded Supabase service key / LLM token.
+  - Kiểm tra các biến môi trường và cơ chế chốt chặn `check-env.mjs` bảo vệ production database (`yeblrlzyellcawfleeox`).
+- [x] **5.2 Khả Năng Quan Sát & Module Logger Tập Trung (Traceability & Correlation ID)**:
+  - Xây dựng module `src/lib/logger.ts` cung cấp ghi log có cấu trúc chuẩn JSON (`logInfo`, `logWarn`, `logError`) kèm `correlationId`.
+  - Cập nhật `src/middleware.ts`: Tự động cấp phát và gắn header `x-correlation-id` xuyên suốt các API request/response.
+  - Lập Ma trận Truy vết Yêu cầu Nghiệp vụ (RTM): [docs/traceability.md](file:///d:/Documents/H2MilkTea/docs/traceability.md) ánh xạ 15 yêu cầu -> Use Case -> DB/RPC -> API -> Tests.
+- [x] **5.3 Đo Lường Thực Nghiệm Độ Trễ AI (Latency Benchmark)**:
+  - Viết script [scripts/measure-latency.ts](file:///d:/Documents/H2MilkTea/scripts/measure-latency.ts) và gán script `npm run eval:latency`.
+  - Chạy thực nghiệm 200 mẫu ngẫu nhiên: **p50 = 0.31 ms**, **p95 = 0.65 ms**, min/max = 0.19 ms / 1.39 ms, 100% đạt chuẩn SLA $\le 500$ ms.
+  - Xuất báo cáo chi tiết: [docs/agent/ai-latency-report.md](file:///d:/Documents/H2MilkTea/docs/agent/ai-latency-report.md).
+- [x] **5.4 Thiết Lập Tự Động Hóa Quy Trình Kiểm Thử CI GitHub Actions**:
+  - Tạo cấu hình CI workflow [.github/workflows/ci.yml](file:///d:/Documents/H2MilkTea/.github/workflows/ci.yml).
+  - Pipeline tự động: checkout -> node 20 -> npm ci -> check-env -> unit test -> eval:ai -> eval:latency -> build production.
+- [x] **5.5 Script Seed Dữ Liệu Mẫu Demo An Toàn trên STAGING**:
+  - Xây dựng [scripts/db/seed-demo.mjs](file:///d:/Documents/H2MilkTea/scripts/db/seed-demo.mjs) kích hoạt bằng `npm run db:seed:demo`.
+  - Nạp 2 đơn POS mẫu và 2 audit logs đại diện vào Supabase STAGING có gắn nhãn rõ `[DEMO - Đồ án Tốt nghiệp]`, tự động chặn nếu trỏ Production.
+- [x] **5.6 Bộ Tài Liệu Kỹ Thuật Hoàn Chỉnh**:
+  - [docs/traceability.md](file:///d:/Documents/H2MilkTea/docs/traceability.md): Ma trận truy vết 15 chức năng nghiệp vụ & 81 tests.
+  - [docs/api-reference.md](file:///d:/Documents/H2MilkTea/docs/api-reference.md): Bảng đặc tả 16 API endpoints (Request/Response/Auth/Errors).
+  - [docs/erd.md](file:///d:/Documents/H2MilkTea/docs/erd.md): Sơ đồ CSDL 10 bảng thực thể và quan hệ khóa ngoại bằng Mermaid.
+  - [README.md](file:///d:/Documents/H2MilkTea/README.md): Cập nhật toàn diện hướng dẫn cài đặt, kiến trúc, kiểm thử và hướng dẫn demo.
+- [x] **5.7 Báo Cáo Nghiệm Thu & Tổng Kết Khóa Luận**:
+  - [docs/agent/phase-5-report.md](file:///d:/Documents/H2MilkTea/docs/agent/phase-5-report.md): Báo cáo nghiệm thu Phase 5.
+  - [docs/agent/FINAL-REVIEW.md](file:///d:/Documents/H2MilkTea/docs/agent/FINAL-REVIEW.md): Báo cáo tổng kết toàn khóa luận theo 5 nội dung chuẩn mực của Master Plan.
+- [x] **5.8 Đóng Gói Checkpoint & Kiểm Định Toàn Diện**:
+  - 100% tests PASS (11/11 test files, 81/81 tests).
+  - 100% eval:ai benchmark pass (100.0% accuracy).
+  - 100% build Next.js thành công (50/50 routes).
+  - Commit và gắn tag `exp/phase-5-done`.

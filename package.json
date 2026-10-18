@@ -15,7 +15,9 @@
     "db:backup": "node scripts/db/backup.mjs",
     "db:restore": "node scripts/db/restore.mjs",
     "db:verify": "node scripts/db/verify-backup.mjs",
-    "eval:ai": "npx tsx scripts/eval-ai.ts"
+    "db:seed:demo": "node scripts/db/seed-demo.mjs",
+    "eval:ai": "npx tsx scripts/eval-ai.ts",
+    "eval:latency": "npx tsx scripts/measure-latency.ts"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",

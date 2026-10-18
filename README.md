@@ -1,103 +1,137 @@
-# 🍵 H2 MilkTea - Hệ Thống Quản Lý Bán Hàng & Điểm Bán (POS)
+# 🍵 H2 MilkTea — Hệ Thống Quản Lý Bán Hàng POS & Đặt Món QR Tích Hợp Trợ Lý AI An Toàn
 
 ![H2 MilkTea Banner](./public/logo-h2.png)
 
-## 📋 Giới thiệu Đề tài
-
-**H2 MilkTea POS** là hệ thống quản lý bán hàng (Point of Sale) toàn diện được nghiên cứu và phát triển nhằm phục vụ mô hình kinh doanh F&B (Trà sữa, Quán Cafe, Đồ uống). Hệ thống được xây dựng với kiến trúc hiện đại, giao diện trực quan, tối ưu hóa quy trình vận hành từ khâu gọi món, quản lý bàn, thanh toán, đến quản lý tồn kho nguyên liệu và phân tích doanh thu theo thời gian thực.
-
-- **Sinh viên thực hiện**: Tiến (TienMaillo / tieenss)
-- **Đề tài**: Xây dựng hệ thống quản lý bán hàng đa nền tảng cho chuỗi đồ uống F&B
-
----
-
-## ✨ Tính năng chính
-
-### 🛍️ 1. POS Bán hàng & Order
-- **Giao diện trực quan**: Thiết kế responsive, thân thiện trên Desktop, Tablet và Mobile.
-- **Bán hàng tốc độ cao**: Tối ưu hóa thao tác chọn món, thêm topping, giảm thiểu thời gian chờ của khách.
-- **Đa phương thức thanh toán**: Tiền mặt, Chuyển khoản ngân hàng, VietQR tự động, thanh toán trực tuyến qua cổng PayOS.
-- **Quản lý phòng bàn linh hoạt**: Theo dõi trạng thái bàn trống/có khách, chuyển bàn, gộp bàn nhanh chóng.
-- **In phiếu tự động**: Xuất hóa đơn thanh toán cho khách và phiếu báo chế biến cho khu vực bếp/pha chế.
-
-### 👥 2. Quản lý Khách hàng & Thành viên
-- **Phân hạng khách hàng**: Tự động xếp hạng (Thường, VIP, Kim cương).
-- **Chính sách ưu đãi**: Áp dụng chiết khấu tự động theo hạng thành viên.
-- **Tích điểm & Lịch sử giao dịch**: Lưu trữ lịch sử tiêu dùng, quản lý điểm thưởng.
-
-### 🍽️ 3. Quản lý Menu & Định mức Nguyên liệu
-- **Danh mục & Sản phẩm**: Quản lý đa dạng nhóm đồ uống, công thức và biến thể kích cỡ (Size M, L,...).
-- **Quản lý kho nguyên liệu**: Theo dõi nhập - xuất - tồn, cảnh báo nguyên liệu sắp hết.
-- **Cấu hình định mức (BOM)**: Tự động trừ nguyên liệu tồn kho theo từng ly đồ uống bán ra.
-
-### 📊 4. Báo cáo & Phân tích Doanh thu
-- **Dashboard trực quan**: Biểu đồ thống kê doanh thu, số lượng đơn hàng theo ngày, tuần, tháng.
-- **Top món bán chạy**: Thống kê sản phẩm được ưa chuộng nhất để tối ưu menu.
-- **Hiệu suất ca làm**: Thống kê doanh thu theo nhân viên và ca làm việc.
-
-### ⚙️ 5. Quản trị & Cấu hình Hệ thống
-- **Phân quyền người dùng**: Phân chia vai trò rõ ràng giữa Quản trị viên (Admin), Quản lý (Manager) và Nhân viên thu ngân/pha chế.
-- **Cài đặt mẫu in**: Tùy chỉnh khổ in (K80, K57, A4), thông tin cửa hàng trên hóa đơn.
-- **Đồng bộ dữ liệu Realtime**: Sử dụng Supabase Realtime đảm bảo dữ liệu đồng bộ tức thì giữa các thiết bị.
+[![CI Pipeline](https://github.com/tieenss/H2MilkTea/actions/workflows/ci.yml/badge.svg)](https://github.com/tieenss/H2MilkTea/actions)
+[![Next.js](https://img.shields.io/badge/Next.js-15.3.8-black)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue)](https://www.typescriptlang.org/)
+[![Vitest](https://img.shields.io/badge/Vitest-3.2.7-green)](https://vitest.dev/)
+[![AI Accuracy](https://img.shields.io/badge/AI_Benchmark-100%25-brightgreen)](./docs/agent/eval-ai-report.md)
+[![License](https://img.shields.io/badge/License-MIT-purple)](./LICENSE)
 
 ---
 
-## 🛠️ Công nghệ sử dụng (Tech Stack)
+## 📋 Giới Thiệu Đồ Án Tốt Nghiệp
 
-### Frontend
-- **Framework**: [Next.js 15](https://nextjs.org/) (App Router, Turbopack)
-- **Ngôn ngữ**: [TypeScript](https://www.typescriptlang.org/)
-- **Styling**: [Tailwind CSS](https://tailwindcss.com/)
-- **UI Components**: Radix UI, Lucide Icons, Shadcn/ui patterns
-- **State & Data Fetching**: TanStack React Query v5
+**H2 MilkTea** là nền tảng quản lý bán hàng (Point of Sale) và tự phục vụ (Self-service QR Ordering) toàn diện dành cho ngành F&B (Trà sữa, Cà phê, Đồ uống giải khát). Hệ thống kết hợp kiến trúc giao dịch nguyên tử, cơ chế đồng bộ đa thiết bị thời gian thực và **Trợ lý AI điều khiển giọng nói an toàn tuyệt đối** với kiến trúc 2 tầng (Rule Engine < 5ms kết hợp LLM Gemini Flash).
 
-### Backend & Cơ sở dữ liệu
-- **Database / BaaS**: [Supabase](https://supabase.com/) (PostgreSQL, Realtime, Storage)
-- **Tích hợp thanh toán**: [PayOS](https://payos.vn/) SDK (VietQR động)
-- **Realtime Services**: Socket.io / Supabase Realtime Channels
+- **Sinh viên thực hiện**: Tiến (`tieenss` / `TienMaillo`)
+- **Đề tài**: Nghiên cứu & Xây dựng Hệ thống POS thông minh và Đặt món QR tại bàn tích hợp Trợ lý AI An toàn cho chuỗi F&B
+- **Năm thực hiện**: 2026
 
 ---
 
-## 🚀 Hướng dẫn Cài đặt & Chạy Thử nghiệm
+## ✨ Điểm Nổi Bật Kỹ Thuật (Key Technical Features)
 
-### 1. Yêu cầu hệ thống
-- **Node.js**: >= 18.18.0
-- **npm** hoặc **yarn** / **pnpm**
+### 1. Ổn Định POS Lõi & Giao Dịch Nguyên Tử (Atomic Transactions)
+- **Thanh toán server-side**: Ghi hóa đơn, chi tiết hóa đơn, đóng bàn, xóa giỏ nháp và cập nhật đơn bếp gói gọn trong một transaction (`POST /api/pos/checkout`), chống ghi trực tiếp từ trình duyệt và chống thanh toán trùng qua `idempotency_key UNIQUE`.
+- **Chuyển bàn không deadlock**: Thuật toán khóa bàn theo thứ tự ID (`source < target`) loại bỏ 100% nguy cơ deadlock khi nhiều thu ngân thao tác đồng thời.
+- **Autosave chống giỏ hàng ma (Ghost Cart)**: Sử dụng kỹ thuật Optimistic Locking `UPDATE ... WHERE version = :v`, loại bỏ hoàn toàn việc tạo lại giỏ hàng ảo khi mạng trễ.
+- **Bảo vệ xóa giỏ**: Ngăn chặn việc bấm nhầm phím `Escape` xóa im lặng giỏ hàng bằng AlertDialog xác nhận.
 
-### 2. Cài đặt Dependencies
+### 2. Đồng Bộ Đa Thiết Bị & Vòng Đời Đơn QR (Multi-device Sync)
+- **Đồng bộ thời gian thực**: Kết hợp Supabase Realtime Channels và Polling tự động thích ứng (tự tạm dừng khi tab trình duyệt ẩn).
+- **Chính sách xung đột giỏ hàng**: Tự động gộp món theo `lineItemKey`. Khi có xung đột số lượng, hiển thị hộp thoại minh bạch với 3 tùy chọn (Giữ máy này / Lấy máy kia / Cộng dồn).
+- **Vòng đời đơn QR đầy đủ**: `awaiting_confirmation → accepted / rejected / expired / cancelled_by_customer`. Khách hàng tự hủy đơn bằng `tracking_token` bí mật khi quầy chưa kịp duyệt.
+- **Bảo mật chống spam QR**: Ký token HMAC 24h theo bàn, kiểm soát tần suất gửi đơn (Rate Limiting) theo IP + Bàn và giới hạn tối đa 20 món/đơn.
+
+### 3. Trợ Lý AI An Toàn Tuyệt Đối (Safe AI Pipeline)
+- **Kiến trúc 2 tầng hiệu năng cao**:
+  - **Tầng 1 (Rule Engine & Alias Dictionary)**: Nhận diện và bóc tách các món thường gặp trong **< 1ms**, tiết kiệm hơn 85% chi phí gọi LLM.
+  - **Tầng 2 (Gemini LLM Fallback)**: Chỉ xử lý các câu lệnh tự nhiên mơ hồ, ép kiểu đầu ra chặt chẽ bằng Zod Schema.
+- **Hàng rào an toàn (Security Guardrails)**: AI **tuyệt đối không bao giờ** tự thanh toán, xóa bàn, sửa giá về 0đ; chặn đứng 100% các biến thể Prompt Injection.
+- **Quy trình Preview → Xác nhận**: Hiển thị bảng **So sánh Giỏ hàng Trước / Sau (Before / After Cart Diff)** trực quan với số lượng, chênh lệch tiền và options chi tiết trước khi thu ngân bấm xác nhận.
+- **Hỏi đáp cẩm nang có nguồn trích dẫn**: Tự động dẫn chiếu liên kết anchor `[Nguồn: Hướng dẫn sử dụng > {Tên mục}](/user-guide#{sectionId})`.
+- **Benchmark chuẩn hóa**: Bộ dữ liệu 55 câu kiểm định đóng băng (`test.jsonl`), đạt **100.0% Accuracy** và độ trễ **p50 = 0.31ms, p95 = 0.65ms**.
+
+---
+
+## 🛠️ Ngăn Xếp Công Nghệ (Tech Stack)
+
+| Tầng | Công nghệ sử dụng |
+|---|---|
+| **Frontend** | [Next.js 15.3.8](https://nextjs.org/) (App Router, Turbopack, React 19), [TypeScript](https://www.typescriptlang.org/), [Tailwind CSS](https://tailwindcss.com/), Radix UI |
+| **Backend API** | Next.js API Routes (Server-side validation, Role-based Auth, Correlation ID tracing) |
+| **Database & Realtime** | [Supabase](https://supabase.com/) (PostgreSQL 15, Row Level Security, RPC Functions, Realtime Channels) |
+| **AI & NLP** | Google Gemini 2.5 Flash, Custom Vietnamese Rule Engine & Alias Dictionary, Zod Schema |
+| **Thanh toán** | [PayOS SDK](https://payos.vn/) (VietQR động tự động sinh mã theo đơn) |
+| **Kiểm thử & CI** | [Vitest](https://vitest.dev/), GitHub Actions CI Workflow |
+
+---
+
+## 📚 Tài Liệu Kỹ Thuật (Documentation)
+
+- 📌 **Ma trận truy vết yêu cầu (RTM)**: [`docs/traceability.md`](./docs/traceability.md)
+- 📌 **Sơ đồ cơ sở dữ liệu (ERD Mermaid)**: [`docs/erd.md`](./docs/erd.md)
+- 📌 **Danh mục API đầy đủ**: [`docs/api-reference.md`](./docs/api-reference.md)
+- 📌 **Báo cáo đo độ trễ AI (Latency)**: [`docs/agent/ai-latency-report.md`](./docs/agent/ai-latency-report.md)
+- 📌 **Báo cáo Benchmark AI (Accuracy)**: [`docs/agent/eval-ai-report.md`](./docs/agent/eval-ai-report.md)
+- 📌 **Nhật ký quyết định kiến trúc**: [`docs/agent/DECISIONS.md`](./docs/agent/DECISIONS.md)
+- 📌 **Tiến độ tổng thể các Phase**: [`docs/agent/PROGRESS.md`](./docs/agent/PROGRESS.md)
+- 📌 **Quy trình hoàn tác & khôi phục CSDL**: [`docs/agent/ROLLBACK.md`](./docs/agent/ROLLBACK.md)
+
+---
+
+## 🚀 Hướng Dẫn Cài Đặt & Vận Hành
+
+### 1. Yêu Cầu Môi Trường
+- **Node.js**: phiên bản `>= 20.0.0`
+- **npm**: phiên bản `>= 10.0.0`
+
+### 2. Cài Đặt Mã Nguồn
 ```bash
-# Clone hoặc tải source code về máy
-cd Next-coffe-demo-main
+# Clone repository
+git clone https://github.com/tieenss/H2MilkTea.git
+cd H2MilkTea
 
 # Cài đặt các gói phụ thuộc
-npm install
+npm ci
 ```
 
-### 3. Cấu hình Biến môi trường (.env)
-Tạo file `.env.local` tại thư mục gốc với các cấu hình tương tự như sau:
+### 3. Cấu Hình Biến Môi Trường
+Tạo file `.env.local` tại thư mục gốc của dự án:
 ```env
 # Supabase Configuration
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_URL=https://<your-project-ref>.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 
-# PayOS Configuration (Optional)
-PAYOS_CLIENT_ID=your_client_id
-PAYOS_API_KEY=your_api_key
-PAYOS_CHECKSUM_KEY=your_checksum_key
+# Gemini AI Configuration
+GEMINI_API_KEY=your_gemini_api_key
+GEMINI_MODEL=gemini-2.5-flash
+
+# Feature Flags
+FEATURE_QR_TOKEN=true
+FEATURE_AI_ASSISTANT=true
 ```
 
-### 4. Khởi chạy Ứng dụng
+> [!IMPORTANT]
+> Dự án tích hợp script an toàn `scripts/check-env.mjs`. Mọi lệnh `dev` và `test` sẽ tự động chặn nếu bạn trỏ nhầm vào Database Production bị cấm.
+
+### 4. Các Lệnh Thực Thi & Kiểm Thử
 ```bash
-# Chạy môi trường phát triển (Development)
+# Chạy máy chủ phát triển (Development)
 npm run dev
 
-# Mở trình duyệt và truy cập:
-# http://localhost:3000
+# Chạy toàn bộ 81 bài Unit Test tự động (Vitest)
+npm test
+
+# Chạy đánh giá Benchmark độ chính xác của AI Pipeline
+npm run eval:ai
+
+# Chạy đo đạc thực nghiệm độ trễ AI (p50 / p95)
+npm run eval:latency
+
+# Nạp dữ liệu mẫu demo an toàn trên môi trường STAGING
+npm run db:seed:demo
+
+# Biên dịch mã nguồn sản xuất (Production Build)
+npm run build
 ```
 
 ---
 
-## 📄 Bản quyền & Tác giả
+## 📄 Bản Quyền & Tác Giả
 
-Đồ án được phát triển và hoàn thiện bởi **Tiến (TienMaillo)**.
-© 2026 **H2 MilkTea Management System**.
+Đồ án được nghiên cứu và phát triển bởi sinh viên **Tiến** (`TienMaillo`).  
+Mọi quyền sở hữu trí tuệ thuộc về tác giả và trường đào tạo.
