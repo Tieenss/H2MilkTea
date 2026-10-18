@@ -33,3 +33,36 @@
 - **Bối cảnh**: `next.config.ts` bỏ qua lỗi lint và type khi build, che giấu 54 lỗi lint và 22 lỗi type còn tồn đọng trong các module cũ.
 - **Lựa chọn**: Phản ánh chính xác kết quả thất bại của `npm run lint` và `tsc --noEmit` vào báo cáo `00-baseline-report.md`, giữ nguyên hiện trạng để có căn cứ cải tiến thực chất ở các phase sau.
 - **Đánh đổi**: Báo cáo kiểm định ban đầu có các chỉ số đỏ/fail, nhưng đảm bảo tính trung thực học thuật và phản ánh đúng chất lượng kỹ thuật của sản phẩm.
+
+---
+
+## Quyết định 05: Chuyển toàn bộ ghi hóa đơn lên Server Endpoint `/api/pos/checkout`
+- **Thời điểm**: 2026-10-18 (Phase 1)
+- **Bối cảnh**: Client POS trước đây gọi Supabase trực tiếp qua `authUtils.addHoaDon` và lặp từng dòng `addHoaDonDetail`, dẫn đến lỗi 500 do RLS chặn ghi trực tiếp từ browser, và dữ liệu rách nát nếu mạng đứt giữa chừng.
+- **Lựa chọn**: Đóng hoàn toàn việc ghi trực tiếp từ client. Tạo server route `/api/pos/checkout` xác thực staff cookie, thực thi RPC `pos_pay_order` (hoặc server transaction fallback) xử lý nguyên tử: tạo hóa đơn + chi tiết + đóng bàn + xóa draft + cập nhật đơn bếp sang `paid`, kèm `idempotency_key UNIQUE` chống thanh toán trùng.
+- **Đánh đổi**: Phát sinh thêm API hop qua server Next.js (~15ms), nhưng đổi lại tính toàn vẹn dữ liệu đạt 100%, chống gian lận và RLS bảo vệ chặt chẽ.
+
+---
+
+## Quyết định 06: Chống giỏ ma (Ghost Cart) bằng `UPDATE ... WHERE version = :v` thay vì `UPSERT`
+- **Thời điểm**: 2026-10-18 (Phase 1)
+- **Bối cảnh**: Trong `PUT /api/pos/cart-draft`, lệnh `upsert` khiến client có mạng trễ (delayed debounce) vô tình tạo mới lại bản ghi draft cho một bàn vừa được thanh toán hoặc đã chuyển sang bàn khác.
+- **Lựa chọn**: Thay `upsert` bằng `UPDATE ... WHERE table_id = :id AND version = :v`. Nếu bản ghi không còn (đã bị xóa do thanh toán/chuyển bàn), API trả về `409 Conflict` và hủy cập nhật, không tự ý hồi sinh bản ghi giỏ hàng.
+- **Đánh đổi**: Client cần xử lý mã 409 để reset giỏ cục bộ, nhưng triệt tiêu vĩnh viễn hiện tượng giỏ hàng "ma" tự xuất hiện lại trên bàn trống.
+
+---
+
+## Quyết định 07: Chuyển bàn nguyên tử với Deadlock-free Lock Order và Hủy Autosave Debounce
+- **Thời điểm**: 2026-10-18 (Phase 1)
+- **Bối cảnh**: Chuyển bàn giữa 2 thiết bị thu ngân đồng thời có nguy cơ deadlock và xung đột nếu không khóa theo thứ tự; đồng thời timer autosave đang chờ có thể ghi đè lại bàn cũ.
+- **Lựa chọn**: Khóa hàng theo thứ tự alphabet cố định (`source_id < target_id`), cung cấp hàm `cancelPendingAutosave()` hủy timer trước khi gửi yêu cầu chuyển bàn, gộp giỏ nếu bàn đích đã có món.
+- **Đánh đổi**: Logic xử lý phức tạp hơn, nhưng bảo đảm giao dịch chuyển bàn không bao giờ bị deadlock hoặc bị ghi đè sau đó.
+
+---
+
+## Quyết định 08: Modal xác nhận bắt buộc khi xóa giỏ (Triệt tiêu xóa im lặng từ phím Esc)
+- **Thời điểm**: 2026-10-18 (Phase 1)
+- **Bối cảnh**: Phím `Escape` trước đây gọi trực tiếp `clearCart()`, khiến thu ngân vô tình bấm nhầm phím thì toàn bộ giỏ hàng của khách bị xóa sạch mà không có cảnh báo.
+- **Lựa chọn**: Tích hợp `showClearConfirmation` điều khiển tập trung: phím `Escape` chỉ kích hoạt modal xác nhận (AlertDialog). Thu ngân bắt buộc bấm "Xóa tất cả" mới thực thi xóa giỏ.
+- **Đánh đổi**: Thêm một thao tác click xác nhận, nhưng bảo vệ an toàn cho dữ liệu giỏ hàng của khách tại quầy.
+

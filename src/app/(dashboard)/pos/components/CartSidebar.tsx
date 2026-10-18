@@ -27,8 +27,10 @@ interface CartSidebarProps {
   customerDiscount: number;
   selectedTableId: string | null;
   selectedCustomer: Customer | null;
-  selectedTableName?: string; // Thêm prop này
-  employee?: string; // Thêm prop này
+  selectedTableName?: string;
+  employee?: string;
+  showClearConfirmation?: boolean;
+  onOpenClearConfirmation?: (show: boolean) => void;
   onRemoveFromCart: (productId: string) => void;
   onAdjustQuantity: (productId: string, amount: number) => void;
   onClearCart: () => void;
@@ -48,6 +50,8 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
   selectedTableId,
   selectedCustomer,
   selectedTableName,
+  showClearConfirmation: controlledShowClearConfirmation,
+  onOpenClearConfirmation,
   onRemoveFromCart,
   onAdjustQuantity,
   onClearCart,
@@ -58,7 +62,18 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
   onSendToKitchen
 }) => {
   const [isSendingKitchen, setIsSendingKitchen] = useState(false);
-  const [showClearConfirmation, setShowClearConfirmation] = useState(false);
+  const [internalShowClearConfirmation, setInternalShowClearConfirmation] = useState(false);
+  const isClearConfirmationOpen = controlledShowClearConfirmation !== undefined
+    ? controlledShowClearConfirmation
+    : internalShowClearConfirmation;
+  const setClearConfirmationOpen = useCallback((show: boolean) => {
+    if (onOpenClearConfirmation) {
+      onOpenClearConfirmation(show);
+    } else {
+      setInternalShowClearConfirmation(show);
+    }
+  }, [onOpenClearConfirmation]);
+
   const [sentKitchenSignature, setSentKitchenSignature] = useState<string | null>(null);
   const cartSignature = JSON.stringify(cart.map((item) => [item.id, item.quantity, item.note]));
   const previousCartSignature = useRef(cartSignature);
@@ -85,7 +100,7 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
 
   const handleClearCart = () => {
     if (cart.length === 0) return;
-    setShowClearConfirmation(true);
+    setClearConfirmationOpen(true);
   };
 
   return (
@@ -169,7 +184,7 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
         </div>
       </div>
 
-      <AlertDialog open={showClearConfirmation} onOpenChange={setShowClearConfirmation}>
+      <AlertDialog open={isClearConfirmationOpen} onOpenChange={setClearConfirmationOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Xóa toàn bộ giỏ hàng?</AlertDialogTitle>
@@ -184,7 +199,7 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
               className="bg-red-600 hover:bg-red-700"
               onClick={() => {
                 onClearCart();
-                setShowClearConfirmation(false);
+                setClearConfirmationOpen(false);
               }}
             >
               Xóa tất cả

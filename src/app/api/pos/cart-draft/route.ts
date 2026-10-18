@@ -41,39 +41,86 @@ export async function PUT(request: NextRequest) {
   const supabase = createAdminSupabaseClient();
   if (!supabase) return NextResponse.json({ success: false, error: 'Dịch vụ dữ liệu chưa sẵn sàng.' }, { status: 503 });
 
-  if (expectedVersion !== null) {
-    const { data: current, error: readError } = await supabase
+  // 1. Nếu client truyền expectedVersion > 0: Phải là UPDATE bản ghi hiện có
+  if (expectedVersion !== null && expectedVersion > 0) {
+    const nextVersion = expectedVersion + 1;
+    const { data: updated, error: updateError } = await supabase
       .from('pos_cart_drafts')
-      .select('version')
+      .update({
+        cart,
+        version: nextVersion,
+        updated_by: staff.id,
+        updated_at: new Date().toISOString(),
+      })
       .eq('table_id', tableId)
+      .eq('version', expectedVersion)
+      .select('*')
       .maybeSingle();
-    if (readError) {
-      console.error('Read cart draft version failed:', readError);
-      return NextResponse.json({ success: false, error: 'Không kiểm tra được phiên bản giỏ hàng.' }, { status: 500 });
+
+    if (updateError) {
+      console.error('Update cart draft failed:', updateError);
+      return NextResponse.json({ success: false, error: 'Không cập nhật được giỏ hàng dùng chung.' }, { status: 500 });
     }
-    if (current && Number(current.version) !== expectedVersion) {
-      return NextResponse.json({ success: false, error: 'Giỏ hàng đã được cập nhật trên thiết bị khác.', conflict: true }, { status: 409 });
+
+    if (!updated) {
+      // Kiểm tra lý do: Bàn đã bị xóa (thanh toán/chuyển bàn) hay do lệch version
+      const { data: current } = await supabase
+        .from('pos_cart_drafts')
+        .select('version')
+        .eq('table_id', tableId)
+        .maybeSingle();
+
+      if (!current) {
+        return NextResponse.json({
+          success: false,
+          conflict: true,
+          error: 'Bàn đã được thanh toán hoặc chuyển sang bàn khác. Hủy cập nhật giỏ hàng cũ.',
+        }, { status: 409 });
+      }
+
+      return NextResponse.json({
+        success: false,
+        conflict: true,
+        error: 'Giỏ hàng đã được cập nhật trên thiết bị khác.',
+      }, { status: 409 });
     }
+
+    return NextResponse.json({ success: true, draft: updated });
   }
 
-  const { data, error } = await supabase
+  // 2. Nếu expectedVersion === 0 hoặc null: Khởi tạo draft mới (INSERT, không dùng upsert để tránh ghi đè)
+  const { data: existingDraft } = await supabase
     .from('pos_cart_drafts')
-    .upsert({
+    .select('version')
+    .eq('table_id', tableId)
+    .maybeSingle();
+
+  if (existingDraft) {
+    return NextResponse.json({
+      success: false,
+      conflict: true,
+      error: 'Bàn đã có giỏ hàng được mở từ thiết bị khác.',
+    }, { status: 409 });
+  }
+
+  const { data: inserted, error: insertError } = await supabase
+    .from('pos_cart_drafts')
+    .insert({
       table_id: tableId,
       cart,
-      version: (expectedVersion ?? 0) + 1,
+      version: 1,
       updated_by: staff.id,
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'table_id' })
+    })
     .select('*')
     .single();
 
-  if (error || !data) {
-    console.error('Write cart draft failed:', error);
-    return NextResponse.json({ success: false, error: 'Không lưu được giỏ hàng dùng chung.' }, { status: 500 });
+  if (insertError || !inserted) {
+    console.error('Insert cart draft failed:', insertError);
+    return NextResponse.json({ success: false, error: 'Không khởi tạo được giỏ hàng dùng chung.' }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true, draft: data });
+  return NextResponse.json({ success: true, draft: inserted });
 }
 
 export async function DELETE(request: NextRequest) {

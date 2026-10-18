@@ -106,6 +106,7 @@ export interface ModalState {
   showCheckoutModal: boolean;
   showTransferModal: boolean;
   showNoteModal: boolean;
+  showClearConfirmation?: boolean;
   selectedItemForNote: CartItem | null;
   noteInput: string;
 }

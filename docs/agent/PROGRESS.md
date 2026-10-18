@@ -18,12 +18,29 @@
 
 ---
 
-## Trạng thái Gate 0 (ĐÃ HOÀN TẤT - SẴN SÀNG NGHIỆM THU)
-- Hồ sơ nghiệm thu Phase 0 đã hoàn tất đầy đủ 100%:
-  1. `docs/agent/00-baseline-report.md` (Báo cáo sức khỏe codebase)
-  2. `docs/agent/01-honest-audit.md` (Audit matrix + Risk register)
-  3. `docs/agent/ROLLBACK.md` (Playbook quay lui + Biên bản diễn tập STAGING 0.4)
-  4. `docs/agent/DECISIONS.md` (Quyết định kỹ thuật)
-  5. `docs/experiment/baseline-protocol.md` & `baseline-template.csv`
-  6. Toàn bộ scripts bảo vệ (`check-env.mjs`, `backup.mjs`, `restore.mjs`, `verify-backup.mjs`, `seed-staging.mjs`)
-- Đang dừng tại **GATE 0** chờ lệnh: `GO PHASE 1`.
+## Kế hoạch Thực hiện Phase 1 — Ổn định POS lõi (HOÀN TẤT)
+
+- [x] **1.1 Database Migration & Rollback**:
+  - Tạo migration `202610180004_pos_core_rpc.sql` và rollback `202610180004_pos_core_rpc.down.sql`.
+  - Thêm cột `idempotency_key UNIQUE` vào bảng `HOADON`.
+  - Viết RPC `pos_pay_order` (atomic transaction: tạo hóa đơn + chi tiết + đóng bàn + xóa draft + cập nhật pos_orders sang paid).
+  - Viết RPC `pos_transfer_table_cart` (atomic transaction: deadlock-free lock order, chuyển/gộp giỏ draft, cập nhật trạng thái 2 bàn).
+  - Thiết lập script an toàn `scripts/db/apply-migration.mjs` có tích hợp guardrail `check-env.mjs`.
+- [x] **1.2 API Checkout & Sửa Autosave**:
+  - Tạo route POST `/api/pos/checkout`: xác thực staff role, chuyển toàn bộ thao tác ghi hóa đơn lên server qua RPC và server-side transaction fallback, loại trừ hoàn toàn việc browser ghi trực tiếp vào DB.
+  - Sửa PUT `/api/pos/cart-draft`: thay thế upsert bằng `UPDATE ... WHERE version = :v` có điều kiện, loại bỏ hiện tượng ghost cart khi autosave gửi trễ.
+  - Tạo route POST `/api/pos/transfer-table`: chuyển bàn phía server an toàn nguyên tử.
+- [x] **1.3 Cải tiến Client (POS Hook & Modal Xóa Giỏ)**:
+  - Cập nhật `usePOS.ts`: chuyển `processPayment` sang gọi `/api/pos/checkout` thay cho `authUtils.addHoaDon`.
+  - Cập nhật `transferTable`: hủy debounce autosave trước khi gọi (`cancelPendingAutosave`), chuyển sang gọi `/api/pos/transfer-table`.
+  - Phím `Escape` & Xóa giỏ: bật dialog xác nhận xóa giỏ (AlertDialog) qua `showClearConfirmation`, triệt tiêu hoàn toàn việc xóa im lặng giỏ hàng.
+- [x] **1.4 Unit & Integration Tests**:
+  - Viết test cho `checkout API` (`tests/unit/checkout-api.test.ts`): kiểm tra 401 unauth, 400 validation, single server flow, idempotency duplicate prevention.
+  - Viết test cho `transfer-table API` (`tests/unit/transfer-table-api.test.ts`): kiểm tra 401, 400 cùng bàn, RPC execution, server-side merge carts.
+  - Cập nhật `cart-draft-api.test.ts` để kiểm thử logic `UPDATE` và conflict `409` khi stale version.
+  - Kết quả kiểm thử: **100% PASS** (7/7 test files, 41/41 tests pass).
+  - Build sản phẩm: `npm run build` thành công 100% (48 routes compile sạch sẽ).
+- [x] **1.5 Tổng kết Gate 1**:
+  - Soạn báo cáo nghiệm thu `docs/agent/phase-1-report.md`.
+
+

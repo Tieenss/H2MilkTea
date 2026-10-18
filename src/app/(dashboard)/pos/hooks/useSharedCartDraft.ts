@@ -112,6 +112,15 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
     };
   }, [applyDraft, fetchDraft, tableId]);
 
+  const debounceTimerRef = useRef<number | null>(null);
+
+  const cancelPendingAutosave = useCallback(() => {
+    if (debounceTimerRef.current) {
+      window.clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+  }, []);
+
   useEffect(() => {
     if (!tableId) return;
     const cartSnapshot = JSON.stringify(cart);
@@ -120,7 +129,11 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
       return;
     }
 
-    const timeout = window.setTimeout(async () => {
+    if (debounceTimerRef.current) {
+      window.clearTimeout(debounceTimerRef.current);
+    }
+
+    debounceTimerRef.current = window.setTimeout(async () => {
       writeInFlightRef.current = true;
       try {
         const response = await fetch('/api/pos/cart-draft', {
@@ -148,18 +161,25 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
         setStatus('offline');
       } finally {
         writeInFlightRef.current = false;
+        debounceTimerRef.current = null;
       }
     }, 350);
 
-    return () => window.clearTimeout(timeout);
+    return () => {
+      if (debounceTimerRef.current) {
+        window.clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+    };
   }, [cart, fetchDraft, tableId]);
 
   const clearDraft = useCallback(async () => {
+    cancelPendingAutosave();
     if (!tableId) return;
     const response = await fetch(`/api/pos/cart-draft?tableId=${encodeURIComponent(tableId)}`, { method: 'DELETE' });
     if (!response.ok) throw new Error('Không xóa được giỏ hàng dùng chung.');
     versionRef.current = 0;
-  }, [tableId]);
+  }, [cancelPendingAutosave, tableId]);
 
-  return { status, realtimeStatus, lastSyncAt, clearDraft };
+  return { status, realtimeStatus, lastSyncAt, clearDraft, cancelPendingAutosave };
 }

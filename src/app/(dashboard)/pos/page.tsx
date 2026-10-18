@@ -48,12 +48,14 @@ export default function POSPage() {
     showCheckoutModal,
     showTransferModal,
     showNoteModal,
+    showClearConfirmation,
     selectedItemForNote,
     noteInput,
     setShowTableModal,
     setShowCheckoutModal,
     setShowTransferModal,
     setShowNoteModal,
+    setShowClearConfirmation,
     setSearchTerm,
     setCategoryFilter,
     setPriceFilter,
@@ -375,6 +377,8 @@ export default function POSPage() {
             selectedCustomer={selectedCustomer}
             selectedTableName={selectedTableName}
             employee={nhanvien}
+            showClearConfirmation={showClearConfirmation}
+            onOpenClearConfirmation={setShowClearConfirmation}
             onRemoveFromCart={removeFromCart}
             onAdjustQuantity={adjustQuantity}
             onClearCart={clearCart}
@@ -421,6 +425,8 @@ export default function POSPage() {
                 customerDiscount={customerDiscount}
                 selectedTableId={selectedTableId}
                 selectedCustomer={selectedCustomer}
+                showClearConfirmation={showClearConfirmation}
+                onOpenClearConfirmation={setShowClearConfirmation}
                 onRemoveFromCart={removeFromCart}
                 onAdjustQuantity={adjustQuantity}
                 onClearCart={() => {

@@ -90,6 +90,7 @@ export const usePOS = () => {
     realtimeStatus,
     lastSyncAt,
     clearDraft: clearSharedCartDraft,
+    cancelPendingAutosave,
   } = useSharedCartDraft({
     tableId: selectedTableId,
     cart,
@@ -110,6 +111,7 @@ export const usePOS = () => {
     showCheckoutModal: false,
     showTransferModal: false,
     showNoteModal: false,
+    showClearConfirmation: false,
     selectedItemForNote: null,
     noteInput: ''
   });
@@ -292,6 +294,10 @@ export const usePOS = () => {
     updateModalState({ showNoteModal: show });
   }, [updateModalState]);
 
+  const setShowClearConfirmation = useCallback((show: boolean) => {
+    updateModalState({ showClearConfirmation: show });
+  }, [updateModalState]);
+
   const setSelectedItemForNote = useCallback((item: CartItem | null) => {
     updateModalState({ selectedItemForNote: item });
   }, [updateModalState]);
@@ -365,28 +371,43 @@ export const usePOS = () => {
   const transferTable = useCallback(async (targetTableId: string) => {
     try {
       showLoading('Đang chuyển bàn...');
+      cancelPendingAutosave();
 
       const sourceTableId = selectedTableId;
+      if (!sourceTableId || !targetTableId) {
+        throw new Error('Vui lòng chọn bàn nguồn và bàn đích hợp lệ!');
+      }
+
       const sourceTable = tables.find(t => t.IDBAN === sourceTableId);
       const targetTable = tables.find(t => t.IDBAN === targetTableId);
 
-      // Update tables status
-      if (sourceTable && sourceTable['Tên bàn'] !== 'Khách mua về') {
-        await updateTableStatusInDB(sourceTableId!, 'Trống');
-      }
-      if (targetTable && targetTable['Tên bàn'] !== 'Khách mua về') {
-        await updateTableStatusInDB(targetTableId, 'Đang sử dụng');
+      const res = await fetch('/api/pos/transfer-table', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceTableId,
+          targetTableId,
+        }),
+      });
+
+      const result = await res.json();
+      if (!res.ok || !result.success) {
+        throw new Error(result.error || 'Có lỗi xảy ra khi chuyển bàn trên máy chủ!');
       }
 
-      // Transfer orders
+      // Update in-memory orders
       const newActiveOrders = new Map(activeOrders);
       newActiveOrders.set(targetTableId, [...cart]);
-      newActiveOrders.delete(sourceTableId!);
+      newActiveOrders.delete(sourceTableId);
       setActiveOrders(newActiveOrders);
 
-      // Remove the source table's shared draft so other POS devices do not
-      // keep displaying the old cart after the transfer.
-      await clearSharedCartDraft();
+      // Cập nhật trạng thái hiển thị bàn
+      if (sourceTable && sourceTable['Tên bàn'] !== 'Khách mua về') {
+        updateTableStatus(sourceTableId, 'Trống');
+      }
+      if (targetTable && targetTable['Tên bàn'] !== 'Khách mua về') {
+        updateTableStatus(targetTableId, 'Đang sử dụng');
+      }
 
       // Update selected table
       setSelectedTableId(targetTableId);
@@ -397,11 +418,11 @@ export const usePOS = () => {
       showNotification(`Đã chuyển từ ${sourceTable?.['Tên bàn']} sang ${targetTable?.['Tên bàn']}`);
       setShowTransferModal(false);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Lỗi chuyển bàn:', error);
-      showNotification('Có lỗi xảy ra khi chuyển bàn!', 'error');
+      showNotification(error.message || 'Có lỗi xảy ra khi chuyển bàn!', 'error');
     }
-  }, [selectedTableId, tables, cart, activeOrders, setActiveOrders, setSelectedTableId, updateTableStatusInDB, clearSharedCartDraft, showNotification, setShowTransferModal, showLoading]);
+  }, [selectedTableId, tables, cart, activeOrders, setActiveOrders, setSelectedTableId, updateTableStatus, cancelPendingAutosave, updateCustomerDisplay, showNotification, setShowTransferModal, showLoading]);
 
   const updateCustomerDisplay = useCallback((cartData = cart, tableInfo: Table | null = null) => {
     if (!customerDisplayWindow.current || customerDisplayWindow.current.closed) return;
@@ -638,14 +659,30 @@ export const usePOS = () => {
         if (!createOrderResponse.ok || !createdOrder.success) throw new Error(createdOrder.error || 'Không thể gửi đơn sang bếp.');
         linkedOrderIds = [createdOrder.orderId];
       }
-      await saveInvoice(invoice, invoiceDetails);
-      const paymentUpdates = await Promise.all(linkedOrderIds.map((id) => fetch('/api/orders', {
-        method: 'PATCH',
+      // Gửi thanh toán lên server qua /api/pos/checkout (Single-transaction an toàn, chống ghi direct client)
+      const checkoutResponse = await fetch('/api/pos/checkout', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, paymentStatus: 'paid', paymentMethod: paymentType, invoiceId }),
-      })));
-      if (paymentUpdates.some((response) => !response.ok)) {
-        showNotification('Hóa đơn đã lưu nhưng chưa đồng bộ trạng thái thanh toán của đơn bếp.', 'warning');
+        body: JSON.stringify({
+          tableId: selectedTableId,
+          tableName,
+          invoiceId,
+          paymentForm: {
+            customer,
+            discount: customerDiscount,
+            paidAmount,
+            note,
+            paymentType,
+          },
+          cart,
+          linkedOrderIds,
+          idempotencyKey: `pos-payment-${invoiceId}`,
+        }),
+      });
+
+      const checkoutResult = await checkoutResponse.json();
+      if (!checkoutResponse.ok || !checkoutResult.success) {
+        throw new Error(checkoutResult.error || 'Có lỗi xảy ra khi lưu hóa đơn trên hệ thống.');
       }
 
       // Update customer if selected
@@ -763,9 +800,11 @@ export const usePOS = () => {
         }
         break;
 
-      case e.key === 'Escape': // Clear cart
+      case e.key === 'Escape': // Clear cart confirmation
         e.preventDefault();
-        clearCart();
+        if (cart.length > 0) {
+          setShowClearConfirmation(true);
+        }
         break;
 
       case e.key === 'F1': // Reset filters
@@ -783,7 +822,7 @@ export const usePOS = () => {
         setShowCustomerModal(true);
         break;
     }
-  }, [cart.length, selectedTableId, setShowCheckoutModal, showNotification, clearCart, resetFilters, syncData]);
+  }, [cart.length, selectedTableId, setShowCheckoutModal, showNotification, setShowClearConfirmation, resetFilters, syncData]);
 
   // Initialize app
   useEffect(() => {
@@ -910,6 +949,7 @@ export const usePOS = () => {
     setShowCheckoutModal,
     setShowTransferModal,
     setShowNoteModal,
+    setShowClearConfirmation,
     setSelectedItemForNote,
     setNoteInput,
 

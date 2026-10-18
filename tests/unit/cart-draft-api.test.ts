@@ -27,6 +27,8 @@ function makeSupabaseMock(result: { data?: unknown; error?: unknown }) {
     eq: vi.fn(() => chain),
     maybeSingle: vi.fn(async () => result),
     upsert: vi.fn(() => chain),
+    update: vi.fn(() => chain),
+    insert: vi.fn(() => chain),
     single: vi.fn(async () => result),
     delete: vi.fn(() => chain),
   };
@@ -70,9 +72,19 @@ describe('cart draft API', () => {
   });
 
   it('returns conflict when the draft version is stale', async () => {
-    createAdminSupabaseClient.mockReturnValue(
-      makeSupabaseMock({ data: { version: 4 }, error: null }),
-    );
+    let count = 0;
+    const chain = {
+      update: vi.fn(() => chain),
+      select: vi.fn(() => chain),
+      eq: vi.fn(() => chain),
+      maybeSingle: vi.fn(async () => {
+        count++;
+        if (count === 1) return { data: null, error: null }; // update không match dòng nào do lệch version
+        return { data: { version: 4 }, error: null }; // current version
+      }),
+    };
+    createAdminSupabaseClient.mockReturnValue({ from: vi.fn(() => chain) });
+
     const response = await PUT(makeRequest('PUT', '/api/pos/cart-draft', {
       tableId: 'B3',
       cart: [],
