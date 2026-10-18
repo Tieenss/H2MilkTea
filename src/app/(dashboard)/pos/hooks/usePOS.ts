@@ -322,7 +322,10 @@ export const usePOS = () => {
   }, [showNotification]);
 
   // Cart operations
-  const addToCart = useCallback((productId: string) => {
+  const addToCart = useCallback((
+    productId: string,
+    options?: { size?: string; sugar?: string; ice?: string; toppings?: string[]; note?: string }
+  ) => {
     if (!selectedTableId) {
       showNotification('Vui lòng chọn bàn trước khi gọi món!', 'error');
       setShowTableModal(true);
@@ -335,7 +338,7 @@ export const usePOS = () => {
       return;
     }
 
-    addItemToCart(product);
+    addItemToCart(product, options);
     updateCustomerDisplay();
   }, [selectedTableId, products, addItemToCart, showNotification, setShowTableModal]);
 

@@ -6,6 +6,8 @@
 export interface KnowledgeTopic {
   id: string;
   title: string;
+  sectionId: string;
+  sectionTitle: string;
   keywords: string[];
   summary: string;
   steps?: string[];
@@ -16,6 +18,8 @@ export const POS_KNOWLEDGE_BASE: KnowledgeTopic[] = [
   {
     id: 'add-product',
     title: 'Cách thêm sản phẩm / món mới vào menu',
+    sectionId: 'menu',
+    sectionTitle: 'Menu & Sản phẩm',
     keywords: ['thêm món', 'món mới', 'sản phẩm mới', 'thêm sản phẩm', 'tạo món', 'menu', 'thực đơn'],
     summary: 'Để thêm sản phẩm mới vào danh mục bán lẻ của quán:',
     steps: [
@@ -29,6 +33,8 @@ export const POS_KNOWLEDGE_BASE: KnowledgeTopic[] = [
   {
     id: 'edit-price',
     title: 'Cách chỉnh sửa giá bán hoặc thông tin sản phẩm',
+    sectionId: 'menu',
+    sectionTitle: 'Menu & Sản phẩm',
     keywords: ['sửa giá', 'đổi giá', 'chỉnh giá', 'sửa món', 'cập nhật món', 'ngừng bán'],
     summary: 'Cách cập nhật giá hoặc trạng thái món:',
     steps: [
@@ -42,6 +48,8 @@ export const POS_KNOWLEDGE_BASE: KnowledgeTopic[] = [
   {
     id: 'shortcuts',
     title: 'Danh sách phím tắt bán hàng trên POS',
+    sectionId: 'shortcuts',
+    sectionTitle: 'Phím tắt',
     keywords: ['phím tắt', 'shortcut', 'bấm nhanh', 'hotkey', 'f1', 'f3', 'f4', 'f5', 'esc'],
     summary: 'Hệ thống hỗ trợ các phím tắt nhanh để thu ngân thao tác tốc độ cao:',
     shortcuts: {
@@ -55,7 +63,9 @@ export const POS_KNOWLEDGE_BASE: KnowledgeTopic[] = [
   {
     id: 'printer-setup',
     title: 'Cách cài đặt máy in hóa đơn và in bếp',
-    keywords: ['máy in', 'cài máy in', 'in hóa đơn', 'in bếp', 'khổ giấy', 'k80', 'k57', 'kết nối máy in'],
+    sectionId: 'settings',
+    sectionTitle: 'Cài đặt hệ thống',
+    keywords: ['máy in', 'cài máy in', 'in hóa đơn', 'in bếp', 'khổ giấy', 'k80', 'k57', 'kết nối máy in', 'cách in'],
     summary: 'Thiết lập máy in nhiệt:',
     steps: [
       'Bước 1: Vào mục "Cài đặt" ➔ "Cài đặt in hóa đơn" (/receipt-settings).',
@@ -68,6 +78,8 @@ export const POS_KNOWLEDGE_BASE: KnowledgeTopic[] = [
   {
     id: 'table-management',
     title: 'Quản lý bàn và chuyển bàn',
+    sectionId: 'pos',
+    sectionTitle: 'POS Bán hàng',
     keywords: ['đổi bàn', 'chuyển bàn', 'mở bàn', 'trạng thái bàn', 'ghép bàn', 'bàn trống'],
     summary: 'Thao tác với bàn trên màn hình POS:',
     steps: [
@@ -80,6 +92,8 @@ export const POS_KNOWLEDGE_BASE: KnowledgeTopic[] = [
   {
     id: 'customer-points',
     title: 'Chính sách khách hàng thân thiết và tích điểm',
+    sectionId: 'customers',
+    sectionTitle: 'Quản lý khách hàng',
     keywords: ['khách hàng', 'tích điểm', 'thành viên', 'vip', 'kim cương', 'giảm giá thành viên'],
     summary: 'Chính sách ưu đãi tự động theo cấp bậc thành viên:',
     steps: [
@@ -90,8 +104,48 @@ export const POS_KNOWLEDGE_BASE: KnowledgeTopic[] = [
     ],
   },
   {
+    id: 'order-management',
+    title: 'Quản lý đơn hàng và hóa đơn',
+    sectionId: 'orders',
+    sectionTitle: 'Quản lý đơn hàng',
+    keywords: ['hóa đơn', 'đơn hàng', 'lịch sử đơn', 'in lại bill', 'hủy đơn'],
+    summary: 'Tra cứu lịch sử đơn hàng, xem chi tiết hóa đơn và in lại bill cho khách:',
+    steps: [
+      'Bước 1: Vào mục "Đơn hàng" trên thanh điều hướng.',
+      'Bước 2: Tìm hóa đơn theo mã đơn, ngày tạo hoặc tên khách.',
+      'Bước 3: Bấm xem chi tiết để in lại hóa đơn hoặc kiểm tra lịch sử thanh toán.',
+    ],
+  },
+  {
+    id: 'qr-ordering',
+    title: 'Khách tự đặt món qua mã QR tại bàn',
+    sectionId: 'mobile',
+    sectionTitle: 'Hỗ trợ di động',
+    keywords: ['qr', 'quét mã', 'đặt món tại bàn', 'đơn qr', 'hỗ trợ di động'],
+    summary: 'Khách hàng tự quét mã QR tại bàn để xem menu và gửi đơn:',
+    steps: [
+      'Khách dùng camera điện thoại quét mã QR dán tại bàn.',
+      'Chọn món, tùy chỉnh size, đường, đá và bấm Gửi đơn.',
+      'Đơn hàng QR sẽ đổ về hộp thư "Đơn QR tại bàn" trên màn hình POS để thu ngân xác nhận.',
+    ],
+  },
+  {
+    id: 'reports',
+    title: 'Báo cáo doanh thu và thống kê',
+    sectionId: 'reports',
+    sectionTitle: 'Báo cáo & Thống kê',
+    keywords: ['doanh thu', 'báo cáo', 'thống kê', 'doanh số', 'cuối ngày'],
+    summary: 'Theo dõi tình hình kinh doanh của quán theo thời gian thực:',
+    steps: [
+      'Vào mục "Báo cáo" để xem tổng doanh thu trong ngày, tuần, tháng.',
+      'Biểu đồ trực quan giúp nhận biết khung giờ cao điểm và top món bán chạy.',
+    ],
+  },
+  {
     id: 'troubleshooting',
     title: 'Xử lý các lỗi thường gặp',
+    sectionId: 'troubleshooting',
+    sectionTitle: 'Xử lý lỗi',
     keywords: ['lỗi', 'mất mạng', 'không in được', 'xung đột', 'không lưu được', 'treo'],
     summary: 'Cách khắc phục sự cố nhanh:',
     steps: [
@@ -101,6 +155,20 @@ export const POS_KNOWLEDGE_BASE: KnowledgeTopic[] = [
     ],
   },
 ];
+
+export function formatCitation(sectionTitle: string, sectionId: string): string {
+  return `[Nguồn: Hướng dẫn sử dụng > ${sectionTitle}](/user-guide#${sectionId})`;
+}
+
+export function appendCitationIfMissing(answer: string, topic?: KnowledgeTopic | null): string {
+  if (/\[Nguồn:\s*Hướng dẫn sử dụng\s*>/i.test(answer)) {
+    return answer;
+  }
+  if (topic && topic.sectionTitle && topic.sectionId) {
+    return `${answer.trim()}\n\n${formatCitation(topic.sectionTitle, topic.sectionId)}`;
+  }
+  return `${answer.trim()}\n\n${formatCitation('Giới thiệu chung', 'introduction')}`;
+}
 
 import defaultStoreFaqs from '@/data/store_faq.json';
 
@@ -180,9 +248,11 @@ export function findRelevantKnowledge(query: string): KnowledgeTopic | null {
 export function getKnowledgeBasePrompt(customFaqs?: StoreFAQItem[] | null): string {
   const faqSection = getStoreFAQPrompt(customFaqs);
   const userGuideSection = [
-    'HƯỚNG DẪN SỬ DỤNG HỆ THỐNG POS H2 MILKTEA (dùng để trả lời khi người dùng hỏi nghiệp vụ):',
+    'HƯỚNG DẪN SỬ DỤNG HỆ THỐNG POS H2 MILKTEA (dùng để trả lời khi người dùng hỏi nghiệp vụ - action: "qa"):',
     ...POS_KNOWLEDGE_BASE.map((topic) => {
-      const parts = [`- ${topic.title}: ${topic.summary}`];
+      const parts = [
+        `- ${topic.title} (Đề mục: "${topic.sectionTitle}", liên kết: /user-guide#${topic.sectionId}): ${topic.summary}`
+      ];
       if (topic.steps) {
         parts.push(`  + Các bước: ${topic.steps.join(' ')}`);
       }
@@ -190,6 +260,7 @@ export function getKnowledgeBasePrompt(customFaqs?: StoreFAQItem[] | null): stri
         const scList = Object.entries(topic.shortcuts).map(([k, v]) => `${k} (${v})`).join(', ');
         parts.push(`  + Phím tắt: ${scList}`);
       }
+      parts.push(`  + Nguồn trích dẫn: [Nguồn: Hướng dẫn sử dụng > ${topic.sectionTitle}](/user-guide#${topic.sectionId})`);
       return parts.join('\n');
     }),
   ].join('\n\n');

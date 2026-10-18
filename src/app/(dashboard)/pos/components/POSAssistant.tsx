@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Bot, Check, Loader2, Mic, Send, X, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import type { Table } from '../types/pos';
+import type { Table, Product } from '../types/pos';
 
 interface SpeechRecognitionResultItem {
   transcript: string;
@@ -45,6 +45,11 @@ interface AssistantItem {
   productName: string;
   quantity: number;
   note?: string;
+  size?: string;
+  sugar?: string;
+  ice?: string;
+  toppings?: string[];
+  price?: number;
 }
 
 interface ChatMessage {
@@ -53,13 +58,14 @@ interface ChatMessage {
 }
 
 interface POSAssistantProps {
-  onAddToCart: (productId: string) => void;
+  onAddToCart: (productId: string, options?: { size?: string; sugar?: string; ice?: string; toppings?: string[]; note?: string }) => void;
   onAdjustQuantity: (productId: string, amount: number) => void;
-  cart: Array<{ id: string; name: string; quantity: number }>;
+  cart: Array<{ id: string; name: string; quantity: number; price?: number; note?: string; size?: string; sugar?: string; ice?: string; toppings?: string[] }>;
   selectedTableName: string;
   selectedTableId?: string | null;
   tables?: Table[];
   onSelectTable?: (tableId: string) => void;
+  products?: Product[];
 }
 
 export function POSAssistant({
@@ -70,6 +76,7 @@ export function POSAssistant({
   selectedTableId,
   tables = [],
   onSelectTable,
+  products = [],
 }: POSAssistantProps) {
   const [message, setMessage] = useState('');
   const [items, setItems] = useState<AssistantItem[]>([]);
@@ -217,7 +224,15 @@ export function POSAssistant({
     items.forEach((item) => {
       if (action === 'remove') onAdjustQuantity(item.productId, -item.quantity);
       else if (action === 'add') {
-        for (let index = 0; index < item.quantity; index += 1) onAddToCart(item.productId);
+        for (let index = 0; index < item.quantity; index += 1) {
+          onAddToCart(item.productId, {
+            size: item.size,
+            sugar: item.sugar,
+            ice: item.ice,
+            toppings: item.toppings,
+            note: item.note,
+          });
+        }
       }
     });
 
@@ -347,42 +362,143 @@ export function POSAssistant({
             )}
           </div>
 
-          {/* Thanh Preview Xác nhận */}
-          {((items.length > 0) || (action === 'select_table' && targetTable)) && (
-            <div className="flex items-center justify-between gap-2 rounded-lg bg-indigo-50 border border-indigo-100 p-2.5 text-xs text-indigo-950">
-              <div className="flex-1 min-w-0 pr-1">
-                {targetTable && (
-                  <Badge variant="secondary" className="bg-indigo-200 text-indigo-900 text-[10px] mr-1.5 font-bold">
-                    {targetTable.name}
-                  </Badge>
+          {/* Tính toán Trước / Sau (Before / After Cart Diff) */}
+          {(() => {
+            const beforeCount = cart.reduce((sum, item) => sum + (item.quantity || 0), 0);
+            const beforeTotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0);
+
+            const getProductPrice = (productId: string, defaultPrice: number = 0) => {
+              const prod = products?.find((p) => p.IDSP === productId);
+              if (!prod) return defaultPrice;
+              return Number(prod['Đơn giá']) || defaultPrice;
+            };
+
+            const deltaCount = (action === 'remove' ? -1 : 1) * items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+            const deltaTotal = (action === 'remove' ? -1 : 1) * items.reduce((sum, item) => {
+              let unitPrice = item.price || 0;
+              if (!unitPrice) {
+                if (action === 'remove') {
+                  const cartItem = cart.find((c) => c.id === item.productId);
+                  unitPrice = cartItem?.price || getProductPrice(item.productId, 0);
+                } else {
+                  unitPrice = getProductPrice(item.productId, 0);
+                }
+              }
+              return sum + (unitPrice * (item.quantity || 0));
+            }, 0);
+
+            const afterCount = Math.max(0, beforeCount + deltaCount);
+            const afterTotal = Math.max(0, beforeTotal + deltaTotal);
+
+            if (!items.length && !(action === 'select_table' && targetTable)) return null;
+
+            return (
+              <div className="flex flex-col gap-2 rounded-xl bg-slate-900 text-white p-3 shadow-xl border border-slate-700">
+                <div className="flex items-center justify-between text-xs pb-1.5 border-b border-slate-800">
+                  <span className="font-semibold text-amber-400 flex items-center gap-1.5">
+                    <span className="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                    So sánh giỏ hàng (Before / After Preview)
+                  </span>
+                  {targetTable && (
+                    <Badge variant="outline" className="border-indigo-400 text-indigo-300 text-[10px] px-1.5 py-0 font-bold">
+                      {targetTable.name}
+                    </Badge>
+                  )}
+                </div>
+
+                {action === 'select_table' ? (
+                  <div className="text-xs text-slate-300 py-1">
+                    Chuyển sang làm việc với: <span className="font-bold text-white">{targetTable?.name}</span>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {/* Bảng so sánh Trước / Sau */}
+                    <div className="grid grid-cols-2 gap-2 text-xs bg-slate-800/80 p-2 rounded-lg border border-slate-700">
+                      <div className="space-y-0.5">
+                        <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Hiện tại (Before)</div>
+                        <div className="font-semibold text-slate-200">{beforeCount} món</div>
+                        <div className="text-slate-400 text-[11px]">{beforeTotal.toLocaleString('vi-VN')} đ</div>
+                      </div>
+                      <div className="space-y-0.5 border-l border-slate-700 pl-2">
+                        <div className="text-[10px] text-indigo-300 uppercase font-bold tracking-wider flex items-center gap-1">
+                          Dự kiến (After)
+                          <span className={`text-[10px] font-bold ${deltaCount >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            ({deltaCount >= 0 ? `+${deltaCount}` : deltaCount})
+                          </span>
+                        </div>
+                        <div className="font-semibold text-white">{afterCount} món</div>
+                        <div className={`text-[11px] font-medium ${deltaTotal >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
+                          {afterTotal.toLocaleString('vi-VN')} đ
+                          <span className="text-[10px] ml-1 opacity-80">
+                            ({deltaTotal >= 0 ? `+${deltaTotal.toLocaleString('vi-VN')}` : deltaTotal.toLocaleString('vi-VN')} đ)
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Chi tiết thay đổi các món */}
+                    <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
+                      <div className="text-[10px] text-slate-400 font-medium">Thay đổi chi tiết:</div>
+                      {items.map((item, idx) => (
+                        <div
+                          key={`${item.productId}-${idx}`}
+                          className={`text-xs p-1.5 rounded flex flex-col gap-0.5 ${
+                            action === 'remove'
+                              ? 'bg-rose-950/40 border border-rose-800/40 text-rose-200'
+                              : 'bg-indigo-950/40 border border-indigo-800/40 text-indigo-200'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between font-medium">
+                            <span>
+                              {action === 'remove' ? '➖ Bớt' : '➕ Thêm'} {item.quantity}x {item.productName}
+                            </span>
+                          </div>
+                          {(item.size || item.sugar || item.ice || item.toppings?.length || item.note) && (
+                            <div className="flex flex-wrap gap-1 text-[10px] text-slate-300 mt-0.5">
+                              {item.size && <span className="bg-slate-800 px-1 py-0.2 rounded">Size {item.size}</span>}
+                              {item.sugar && item.sugar !== '100%' && (
+                                <span className="bg-slate-800 px-1 py-0.2 rounded">{item.sugar} đường</span>
+                              )}
+                              {item.ice && item.ice !== '100% đá' && (
+                                <span className="bg-slate-800 px-1 py-0.2 rounded">{item.ice}</span>
+                              )}
+                              {item.toppings?.map((top, tIdx) => (
+                                <span key={tIdx} className="bg-amber-900/60 text-amber-200 px-1 py-0.2 rounded">
+                                  +{top}
+                                </span>
+                              ))}
+                              {item.note && <span className="italic text-slate-400">({item.note})</span>}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
-                <span>
-                  {action === 'select_table'
-                    ? `Mở / Chuyển sang ${targetTable?.name}?`
-                    : `${action === 'remove' ? 'Bớt ' : 'Thêm '}${items.map((item) => `${item.quantity}x ${item.productName}`).join(', ')}`}
-                </span>
+
+                {/* Nút thao tác Hủy & Xác nhận */}
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                  <Button
+                    onClick={rejectItems}
+                    size="sm"
+                    variant="outline"
+                    className="bg-transparent border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-rose-400 text-xs h-7 px-2.5"
+                  >
+                    <X className="h-3.5 w-3.5 mr-1" />
+                    Hủy
+                  </Button>
+                  <Button
+                    onClick={confirmItems}
+                    size="sm"
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs h-7 px-3 font-semibold shadow"
+                  >
+                    <Check className="h-3.5 w-3.5 mr-1" />
+                    {action === 'select_table' ? 'Chuyển bàn' : 'Xác nhận'}
+                  </Button>
+                </div>
               </div>
-              <div className="flex items-center gap-1 shrink-0">
-                <Button
-                  onClick={rejectItems}
-                  size="sm"
-                  variant="outline"
-                  className="text-gray-600 hover:text-red-600 hover:bg-red-50 text-xs h-8 px-2"
-                >
-                  <X className="h-3.5 w-3.5 mr-1" />
-                  Hủy
-                </Button>
-                <Button
-                  onClick={confirmItems}
-                  size="sm"
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-8 px-2.5"
-                >
-                  <Check className="h-3.5 w-3.5 mr-1" />
-                  {action === 'select_table' ? 'Mở bàn' : 'Xác nhận'}
-                </Button>
-              </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Ô nhập lệnh & giọng nói */}
           <div className="flex gap-1.5 items-center">

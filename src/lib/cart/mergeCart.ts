@@ -18,9 +18,33 @@ export interface CartDiffResult {
   conflictingItems: ConflictingItem[];
 }
 
-export function getLineItemKey(item: CartItem): string {
+export function getLineItemKey(item: {
+  id: string;
+  note?: string;
+  size?: string;
+  sugar?: string;
+  ice?: string;
+  toppings?: string[] | string;
+}): string {
   const noteNormalized = (item.note || '').trim().toLowerCase();
-  return `${item.id}::${noteNormalized}`;
+  const sizeNormalized = (item.size || '').trim().toUpperCase();
+  const sugarNormalized = (item.sugar || '').trim().toLowerCase();
+  const iceNormalized = (item.ice || '').trim().toLowerCase();
+  const toppingsList = Array.isArray(item.toppings)
+    ? [...item.toppings].map((t) => t.trim().toLowerCase()).sort().join('+')
+    : (typeof item.toppings === 'string' && item.toppings.trim() ? item.toppings.trim().toLowerCase() : '');
+
+  const baseKey = `${item.id}::${noteNormalized}`;
+  const optionParts: string[] = [];
+  if (sizeNormalized) optionParts.push(`size=${sizeNormalized}`);
+  if (sugarNormalized) optionParts.push(`sugar=${sugarNormalized}`);
+  if (iceNormalized) optionParts.push(`ice=${iceNormalized}`);
+  if (toppingsList) optionParts.push(`toppings=${toppingsList}`);
+
+  if (optionParts.length > 0) {
+    return `${baseKey}::${optionParts.join('::')}`;
+  }
+  return baseKey;
 }
 
 /**

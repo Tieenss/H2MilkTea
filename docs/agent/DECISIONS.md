@@ -114,5 +114,33 @@
 - **Lựa chọn**: Xây dựng bộ test `eval/ai/test.jsonl` (55 câu thuộc 7 nhóm), đóng băng và ghi nhận mã băm SHA-256 (`ae64094c...`). Xây dựng script `scripts/eval-ai.ts` tính toán độ chính xác theo nhóm và ma trận nhầm lẫn tự động (đạt 92.7% trên test set).
 - **Đánh đổi**: Cần bảo trì bộ dữ liệu kiểm định chuẩn, nhưng tạo cơ sở khoa học định lượng vững chắc cho báo cáo đồ án tốt nghiệp.
 
+---
+
+## Quyết định 15: Tích hợp Tùy chọn Món (Size/Đường/Đá/Topping) vào `lineItemKey` với Topping Sắp Xếp Theo Bảng Chữ Cái
+- **Thời điểm**: 2026-10-18 (Phase 4)
+- **Bối cảnh**: Khách gọi 1 ly Trà sữa nướng Size M 50% đường và 1 ly Size L 100% đường; do `lineItemKey` cũ chỉ dựa trên `${id}::${note}`, hai ly bị gộp thành 1 dòng 2 ly dẫn đến sai lệch pha chế và tính tiền.
+- **Lựa chọn**: Định dạng lại `lineItemKey = ${id}::${note}::size=${size}::sugar=${sugar}::ice=${ice}::toppings=${toppings}`. Các loại topping được chuẩn hóa chữ thường và sắp xếp theo bảng chữ cái (`.sort()`), đảm bảo thứ tự gọi không làm thay đổi khóa định danh. Đồng thời bảo toàn cấu trúc baseKey `${id}::${note}` khi món không có tùy chọn để duy trì 100% tương thích ngược với Phase 2.
+- **Đánh đổi**: Chuỗi key dài hơn một chút trong bộ nhớ, nhưng phân biệt chính xác tuyệt đối các ly nước có tùy chọn khác nhau trong giỏ hàng.
+
+---
+
+## Quyết định 16: Hiển thị So sánh Giỏ Hàng Trước / Sau (Before / After Cart Diff) Trước khi Xác nhận
+- **Thời điểm**: 2026-10-18 (Phase 4)
+- **Bối cảnh**: Giao diện preview của Trợ lý AI trước đây chỉ hiện một dòng văn bản tóm tắt, thu ngân không nắm được tổng tiền sẽ thay đổi ra sao và có bao nhiêu món được thêm/bớt trong giỏ.
+- **Lựa chọn**: Thiết kế khối Before / After Cart Diff trực quan:
+  - Bảng so sánh 2 cột: Hiện tại (số lượng, tổng tiền) vs Sau xác nhận (số lượng kèm delta, tổng tiền kèm delta chênh lệch tiền).
+  - Danh sách chi tiết các món thay đổi kèm badge phân biệt Size, Đường, Đá, Toppings.
+  - Nút "Hủy" và "Xác nhận" gửi sự kiện kiểm toán rõ ràng.
+- **Đánh đổi**: Tốn thêm diện tích hiển thị trên popup chat (~120px chiều cao), nhưng tăng tính minh bạch, giảm thiểu 100% rủi ro thu ngân bấm xác nhận nhầm.
+
+---
+
+## Quyết định 17: Chuẩn hóa Trích dẫn Nguồn Cẩm Nang `/user-guide#{sectionId}` Bắt Buộc cho Câu Trả Lời QA
+- **Thời điểm**: 2026-10-18 (Phase 4)
+- **Bối cảnh**: Khi nhân viên hỏi về cách cài máy in, phím tắt hoặc xử lý lỗi, trợ lý AI trả lời văn bản tự do, người dùng không có căn cứ tra cứu thêm hoặc dẫn chiếu đến tài liệu chính thức của hệ thống.
+- **Lựa chọn**: Ánh xạ toàn bộ tri thức của `POS_KNOWLEDGE_BASE` vào 13 đề mục cẩm nang chuẩn của `/user-guide`. Bắt buộc mọi câu trả lời `action: "qa"` phải có trích dẫn nguồn theo cú pháp chuẩn markdown link: `[Nguồn: Hướng dẫn sử dụng > {Tên mục}](/user-guide#{sectionId})`. Hàm `appendCitationIfMissing` đóng vai trò chốt chặn an toàn phía server.
+- **Đánh đổi**: Câu trả lời dài hơn một dòng, nhưng tăng tính thẩm quyền của thông tin và cho phép nhân viên bấm trực tiếp vào anchor link để đọc cẩm nang chi tiết.
+
+
 
 

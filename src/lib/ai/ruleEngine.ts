@@ -13,36 +13,91 @@ const GREETING_REGEX = /^(xin chào(\s+(bạn|bot|em|shop|ad))?|chào(\s+(bạn|
 const TABLE_ONLY_REGEX = /^(mở|chuyển( sang)?|chọn|vào)\s+(bàn\s+[a-z0-9]+|khách mua về|mang về)[!. ]*$/i;
 
 /**
- * Trích xuất các tùy chọn phổ biến (đường, đá, topping, nhiệt độ)
+ * Trích xuất các tùy chọn phổ biến (size, đường, đá, topping, nhiệt độ)
  */
-function extractNoteAndOptions(text: string): { cleanText: string; note: string } {
+function extractNoteAndOptions(text: string): {
+  cleanText: string;
+  note: string;
+  size: string;
+  sugar: string;
+  ice: string;
+  toppings: string[];
+} {
   const notes: string[] = [];
   let remaining = text;
+  let size = 'M';
+  let sugar = '100%';
+  let ice = '100% đá';
+  const toppings: string[] = [];
+
+  // Tùy chọn size (S / M / L)
+  const sizeMatch = remaining.match(/\b(size\s*[sml]|ly\s*(lon|vua|nho)|size\s*(lon|vua|nho))\b/i);
+  if (sizeMatch) {
+    const rawVal = sizeMatch[0].toLowerCase().replace(/^(size|ly)\s*/i, '').trim();
+    if (rawVal === 's' || rawVal === 'nho') size = 'S';
+    else if (rawVal === 'l' || rawVal === 'lon') size = 'L';
+    else size = 'M';
+    remaining = remaining.replace(sizeMatch[0], ' ');
+  }
 
   // Tùy chọn đá / nóng
-  const tempMatch = remaining.match(/(\d+%\s*da|khong\s*da|it\s*da|nhieu\s*da|nong)/i);
+  const tempMatch = remaining.match(/(\d+\s*%?\s*da|khong\s*da|it\s*da|nhieu\s*da|nong)/i);
   if (tempMatch) {
-    notes.push(tempMatch[0].trim());
+    const rawIce = tempMatch[0].trim();
+    notes.push(rawIce);
+    const numMatch = rawIce.match(/^(\d+)/);
+    if (numMatch) {
+      ice = `${numMatch[1]}% đá`;
+    } else if (/khong\s*da/i.test(rawIce)) {
+      ice = 'không đá';
+    } else if (/it\s*da/i.test(rawIce)) {
+      ice = 'ít đá';
+    } else if (/nhieu\s*da/i.test(rawIce)) {
+      ice = 'nhiều đá';
+    } else if (/nong/i.test(rawIce)) {
+      ice = 'nóng';
+    } else {
+      ice = rawIce;
+    }
     remaining = remaining.replace(tempMatch[0], ' ');
   }
 
   // Tùy chọn đường
-  const sugarMatch = remaining.match(/(\d+%\s*duong|khong\s*duong|it\s*duong|nhieu\s*duong|it\s*ngot)/i);
+  const sugarMatch = remaining.match(/(\d+\s*%?\s*duong|khong\s*duong|it\s*duong|nhieu\s*duong|it\s*ngot)/i);
   if (sugarMatch) {
-    notes.push(sugarMatch[0].trim());
+    const rawSugar = sugarMatch[0].trim();
+    notes.push(rawSugar);
+    const numMatch = rawSugar.match(/^(\d+)/);
+    if (numMatch) {
+      sugar = `${numMatch[1]}%`;
+    } else if (/khong\s*duong/i.test(rawSugar)) {
+      sugar = '0%';
+    } else if (/it\s*duong|it\s*ngot/i.test(rawSugar)) {
+      sugar = '50%';
+    } else if (/nhieu\s*duong/i.test(rawSugar)) {
+      sugar = '100%';
+    } else {
+      sugar = rawSugar;
+    }
     remaining = remaining.replace(sugarMatch[0], ' ');
   }
 
   // Topping nếu có
   const toppingMatch = remaining.match(/(them|kem)?\s*(tran chau( trang| den)?|thach( cu nang| pho mai| suong sao)?|pudding( trung)?)/i);
   if (toppingMatch) {
-    notes.push(toppingMatch[0].trim());
+    const rawTopping = toppingMatch[0].trim();
+    notes.push(rawTopping);
+    toppings.push(rawTopping.replace(/^(them|kem)\s+/i, ''));
     remaining = remaining.replace(toppingMatch[0], ' ');
   }
 
   return {
     cleanText: remaining.replace(/\s+/g, ' ').trim(),
     note: notes.join(', '),
+    size,
+    sugar,
+    ice,
+    toppings,
   };
 }
 
@@ -95,7 +150,8 @@ export function matchRuleBased(
   let workingText = normalizeSearchText(trimmed);
 
   if (tableRes && tableRes.matchedText) {
-    const tablePattern = new RegExp(`(cho|vao|o|sang)?\\s*${tableRes.matchedText}`, 'gi');
+    const normMatched = normalizeSearchText(tableRes.matchedText);
+    const tablePattern = new RegExp(`(cho|vao|o|sang)?\\s*(${tableRes.matchedText}|${normMatched})`, 'gi');
     workingText = workingText.replace(tablePattern, ' ');
   }
 
@@ -104,7 +160,8 @@ export function matchRuleBased(
 
   // Tách các món: hỗ trợ dấu phẩy, "va", "voi", "kem", "+", hoặc khoảng trắng trước số lượng tiếp theo (vd: "2 bx 1 cf")
   const parts = workingText
-    .split(/,|\bva\b|\bvoi\b|\bkem\b|\+|\s+(?=\d+\s*[a-z]+)/i)
+    .split(/,|\bva\b|\bvoi\b|\bkem\b|\+|\s+(?=\d+\s*(?!(?:duong|da)\b)[a-z]+)/i)
+    .filter((p): p is string => typeof p === 'string')
     .map((p) => p.trim())
     .filter(Boolean);
 
@@ -137,7 +194,7 @@ export function matchRuleBased(
       };
     }
 
-    const { cleanText, note } = extractNoteAndOptions(queryPart);
+    const { cleanText, note, size, sugar, ice, toppings } = extractNoteAndOptions(queryPart);
     if (!cleanText) continue;
 
     // Mở rộng alias
@@ -151,6 +208,10 @@ export function matchRuleBased(
         productName: resolved.product.name,
         quantity,
         note,
+        size,
+        sugar,
+        ice,
+        toppings,
       });
     } else {
       // Nếu có món không nhận diện được chắc chắn -> bàn giao cho LLM xử lý
@@ -160,7 +221,17 @@ export function matchRuleBased(
 
   if (parsedItems.length > 0) {
     const tableSuffix = tableRes?.table ? ` cho ${tableRes.table.name}` : '';
-    const itemNames = parsedItems.map((i) => `${i.quantity}x ${i.productName}${i.note ? ` (${i.note})` : ''}`).join(', ');
+    const itemNames = parsedItems.map((i) => {
+      const opts = [
+        i.size && i.size !== 'M' ? `Size ${i.size}` : null,
+        i.sugar && i.sugar !== '100%' ? `${i.sugar} đường` : null,
+        i.ice && i.ice !== '100% đá' ? i.ice : null,
+        i.toppings?.length ? i.toppings.join(', ') : null,
+        i.note,
+      ].filter(Boolean);
+      const uniqueOpts = Array.from(new Set(opts));
+      return `${i.quantity}x ${i.productName}${uniqueOpts.length ? ` (${uniqueOpts.join(', ')})` : ''}`;
+    }).join(', ');
     const msg = action === 'remove'
       ? `Đã nhận diện bớt: ${itemNames}${tableSuffix}. Vui lòng xác nhận.`
       : `Đã nhận diện thêm: ${itemNames}${tableSuffix}. Vui lòng xác nhận.`;

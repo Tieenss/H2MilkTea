@@ -90,7 +90,28 @@
   - Viết unit tests `tests/unit/ai-pipeline.test.ts` (13 tests). Toàn bộ 10 test files (69/69 tests) pass 100%.
   - Build production thành công 100% (50 routes).
 
+---
 
+## Kế hoạch Thực hiện Phase 4 — Mở rộng tùy chọn món và Hỏi đáp tài liệu (HOÀN TẤT)
 
-
-
+- [x] **4.1 Tùy chọn Món & Định danh Dòng Giỏ Hàng (`lineItemKey`)**:
+  - Mở rộng `CartItem` trong `pos.ts` bổ sung `size`, `sugar`, `ice`, `toppings`.
+  - Cập nhật `getLineItemKey` trong `mergeCart.ts`: tích hợp định danh duy nhất `${id}::${note}::size=${size}::sugar=${sugar}::ice=${ice}::toppings=${sortedToppings}`.
+  - Phân biệt các món cùng loại nhưng khác tùy chọn, duy trì tương thích ngược 100% với các món không có tùy chọn.
+  - Hook `useCart.ts` & `usePOS.ts`: `addToCart` nhận `options` và tìm kiếm dòng tương ứng qua `getLineItemKey`.
+- [x] **4.2 So sánh Giỏ Hàng Trước / Sau khi Preview (Before / After Cart Diff)**:
+  - Cập nhật `POSAssistant.tsx`: Tính toán số lượng món hiện tại vs sau xác nhận (kèm delta `+X` hoặc `-X`), tổng tiền hiện tại vs sau xác nhận (kèm delta `+Y đ` hoặc `-Y đ`).
+  - Render khối Before / After Cart Diff trực quan với badge options phân loại rõ ràng (Size, Đường, Đá, Topping), nút "Hủy" và nút "Xác nhận".
+- [x] **4.3 Hỏi đáp Tài liệu `/user-guide` có Trích dẫn Nguồn**:
+  - Chuẩn hóa 13 mục cẩm nang trong `src/lib/ai/knowledge.ts` tương ứng các anchor `/user-guide#{sectionId}`.
+  - Hàm `formatCitation` và `appendCitationIfMissing` tự động kiểm tra và gắn trích dẫn nguồn chuẩn `[Nguồn: Hướng dẫn sử dụng > {Tên mục}](/user-guide#{sectionId})` cho tất cả câu trả lời `action: 'qa'`.
+  - Hướng dẫn Gemini LLM trong system instruction luôn đính kèm trích dẫn nguồn.
+- [x] **4.4 Ranh giới cấm tuyệt đối (Luật 6 & 131)**:
+  - Không làm voice auto-submit: Giọng nói chỉ dừng ở việc điền text và hiển thị preview, thu ngân phải tự bấm "Xác nhận".
+  - Không làm đồng bộ FAQ QR/POS.
+- [x] **4.5 Kiểm thử & Nghiệm thu Gate 4**:
+  - Viết unit test `tests/unit/phase-4-options-qa.test.ts` (12 tests).
+  - Toàn bộ 11 test files (81/81 tests) PASS 100%.
+  - Benchmark AI `npm run eval:ai` đạt **100.0%** (55/55 câu trên `test.jsonl` và 30/30 câu trên `dev.jsonl`).
+  - Build production `npm run build` thành công 100% (50 static & dynamic routes).
+  - Lập báo cáo nghiệm thu `docs/agent/phase-4-report.md`.

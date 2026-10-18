@@ -2,34 +2,44 @@
 
 import { useState, useCallback } from 'react';
 import type { CartItem, Product } from '../types/pos';
+import { getLineItemKey } from '@/lib/cart/mergeCart';
 
 export const useCart = () => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [activeOrders, setActiveOrders] = useState<Map<string, CartItem[]>>(new Map());
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
 
-  // Add product to cart
-  const addToCart = useCallback((product: Product) => {
+  // Add product to cart with options support
+  const addToCart = useCallback((
+    product: Product,
+    options?: { size?: string; sugar?: string; ice?: string; toppings?: string[]; note?: string }
+  ) => {
     setCart(prevCart => {
-      const existingItem = prevCart.find(item => item.id === product.IDSP);
+      const newItem: CartItem = {
+        id: product.IDSP,
+        name: product['Tên sản phẩm'],
+        note: options?.note || '',
+        image: product['Hình ảnh'] || '',
+        price: Number(product['Đơn giá']) || 0,
+        quantity: 1,
+        unit: product['Đơn vị tính'] || 'Cái',
+        size: options?.size,
+        sugar: options?.sugar,
+        ice: options?.ice,
+        toppings: options?.toppings,
+      };
+
+      const newKey = getLineItemKey(newItem);
+      const existingIndex = prevCart.findIndex(item => getLineItemKey(item) === newKey);
       let newCart: CartItem[];
 
-      if (existingItem) {
-        newCart = prevCart.map(item =>
-          item.id === product.IDSP 
+      if (existingIndex >= 0) {
+        newCart = prevCart.map((item, idx) =>
+          idx === existingIndex 
             ? { ...item, quantity: item.quantity + 1 } 
             : item
         );
       } else {
-        const newItem: CartItem = {
-          id: product.IDSP,
-          name: product['Tên sản phẩm'],
-          note: '',
-          image: product['Hình ảnh'] || '',
-          price: Number(product['Đơn giá']) || 0,
-          quantity: 1,
-          unit: product['Đơn vị tính'] || 'Cái'
-        };
         newCart = [...prevCart, newItem];
       }
 

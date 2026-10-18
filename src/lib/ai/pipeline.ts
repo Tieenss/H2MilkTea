@@ -2,7 +2,7 @@ import { checkSecurityGuardrails } from './security';
 import { matchRuleBased } from './ruleEngine';
 import { resolveProduct, toActiveCatalog } from './catalog';
 import { resolveTableFromMessage } from './table';
-import { getKnowledgeBasePrompt } from './knowledge';
+import { getKnowledgeBasePrompt, appendCitationIfMissing, findRelevantKnowledge } from './knowledge';
 import { createAuditLog } from './auditLogger';
 import { AiOutputSchema, type AiOutput, type ParsedItem } from './schema';
 import type { CatalogItem, TableInfo } from './types';
@@ -167,7 +167,11 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
     '1. GỌI MÓN & CHỌN BÀN (action: "add" | "remove" | "select_table"):',
     '   - Trả về JSON đúng cấu trúc: { action, targetTable, items, message }',
     '   - targetTable: { id, name } nếu có đề cập đến bàn hoặc mang về, ngược lại null.',
-    '   - Mỗi item: { productId, productName, quantity, note }.',
+    '   - Mỗi item: { productId, productName, quantity, note, size, sugar, ice, toppings }.',
+    '     * size: "S" | "M" | "L" (mặc định "M")',
+    '     * sugar: "0%" | "30%" | "50%" | "70%" | "100%" (mặc định "100%")',
+    '     * ice: "không đá" | "ít đá" | "100% đá" | "nhiều đá" | "nóng" (mặc định "100% đá")',
+    '     * toppings: mảng tên topping (ví dụ: ["trân châu đen"]) hoặc []',
     '   - quantity là số nguyên từ 1 đến 10. Nếu khách gọi > 10 ly, giải thích cần quản lý duyệt.',
     '   - Chỉ chọn productId có trong catalog. Nếu không có món trong catalog, không đưa vào items và giải thích trong message.',
     '',
@@ -175,6 +179,7 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
     '   - Khi người dùng hỏi pass wifi, giờ mở cửa, menu, phím tắt, cách in bill, hướng dẫn phần mềm...',
     '   - Đặt action = "qa", targetTable = null, items = [].',
     '   - Trả lời bằng tiếng Việt thân thiện dựa trên CẨM NANG HƯỚNG DẪN bên dưới.',
+    '   - BẮT BUỘC: Khi trả lời câu hỏi nghiệp vụ cẩm nang, ở cuối câu trả lời luôn luôn đính kèm trích dẫn nguồn chuẩn: [Nguồn: Hướng dẫn sử dụng > {Tên mục}](/user-guide#{sectionId}).',
     '',
     `Danh sách Bàn hợp lệ: ${JSON.stringify(tables.map((t) => ({ id: t.id, name: t.name })))}`,
     `Catalog món hợp lệ: ${JSON.stringify(catalogItems)}`,
@@ -267,6 +272,10 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
           productName: matched.name,
           quantity: Math.max(1, Math.min(item.quantity, 10)), // Ngưỡng an toàn tối đa 10 ly
           note: item.note || '',
+          size: item.size || 'M',
+          sugar: item.sugar || '100%',
+          ice: item.ice || '100% đá',
+          toppings: Array.isArray(item.toppings) ? item.toppings : [],
         });
       }
     }
@@ -281,6 +290,19 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
     finalTargetTable = null;
   }
 
+  // Xử lý thông điệp và đính kèm trích dẫn nguồn nếu là action QA
+  let finalMessage = validatedOutput.message || '';
+  if (validatedOutput.action === 'qa') {
+    const matchedTopic = findRelevantKnowledge(message);
+    finalMessage = appendCitationIfMissing(finalMessage || 'Đã trả lời hướng dẫn.', matchedTopic);
+  } else if (!finalMessage) {
+    finalMessage = finalItems.length
+      ? 'Đã nhận diện món. Vui lòng xác nhận.'
+      : validatedOutput.action === 'select_table' && finalTargetTable
+        ? `Chuyển sang ${finalTargetTable.name}.`
+        : 'Chưa nhận diện được yêu cầu.';
+  }
+
   const latencyMs = Date.now() - startTime;
   const logId = await createAuditLog({
     staffId: staff.id,
@@ -291,7 +313,7 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
       action: validatedOutput.action,
       targetTable: finalTargetTable,
       items: finalItems,
-      message: validatedOutput.message,
+      message: finalMessage,
     },
     source: 'llm',
     status: 'previewed',
@@ -305,15 +327,7 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
     action: validatedOutput.action,
     targetTable: finalTargetTable,
     items: finalItems,
-    message: validatedOutput.message || (
-      validatedOutput.action === 'qa'
-        ? 'Đã trả lời hướng dẫn.'
-        : finalItems.length
-          ? 'Đã nhận diện món. Vui lòng xác nhận.'
-          : validatedOutput.action === 'select_table' && finalTargetTable
-            ? `Chuyển sang ${finalTargetTable.name}.`
-            : 'Chưa nhận diện được yêu cầu.'
-    ),
+    message: finalMessage,
     logId,
     source: 'llm',
   };

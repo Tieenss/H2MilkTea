@@ -357,6 +357,7 @@ export default function POSPage() {
         selectedTableId={selectedTableId}
         tables={tables}
         onSelectTable={selectTable}
+        products={products}
       />
 
       {/* Main Content */}

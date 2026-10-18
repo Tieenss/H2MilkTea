@@ -8,6 +8,10 @@ export const ParsedItemSchema = z.object({
   productName: z.string().min(1, 'productName không được rỗng'),
   quantity: z.number().int().min(1, 'Số lượng tối thiểu là 1').max(10, 'Số lượng tối đa là 10'),
   note: z.string().optional().default(''),
+  size: z.string().optional().default('M'),
+  sugar: z.string().optional().default('100%'),
+  ice: z.string().optional().default('100% đá'),
+  toppings: z.array(z.string()).optional().default([]),
 });
 export type ParsedItem = z.infer<typeof ParsedItemSchema>;
 
