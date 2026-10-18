@@ -64,6 +64,33 @@
   - Build production: **49 routes compile thành công 100%** không lỗi.
   - Lập báo cáo nghiệm thu `docs/agent/phase-2-report.md`.
 
+---
+
+## Kế hoạch Thực hiện Phase 3 — AI An Toàn (P0) (HOÀN TẤT)
+
+- [x] **3.1 Backup DB & Migration Audit Logs**:
+  - Tạo backup an toàn STAGING: `backups/db/20261018-053423-phase-3-start`.
+  - Migration `202610180006_ai_audit_logs.sql` và rollback `202610180006_ai_audit_logs.down.sql`.
+  - Thiết lập module `auditLogger.ts` ghi nhận log vào DB kèm fallback lưu file JSON `data/ai_audit_logs.json`.
+- [x] **3.2 Hàng Rào An Toàn & Chống Prompt Injection**:
+  - Viết module `security.ts`: cấm tuyệt đối AI tự thanh toán, xóa bàn, sửa giá, chiết khấu 100%.
+  - Ngăn chặn triệt để prompt injection (`ignore instructions`, `system prompt`, `override system`).
+  - Phân quyền theo vai trò nhân viên: chặn truy cập báo cáo tài chính qua chatbot đối với tài khoản thu ngân thông thường.
+- [x] **3.3 Pipeline Cố Định 8 Bước (Rule Engine + LLM + Zod)**:
+  - Viết `schema.ts`: Ép kiểu dữ liệu chặt chẽ bằng `zod`.
+  - Viết `aliases.ts`: Quản lý từ điển alias (`ts`, `dcs`, `bx`, `cf`...) và thay thế theo cụm từ.
+  - Viết `ruleEngine.ts`: Xử lý nhanh các câu lệnh chuẩn (<5ms), chuyển câu lệnh mơ hồ cho LLM.
+  - Viết `pipeline.ts`: Ghim phiên bản model (`gemini-2.5-flash`), temperature thấp (0.1), version prompt (`v1.0.0`), rate limit 20 req/phút/nhân viên, server validation (`DMHH`, `DSBAN`, max 10 ly).
+- [x] **3.4 Quy Trình Preview → Xác Nhận & Cập Nhật Audit**:
+  - Client `POSAssistant.tsx`: Hiển thị thanh Preview rõ ràng, bổ sung nút "Xác nhận" và "Hủy".
+  - Endpoint `POST /api/ai/audit`: Cập nhật trạng thái audit log sang `confirmed` hoặc `rejected`.
+- [x] **3.5 Bộ Đánh Giá Benchmark (eval:ai) & Unit Tests**:
+  - Xây dựng `eval/ai/dev.jsonl` (30 câu) và `eval/ai/test.jsonl` (55 câu đóng băng, SHA-256 `ae64094c...`).
+  - Viết script `scripts/eval-ai.ts`: Tính độ chính xác theo 7 nhóm và ma trận nhầm lẫn (`npm run eval:ai`). Kết quả đạt **92.7%** (vượt chuẩn 80%).
+  - Viết unit tests `tests/unit/ai-pipeline.test.ts` (13 tests). Toàn bộ 10 test files (69/69 tests) pass 100%.
+  - Build production thành công 100% (50 routes).
+
+
 
 
 

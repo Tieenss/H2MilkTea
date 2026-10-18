@@ -81,6 +81,7 @@ export function POSAssistant({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [enabled, setEnabled] = useState(true);
   const [recording, setRecording] = useState(false);
+  const [currentLogId, setCurrentLogId] = useState<string | null>(null);
 
   // Settings
   const [autoSubmitVoice, setAutoSubmitVoice] = useState(true);
@@ -170,6 +171,7 @@ export function POSAssistant({
       setTargetTable(result.targetTable || null);
       setReply(result.message || '');
       setAction(result.action || 'none');
+      setCurrentLogId(result.logId || null);
       setMessages((current) => [...current, { role: 'assistant', content: result.message || '' }]);
     } catch (error) {
       const rawMessage = error instanceof DOMException && error.name === 'AbortError'
@@ -186,6 +188,16 @@ export function POSAssistant({
   }
 
   function confirmItems() {
+    // Ghi nhận xác nhận kiểm toán audit log
+    if (currentLogId) {
+      void fetch('/api/ai/audit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ logId: currentLogId, status: 'confirmed' }),
+      }).catch(() => {});
+      setCurrentLogId(null);
+    }
+
     // 1. Nếu có bàn mục tiêu và khác bàn đang mở, tự động chuyển bàn
     if (targetTable && onSelectTable && targetTable.id !== selectedTableId) {
       onSelectTable(targetTable.id);
@@ -219,6 +231,24 @@ export function POSAssistant({
     setTargetTable(null);
     setMessage('');
     setAction('none');
+  }
+
+  function rejectItems() {
+    if (currentLogId) {
+      void fetch('/api/ai/audit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ logId: currentLogId, status: 'rejected' }),
+      }).catch(() => {});
+      setCurrentLogId(null);
+    }
+
+    setItems([]);
+    setTargetTable(null);
+    setAction('none');
+    const cancelMsg = 'Đã hủy thao tác.';
+    setReply(cancelMsg);
+    setMessages((current) => [...current, { role: 'assistant', content: cancelMsg }]);
   }
 
   function startVoiceInput() {
@@ -332,14 +362,25 @@ export function POSAssistant({
                     : `${action === 'remove' ? 'Bớt ' : 'Thêm '}${items.map((item) => `${item.quantity}x ${item.productName}`).join(', ')}`}
                 </span>
               </div>
-              <Button
-                onClick={confirmItems}
-                size="sm"
-                className="bg-indigo-600 hover:bg-indigo-700 text-white shrink-0 text-xs h-8 px-2.5"
-              >
-                <Check className="h-3.5 w-3.5 mr-1" />
-                {action === 'select_table' ? 'Mở bàn' : 'Xác nhận'}
-              </Button>
+              <div className="flex items-center gap-1 shrink-0">
+                <Button
+                  onClick={rejectItems}
+                  size="sm"
+                  variant="outline"
+                  className="text-gray-600 hover:text-red-600 hover:bg-red-50 text-xs h-8 px-2"
+                >
+                  <X className="h-3.5 w-3.5 mr-1" />
+                  Hủy
+                </Button>
+                <Button
+                  onClick={confirmItems}
+                  size="sm"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-8 px-2.5"
+                >
+                  <Check className="h-3.5 w-3.5 mr-1" />
+                  {action === 'select_table' ? 'Mở bàn' : 'Xác nhận'}
+                </Button>
+              </div>
             </div>
           )}
 

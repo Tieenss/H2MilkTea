@@ -46,3 +46,6 @@ next-env.d.ts
 
 # supabase cli temporary files
 supabase/.temp/
+
+# local runtime data & logs
+/data/

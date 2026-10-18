@@ -7,6 +7,17 @@ export interface CatalogProduct {
   status: string;
 }
 
+export interface CatalogItem {
+  id: string;
+  name: string;
+  price: number;
+}
+
+export interface TableInfo {
+  id: string;
+  name: string;
+}
+
 export interface OrderItemRequest {
   productQuery: string;
   quantity: number;

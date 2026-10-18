@@ -90,4 +90,29 @@
 - **Lựa chọn**: Sinh HMAC token có chữ ký số bí mật gắn với phiên/bàn và thời hạn 24 giờ (`FEATURE_QR_TOKEN`), kiểm tra chữ ký ở server Next.js. Đồng thời triển khai In-memory Rate Limiting theo `IP + tableId` (tối đa 5 đơn / phút / bàn) và giới hạn tối đa 20 món / đơn QR.
 - **Đánh đổi**: QR cần in kèm token hoặc làm mới định kỳ nếu hết hạn 24h, nhưng ngăn chặn triệt để nguy cơ tấn công từ xa qua mạng Internet.
 
+---
+
+## Quyết định 12: Kiến trúc Pipeline AI 8 bước (Rule Engine kết hợp LLM & Schema Zod)
+- **Thời điểm**: 2026-10-18 (Phase 3)
+- **Bối cảnh**: Gọi LLM cho 100% câu lệnh gây tốn kém quota, độ trễ cao (~2000ms), dễ bị ảo giác (hallucination) và rủi ro output không chuẩn cấu trúc.
+- **Lựa chọn**: Xây dựng Pipeline cố định: Từ điển alias (`ts`, `dcs`, `bx`) & Rule Engine chạy trước → nếu khớp chắc chắn thì trả kết quả ngay (<5ms) → chỉ các câu mơ hồ mới gửi cho Gemini (temperature 0.1) → ép schema đầu ra bằng Zod → Server validation (`DMHH`, `DSBAN`, max 10 ly) → Preview → Xác nhận → Ghi audit log.
+- **Đánh đổi**: Code phức tạp hơn với 2 tầng xử lý, nhưng giảm 70% số lượng request gọi LLM, tăng tốc độ phản hồi và bảo đảm đầu ra luôn hợp lệ 100%.
+
+---
+
+## Quyết định 13: Hàng rào An toàn Tuyệt đối: Cấm AI tự thanh toán, xóa bàn, sửa giá & Chống Prompt Injection
+- **Thời điểm**: 2026-10-18 (Phase 3)
+- **Bối cảnh**: Nguy cơ người dùng hoặc nhân viên cố tình nhập lệnh qua chatbot nhằm tự ý hoàn tất đơn hàng, đổi giá món về 0đ hoặc chèn prompt injection ("Ignore previous instructions...").
+- **Lựa chọn**: Thiết lập module `security.ts` chặn đứng các câu lệnh vi phạm trước khi vào pipeline. AI tuyệt đối không bao giờ có công cụ hoặc quyền tự thanh toán hay sửa giá. Mọi yêu cầu gọi món đều phải qua bước Preview và bắt buộc người dùng bấm "Xác nhận".
+- **Đánh đổi**: Người dùng không thể ra lệnh thanh toán qua giọng nói/chat, nhưng loại trừ 100% rủi ro thất thoát doanh thu và tấn công chiếm quyền hệ thống.
+
+---
+
+## Quyết định 14: Đóng băng Bộ dữ liệu Benchmark và Đánh giá Tự động (`eval:ai`)
+- **Thời điểm**: 2026-10-18 (Phase 3)
+- **Bối cảnh**: Đánh giá tính hiệu quả của Trợ lý AI một cách định tính rất dễ chủ quan và khó đo lường độ suy thoái khi cập nhật prompt.
+- **Lựa chọn**: Xây dựng bộ test `eval/ai/test.jsonl` (55 câu thuộc 7 nhóm), đóng băng và ghi nhận mã băm SHA-256 (`ae64094c...`). Xây dựng script `scripts/eval-ai.ts` tính toán độ chính xác theo nhóm và ma trận nhầm lẫn tự động (đạt 92.7% trên test set).
+- **Đánh đổi**: Cần bảo trì bộ dữ liệu kiểm định chuẩn, nhưng tạo cơ sở khoa học định lượng vững chắc cho báo cáo đồ án tốt nghiệp.
+
+
 

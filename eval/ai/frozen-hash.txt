@@ -1,0 +1,4 @@
+# SHA-256 Frozen Dataset Hash
+# File: eval/ai/test.jsonl
+# Total Samples: 55
+ae64094c8bc431625ff6fd9c3eefd75744cdf59cccc529843df280d9b54b4026
