@@ -24,6 +24,7 @@ import { CustomerSelectModal } from '@/app/(dashboard)/pos/components/CustomerSe
 import { QROrderInbox } from './components/QROrderInbox';
 import type { Customer } from '@/app/(dashboard)/khachhang/types/customer';
 import { POSAssistant } from './components/POSAssistant';
+import { CartConflictModal } from './components/CartConflictModal';
 
 export default function POSPage() {
   const {
@@ -81,6 +82,9 @@ export default function POSPage() {
     sharedCartStatus,
     realtimeStatus,
     lastSyncAt,
+    conflictData,
+    resolveConflict,
+    canCheckout,
   } = usePOS();
 
   const userData = authUtils.getUserData();
@@ -394,6 +398,8 @@ export default function POSPage() {
               setNoteInput(item.note || '');
               setShowNoteModal(true);
             }}
+            canCheckout={canCheckout}
+            sharedCartStatus={sharedCartStatus}
           />
         </div>
       </div>
@@ -457,6 +463,8 @@ export default function POSPage() {
                   setShowMobileCart(false);
                   setShowNoteModal(true);
                 }}
+                canCheckout={canCheckout}
+                sharedCartStatus={sharedCartStatus}
               />
             </div>
           </div>
@@ -528,6 +536,14 @@ export default function POSPage() {
           }}
         />
       )}
+
+      {/* Cart Conflict Modal */}
+      <CartConflictModal
+        open={!!conflictData}
+        tableName={selectedTableName}
+        conflictingItems={conflictData?.conflictingItems || []}
+        onResolve={resolveConflict}
+      />
     </div>
   );
 }

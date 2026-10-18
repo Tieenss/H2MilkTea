@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CartItem } from '../types/pos';
 import { createClient } from '@/lib/supabase/client';
+import { diffCartItems, resolveCartConflict, type ConflictingItem } from '@/lib/cart/mergeCart';
 
-interface CartDraft {
+export interface CartDraft {
   table_id: string;
   cart: CartItem[];
   version: number;
@@ -14,6 +15,7 @@ export type SharedCartStatus =
   | 'disabled'
   | 'loading'
   | 'connected'
+  | 'syncing'
   | 'offline'
   | 'conflict';
 
@@ -23,6 +25,11 @@ export type RealtimeStatus =
   | 'CHANNEL_ERROR'
   | 'TIMED_OUT'
   | 'CLOSED';
+
+export interface ConflictData {
+  remoteDraft: CartDraft;
+  conflictingItems: ConflictingItem[];
+}
 
 interface UseSharedCartDraftOptions {
   tableId: string | null;
@@ -35,36 +42,94 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
   const [status, setStatus] = useState<SharedCartStatus>('disabled');
   const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>('CLOSED');
   const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null);
+  const [conflictData, setConflictData] = useState<ConflictData | null>(null);
+
   const versionRef = useRef(0);
   const pendingRemoteCartRef = useRef<string | null>(null);
   const cartRef = useRef(cart);
   const writeInFlightRef = useRef(false);
+  const pollIntervalRef = useRef<number | null>(null);
+  const pollDelayRef = useRef(15000); // 15s base delay
+  const debounceTimerRef = useRef<number | null>(null);
+
   cartRef.current = cart;
+
+  const cancelPendingAutosave = useCallback(() => {
+    if (debounceTimerRef.current) {
+      window.clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+  }, []);
 
   const applyDraft = useCallback((draft: CartDraft | null, force = false) => {
     const remoteVersion = draft?.version || 0;
-    if (!force && remoteVersion < versionRef.current) return;
-    versionRef.current = remoteVersion;
-    const nextCart = draft?.cart || [];
-    pendingRemoteCartRef.current = JSON.stringify(nextCart);
-    setCart(nextCart);
-    if (tableId) onRemoteCart?.(tableId, nextCart);
-    setLastSyncAt(new Date());
+    const remoteCart = draft?.cart || [];
+
+    // Lần đầu mở bàn (force) hoặc giỏ cục bộ chưa có dữ liệu
+    if (force || versionRef.current === 0) {
+      versionRef.current = remoteVersion;
+      pendingRemoteCartRef.current = JSON.stringify(remoteCart);
+      setCart(remoteCart);
+      if (tableId) onRemoteCart?.(tableId, remoteCart);
+      setLastSyncAt(new Date());
+      setStatus('connected');
+      setConflictData(null);
+      return;
+    }
+
+    if (remoteVersion <= versionRef.current) return;
+
+    // So sánh xung đột giữa localCart và remoteCart theo lineItemKey
+    const currentLocalCart = cartRef.current;
+    const diff = diffCartItems(currentLocalCart, remoteCart);
+
+    if (diff.canAutoMerge) {
+      // Tự động gộp hai bên an toàn (không ghi đè âm thầm)
+      versionRef.current = remoteVersion;
+      pendingRemoteCartRef.current = JSON.stringify(diff.mergedCart);
+      setCart(diff.mergedCart);
+      if (tableId) onRemoteCart?.(tableId, diff.mergedCart);
+      setLastSyncAt(new Date());
+      setStatus('connected');
+      setConflictData(null);
+    } else {
+      // Có xung đột thực sự trên cùng 1 món -> Mở hộp thoại giải quyết xung đột
+      console.warn('[POS Sync Conflict] Phát hiện xung đột giỏ hàng tại bàn:', tableId, diff.conflictingItems);
+      setStatus('conflict');
+      if (draft) {
+        setConflictData({
+          remoteDraft: draft,
+          conflictingItems: diff.conflictingItems,
+        });
+      }
+    }
   }, [onRemoteCart, setCart, tableId]);
 
   const fetchDraft = useCallback(async (currentTableId: string) => {
     if (writeInFlightRef.current) return;
-    const response = await fetch(`/api/pos/cart-draft?tableId=${encodeURIComponent(currentTableId)}`, { cache: 'no-store' });
-    const result = await response.json();
-    if (!response.ok || !result.success) throw new Error(result.error || 'Không tải được giỏ hàng dùng chung.');
-    applyDraft(result.draft, versionRef.current === 0);
-  }, [applyDraft]);
+    try {
+      const response = await fetch(`/api/pos/cart-draft?tableId=${encodeURIComponent(currentTableId)}`, { cache: 'no-store' });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || 'Không tải được giỏ hàng dùng chung.');
 
+      applyDraft(result.draft, versionRef.current === 0);
+      pollDelayRef.current = 15000; // Reset backoff on success
+      if (status === 'offline') setStatus('connected');
+    } catch (err) {
+      console.error('Fetch shared cart draft failed:', err);
+      // Exponential backoff up to 60s
+      pollDelayRef.current = Math.min(pollDelayRef.current * 1.5, 60000);
+      setStatus('offline');
+    }
+  }, [applyDraft, status]);
+
+  // Realtime subscription & Visibility-aware fallback polling
   useEffect(() => {
     if (!tableId) {
       setStatus('disabled');
       versionRef.current = 0;
       pendingRemoteCartRef.current = null;
+      setConflictData(null);
       return;
     }
 
@@ -87,42 +152,49 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
       .subscribe((connectionStatus) => {
         if (!active) return;
         setRealtimeStatus(connectionStatus as RealtimeStatus);
-        setStatus(connectionStatus === 'SUBSCRIBED' ? 'connected' : 'offline');
-        console.info('[POS Realtime]', {
-          channel: `pos-cart-draft:${tableId}`,
-          status: connectionStatus,
-          timestamp: new Date().toISOString(),
-        });
+        if (connectionStatus === 'SUBSCRIBED') {
+          setStatus((prev) => (prev === 'conflict' ? 'conflict' : 'connected'));
+        } else {
+          setStatus('offline');
+        }
       });
 
     setStatus('loading');
-    fetchDraft(tableId).catch((error) => {
-      console.error('Load shared cart draft failed:', error);
-      if (active) setStatus('offline');
-    });
+    fetchDraft(tableId);
 
-    const fallback = window.setInterval(() => {
-      fetchDraft(tableId).catch((error) => console.error('Refresh shared cart draft failed:', error));
-    }, 15000);
+    // Polling dự phòng có kiểm tra tab ẩn và exponential backoff
+    const scheduleNextPoll = () => {
+      if (!active) return;
+      pollIntervalRef.current = window.setTimeout(async () => {
+        // Dừng polling khi tab bị ẩn để tiết kiệm tài nguyên
+        if (typeof document === 'undefined' || !document.hidden) {
+          await fetchDraft(tableId);
+        }
+        scheduleNextPoll();
+      }, pollDelayRef.current);
+    };
+
+    scheduleNextPoll();
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden && active) {
+        // Khi người dùng quay lại tab, tải ngay dữ liệu mới nhất
+        fetchDraft(tableId);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       active = false;
-      window.clearInterval(fallback);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (pollIntervalRef.current) window.clearTimeout(pollIntervalRef.current);
       void client.removeChannel(channel);
     };
   }, [applyDraft, fetchDraft, tableId]);
 
-  const debounceTimerRef = useRef<number | null>(null);
-
-  const cancelPendingAutosave = useCallback(() => {
-    if (debounceTimerRef.current) {
-      window.clearTimeout(debounceTimerRef.current);
-      debounceTimerRef.current = null;
-    }
-  }, []);
-
+  // Debounce Autosave
   useEffect(() => {
-    if (!tableId) return;
+    if (!tableId || status === 'conflict') return;
     const cartSnapshot = JSON.stringify(cart);
     if (pendingRemoteCartRef.current === cartSnapshot) {
       pendingRemoteCartRef.current = null;
@@ -135,6 +207,7 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
 
     debounceTimerRef.current = window.setTimeout(async () => {
       writeInFlightRef.current = true;
+      setStatus((prev) => (prev === 'connected' ? 'syncing' : prev));
       try {
         const response = await fetch('/api/pos/cart-draft', {
           method: 'PUT',
@@ -147,12 +220,11 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
         });
         const result = await response.json();
         if (response.status === 409) {
-          setStatus('conflict');
           writeInFlightRef.current = false;
           await fetchDraft(tableId);
           return;
         }
-        if (!response.ok || !result.success) throw new Error(result.error || 'Không lưu được giỏ hàng dùng chung.');
+        if (!response.ok || !result.success) throw new Error(result.error || 'Không lưu được giỏ hàng.');
         versionRef.current = result.draft.version;
         setLastSyncAt(new Date());
         setStatus('connected');
@@ -171,7 +243,43 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
         debounceTimerRef.current = null;
       }
     };
-  }, [cart, fetchDraft, tableId]);
+  }, [cart, fetchDraft, status, tableId]);
+
+  // Giải quyết xung đột theo lựa chọn của thu ngân
+  const resolveConflict = useCallback(async (strategy: 'keep_local' | 'take_remote' | 'merge_quantities') => {
+    if (!conflictData || !tableId) return;
+
+    cancelPendingAutosave();
+    const finalCart = resolveCartConflict(cartRef.current, conflictData.remoteDraft.cart, strategy);
+    const targetVersion = conflictData.remoteDraft.version;
+
+    setCart(finalCart);
+    setConflictData(null);
+    setStatus('syncing');
+
+    try {
+      const response = await fetch('/api/pos/cart-draft', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tableId,
+          cart: finalCart,
+          expectedVersion: targetVersion,
+        }),
+      });
+      const result = await response.json();
+      if (response.ok && result.success) {
+        versionRef.current = result.draft.version;
+        setLastSyncAt(new Date());
+        setStatus('connected');
+      } else {
+        await fetchDraft(tableId);
+      }
+    } catch (err) {
+      console.error('Lỗi khi lưu giỏ hàng sau khi giải quyết xung đột:', err);
+      setStatus('offline');
+    }
+  }, [cancelPendingAutosave, conflictData, fetchDraft, setCart, tableId]);
 
   const clearDraft = useCallback(async () => {
     cancelPendingAutosave();
@@ -179,7 +287,20 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
     const response = await fetch(`/api/pos/cart-draft?tableId=${encodeURIComponent(tableId)}`, { method: 'DELETE' });
     if (!response.ok) throw new Error('Không xóa được giỏ hàng dùng chung.');
     versionRef.current = 0;
+    setConflictData(null);
   }, [cancelPendingAutosave, tableId]);
 
-  return { status, realtimeStatus, lastSyncAt, clearDraft, cancelPendingAutosave };
+  // Chặn thanh toán khi trạng thái chưa chắc chắn (đang xung đột hoặc mất kết nối)
+  const canCheckout = status === 'connected' || status === 'syncing';
+
+  return {
+    status,
+    realtimeStatus,
+    lastSyncAt,
+    conflictData,
+    resolveConflict,
+    canCheckout,
+    clearDraft,
+    cancelPendingAutosave,
+  };
 }

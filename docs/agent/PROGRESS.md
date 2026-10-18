@@ -40,7 +40,30 @@
   - Cập nhật `cart-draft-api.test.ts` để kiểm thử logic `UPDATE` và conflict `409` khi stale version.
   - Kết quả kiểm thử: **100% PASS** (7/7 test files, 41/41 tests pass).
   - Build sản phẩm: `npm run build` thành công 100% (48 routes compile sạch sẽ).
-- [x] **1.5 Tổng kết Gate 1**:
-  - Soạn báo cáo nghiệm thu `docs/agent/phase-1-report.md`.
+## Kế hoạch Thực hiện Phase 2 — Đồng bộ đa thiết bị và đơn QR (HOÀN TẤT)
+
+- [x] **2.1 Migration Vòng Đời Đơn QR & Token Bảo Vệ**:
+  - Tạo migration `202610180005_qr_order_lifecycle.sql` và `202610180005_qr_order_lifecycle.down.sql`.
+  - Mở rộng check constraint `order_status` của `pos_orders` để hỗ trợ: `'awaiting_confirmation', 'accepted', 'rejected', 'completed', 'cancelled', 'expired', 'cancelled_by_customer'`.
+  - Bổ sung cột `expires_at`, chỉ mục `pos_orders_expiry_idx` và hàm RPC `expire_stale_qr_orders()`.
+- [x] **2.2 Nâng Cấp API Đơn QR (Hủy Đơn, Hết Hạn & Chống Spam)**:
+  - Khách hàng tự hủy đơn qua `POST /api/orders/cancel` bằng `tracking_token` bí mật khi đơn đang ở `awaiting_confirmation`. Broadcast realtime tới khách và POS.
+  - Tự động đánh dấu `expired` sau 15 phút chưa duyệt khi gọi danh sách đơn tại quầy.
+  - Chống spam QR: HMAC session token (`generateTableQrToken`, `verifyTableQrToken`), In-memory Rate Limiting theo `IP + bàn`, giới hạn tối đa 20 món/đơn QR.
+- [x] **2.3 Chính Sách Xung Đột Giỏ Hàng (Conflict Resolution)**:
+  - Xây dựng thuật toán `getLineItemKey` (`id + note`) và `diffCartItems`.
+  - Tự động merge an toàn các món không trùng key giữa 2 thiết bị.
+  - Cùng key nhưng khác số lượng: chặn thanh toán và hiển thị `CartConflictModal` cung cấp 3 phương án xử lý minh bạch (Giữ máy này, Lấy từ máy khác, Cộng dồn số lượng). Không ghi đè âm thầm.
+- [x] **2.4 Realtime + Polling Dự Phòng & Chặn Thanh Toán Khi Chưa Chắc Chắn**:
+  - Dừng polling khi tab ẩn (`document.hidden`) và áp dụng exponential backoff khi lỗi kết nối.
+  - Badge trạng thái đồng bộ rõ ràng trên header giỏ hàng (`Đã đồng bộ`, `Đang đồng bộ...`, `Xung đột giỏ hàng`, `Mất kết nối`).
+  - Chặn nút thanh toán (`disabled` kèm tooltip cảnh báo) khi `sharedCartStatus === 'conflict' | 'offline'`.
+- [x] **2.5 Unit Tests & Báo Cáo Gate 2**:
+  - Viết bộ kiểm thử `tests/unit/cart-conflict.test.ts` (8 tests) và `tests/unit/qr-lifecycle.test.ts` (7 tests).
+  - Kiểm định toàn diện: **9/9 test files pass 100% (56/56 tests)**.
+  - Build production: **49 routes compile thành công 100%** không lỗi.
+  - Lập báo cáo nghiệm thu `docs/agent/phase-2-report.md`.
+
+
 
 

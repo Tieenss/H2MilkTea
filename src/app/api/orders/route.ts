@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import menuData from '@/data/DMHH.json';
 import tableData from '@/data/DSBAN.json';
 import { createAdminSupabaseClient, getAuthenticatedStaff } from '@/lib/supabase/server';
+import { checkOrderRateLimit, verifyTableQrToken } from '@/lib/qr/token';
 
 type OrderSource = 'POS_COUNTER' | 'QR_TABLE';
 interface IncomingItem {
@@ -52,9 +53,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Bàn không tồn tại hoặc đang ngừng phục vụ.' }, { status: 400 });
     }
 
+    // Bảo vệ đơn QR: Rate limiting & Token verification (sau cờ FEATURE_QR_TOKEN)
+    if (source === 'QR_TABLE') {
+      const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || 'local';
+      const rateLimitKey = `${clientIp}_${resolvedTable.IDBAN}`;
+      const { allowed } = checkOrderRateLimit(rateLimitKey);
+      if (!allowed) {
+        return NextResponse.json({ success: false, error: 'Quá nhiều yêu cầu đặt món từ bàn này. Vui lòng chờ 1 phút.' }, { status: 429 });
+      }
+
+      if (process.env.FEATURE_QR_TOKEN === 'true') {
+        const qrToken = String(body.qrToken || request.headers.get('x-qr-token') || '').trim();
+        const verification = verifyTableQrToken(qrToken, resolvedTable.IDBAN);
+        if (!verification.valid) {
+          return NextResponse.json({ success: false, error: verification.reason || 'Mã xác thực bàn không hợp lệ.' }, { status: 403 });
+        }
+      }
+    }
+
     const items = body.items as IncomingItem[];
-    if (!Array.isArray(items) || items.length === 0 || items.length > 50) {
-      return NextResponse.json({ success: false, error: 'Đơn cần có từ 1 đến 50 món.' }, { status: 400 });
+    const maxItems = source === 'QR_TABLE' ? 20 : 50;
+    if (!Array.isArray(items) || items.length === 0 || items.length > maxItems) {
+      return NextResponse.json({ success: false, error: `Đơn cần có từ 1 đến ${maxItems} món.` }, { status: 400 });
     }
 
     const canonicalItems = [];
@@ -103,6 +123,8 @@ export async function POST(request: NextRequest) {
     const sourceEmployee = source === 'POS_COUNTER' ? String(body.employee || staff?.email || 'Thu ngân').slice(0, 100) : 'Khách QR';
     const orderStatus = source === 'QR_TABLE' ? 'awaiting_confirmation' : 'accepted';
     const trackingToken = source === 'QR_TABLE' ? randomUUID() + randomUUID().replaceAll('-', '') : null;
+    const expiresAt = source === 'QR_TABLE' ? new Date(Date.now() + 15 * 60 * 1000).toISOString() : null;
+
     const { data: order, error } = await supabase.from('pos_orders').insert({
       source,
       table_id: resolvedTable.IDBAN === 'Khách mua về' ? 'Khách mua về' : resolvedTable.IDBAN,
@@ -118,6 +140,7 @@ export async function POST(request: NextRequest) {
       payment_status: 'unpaid',
       tracking_token: trackingToken,
       idempotency_key: idempotencyKey,
+      expires_at: expiresAt,
     }).select('id,tracking_token,order_status').single();
 
     if (error || !order) {
@@ -144,9 +167,25 @@ export async function GET(request: NextRequest) {
   const supabase = createAdminSupabaseClient();
   if (!supabase) return NextResponse.json({ success: false, error: 'Dịch vụ đơn hàng chưa sẵn sàng.' }, { status: 503 });
   const { data, error } = await supabase.from('pos_orders')
-    .select('id,source,table_id,table_name,items,subtotal,vat_amount,total_amount,notes,order_status,kitchen_status,payment_status,rejection_reason,created_at,updated_at')
+    .select('id,source,table_id,table_name,items,subtotal,vat_amount,total_amount,notes,order_status,kitchen_status,payment_status,rejection_reason,created_at,updated_at,expires_at')
     .eq('tracking_token', trackingToken).maybeSingle();
   if (error || !data) return NextResponse.json({ success: false, error: 'Không tìm thấy đơn hàng.' }, { status: 404 });
+
+  // Kiểm tra đơn QR tự động hết hạn sau 15 phút nếu chưa được duyệt
+  if (data.source === 'QR_TABLE' && data.order_status === 'awaiting_confirmation') {
+    const isExpired = data.expires_at
+      ? new Date() > new Date(data.expires_at)
+      : Date.now() - new Date(data.created_at).getTime() > 15 * 60 * 1000;
+
+    if (isExpired) {
+      await supabase
+        .from('pos_orders')
+        .update({ order_status: 'expired', updated_at: new Date().toISOString() })
+        .eq('id', data.id);
+      data.order_status = 'expired';
+    }
+  }
+
   return NextResponse.json({ success: true, order: data });
 }
 
@@ -160,7 +199,15 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const id = String(body.id || '');
     const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
-    const allowedStatuses = ['awaiting_confirmation', 'accepted', 'rejected', 'completed', 'cancelled'];
+    const allowedStatuses = [
+      'awaiting_confirmation',
+      'accepted',
+      'rejected',
+      'completed',
+      'cancelled',
+      'expired',
+      'cancelled_by_customer'
+    ];
     const allowedKitchenStatuses = ['queued', 'preparing', 'ready', 'served'];
     const allowedPaymentStatuses = ['unpaid', 'paid', 'refunded'];
     if (!id) return NextResponse.json({ success: false, error: 'Thiếu mã đơn.' }, { status: 400 });

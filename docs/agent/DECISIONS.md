@@ -66,3 +66,28 @@
 - **Lựa chọn**: Tích hợp `showClearConfirmation` điều khiển tập trung: phím `Escape` chỉ kích hoạt modal xác nhận (AlertDialog). Thu ngân bắt buộc bấm "Xóa tất cả" mới thực thi xóa giỏ.
 - **Đánh đổi**: Thêm một thao tác click xác nhận, nhưng bảo vệ an toàn cho dữ liệu giỏ hàng của khách tại quầy.
 
+---
+
+## Quyết định 09: Định danh dòng món theo `productId + note` (`lineItemKey`) và giải quyết xung đột 3 lựa chọn
+- **Thời điểm**: 2026-10-18 (Phase 2)
+- **Bối cảnh**: Khi 2 thu ngân hoặc khách qua QR cùng gọi món trên một bàn, việc chỉ định danh theo `productId` sẽ làm mất các tùy chọn/ghi chú khác nhau (ví dụ cùng Trà Sữa nhưng 1 ly không đường, 1 ly nhiều đá). Nếu ghi đè âm thầm (last write wins) sẽ mất món của nhân viên kia.
+- **Lựa chọn**: Chuẩn hóa `lineItemKey = ${id}::${noteNormalized}`. Thuật toán `diffCartItems` tự động gộp (auto-merge) an toàn các món không trùng key. Khi phát hiện trùng key nhưng khác số lượng, lập tức chặn thanh toán và hiển thị `CartConflictModal` cung cấp 3 lựa chọn minh bạch: "Giữ giỏ máy này", "Lấy từ máy khác", "Cộng dồn số lượng".
+- **Đánh đổi**: Tốn thêm bộ nhớ ánh xạ key và yêu cầu tương tác thu ngân khi có xung đột, nhưng loại bỏ 100% tình trạng mất món do ghi đè âm thầm.
+
+---
+
+## Quyết định 10: Vòng đời đơn QR đầy đủ và Quyền tự hủy đơn của Khách hàng (`POST /api/orders/cancel`)
+- **Thời điểm**: 2026-10-18 (Phase 2)
+- **Bối cảnh**: Đơn QR trước đây chỉ có 2 trạng thái cơ bản (`pending`, `completed`), không có trạng thái cho việc đơn bị quá hạn hoặc khách muốn tự hủy khi quầy chưa kịp duyệt.
+- **Lựa chọn**: Mở rộng check constraint `order_status` hỗ trợ `awaiting_confirmation`, `accepted`, `rejected`, `expired`, `cancelled_by_customer`. Khách hàng được cung cấp `POST /api/orders/cancel` sử dụng `tracking_token` bí mật để hủy đơn nếu quầy chưa bấm duyệt. Tự động đánh dấu `expired` sau 15 phút không duyệt.
+- **Đánh đổi**: Cần lưu trữ thêm `tracking_token` và `expires_at` trên database, nhưng bảo vệ khách hàng khỏi việc bị phục vụ nhầm đơn cũ và giải phóng bàn nhanh chóng.
+
+---
+
+## Quyết định 11: Bảo mật QR bằng HMAC Token và Giới hạn tần suất tạo đơn (Rate Limiting)
+- **Thời điểm**: 2026-10-18 (Phase 2)
+- **Bối cảnh**: Kẻ xấu chụp ảnh mã QR bàn rồi về nhà liên tục spam gửi đơn ảo vào quầy, hoặc dùng script làm tràn cơ sở dữ liệu.
+- **Lựa chọn**: Sinh HMAC token có chữ ký số bí mật gắn với phiên/bàn và thời hạn 24 giờ (`FEATURE_QR_TOKEN`), kiểm tra chữ ký ở server Next.js. Đồng thời triển khai In-memory Rate Limiting theo `IP + tableId` (tối đa 5 đơn / phút / bàn) và giới hạn tối đa 20 món / đơn QR.
+- **Đánh đổi**: QR cần in kèm token hoặc làm mới định kỳ nếu hết hạn 24h, nhưng ngăn chặn triệt để nguy cơ tấn công từ xa qua mạng Internet.
+
+

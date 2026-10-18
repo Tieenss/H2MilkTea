@@ -29,6 +29,8 @@ interface CartSidebarProps {
   selectedCustomer: Customer | null;
   selectedTableName?: string;
   employee?: string;
+  sharedCartStatus?: string;
+  canCheckout?: boolean;
   showClearConfirmation?: boolean;
   onOpenClearConfirmation?: (show: boolean) => void;
   onRemoveFromCart: (productId: string) => void;
@@ -50,6 +52,8 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
   selectedTableId,
   selectedCustomer,
   selectedTableName,
+  sharedCartStatus = 'connected',
+  canCheckout = true,
   showClearConfirmation: controlledShowClearConfirmation,
   onOpenClearConfirmation,
   onRemoveFromCart,
@@ -108,14 +112,43 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
       {/* Cart Header */}
       <div className="p-3 lg:p-4 border-b flex-shrink-0">
         <div className="flex justify-between items-center mb-3">
-          <h3 className="text-lg lg:text-xl font-semibold text-gray-800">
-            Giỏ hàng
-            {cart.length > 0 && (
-              <span className="ml-2 bg-blue-600 text-white text-sm px-2 py-1 rounded-full">
-                {cart.reduce((sum, item) => sum + item.quantity, 0)}
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg lg:text-xl font-semibold text-gray-800 flex items-center">
+              Giỏ hàng
+              {cart.length > 0 && (
+                <span className="ml-2 bg-blue-600 text-white text-sm px-2 py-0.5 rounded-full">
+                  {cart.reduce((sum, item) => sum + item.quantity, 0)}
+                </span>
+              )}
+            </h3>
+
+            {/* Chỉ báo trạng thái kết nối realtime */}
+            {sharedCartStatus === 'connected' && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                Trực tuyến
               </span>
             )}
-          </h3>
+            {sharedCartStatus === 'syncing' && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-spin"></span>
+                Đang lưu...
+              </span>
+            )}
+            {sharedCartStatus === 'conflict' && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-300 animate-bounce">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-600"></span>
+                Xung đột
+              </span>
+            )}
+            {sharedCartStatus === 'offline' && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full border border-gray-300">
+                <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
+                Mất kết nối
+              </span>
+            )}
+          </div>
+
           <button
             onClick={handleClearCart}
             disabled={cart.length === 0}
@@ -243,6 +276,8 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
             onSendToKitchen={handleSendKitchen}
             isSendingKitchen={isSendingKitchen}
             isKitchenSent={sentKitchenSignature === cartSignature}
+            canCheckout={canCheckout}
+            sharedCartStatus={sharedCartStatus}
           />
         </div>
       )}
@@ -441,9 +476,21 @@ const ActionButtons: React.FC<{
   onSendToKitchen?: () => Promise<void>;
   isSendingKitchen: boolean;
   isKitchenSent: boolean;
-}> = ({ cart, selectedTableId, onCheckout, onShowTableModal, onSendToKitchen, isSendingKitchen, isKitchenSent }) => {
+  canCheckout?: boolean;
+  sharedCartStatus?: 'synced' | 'syncing' | 'conflict' | 'offline';
+}> = ({
+  cart,
+  selectedTableId,
+  onCheckout,
+  onShowTableModal,
+  onSendToKitchen,
+  isSendingKitchen,
+  isKitchenSent,
+  canCheckout = true,
+  sharedCartStatus = 'synced',
+}) => {
   const handleCheckoutClick = () => {
-    if (cart.length === 0) {
+    if (cart.length === 0 || !canCheckout) {
       return;
     } else if (!selectedTableId) {
       onShowTableModal();
@@ -463,7 +510,16 @@ const ActionButtons: React.FC<{
   };
 
   const isDisabled = cart.length === 0;
+  const isCheckoutDisabled = isDisabled || !canCheckout;
   const needTable = !selectedTableId;
+
+  const checkoutText = !canCheckout
+    ? sharedCartStatus === 'conflict'
+      ? 'Đang giải quyết xung đột...'
+      : 'Đang mất kết nối...'
+    : needTable
+    ? 'Chọn bàn'
+    : 'Thanh toán';
 
   return (
     <div className="space-y-3">
@@ -486,10 +542,11 @@ const ActionButtons: React.FC<{
       {/* Checkout Button */}
       <Button
         onClick={handleCheckoutClick}
-        disabled={isDisabled}
+        disabled={isCheckoutDisabled}
+        title={!canCheckout ? 'Không thể thanh toán khi giỏ hàng chưa đồng bộ hoặc đang xung đột' : undefined}
         className={`w-full py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition-colors touch-target text-base ${
-          isDisabled
-            ? 'bg-blue-300 cursor-not-allowed'
+          isCheckoutDisabled
+            ? 'bg-blue-300 cursor-not-allowed text-gray-100'
             : 'bg-blue-600 hover:bg-blue-700 text-white'
         }`}
       >
@@ -497,7 +554,7 @@ const ActionButtons: React.FC<{
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
             d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
         </svg>
-        <span>{needTable ? 'Chọn bàn' : 'Thanh toán'}</span>
+        <span>{checkoutText}</span>
       </Button>
     </div>
   );

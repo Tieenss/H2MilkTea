@@ -89,6 +89,9 @@ export const usePOS = () => {
     status: sharedCartStatus,
     realtimeStatus,
     lastSyncAt,
+    conflictData,
+    resolveConflict,
+    canCheckout,
     clearDraft: clearSharedCartDraft,
     cancelPendingAutosave,
   } = useSharedCartDraft({
@@ -555,6 +558,16 @@ export const usePOS = () => {
       setIsProcessingPayment(true);
       showLoading('Đang xử lý thanh toán...');
       
+      // Chặn thanh toán khi trạng thái chưa chắc chắn (xung đột hoặc offline)
+      if (!canCheckout) {
+        if (sharedCartStatus === 'conflict') {
+          throw new Error('CART_CONFLICT');
+        }
+        if (sharedCartStatus === 'offline') {
+          throw new Error('NETWORK_OFFLINE');
+        }
+      }
+
       // Validate payment data
       if (!cart || cart.length === 0) {
         throw new Error('EMPTY_CART');
@@ -734,6 +747,8 @@ export const usePOS = () => {
         'EMPTY_CART': 'Giỏ hàng trống!',
         'INVALID_EMPLOYEE': 'Vui lòng chọn nhân viên thanh toán!',
         'INSUFFICIENT_PAYMENT': 'Số tiền khách trả không đủ!',
+        'CART_CONFLICT': 'Giỏ hàng đang có xung đột với thiết bị khác. Vui lòng giải quyết xung đột trước khi thanh toán!',
+        'NETWORK_OFFLINE': 'Mất kết nối dữ liệu. Vui lòng kiểm tra mạng trước khi thanh toán!',
       };
 
       const message = errorMessages[error.message] || `Có lỗi xảy ra khi thanh toán: ${error.message}`;
@@ -933,6 +948,9 @@ export const usePOS = () => {
     sharedCartStatus,
     realtimeStatus,
     lastSyncAt,
+    conflictData,
+    resolveConflict,
+    canCheckout,
 
     // Customer state
     customers,
