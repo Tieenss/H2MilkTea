@@ -22,12 +22,14 @@ import {
   Monitor,
   Smartphone,
   Eye,
-  Copy
+  Copy,
+  Tag
 } from 'lucide-react';
 import useReceiptTemplate from '../pos/hooks/useReceiptTemplate';
 import { useReceiptSettings } from '@/hooks/useReceiptSettings';
 import ReceiptPreview, { sampleReceiptData } from '@/components/ReceiptPreview';
 import { applyReceiptSettingsToAll } from '@/utils/receiptSettings';
+import { LabelSettingsTab } from '@/components/LabelSettingsTab';
 import toast from 'react-hot-toast';
 
 // Paper size configurations
@@ -311,7 +313,44 @@ export default function ReceiptSettingsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Navigation Mode Tabs */}
+      <div className="flex items-center gap-2 border-b pb-3">
+        <Button
+          type="button"
+          variant={currentTab === 'pos' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setCurrentTab('pos')}
+          className={`flex items-center gap-2 ${currentTab === 'pos' ? 'bg-blue-600 text-white' : ''}`}
+        >
+          <Monitor className="w-4 h-4" />
+          Hóa đơn bán hàng
+        </Button>
+        <Button
+          type="button"
+          variant={currentTab === 'label' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setCurrentTab('label')}
+          className={`flex items-center gap-2 ${currentTab === 'label' ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'border-purple-200 text-purple-700 hover:bg-purple-50'}`}
+        >
+          <Tag className="w-4 h-4" />
+          Tem nhãn dán ly (Mới)
+        </Button>
+        <Button
+          type="button"
+          variant={currentTab === 'report' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setCurrentTab('report')}
+          className={`flex items-center gap-2 ${currentTab === 'report' ? 'bg-blue-600 text-white' : ''}`}
+        >
+          <Settings className="w-4 h-4" />
+          Mẫu báo cáo
+        </Button>
+      </div>
+
+      {currentTab === 'label' ? (
+        <LabelSettingsTab />
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Settings */}
         <div className="lg:col-span-2 space-y-6">
           {/* Integration Status */}
@@ -741,6 +780,7 @@ export default function ReceiptSettingsPage() {
           </Card>
         </div>
       </div>
+      )}
     </div>
   );
 }

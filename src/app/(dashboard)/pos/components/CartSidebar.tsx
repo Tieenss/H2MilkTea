@@ -3,11 +3,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Trash, User, Gift, Plus, Minus, ChefHat } from 'lucide-react';
+import { Trash, User, Gift, Plus, Minus, ChefHat, Tag } from 'lucide-react';
 import { formatCurrency, formatPoints } from '../utils/formatters';
 import type { CartItem } from '../types/pos';
 import { Customer } from '@/app/(dashboard)/khachhang/types/customer';
 import { getCustomerTypeColor } from '@/app/(dashboard)/khachhang/utils/customerFormatters';
+import { getLabelSettings } from '@/utils/labelSettings';
+import { printOrderLabels } from '@/utils/labelPrint';
+import toast from 'react-hot-toast';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -52,6 +55,7 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
   selectedTableId,
   selectedCustomer,
   selectedTableName,
+  employee = 'Admin',
   sharedCartStatus = 'connected',
   canCheckout = true,
   showClearConfirmation: controlledShowClearConfirmation,
@@ -89,12 +93,61 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
     }
   }, [cartSignature]);
 
+  const handlePrintAllLabels = async () => {
+    if (cart.length === 0) return;
+    try {
+      const res = await printOrderLabels(
+        cart,
+        {
+          tableName: selectedTableName || 'Khách mang về',
+          cashierName: employee,
+          createdAt: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+        }
+      );
+      if (res.success) toast.success(res.message);
+      else toast.error(res.message);
+    } catch (err: any) {
+      toast.error(err.message || 'Lỗi khi in tem nhãn');
+    }
+  };
+
+  const handlePrintSingleItemLabel = async (item: CartItem) => {
+    try {
+      const res = await printOrderLabels(
+        [item],
+        {
+          tableName: selectedTableName || 'Khách mang về',
+          cashierName: employee,
+          createdAt: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+        }
+      );
+      if (res.success) toast.success(res.message);
+      else toast.error(res.message);
+    } catch (err: any) {
+      toast.error(err.message || 'Lỗi khi in tem');
+    }
+  };
+
   const handleSendKitchen = async () => {
     if (!onSendToKitchen) return;
     setIsSendingKitchen(true);
     try {
       await onSendToKitchen();
       setSentKitchenSignature(cartSignature);
+
+      // Tự động in tem nhãn nếu cấu hình autoPrintOnKitchenSend đang bật
+      const labelSettings = getLabelSettings();
+      if (labelSettings.enabled && labelSettings.autoPrintOnKitchenSend && cart.length > 0) {
+        void printOrderLabels(
+          cart,
+          {
+            tableName: selectedTableName || 'Bàn',
+            cashierName: employee,
+            createdAt: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+          },
+          labelSettings
+        );
+      }
     } catch {
       // The POS hook already displays the server error to the cashier.
     } finally {
@@ -149,17 +202,33 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
             )}
           </div>
 
-          <button
-            onClick={handleClearCart}
-            disabled={cart.length === 0}
-            className={`px-2 lg:px-3 py-1.5 rounded-lg text-sm flex items-center transition-colors touch-target ${cart.length === 0
-                ? 'bg-gray-300 cursor-not-allowed text-gray-500'
-                : 'bg-red-500 text-white hover:bg-red-600'
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={handlePrintAllLabels}
+              disabled={cart.length === 0}
+              className={`px-2 lg:px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center transition-colors touch-target ${
+                cart.length === 0
+                  ? 'bg-gray-200 cursor-not-allowed text-gray-400'
+                  : 'bg-purple-600 text-white hover:bg-purple-700 shadow-sm'
               }`}
-          >
-            <Trash className="w-4 h-4 mr-1" />
-            <span className="hidden sm:inline">Xóa tất cả</span>
-          </button>
+              title="In tem nhãn dán ly cho tất cả món"
+            >
+              <Tag className="w-3.5 h-3.5 mr-1" />
+              <span>In tem</span>
+            </button>
+
+            <button
+              onClick={handleClearCart}
+              disabled={cart.length === 0}
+              className={`px-2 lg:px-3 py-1.5 rounded-lg text-sm flex items-center transition-colors touch-target ${cart.length === 0
+                  ? 'bg-gray-300 cursor-not-allowed text-gray-500'
+                  : 'bg-red-500 text-white hover:bg-red-600'
+                }`}
+            >
+              <Trash className="w-4 h-4 mr-1" />
+              <span className="hidden sm:inline">Xóa tất cả</span>
+            </button>
+          </div>
         </div>
 
         {/* Customer Section - Compact for mobile */}
@@ -253,6 +322,7 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
               onRemove={onRemoveFromCart}
               onAdjustQuantity={onAdjustQuantity}
               onShowNoteModal={onShowNoteModal}
+              onPrintLabel={handlePrintSingleItemLabel}
             />
           ))
         )}
@@ -309,13 +379,15 @@ interface CartItemCardProps {
   onRemove: (productId: string) => void;
   onAdjustQuantity: (productId: string, amount: number) => void;
   onShowNoteModal: (item: CartItem) => void;
+  onPrintLabel?: (item: CartItem) => void;
 }
 
 const CartItemCard: React.FC<CartItemCardProps> = ({
   item,
   onRemove,
   onAdjustQuantity,
-  onShowNoteModal
+  onShowNoteModal,
+  onPrintLabel
 }) => {
   const [localQuantity, setLocalQuantity] = React.useState(item.quantity);
 
@@ -389,9 +461,19 @@ const CartItemCard: React.FC<CartItemCardProps> = ({
                 <Plus className="w-3 h-3" />
               </button>
               
+              {onPrintLabel && (
+                <button
+                  onClick={() => onPrintLabel(item)}
+                  className="w-6 h-6 flex items-center justify-center bg-purple-100 text-purple-700 rounded hover:bg-purple-200 transition-colors ml-1"
+                  title="In tem món này"
+                >
+                  <Tag className="w-3 h-3" />
+                </button>
+              )}
+
               <button
                 onClick={() => onShowNoteModal(item)}
-                className="w-6 h-6 flex items-center justify-center bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors ml-1"
+                className="w-6 h-6 flex items-center justify-center bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
                 title="Ghi chú"
               >
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -738,6 +738,28 @@ export const usePOS = () => {
         showNotification('Thanh toán thành công nhưng không thể in hóa đơn', 'warning');
       }
 
+      // Tự động in tem nhãn dán ly nếu cấu hình bật
+      try {
+        const { getLabelSettings } = await import('@/utils/labelSettings');
+        const labelSettings = getLabelSettings();
+        if (labelSettings.autoPrintOnCheckout) {
+          const { printOrderLabels } = await import('@/utils/labelPrint');
+          await printOrderLabels(
+            cart,
+            {
+              orderId: invoiceId,
+              tableName: tableName || 'Mang về',
+              cashier: nhanvien,
+              customerName: customer !== 'Khách lẻ' ? customer : undefined,
+              createdAt: new Date(),
+            },
+            labelSettings
+          );
+        }
+      } catch (labelPrintError) {
+        console.warn('Lỗi tự động in tem dán ly:', labelPrintError);
+      }
+
       // Reset state
       resetAfterPayment();
       setShowCheckoutModal(false);
