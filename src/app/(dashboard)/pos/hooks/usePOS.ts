@@ -321,6 +321,38 @@ export const usePOS = () => {
     }
   }, [showNotification]);
 
+  const updateCustomerDisplay = useCallback((cartData = cart, tableInfo: Table | null = null) => {
+    if (!customerDisplayWindow.current || customerDisplayWindow.current.closed) return;
+
+    try {
+      const total = cartData.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+      // Get current table info if not provided
+      const currentTable = tableInfo || tables.find(t => t.IDBAN === selectedTableId);
+      const tableData = currentTable ? {
+        id: currentTable.IDBAN,
+        name: currentTable['Tên bàn'],
+        capacity: currentTable['Sức chứa tối đa'],
+        status: currentTable['Trạng thái']
+      } : null;
+
+      customerDisplayWindow.current.postMessage({
+        type: 'updateCart',
+        cart: cartData,
+        totals: {
+          subtotal: total,
+          vat: total * 0.1,
+          discount: 0,
+          total: total * 1.1
+        },
+        tableInfo: tableData,
+        customer: selectedCustomer
+      }, window.location.origin);
+    } catch (error) {
+      console.error('Lỗi khi cập nhật màn hình phụ:', error);
+    }
+  }, [cart, tables, selectedTableId, selectedCustomer]);
+
   // Cart operations
   const addToCart = useCallback((
     productId: string,
@@ -429,38 +461,6 @@ export const usePOS = () => {
       showNotification(error.message || 'Có lỗi xảy ra khi chuyển bàn!', 'error');
     }
   }, [selectedTableId, tables, cart, activeOrders, setActiveOrders, setSelectedTableId, updateTableStatus, cancelPendingAutosave, updateCustomerDisplay, showNotification, setShowTransferModal, showLoading]);
-
-  const updateCustomerDisplay = useCallback((cartData = cart, tableInfo: Table | null = null) => {
-    if (!customerDisplayWindow.current || customerDisplayWindow.current.closed) return;
-
-    try {
-      const total = cartData.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-
-      // Get current table info if not provided
-      const currentTable = tableInfo || tables.find(t => t.IDBAN === selectedTableId);
-      const tableData = currentTable ? {
-        id: currentTable.IDBAN,
-        name: currentTable['Tên bàn'],
-        capacity: currentTable['Sức chứa tối đa'],
-        status: currentTable['Trạng thái']
-      } : null;
-
-      customerDisplayWindow.current.postMessage({
-        type: 'updateCart',
-        cart: cartData,
-        totals: {
-          subtotal: total,
-          vat: total * 0.1,
-          discount: 0,
-          total: total * 1.1
-        },
-        tableInfo: tableData,
-        customer: selectedCustomer
-      }, window.location.origin);
-    } catch (error) {
-      console.error('Lỗi khi cập nhật màn hình phụ:', error);
-    }
-  }, [cart, tables, selectedTableId, selectedCustomer]);
 
   // Payment operations with customer integration
   const saveInvoice = useCallback(async (invoice: any, details: any[]) => {

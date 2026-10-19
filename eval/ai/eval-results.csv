@@ -1,9 +1,9 @@
 Category,Total,Correct,Accuracy%
-single_item,4,4,100.0%
-multi_item,3,3,100.0%
-alias,4,4,100.0%
-options,4,4,100.0%
-ambiguous,5,5,100.0%
-unauthorized,6,6,100.0%
-prompt_injection,4,4,100.0%
-Overall,30,30,100.0%
+single_item,8,8,100.0%
+multi_item,7,7,100.0%
+alias,8,8,100.0%
+options,7,7,100.0%
+ambiguous,8,8,100.0%
+unauthorized,8,8,100.0%
+prompt_injection,9,9,100.0%
+Overall,55,55,100.0%
