@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Trash, User, Gift, Plus, Minus, ChefHat } from 'lucide-react';
@@ -477,7 +477,7 @@ const ActionButtons: React.FC<{
   isSendingKitchen: boolean;
   isKitchenSent: boolean;
   canCheckout?: boolean;
-  sharedCartStatus?: 'synced' | 'syncing' | 'conflict' | 'offline';
+  sharedCartStatus?: string;
 }> = ({
   cart,
   selectedTableId,
