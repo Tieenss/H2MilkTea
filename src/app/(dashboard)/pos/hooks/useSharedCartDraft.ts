@@ -45,14 +45,17 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
   const [conflictData, setConflictData] = useState<ConflictData | null>(null);
 
   const versionRef = useRef(0);
+  const initializedTableRef = useRef<string | null>(null);
   const pendingRemoteCartRef = useRef<string | null>(null);
   const cartRef = useRef(cart);
+  const statusRef = useRef<SharedCartStatus>(status);
   const writeInFlightRef = useRef(false);
   const pollIntervalRef = useRef<number | null>(null);
   const pollDelayRef = useRef(15000); // 15s base delay
   const debounceTimerRef = useRef<number | null>(null);
 
   cartRef.current = cart;
+  statusRef.current = status;
 
   const cancelPendingAutosave = useCallback(() => {
     if (debounceTimerRef.current) {
@@ -65,9 +68,16 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
     const remoteVersion = draft?.version || 0;
     const remoteCart = draft?.cart || [];
 
-    // Lần đầu mở bàn (force) hoặc giỏ cục bộ chưa có dữ liệu
-    if (force || versionRef.current === 0) {
+    // Lần đầu mở bàn (force)
+    if (force) {
       versionRef.current = remoteVersion;
+      // Nếu thu ngân đã kịp bấm thêm món trong lúc đang tải bản nháp rỗng từ server, giữ lại món của thu ngân
+      if (remoteCart.length === 0 && cartRef.current.length > 0) {
+        setLastSyncAt(new Date());
+        setStatus('connected');
+        setConflictData(null);
+        return;
+      }
       pendingRemoteCartRef.current = JSON.stringify(remoteCart);
       setCart(remoteCart);
       if (tableId) onRemoteCart?.(tableId, remoteCart);
@@ -105,35 +115,39 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
     }
   }, [onRemoteCart, setCart, tableId]);
 
-  const fetchDraft = useCallback(async (currentTableId: string) => {
+  const fetchDraft = useCallback(async (currentTableId: string, isInitialLoad = false) => {
     if (writeInFlightRef.current) return;
     try {
       const response = await fetch(`/api/pos/cart-draft?tableId=${encodeURIComponent(currentTableId)}`, { cache: 'no-store' });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || 'Không tải được giỏ hàng dùng chung.');
 
-      applyDraft(result.draft, versionRef.current === 0);
+      const shouldForce = isInitialLoad && initializedTableRef.current !== currentTableId;
+      initializedTableRef.current = currentTableId;
+      applyDraft(result.draft, shouldForce);
       pollDelayRef.current = 15000; // Reset backoff on success
-      if (status === 'offline') setStatus('connected');
+      setStatus((prev) => (prev === 'offline' || prev === 'loading' ? 'connected' : prev));
     } catch (err) {
       console.error('Fetch shared cart draft failed:', err);
       // Exponential backoff up to 60s
       pollDelayRef.current = Math.min(pollDelayRef.current * 1.5, 60000);
       setStatus('offline');
     }
-  }, [applyDraft, status]);
+  }, [applyDraft]);
 
   // Realtime subscription & Visibility-aware fallback polling
   useEffect(() => {
     if (!tableId) {
       setStatus('disabled');
       versionRef.current = 0;
+      initializedTableRef.current = null;
       pendingRemoteCartRef.current = null;
       setConflictData(null);
       return;
     }
 
     let active = true;
+    versionRef.current = 0;
     const client = createClient();
     const channel = client
       .channel(`pos-cart-draft:${tableId}`)
@@ -160,7 +174,7 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
       });
 
     setStatus('loading');
-    fetchDraft(tableId);
+    void fetchDraft(tableId, true);
 
     // Polling dự phòng có kiểm tra tab ẩn và exponential backoff
     const scheduleNextPoll = () => {
@@ -168,7 +182,7 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
       pollIntervalRef.current = window.setTimeout(async () => {
         // Dừng polling khi tab bị ẩn để tiết kiệm tài nguyên
         if (typeof document === 'undefined' || !document.hidden) {
-          await fetchDraft(tableId);
+          await fetchDraft(tableId, false);
         }
         scheduleNextPoll();
       }, pollDelayRef.current);
@@ -179,7 +193,7 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
     const handleVisibilityChange = () => {
       if (!document.hidden && active) {
         // Khi người dùng quay lại tab, tải ngay dữ liệu mới nhất
-        fetchDraft(tableId);
+        void fetchDraft(tableId, false);
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -194,7 +208,7 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
 
   // Debounce Autosave
   useEffect(() => {
-    if (!tableId || status === 'conflict') return;
+    if (!tableId || statusRef.current === 'conflict') return;
     const cartSnapshot = JSON.stringify(cart);
     if (pendingRemoteCartRef.current === cartSnapshot) {
       pendingRemoteCartRef.current = null;
@@ -221,7 +235,7 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
         const result = await response.json();
         if (response.status === 409) {
           writeInFlightRef.current = false;
-          await fetchDraft(tableId);
+          await fetchDraft(tableId, false);
           return;
         }
         if (!response.ok || !result.success) throw new Error(result.error || 'Không lưu được giỏ hàng.');
@@ -243,7 +257,7 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
         debounceTimerRef.current = null;
       }
     };
-  }, [cart, fetchDraft, status, tableId]);
+  }, [cart, fetchDraft, tableId]);
 
   // Giải quyết xung đột theo lựa chọn của thu ngân
   const resolveConflict = useCallback(async (strategy: 'keep_local' | 'take_remote' | 'merge_quantities') => {
