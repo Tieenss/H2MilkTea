@@ -15,6 +15,7 @@ vi.mock('@/lib/supabase/server', () => ({
 }));
 
 import { POST as cancelOrderRoute } from '@/app/api/orders/cancel/route';
+import { POST as createOrderRoute } from '@/app/api/orders/route';
 
 function makeRequest(method: string, url: string, body?: unknown, headers: Record<string, string> = {}) {
   return new NextRequest(`http://localhost${url}`, {
@@ -27,7 +28,7 @@ function makeRequest(method: string, url: string, body?: unknown, headers: Recor
   });
 }
 
-describe('QR Order Lifecycle & Security (Phase 2)', () => {
+describe('QR Order Lifecycle & Security (Phase 1 & 2)', () => {
   describe('HMAC Token & Rate Limiting', () => {
     it('generates and verifies valid QR tokens', () => {
       const token = generateTableQrToken('B3');
@@ -73,6 +74,122 @@ describe('QR Order Lifecycle & Security (Phase 2)', () => {
       const blockedCheck = checkOrderRateLimit(testIdentifier);
       expect(blockedCheck.allowed).toBe(false);
       expect(blockedCheck.remaining).toBe(0);
+    });
+  });
+
+  describe('QR Order Creation Self-Healing & Size Pricing (POST /api/orders)', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('auto-falls back when expires_at column is missing (PGRST204) and prices M (+0đ) & L (+5000đ) accurately', async () => {
+      const insertedOrderPayloads: Array<Record<string, unknown>> = [];
+      let orderInsertAttempt = 0;
+
+      const dsbanChain = {
+        select: vi.fn(async () => ({
+          data: [
+            {
+              IDBAN: 'B1',
+              'Tên bàn': 'Bàn 1',
+              'Trạng thái': 'Hoạt động',
+            },
+          ],
+          error: null,
+        })),
+      };
+
+      const dmhhChain = {
+        select: vi.fn(async () => ({
+          data: [
+            {
+              IDSP: 'SP1',
+              'Tên sản phẩm': 'Hồng trà đào',
+              'Đơn giá': 20000,
+              'Loại sản phẩm': 'Trà trái cây',
+              'Đơn vị tính': 'Ly',
+              'Hình ảnh': '',
+              'Trạng thái': 'Hoạt động',
+            },
+          ],
+          error: null,
+        })),
+      };
+
+      const posOrdersChain = {
+        select: vi.fn(() => posOrdersChain),
+        eq: vi.fn(() => posOrdersChain),
+        maybeSingle: vi.fn(async () => ({ data: null, error: null })),
+        insert: vi.fn((payload: Record<string, unknown>) => {
+          orderInsertAttempt += 1;
+          insertedOrderPayloads.push(payload);
+          const attempt = orderInsertAttempt;
+          return {
+            select: vi.fn(() => ({
+              single: vi.fn(async () => {
+                if (attempt === 1) {
+                  return {
+                    data: null,
+                    error: {
+                      code: 'PGRST204',
+                      message: "Could not find the 'expires_at' column of 'pos_orders' in the schema cache",
+                    },
+                  };
+                }
+                return {
+                  data: {
+                    id: 'ord-self-healed-1',
+                    tracking_token: 'tok-123',
+                    order_status: 'awaiting_confirmation',
+                  },
+                  error: null,
+                };
+              }),
+            })),
+          };
+        }),
+      };
+
+      createAdminSupabaseClient.mockReturnValue({
+        from: vi.fn((tableName: string) => {
+          if (tableName === 'DSBAN') return dsbanChain;
+          if (tableName === 'DMHH') return dmhhChain;
+          return posOrdersChain;
+        }),
+      });
+
+      const res = await createOrderRoute(
+        makeRequest('POST', '/api/orders', {
+          source: 'QR_TABLE',
+          tableId: 'B1',
+          idempotencyKey: `idem-test-${Date.now()}`,
+          items: [
+            {
+              productId: 'SP1',
+              productName: 'Hồng trà đào',
+              quantity: 1,
+              size: 'M',
+            },
+            {
+              productId: 'SP1',
+              productName: 'Hồng trà đào',
+              quantity: 1,
+              size: 'L',
+            },
+          ],
+        })
+      );
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.success).toBe(true);
+      expect(json.orderId).toBe('ord-self-healed-1');
+      expect(orderInsertAttempt).toBe(2);
+      expect(insertedOrderPayloads[0]).toHaveProperty('expires_at');
+      expect(insertedOrderPayloads[1]).not.toHaveProperty('expires_at');
+      // 1 ly M (20.000đ) + 1 ly L (25.000đ) = subtotal 45.000đ, VAT 10% = 4.500đ, total = 49.500đ
+      expect(insertedOrderPayloads[1].subtotal).toBe(45000);
+      expect(insertedOrderPayloads[1].total_amount).toBe(49500);
     });
   });
 

@@ -9,24 +9,34 @@ export const useCart = () => {
   const [activeOrders, setActiveOrders] = useState<Map<string, CartItem[]>>(new Map());
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
 
-  // Add product to cart with options support
+  // Add product to cart with options support (Size gốc M = +0đ, Size L = +5000đ)
   const addToCart = useCallback((
     product: Product,
     options?: { size?: string; sugar?: string; ice?: string; toppings?: string[]; note?: string }
   ) => {
     setCart(prevCart => {
+      const category = product['Loại sản phẩm'] || '';
+      const isFood = ['Ăn vặt', 'Bánh ngọt'].includes(category);
+      const normalizedSize = isFood
+        ? undefined
+        : (options?.size ? (options.size.toUpperCase() === 'L' ? 'L' : 'M') : 'M');
+      const sizeAdjust = !isFood && normalizedSize === 'L' ? 5000 : 0;
+      const basePrice = Number(product['Đơn giá']) || 0;
+
       const newItem: CartItem = {
         id: product.IDSP,
         name: product['Tên sản phẩm'],
         note: options?.note || '',
         image: product['Hình ảnh'] || '',
-        price: Number(product['Đơn giá']) || 0,
+        price: basePrice + sizeAdjust,
         quantity: 1,
         unit: product['Đơn vị tính'] || 'Cái',
-        size: options?.size,
+        category,
+        size: normalizedSize,
         sugar: options?.sugar,
         ice: options?.ice,
         toppings: options?.toppings,
+        printStatus: 'new',
       };
 
       const newKey = getLineItemKey(newItem);
@@ -36,7 +46,11 @@ export const useCart = () => {
       if (existingIndex >= 0) {
         newCart = prevCart.map((item, idx) =>
           idx === existingIndex 
-            ? { ...item, quantity: item.quantity + 1 } 
+            ? {
+                ...item,
+                quantity: item.quantity + 1,
+                printStatus: item.printStatus === 'printed' ? 'modified' : (item.printStatus || 'new'),
+              } 
             : item
         );
       } else {
@@ -84,7 +98,12 @@ export const useCart = () => {
       const updatedCart = prevCart.map(item => {
         if (item.id === productId) {
           const newQuantity = item.quantity + amount;
-          return newQuantity <= 0 ? null : { ...item, quantity: newQuantity };
+          if (newQuantity <= 0) return null;
+          return {
+            ...item,
+            quantity: newQuantity,
+            printStatus: item.printStatus === 'printed' ? 'modified' : (item.printStatus || 'new'),
+          };
         }
         return item;
       }).filter(Boolean) as CartItem[];
@@ -115,7 +134,13 @@ export const useCart = () => {
 
     setCart(prevCart => {
       const newCart = prevCart.map(item =>
-        item.id === productId ? { ...item, quantity } : item
+        item.id === productId
+          ? {
+              ...item,
+              quantity,
+              printStatus: item.printStatus === 'printed' ? 'modified' : (item.printStatus || 'new'),
+            }
+          : item
       );
 
       // Update active orders if table is selected
@@ -135,7 +160,13 @@ export const useCart = () => {
   const updateCartItemNote = useCallback((productId: string, note: string) => {
     setCart(prevCart => {
       const newCart = prevCart.map(item =>
-        item.id === productId ? { ...item, note } : item
+        item.id === productId
+          ? {
+              ...item,
+              note,
+              printStatus: item.printStatus === 'printed' ? 'modified' : (item.printStatus || 'new'),
+            }
+          : item
       );
 
       // Update active orders if table is selected

@@ -114,7 +114,7 @@ export function ProductDetail({ product, isOpen, onClose }: ProductDetailProps) 
                 {/* Size Selection */}
                 <div>
                   <label className="text-sm font-semibold text-gray-800 mb-2 block">Kích cỡ</label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 gap-2.5">
                     {SIZE_OPTIONS.map((opt) => (
                       <button
                         key={opt.value}
@@ -125,12 +125,10 @@ export function ProductDetail({ product, isOpen, onClose }: ProductDetailProps) 
                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:scale-95'
                           }`}
                       >
-                        <span className="text-base font-bold">{opt.label}</span>
-                        {opt.priceAdjust > 0 && (
-                          <span className="block text-[10px] mt-0.5 opacity-80">
-                            +{opt.priceAdjust.toLocaleString('vi-VN')}đ
-                          </span>
-                        )}
+                        <span className="text-base font-bold">Size {opt.label}</span>
+                        <span className="block text-[10px] mt-0.5 opacity-85">
+                          {opt.priceAdjust > 0 ? `+${opt.priceAdjust.toLocaleString('vi-VN')}đ` : 'Giá gốc'}
+                        </span>
                       </button>
                     ))}
                   </div>

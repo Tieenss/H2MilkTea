@@ -381,7 +381,8 @@ export function POSAssistant({
                   const cartItem = cart.find((c) => c.id === item.productId);
                   unitPrice = cartItem?.price || getProductPrice(item.productId, 0);
                 } else {
-                  unitPrice = getProductPrice(item.productId, 0);
+                  const sizeUpcharge = item.size?.trim().toUpperCase() === 'L' ? 5000 : 0;
+                  unitPrice = getProductPrice(item.productId, 0) + sizeUpcharge;
                 }
               }
               return sum + (unitPrice * (item.quantity || 0));

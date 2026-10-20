@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Trash, User, Gift, Plus, Minus, ChefHat, Tag } from 'lucide-react';
+import { Trash, User, Gift, Plus, Minus, ChefHat, Tag, QrCode } from 'lucide-react';
 import { formatCurrency, formatPoints } from '../utils/formatters';
 import type { CartItem } from '../types/pos';
 import { Customer } from '@/app/(dashboard)/khachhang/types/customer';
@@ -42,6 +42,7 @@ interface CartSidebarProps {
   onCheckout: () => void;
   onShowTableModal: () => void;
   onShowCustomerModal: () => void;
+  onShowQRModal?: () => void;
   onShowNoteModal: (item: CartItem) => void;
   onSendToKitchen?: () => Promise<void> | void;
 }
@@ -66,6 +67,7 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
   onCheckout,
   onShowTableModal,
   onShowCustomerModal,
+  onShowQRModal,
   onShowNoteModal,
   onSendToKitchen
 }) => {
@@ -175,34 +177,56 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
               )}
             </h3>
 
-            {/* Chỉ báo trạng thái kết nối realtime */}
-            {sharedCartStatus === 'connected' && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                Trực tuyến
+            {/* Chỉ báo trạng thái kết nối realtime cố định kích thước chống nhảy layout */}
+            <span
+              className={`inline-flex items-center justify-center gap-1 min-w-[88px] text-[11px] font-medium px-2 py-0.5 rounded-full border transition-colors duration-200 ${
+                sharedCartStatus === 'conflict'
+                  ? 'text-rose-700 bg-rose-50 border-rose-300'
+                  : sharedCartStatus === 'offline'
+                    ? 'text-gray-600 bg-gray-100 border-gray-300'
+                    : sharedCartStatus === 'syncing' || sharedCartStatus === 'loading'
+                      ? 'text-blue-700 bg-blue-50 border-blue-200'
+                      : 'text-emerald-700 bg-emerald-50 border-emerald-200'
+              }`}
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                  sharedCartStatus === 'conflict'
+                    ? 'bg-rose-600 animate-ping'
+                    : sharedCartStatus === 'offline'
+                      ? 'bg-gray-400'
+                      : sharedCartStatus === 'syncing' || sharedCartStatus === 'loading'
+                        ? 'bg-blue-500 animate-pulse'
+                        : 'bg-emerald-500'
+                }`}
+              />
+              <span>
+                {sharedCartStatus === 'conflict'
+                  ? 'Xung đột'
+                  : sharedCartStatus === 'offline'
+                    ? 'Ngoại tuyến'
+                    : sharedCartStatus === 'syncing'
+                      ? 'Đang lưu...'
+                      : sharedCartStatus === 'loading'
+                        ? 'Đang tải...'
+                        : 'Trực tuyến'}
               </span>
-            )}
-            {sharedCartStatus === 'syncing' && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-spin"></span>
-                Đang lưu...
-              </span>
-            )}
-            {sharedCartStatus === 'conflict' && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-300 animate-bounce">
-                <span className="w-1.5 h-1.5 rounded-full bg-rose-600"></span>
-                Xung đột
-              </span>
-            )}
-            {sharedCartStatus === 'offline' && (
-              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full border border-gray-300">
-                <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
-                Mất kết nối
-              </span>
-            )}
+            </span>
           </div>
 
           <div className="flex items-center gap-1.5">
+            {/* Nút xem mã QR của bàn (Mục #11) */}
+            {selectedTableId && selectedTableName !== 'Khách mua về' && onShowQRModal && (
+              <button
+                onClick={onShowQRModal}
+                className="px-2 lg:px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center transition-colors touch-target bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 shadow-sm"
+                title="Xem và in mã QR bàn này"
+              >
+                <QrCode className="w-3.5 h-3.5 mr-1" />
+                <span>QR</span>
+              </button>
+            )}
+
             <button
               onClick={handlePrintAllLabels}
               disabled={cart.length === 0}

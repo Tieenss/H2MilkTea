@@ -30,13 +30,25 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [tableName, setTableName] = useState('');
   const [orderNote, setOrderNote] = useState('');
 
-  // Load cart from localStorage on mount
+  // Load cart from localStorage on mount & normalize size pricing (M = +0, L = +5000)
   useEffect(() => {
     try {
       const savedCart = localStorage.getItem(CART_STORAGE_KEY);
       const savedTable = localStorage.getItem(TABLE_STORAGE_KEY);
       if (savedCart) {
-        setItems(JSON.parse(savedCart));
+        const parsed: CartItem[] = JSON.parse(savedCart);
+        const normalized = parsed.map((item) => {
+          const isFood = ['Ăn vặt', 'Bánh ngọt'].includes(item.product?.['Loại sản phẩm'] || '');
+          const normalizedSize: 'M' | 'L' = item.size === 'L' ? 'L' : 'M';
+          const sizeAdjust = isFood ? 0 : (normalizedSize === 'L' ? 5000 : 0);
+          const basePrice = parseInt(item.product?.['Đơn giá'] || '0', 10) || 0;
+          return {
+            ...item,
+            size: normalizedSize,
+            unitPrice: basePrice + sizeAdjust,
+          };
+        });
+        setItems(normalized);
       }
       if (savedTable) {
         const table = JSON.parse(savedTable);
@@ -72,11 +84,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     options: { size: 'S' | 'M' | 'L'; sugar: string; ice: string; note: string; quantity: number }
   ) => {
     const isFood = ['Ăn vặt', 'Bánh ngọt'].includes(product['Loại sản phẩm']);
-    const sizeAdjust = isFood ? 0 : SIZE_OPTIONS.find(s => s.value === options.size)?.priceAdjust || 0;
-    const unitPrice = parseInt(product['Đơn giá']) + sizeAdjust;
+    const normalizedSize: 'M' | 'L' = options.size === 'L' ? 'L' : 'M';
+    const sizeAdjust = isFood ? 0 : SIZE_OPTIONS.find(s => s.value === normalizedSize)?.priceAdjust || 0;
+    const unitPrice = parseInt(product['Đơn giá'], 10) + sizeAdjust;
 
     // Generate unique id based on product + options
-    const optionKey = `${product.IDSP}_${options.size}_${options.sugar}_${options.ice}`;
+    const optionKey = `${product.IDSP}_${normalizedSize}_${options.sugar}_${options.ice}`;
 
     setItems(prev => {
       const existingIndex = prev.findIndex(item => item.id === optionKey);
@@ -87,6 +100,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           ...updated[existingIndex],
           quantity: updated[existingIndex].quantity + options.quantity,
           note: options.note || updated[existingIndex].note,
+          unitPrice,
         };
         return updated;
       }
@@ -95,7 +109,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         id: optionKey,
         product,
         quantity: options.quantity,
-        size: options.size,
+        size: normalizedSize,
         sugar: options.sugar,
         ice: options.ice,
         note: options.note,

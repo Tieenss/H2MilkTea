@@ -58,10 +58,10 @@ export const ORDER_STATUS_MAP: Record<OrderStatus, { label: string; color: strin
   rejected: { label: 'Đã từ chối', color: 'text-red-600', icon: '❌' },
 };
 
+// Quy định chuẩn của quán: Size gốc là M (+0đ), tăng lên Size L (+5.000đ)
 export const SIZE_OPTIONS = [
-  { value: 'S' as const, label: 'S', priceAdjust: 0 },
-  { value: 'M' as const, label: 'M', priceAdjust: 5000 },
-  { value: 'L' as const, label: 'L', priceAdjust: 10000 },
+  { value: 'M' as const, label: 'M', priceAdjust: 0 },
+  { value: 'L' as const, label: 'L', priceAdjust: 5000 },
 ];
 
 export const SUGAR_OPTIONS = [

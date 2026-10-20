@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import toast from 'react-hot-toast'
+import toast from 'react-hot-toast';
 
 import type { Product, Table, CartItem, Category, POSState, ModalState } from '../types/pos';
 import { useProducts } from './useProducts';
@@ -12,7 +12,9 @@ import { printReceipt } from '../utils/receipt';
 import authUtils from '@/utils/authUtils';
 import { Customer } from '@/app/(dashboard)/khachhang/types/customer';
 import { calculatePointsFromSpending } from '@/app/(dashboard)/khachhang/utils/customerFormatters';
-import { useSharedCartDraft } from './useSharedCartDraft';
+import { useSharedCartDraft, type CartDraft } from './useSharedCartDraft';
+import { useTablePresence } from '@/hooks/useTablePresence';
+import { createClient } from '@/lib/supabase/client';
 
 // Helper function to format date to Vietnamese format (DD/MM/YYYY HH:mm:ss)
 const formatToVietnameseDateTime = (date: Date): string => {
@@ -22,7 +24,7 @@ const formatToVietnameseDateTime = (date: Date): string => {
   const hour = date.getHours().toString().padStart(2, '0');
   const minute = date.getMinutes().toString().padStart(2, '0');
   const second = date.getSeconds().toString().padStart(2, '0');
-  
+
   return `${day}/${month}/${year} ${hour}:${minute}:${second}`;
 };
 
@@ -30,12 +32,14 @@ const formatToVietnameseDateTime = (date: Date): string => {
 export const usePOS = () => {
   // Get user data
   const userData = authUtils.getUserData();
-  const nhanvien = userData?.['Họ và Tên'] || userData?.username;
+  const nhanvien = userData?.['Họ và Tên'] || userData?.username || 'Thu ngân';
 
-  // Customer state
+  // Customer state & per-table customer map
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showCustomerModal, setShowCustomerModal] = useState(false);
+  const [showTableQRModal, setShowTableQRModal] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const tableCustomersRef = useRef<Map<string, Customer | null>>(new Map());
 
   // Custom hooks
   const {
@@ -76,6 +80,10 @@ export const usePOS = () => {
     updateCartItemNote
   } = useCart();
 
+  const selectedTableName = selectedTableId
+    ? tables.find(t => t.IDBAN === selectedTableId)?.['Tên bàn'] || 'Đang chọn bàn...'
+    : 'Chưa chọn';
+
   const applyRemoteCart = useCallback((tableId: string, nextCart: CartItem[]) => {
     setActiveOrders((current) => {
       const next = new Map(current);
@@ -98,15 +106,35 @@ export const usePOS = () => {
     tableId: selectedTableId,
     cart,
     setCart,
+    selectedCustomer,
     onRemoteCart: applyRemoteCart,
+    onRemoteCustomer: (tblId, cust) => {
+      tableCustomersRef.current.set(tblId, cust);
+      if (tblId === selectedTableId) {
+        setSelectedCustomer(cust);
+      }
+    },
+  });
+
+  // Realtime Presence: Theo dõi ai đang xem/chọn món ở từng bàn
+  const { presenceByTable } = useTablePresence({
+    role: 'pos',
+    tableId: selectedTableId,
+    actorName: nhanvien,
+    itemCount: cart.length,
   });
 
   const clearCart = useCallback(() => {
     clearLocalCart();
+    if (selectedTableId) {
+      tableCustomersRef.current.delete(selectedTableId);
+      updateTableStatus(selectedTableId, 'Trống');
+    }
+    setSelectedCustomer(null);
     void clearSharedCartDraft().catch((error) => {
       console.error('Không thể xóa giỏ hàng dùng chung:', error);
     });
-  }, [clearLocalCart, clearSharedCartDraft]);
+  }, [clearLocalCart, clearSharedCartDraft, selectedTableId, updateTableStatus]);
 
   // Modal state
   const [modalState, setModalState] = useState<ModalState>({
@@ -138,8 +166,116 @@ export const usePOS = () => {
 
   // Loading states
   const isLoading = productsLoading || tablesLoading;
-  // UI Helpers
-  // (showNotification already declared above, duplicate removed)
+
+  const showNotification = useCallback((message: string, type: 'success' | 'error' | 'warning' = 'success') => {
+    if (type === 'success') {
+      toast.success(message, {
+        position: "bottom-left",
+        duration: CONFIG.timeouts.notification,
+      });
+    } else if (type === 'error') {
+      toast.error(message, {
+        position: "bottom-left",
+        duration: CONFIG.timeouts.notification,
+      });
+    } else if (type === 'warning') {
+      toast(message, {
+        icon: '⚠️',
+        position: "bottom-left",
+        duration: CONFIG.timeouts.notification,
+        style: { background: '#fffbe6', color: '#ad8b00' }
+      });
+    }
+  }, []);
+
+  const showLoading = useCallback((message = 'Đang tải dữ liệu...') => {
+    setLoadingText(message);
+  }, []);
+
+  // Nạp toàn bộ giỏ hàng nháp của tất cả các bàn ngay khi vào POS (Mục #18)
+  const fetchAllCartDrafts = useCallback(async () => {
+    try {
+      const res = await fetch('/api/pos/cart-draft', { cache: 'no-store' });
+      const result = await res.json();
+      if (res.ok && result.success && Array.isArray(result.drafts)) {
+        setActiveOrders((current) => {
+          const next = new Map(current);
+          result.drafts.forEach((draft: CartDraft) => {
+            if (Array.isArray(draft.cart) && draft.cart.length > 0) {
+              next.set(draft.table_id, draft.cart);
+              updateTableStatus(draft.table_id, 'Đang sử dụng');
+            }
+            if (draft.selected_customer) {
+              tableCustomersRef.current.set(draft.table_id, draft.selected_customer);
+            }
+          });
+          return next;
+        });
+      }
+    } catch (err) {
+      console.error('Lỗi tải toàn bộ giỏ hàng nháp các bàn:', err);
+    }
+  }, [setActiveOrders, updateTableStatus]);
+
+  // Lắng nghe Realtime toàn bảng pos_cart_drafts để cập nhật trạng thái mọi bàn tức thời
+  useEffect(() => {
+    let client: ReturnType<typeof createClient>;
+    try {
+      client = createClient();
+    } catch {
+      return;
+    }
+
+    let active = true;
+    const channel = client
+      .channel('pos-all-cart-drafts-global')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'pos_cart_drafts',
+      }, (payload) => {
+        if (!active) return;
+        if (payload.eventType === 'DELETE') {
+          const tblId = (payload.old as { table_id?: string })?.table_id;
+          if (tblId) {
+            setActiveOrders((current) => {
+              const next = new Map(current);
+              next.delete(tblId);
+              return next;
+            });
+            tableCustomersRef.current.delete(tblId);
+            updateTableStatus(tblId, 'Trống');
+          }
+        } else {
+          const draft = payload.new as CartDraft;
+          if (draft && draft.table_id) {
+            setActiveOrders((current) => {
+              const next = new Map(current);
+              if (Array.isArray(draft.cart) && draft.cart.length > 0) {
+                next.set(draft.table_id, draft.cart);
+                updateTableStatus(draft.table_id, 'Đang sử dụng');
+              } else {
+                next.delete(draft.table_id);
+                updateTableStatus(draft.table_id, 'Trống');
+              }
+              return next;
+            });
+            if (draft.selected_customer !== undefined) {
+              tableCustomersRef.current.set(draft.table_id, draft.selected_customer);
+              if (draft.table_id === selectedTableId) {
+                setSelectedCustomer(draft.selected_customer);
+              }
+            }
+          }
+        }
+      })
+      .subscribe();
+
+    return () => {
+      active = false;
+      void client.removeChannel(channel);
+    };
+  }, [selectedTableId, setActiveOrders, updateTableStatus]);
 
   const sendToKitchen = useCallback(async (orderData: {
     tableId: string;
@@ -176,46 +312,43 @@ export const usePOS = () => {
       if (!response.ok || !result.success) throw new Error(result.error || 'Không lưu được đơn bếp.');
       setActivePOSOrderIds((current) => current.includes(result.orderId) ? current : [...current, result.orderId]);
 
-      {
-        showNotification(`Đã gửi đơn ${String(result.orderId).slice(-6)} đến bếp!`);
-        
-        // Print kitchen receipt
-        try {
-          const { printReceiptWithSettings } = await import('../utils/receiptPrint');
-          
-          const kitchenReceiptData = {
-            receiptNumber: result.orderId,
-            date: new Date(),
-            cashier: orderData.employee,
-            customer: 'Đơn bếp',
-            table: orderData.tableName,
-            items: orderData.items.map(item => ({
-              name: item.name,
-              quantity: item.quantity,
-              price: item.price,
-              total: item.price * item.quantity,
-              notes: item.note
-            })),
-            subtotal: 0,
-            discount: 0,
-            total: 0,
-            paid: 0,
-            change: 0,
-            notes: orderData.notes
-          };
+      showNotification(`Đã gửi đơn ${String(result.orderId).slice(-6)} đến bếp!`);
 
-          await printReceiptWithSettings(kitchenReceiptData, 'kitchen');
-        } catch (printError) {
-          console.error('Error printing kitchen receipt:', printError);
-          // Don't show error to user as kitchen order was sent successfully
-        }
+      // Print kitchen receipt
+      try {
+        const { printReceiptWithSettings } = await import('../utils/receiptPrint');
+
+        const kitchenReceiptData = {
+          receiptNumber: result.orderId,
+          date: new Date(),
+          cashier: orderData.employee,
+          customer: 'Đơn bếp',
+          table: orderData.tableName,
+          items: orderData.items.map(item => ({
+            name: item.name,
+            quantity: item.quantity,
+            price: item.price,
+            total: item.price * item.quantity,
+            notes: item.note
+          })),
+          subtotal: 0,
+          discount: 0,
+          total: 0,
+          paid: 0,
+          change: 0,
+          notes: orderData.notes
+        };
+
+        await printReceiptWithSettings(kitchenReceiptData, 'kitchen');
+      } catch (printError) {
+        console.error('Error printing kitchen receipt:', printError);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending to kitchen:', error);
-      showNotification(error instanceof Error ? error.message : 'Lỗi gửi đơn hàng đến bếp!', 'error');
+      showNotification(error?.message || 'Lỗi gửi đơn hàng đến bếp!', 'error');
       throw error;
     }
-  }, []);
+  }, [showNotification]);
 
   const settleQrOrder = useCallback((order: {
     id: string;
@@ -235,7 +368,8 @@ export const usePOS = () => {
     setActivePOSOrderIds([order.id]);
     setSelectedCustomer(null);
     setShowCheckoutModal(true);
-  }, []);
+  }, [setSelectedTableId, setCart]);
+
   // Fetch customers
   const fetchCustomers = useCallback(async () => {
     try {
@@ -248,32 +382,6 @@ export const usePOS = () => {
     } catch (error) {
       console.error('Error fetching customers:', error);
     }
-  }, []);
-
-  // UI Helpers
-  const showNotification = useCallback((message: string, type: 'success' | 'error' | 'warning' = 'success') => {
-    if (type === 'success') {
-      toast.success(message, {
-        position: "bottom-left",
-        duration: CONFIG.timeouts.notification,
-      });
-    } else if (type === 'error') {
-      toast.error(message, {
-        position: "bottom-left",
-        duration: CONFIG.timeouts.notification,
-      });
-    } else if (type === 'warning') {
-      toast(message, {
-        icon: '⚠️',
-        position: "bottom-left",
-        duration: CONFIG.timeouts.notification,
-        style: { background: '#fffbe6', color: '#ad8b00' }
-      });
-    }
-  }, []);
-
-  const showLoading = useCallback((message = 'Đang tải dữ liệu...') => {
-    setLoadingText(message);
   }, []);
 
   // Modal handlers
@@ -309,25 +417,25 @@ export const usePOS = () => {
     updateModalState({ noteInput: note });
   }, [updateModalState]);
 
-  // Customer handlers
+  // Customer handlers (Mục #10: Đồng bộ khách hàng theo bàn)
   const handleSelectCustomer = useCallback((customer: Customer | null) => {
     setSelectedCustomer(customer);
     setShowCustomerModal(false);
-
+    if (selectedTableId) {
+      tableCustomersRef.current.set(selectedTableId, customer);
+    }
     if (customer) {
       showNotification(`Đã chọn khách hàng: ${customer['Tên khách hàng']}`);
     } else {
       showNotification('Đã chọn khách lẻ');
     }
-  }, [showNotification]);
+  }, [selectedTableId, showNotification]);
 
   const updateCustomerDisplay = useCallback((cartData = cart, tableInfo: Table | null = null) => {
     if (!customerDisplayWindow.current || customerDisplayWindow.current.closed) return;
 
     try {
       const total = cartData.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-
-      // Get current table info if not provided
       const currentTable = tableInfo || tables.find(t => t.IDBAN === selectedTableId);
       const tableData = currentTable ? {
         id: currentTable.IDBAN,
@@ -372,18 +480,21 @@ export const usePOS = () => {
 
     addItemToCart(product, options);
     updateCustomerDisplay();
-  }, [selectedTableId, products, addItemToCart, showNotification, setShowTableModal]);
+  }, [selectedTableId, products, addItemToCart, showNotification, setShowTableModal, updateCustomerDisplay]);
 
   // Table operations
   const selectTable = useCallback((tableId: string) => {
     const table = tables.find(t => t.IDBAN === tableId);
     if (!table) return;
 
-    // Save current cart if exists
-    if (selectedTableId && cart.length > 0) {
-      const newActiveOrders = new Map(activeOrders);
-      newActiveOrders.set(selectedTableId, [...cart]);
-      setActiveOrders(newActiveOrders);
+    // Save current cart & customer if exists
+    if (selectedTableId) {
+      if (cart.length > 0) {
+        const newActiveOrders = new Map(activeOrders);
+        newActiveOrders.set(selectedTableId, [...cart]);
+        setActiveOrders(newActiveOrders);
+      }
+      tableCustomersRef.current.set(selectedTableId, selectedCustomer);
     }
 
     // Update selected table
@@ -393,8 +504,12 @@ export const usePOS = () => {
     const tableCart = activeOrders.get(tableId) || [];
     setCart(tableCart);
 
+    // Khôi phục khách hàng đã chọn của bàn này (Mục #10)
+    const existingCustomer = tableCustomersRef.current.get(tableId) || null;
+    setSelectedCustomer(existingCustomer);
+
     // Update table status if needed
-    if (table['Tên bàn'] !== 'Khách mua về' && table['Trạng thái'] === 'Trống') {
+    if (table['Tên bàn'] !== 'Khách mua về' && table['Trạng thái sử dụng'] !== 'Đang sử dụng') {
       updateTableStatus(tableId, 'Đang sử dụng');
     }
 
@@ -403,7 +518,7 @@ export const usePOS = () => {
 
     showNotification(`Đã chuyển sang ${table['Tên bàn']}`);
     setShowTableModal(false);
-  }, [tables, selectedTableId, cart, activeOrders, setActiveOrders, setSelectedTableId, setCart, updateTableStatus, showNotification, setShowTableModal]);
+  }, [tables, selectedTableId, cart, activeOrders, selectedCustomer, setActiveOrders, setSelectedTableId, setCart, updateTableStatus, updateCustomerDisplay, showNotification, setShowTableModal]);
 
   // Transfer table
   const transferTable = useCallback(async (targetTableId: string) => {
@@ -433,11 +548,15 @@ export const usePOS = () => {
         throw new Error(result.error || 'Có lỗi xảy ra khi chuyển bàn trên máy chủ!');
       }
 
-      // Update in-memory orders
+      // Update in-memory orders & customer
       const newActiveOrders = new Map(activeOrders);
       newActiveOrders.set(targetTableId, [...cart]);
       newActiveOrders.delete(sourceTableId);
       setActiveOrders(newActiveOrders);
+
+      const currentCust = tableCustomersRef.current.get(sourceTableId) || selectedCustomer;
+      tableCustomersRef.current.set(targetTableId, currentCust);
+      tableCustomersRef.current.delete(sourceTableId);
 
       // Cập nhật trạng thái hiển thị bàn
       if (sourceTable && sourceTable['Tên bàn'] !== 'Khách mua về') {
@@ -460,29 +579,20 @@ export const usePOS = () => {
       console.error('Lỗi chuyển bàn:', error);
       showNotification(error.message || 'Có lỗi xảy ra khi chuyển bàn!', 'error');
     }
-  }, [selectedTableId, tables, cart, activeOrders, setActiveOrders, setSelectedTableId, updateTableStatus, cancelPendingAutosave, updateCustomerDisplay, showNotification, setShowTransferModal, showLoading]);
+  }, [selectedTableId, tables, cart, activeOrders, selectedCustomer, setActiveOrders, setSelectedTableId, updateTableStatus, cancelPendingAutosave, updateCustomerDisplay, showNotification, setShowTransferModal, showLoading]);
 
   // Payment operations with customer integration
   const saveInvoice = useCallback(async (invoice: any, details: any[]) => {
     try {
-      console.log('Saving invoice:', invoice);
-      console.log('Saving details:', details);
-
-      // Thêm hóa đơn
       const invoiceResult = await authUtils.addHoaDon(invoice);
-      console.log('Invoice result:', invoiceResult);
-
       if (Array.isArray(invoiceResult) || !invoiceResult.success) {
         const msg = !Array.isArray(invoiceResult) ? invoiceResult.message : 'Unknown error';
         throw new Error('Không thể lưu hóa đơn: ' + (msg || 'Unknown error'));
       }
 
-      // Thêm chi tiết hóa đơn từng item
       const detailPromises = details.map(async (detail, index) => {
         try {
           const detailResult = await authUtils.addHoaDonDetail(detail);
-          console.log(`Detail ${index} result:`, detailResult);
-
           if (Array.isArray(detailResult) || !detailResult.success) {
             const msg = !Array.isArray(detailResult) ? detailResult.message : 'Unknown error';
             throw new Error(`Lỗi lưu chi tiết ${index + 1}: ${msg || 'Unknown error'}`);
@@ -494,9 +604,7 @@ export const usePOS = () => {
         }
       });
 
-      // Đợi tất cả chi tiết được lưu
       await Promise.all(detailPromises);
-
       return { success: true };
     } catch (error) {
       console.error('Lỗi lưu hóa đơn:', error);
@@ -508,214 +616,112 @@ export const usePOS = () => {
   // Update customer after purchase
   const updateCustomerAfterPurchase = useCallback(async (customer: Customer, invoiceTotal: number, invoiceId: string) => {
     try {
-      // Calculate points based on customer type
       const newPoints = calculatePointsFromSpending(invoiceTotal, customer['Loại khách hàng']);
       const currentPoints = Number(customer['Điểm tích lũy']) || 0;
       const currentSpending = Number(customer['Tổng chi tiêu']) || 0;
-
-      // Determine new customer tier based on total spending
       const newTotalSpending = currentSpending + invoiceTotal;
       let newCustomerType = customer['Loại khách hàng'];
 
       if (newTotalSpending >= 50000000 && newCustomerType !== 'Khách kim cương') {
         newCustomerType = 'Khách kim cương';
-        showNotification('🎉 Khách hàng đã được nâng cấp lên Kim Cương!', 'success');
+        showNotification(`Khách hàng ${customer['Tên khách hàng']} đã được nâng cấp lên Khách kim cương!`, 'success');
       } else if (newTotalSpending >= 20000000 && newCustomerType === 'Khách thường') {
         newCustomerType = 'Khách VIP';
-        showNotification('🎉 Khách hàng đã được nâng cấp lên VIP!', 'success');
+        showNotification(`Khách hàng ${customer['Tên khách hàng']} đã được nâng cấp lên Khách VIP!`, 'success');
       }
 
-      const updatedCustomer = {
-        ...customer,
-        'Loại khách hàng': newCustomerType,
+      const updatedHistory = customer['Lịch sử mua hàng']
+        ? `${customer['Lịch sử mua hàng']}, ${invoiceId}`
+        : invoiceId;
+
+      await authUtils.apiRequest('KHACHHANG', 'update', {
+        IDKH: customer.IDKH,
         'Điểm tích lũy': currentPoints + newPoints,
         'Tổng chi tiêu': newTotalSpending,
-        'Lần mua cuối': formatToVietnameseDateTime(new Date()),
-        'Ngày cập nhật': formatToVietnameseDateTime(new Date()),
-        'Hóa đơn liên quan': customer['Hóa đơn liên quan'] ?
-          `${customer['Hóa đơn liên quan']}, ${invoiceId}` : invoiceId
-      };
+        'Loại khách hàng': newCustomerType,
+        'Lịch sử mua hàng': updatedHistory
+      });
 
-      await authUtils.updateKhachHang(customer.IDKHACHHANG, updatedCustomer);
-
-      // Update local customer list
-      setCustomers(prev => prev.map(c =>
-        c.IDKHACHHANG === customer.IDKHACHHANG ? updatedCustomer : c
-      ));
-
-      // Update selected customer if it's the same
-      if (selectedCustomer?.IDKHACHHANG === customer.IDKHACHHANG) {
-        setSelectedCustomer(updatedCustomer);
+      if (newPoints > 0) {
+        showNotification(`Khách hàng được tích lũy thêm ${newPoints} điểm!`);
       }
-
-      showNotification(`+${newPoints} điểm tích lũy cho ${customer['Tên khách hàng']}!`);
-
     } catch (error) {
-      console.error('Error updating customer after purchase:', error);
-      showNotification('Không thể cập nhật điểm khách hàng', 'warning');
+      console.error('Lỗi cập nhật thông tin khách hàng:', error);
     }
-  }, [selectedCustomer, showNotification]);
+  }, [showNotification]);
 
-  const processPayment = useCallback(async (paymentForm: any) => {
+  // Process payment
+  const processPayment = useCallback(async (paymentData: any) => {
     try {
       setIsProcessingPayment(true);
       showLoading('Đang xử lý thanh toán...');
-      
-      // Chặn thanh toán khi trạng thái chưa chắc chắn (xung đột hoặc offline)
-      if (!canCheckout) {
-        if (sharedCartStatus === 'conflict') {
-          throw new Error('CART_CONFLICT');
-        }
-        if (sharedCartStatus === 'offline') {
-          throw new Error('NETWORK_OFFLINE');
-        }
-      }
+      cancelPendingAutosave();
 
-      // Validate payment data
-      if (!cart || cart.length === 0) {
-        throw new Error('EMPTY_CART');
-      }
-
-      if (!nhanvien?.trim()) {
-        throw new Error('INVALID_EMPLOYEE');
-      }
-
-      const {
-        customer = selectedCustomer ? selectedCustomer['Tên khách hàng'] : 'Khách lẻ',
-        discount = 0,
-        paidAmount = 0,
-        note = '',
-        paymentType = 'Tiền mặt'
-      } = paymentForm;
-
-      // Calculate totals - Tính toán tổng tiền
-      const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-      const vat = total * 0.1; // VAT 10%
-
-      // Apply customer discounts - Áp dụng ưu đãi khách hàng
-      // discount từ form + ưu đãi tự động theo loại khách hàng
-      let customerDiscount = discount; // Giảm giá thủ công từ form thanh toán
-      if (selectedCustomer) {
-        const customerType = selectedCustomer['Loại khách hàng'];
-        if (customerType === 'Khách kim cương') {
-          customerDiscount += total * 0.2; // Thêm 20% ưu đãi tự động
-        } else if (customerType === 'Khách VIP') {
-          customerDiscount += total * 0.1; // Thêm 10% ưu đãi tự động
-        }
-        // Khách thường: chỉ có giảm giá thủ công (nếu có)
-      }
-
-      // Tổng tiền thanh toán = Tạm tính + VAT - Tổng ưu đãi
-      const finalAmount = total + vat - customerDiscount;
-
-      if (paidAmount < finalAmount) {
-        throw new Error('INSUFFICIENT_PAYMENT');
-      }
-
-      const change = paidAmount - finalAmount;
-
-      // Lấy thông tin bàn
-      const selectedTable = tables.find(t => t.IDBAN === selectedTableId);
-      const tableName = selectedTable?.['Tên bàn'] || 'Không xác định';
-
-      // Create invoice với đầy đủ thông tin
-      const invoiceId = generateId('INV');
+      const invoiceId = paymentData.id || generateId('INV');
       const invoice = {
-        IDHOADON: invoiceId,
-        IDBAN: selectedTableId || '',
-        "Ngày": formatDate(new Date()),
-        "Nhân viên": nhanvien,
-        "Khách hàng": customer,
-        "Tổng tiền": total,
-        "VAT": vat,
-        "Giảm giá": customerDiscount,
-        "Khách trả": paidAmount,
-        "Tiền thừa": change,
-        "Ghi chú": note,
-        "Trạng thái": "Đã thanh toán",
-        "Trạng thái sử dụng bàn": tableName === 'Khách mua về' ? 'Mang về' : 'Tại bàn',
-        "Loại thanh toán": paymentType
+        IDHD: invoiceId,
+        'Thời gian': formatToVietnameseDateTime(new Date()),
+        'Tổng số lượng': cart.reduce((sum, item) => sum + item.quantity, 0),
+        'Tổng tiền': paymentData.total,
+        'Ghi chú': paymentData.note || '',
+        'Mã bàn': selectedTableId || 'Khách mua về',
+        'Thu ngân': nhanvien,
+        'Trạng thái': 'Đã hoàn thành',
+        'Hình thức thanh toán': paymentData.paymentMethod || 'Tiền mặt',
+        'Mã khách hàng': selectedCustomer ? selectedCustomer.IDKH : '',
+        'Tên khách hàng': selectedCustomer ? selectedCustomer['Tên khách hàng'] : 'Khách lẻ',
+        'Số điện thoại': selectedCustomer ? selectedCustomer['Số điện thoại'] : '',
+        'Ưu đãi': paymentData.customerDiscount || 0,
+        'Tiền khách đưa': paymentData.paidAmount || paymentData.total,
+        'Tiền thối': paymentData.change || 0
       };
 
-      // Create invoice details với validation
-      const invoiceDetails = cart.map((item) => ({
-        IDHOADONDETAIL: generateId(`DTL`),
-        IDHOADON: invoiceId,
+      const details = cart.map(item => ({
+        IDHD: invoiceId,
         IDSP: item.id,
-        "Tên sản phẩm": item.name || '',
-        "Đơn vị tính": item.unit || 'Cái',
-        "Đơn giá": Number(item.price) || 0,
-        "Số lượng": Number(item.quantity) || 0,
-        "Thành tiền": Number(item.price) * Number(item.quantity),
-        "Ghi chú": item.note || ''
+        'Số lượng': item.quantity,
+        'Đơn giá': item.price,
+        'Thành tiền': item.price * item.quantity,
+        'Ghi chú': item.note || ''
       }));
 
-      // Validate invoice details
-      if (invoiceDetails.some(detail => !detail["Tên sản phẩm"] || detail["Đơn giá"] <= 0 || detail["Số lượng"] <= 0)) {
-        throw new Error('Dữ liệu sản phẩm không hợp lệ');
-      }
-
-      // Save to database using AuthUtils
-      let linkedOrderIds = [...activePOSOrderIds];
-      if (linkedOrderIds.length === 0) {
-        const createOrderResponse = await fetch('/api/orders', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            source: 'POS_COUNTER',
-            tableId: selectedTableId,
-            tableName,
-            employee: nhanvien,
-            items: cart.map((item) => ({ productId: item.id, productName: item.name, unitPrice: item.price, quantity: item.quantity, unit: item.unit, note: item.note || '' })),
-            note,
-            idempotencyKey: `pos-payment-${invoiceId}`,
-          }),
-        });
-        const createdOrder = await createOrderResponse.json();
-        if (!createOrderResponse.ok || !createdOrder.success) throw new Error(createdOrder.error || 'Không thể gửi đơn sang bếp.');
-        linkedOrderIds = [createdOrder.orderId];
-      }
-      // Gửi thanh toán lên server qua /api/pos/checkout (Single-transaction an toàn, chống ghi direct client)
-      const checkoutResponse = await fetch('/api/pos/checkout', {
+      // Chuyển toàn bộ đơn POS/QR liên quan sang đã thanh toán
+      const checkoutRes = await fetch('/api/pos/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          orderIds: activePOSOrderIds,
           tableId: selectedTableId,
-          tableName,
-          invoiceId,
-          paymentForm: {
-            customer,
-            discount: customerDiscount,
-            paidAmount,
-            note,
-            paymentType,
-          },
-          cart,
-          linkedOrderIds,
-          idempotencyKey: `pos-payment-${invoiceId}`,
+          tableName: selectedTableName,
+          items: cart,
+          totalAmount: paymentData.total,
+          employee: nhanvien,
         }),
       });
 
-      const checkoutResult = await checkoutResponse.json();
-      if (!checkoutResponse.ok || !checkoutResult.success) {
-        throw new Error(checkoutResult.error || 'Có lỗi xảy ra khi lưu hóa đơn trên hệ thống.');
+      if (!checkoutRes.ok) {
+        console.warn('Lỗi ghi nhận checkout trạng thái pos_orders');
       }
 
-      // Update customer if selected
+      await saveInvoice(invoice, details);
+
       if (selectedCustomer) {
-        await updateCustomerAfterPurchase(selectedCustomer, finalAmount, invoiceId);
+        await updateCustomerAfterPurchase(selectedCustomer, paymentData.total, invoiceId);
       }
 
-      // Print receipt using new settings-based system
       try {
-        const { printReceiptWithSettings } = await import('../utils/receiptPrint');
-        
         const receiptData = {
           receiptNumber: invoiceId,
           date: new Date(),
           cashier: nhanvien,
-          customer: customer,
-          table: tableName,
+          customer: selectedCustomer ? selectedCustomer['Tên khách hàng'] : 'Khách lẻ',
+          customerInfo: selectedCustomer ? {
+            name: selectedCustomer['Tên khách hàng'],
+            phone: selectedCustomer['Số điện thoại'],
+            type: selectedCustomer['Loại khách hàng'],
+            points: Number(selectedCustomer['Điểm tích lũy']) || 0
+          } : null,
+          table: selectedTableName,
           items: cart.map(item => ({
             name: item.name,
             quantity: item.quantity,
@@ -723,113 +729,68 @@ export const usePOS = () => {
             total: item.price * item.quantity,
             notes: item.note
           })),
-          subtotal: total,
-          discount: customerDiscount,
-          total: finalAmount,
-          paid: paidAmount,
-          change: change,
-          notes: note,
-          paymentType: paymentType
+          subtotal: paymentData.subtotal,
+          vat: paymentData.vat,
+          discount: paymentData.customerDiscount || 0,
+          total: paymentData.total,
+          paid: paymentData.paidAmount,
+          change: paymentData.change,
+          paymentMethod: paymentData.paymentMethod || 'Tiền mặt',
+          notes: paymentData.note
         };
 
+        const { printReceiptWithSettings } = await import('../utils/receiptPrint');
         await printReceiptWithSettings(receiptData, 'pos');
       } catch (printError) {
-        console.warn('Không thể in hóa đơn:', printError);
-        showNotification('Thanh toán thành công nhưng không thể in hóa đơn', 'warning');
+        console.error('Error printing receipt:', printError);
       }
 
-      // Tự động in tem nhãn dán ly nếu cấu hình bật
-      try {
-        const { getLabelSettings } = await import('@/utils/labelSettings');
-        const labelSettings = getLabelSettings();
-        if (labelSettings.autoPrintOnCheckout) {
-          const { printOrderLabels } = await import('@/utils/labelPrint');
-          await printOrderLabels(
-            cart,
-            {
-              orderId: invoiceId,
-              tableName: tableName || 'Mang về',
-              cashier: nhanvien,
-              customerName: customer !== 'Khách lẻ' ? customer : undefined,
-              createdAt: new Date(),
-            },
-            labelSettings
-          );
-        }
-      } catch (labelPrintError) {
-        console.warn('Lỗi tự động in tem dán ly:', labelPrintError);
+      // Xóa draft sau khi thanh toán thành công
+      await clearSharedCartDraft();
+
+      if (selectedTableId && selectedTableName !== 'Khách mua về') {
+        const newActiveOrders = new Map(activeOrders);
+        newActiveOrders.delete(selectedTableId);
+        setActiveOrders(newActiveOrders);
+        tableCustomersRef.current.delete(selectedTableId);
+        updateTableStatus(selectedTableId, 'Trống');
       }
 
-      // Reset state
-      resetAfterPayment();
+      clearLocalCart();
+      setActivePOSOrderIds([]);
+      setSelectedCustomer(null);
       setShowCheckoutModal(false);
 
-      showNotification('Thanh toán thành công!', 'success');
+      showNotification('Thanh toán thành công!');
     } catch (error: any) {
       console.error('Lỗi thanh toán:', error);
-
-      const errorMessages: Record<string, string> = {
-        'EMPTY_CART': 'Giỏ hàng trống!',
-        'INVALID_EMPLOYEE': 'Vui lòng chọn nhân viên thanh toán!',
-        'INSUFFICIENT_PAYMENT': 'Số tiền khách trả không đủ!',
-        'CART_CONFLICT': 'Giỏ hàng đang có xung đột với thiết bị khác. Vui lòng giải quyết xung đột trước khi thanh toán!',
-        'NETWORK_OFFLINE': 'Mất kết nối dữ liệu. Vui lòng kiểm tra mạng trước khi thanh toán!',
-      };
-
-      const message = errorMessages[error.message] || `Có lỗi xảy ra khi thanh toán: ${error.message}`;
-      showNotification(message, 'error');
+      showNotification(error.message || 'Lỗi khi xử lý thanh toán!', 'error');
     } finally {
       setIsProcessingPayment(false);
     }
-  }, [cart, selectedTableId, nhanvien, tables, selectedCustomer, activePOSOrderIds, saveInvoice, updateCustomerAfterPurchase, showLoading, showNotification, setShowCheckoutModal]);
+  }, [cart, selectedTableId, selectedTableName, nhanvien, selectedCustomer, activePOSOrderIds, saveInvoice, updateCustomerAfterPurchase, clearSharedCartDraft, activeOrders, setActiveOrders, updateTableStatus, clearLocalCart, showNotification, showLoading, cancelPendingAutosave]);
 
-  const resetAfterPayment = useCallback(() => {
-    // Clear active order
-    if (selectedTableId) {
-      void clearSharedCartDraft().catch((error) => {
-        console.error('Không thể xóa giỏ hàng dùng chung sau thanh toán:', error);
-      });
-      const newActiveOrders = new Map(activeOrders);
-      newActiveOrders.delete(selectedTableId);
-      setActiveOrders(newActiveOrders);
-
-      // Reset table status
-      updateTableStatus(selectedTableId, 'Trống');
-
-      // Reset selected table
-      setSelectedTableId(null);
-    }
-
-    // Clear cart
-    clearCart();
-    setActivePOSOrderIds([]);
-
-    // Clear selected customer
-    setSelectedCustomer(null);
-  }, [selectedTableId, activeOrders, setActiveOrders, updateTableStatus, setSelectedTableId, clearCart, clearSharedCartDraft]);
-
-  // Data synchronization
+  // Data synchronization (Mục #18: Đồng bộ cả giỏ hàng nháp các bàn)
   const syncData = useCallback(async () => {
     try {
       showLoading('Đang đồng bộ...');
-
       await Promise.all([
         fetchProducts(),
         fetchTables(),
-        fetchCustomers()
+        fetchCustomers(),
+        fetchAllCartDrafts(),
       ]);
-
       showNotification('Đồng bộ dữ liệu thành công!');
     } catch (error) {
       console.error('Lỗi đồng bộ:', error);
       showNotification('Lỗi đồng bộ dữ liệu. Vui lòng thử lại!', 'error');
     }
-  }, [fetchProducts, fetchTables, fetchCustomers, showLoading, showNotification]);
+  }, [fetchProducts, fetchTables, fetchCustomers, fetchAllCartDrafts, showLoading, showNotification]);
 
   // Keyboard shortcuts
   const handleKeyboardShortcuts = useCallback((e: KeyboardEvent) => {
     switch (true) {
-      case e.key === 'F4': // Quick checkout
+      case e.key === 'F4':
         e.preventDefault();
         if (cart.length > 0 && selectedTableId) {
           setShowCheckoutModal(true);
@@ -840,38 +801,33 @@ export const usePOS = () => {
         }
         break;
 
-      case e.key === 'Escape': // Clear cart confirmation
+      case e.key === 'Escape':
         e.preventDefault();
         if (cart.length > 0) {
           setShowClearConfirmation(true);
         }
         break;
 
-      case e.key === 'F1': // Reset filters
+      case e.key === 'F1':
         e.preventDefault();
         resetFilters();
         break;
 
-      case e.key === 'F5': // Sync data
+      case e.key === 'F5':
         e.preventDefault();
         syncData();
         break;
 
-      case e.key === 'F3': // Customer modal
+      case e.key === 'F3':
         e.preventDefault();
         setShowCustomerModal(true);
         break;
     }
   }, [cart.length, selectedTableId, setShowCheckoutModal, showNotification, setShowClearConfirmation, resetFilters, syncData]);
 
-  // Initialize app
+  // Initialize app (Mục #18)
   useEffect(() => {
     const initializeApp = async () => {
-      if (!nhanvien) {
-        showNotification('Không thể khởi tạo ứng dụng. Thiếu thông tin nhân viên!', 'error');
-        return;
-      }
-
       try {
         showLoading('Đang tải...');
 
@@ -887,26 +843,25 @@ export const usePOS = () => {
           }
         }
 
-        // Fetch initial data
+        // Fetch initial data & all cart drafts
         await Promise.all([
           fetchProducts(),
           fetchTables(),
-          fetchCustomers()
+          fetchCustomers(),
+          fetchAllCartDrafts(),
         ]);
 
-        showNotification('Khởi tạo ứng dụng thành công!');
+        showNotification('Khởi tạo POS thành công!');
       } catch (error) {
         console.error('Lỗi khởi tạo:', error);
-        showNotification('Không thể khởi tạo ứng dụng. Vui lòng thử lại!', 'error');
+        showNotification('Không thể khởi tạo POS. Vui lòng thử lại!', 'error');
       }
     };
 
     initializeApp();
 
-    // Set up event listeners
     window.addEventListener('keydown', handleKeyboardShortcuts);
 
-    // Save state before window close
     const handleBeforeUnload = () => {
       const state = {
         activeOrders: Array.from(activeOrders.entries()),
@@ -917,12 +872,10 @@ export const usePOS = () => {
 
     window.addEventListener('beforeunload', handleBeforeUnload);
 
-    // Clean up event listeners on unmount
     return () => {
       window.removeEventListener('keydown', handleKeyboardShortcuts);
       window.removeEventListener('beforeunload', handleBeforeUnload);
 
-      // Close customer display window if open
       if (customerDisplayWindow.current && !customerDisplayWindow.current.closed) {
         customerDisplayWindow.current.close();
       }
@@ -931,29 +884,20 @@ export const usePOS = () => {
 
   // Calculate totals
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const vat = subtotal * 0.1; // VAT 10% tính trên tạm tính
+  const vat = subtotal * 0.1;
   let total = subtotal + vat;
 
-  // Apply customer discount - Áp dụng ưu đãi theo loại khách hàng
-  // Ưu đãi được tính trên subtotal (tạm tính) chưa bao gồm VAT
   let customerDiscount = 0;
   if (selectedCustomer) {
     const customerType = selectedCustomer['Loại khách hàng'];
     if (customerType === 'Khách kim cương') {
-      customerDiscount = subtotal * 0.2; // Khách kim cương: giảm 20%
+      customerDiscount = subtotal * 0.2;
     } else if (customerType === 'Khách VIP') {
-      customerDiscount = subtotal * 0.1; // Khách VIP: giảm 10%
+      customerDiscount = subtotal * 0.1;
     }
-    // Khách thường: không có ưu đãi tự động (customerDiscount = 0)
   }
 
-  // Tổng tiền cuối cùng = Tạm tính + VAT - Ưu đãi khách hàng
   const finalTotal = total - customerDiscount;
-
-  // Get table name for display
-  const selectedTableName = selectedTableId
-    ? tables.find(t => t.IDBAN === selectedTableId)?.['Tên bàn'] || 'Đang chọn bàn...'
-    : 'Chưa chọn';
 
   return {
     // State
@@ -976,6 +920,7 @@ export const usePOS = () => {
     conflictData,
     resolveConflict,
     canCheckout,
+    presenceByTable,
 
     // Customer state
     customers,
@@ -986,6 +931,8 @@ export const usePOS = () => {
 
     // Modal state
     ...modalState,
+    showTableQRModal,
+    setShowTableQRModal,
 
     // Modal setters
     setShowTableModal,
@@ -1014,6 +961,7 @@ export const usePOS = () => {
     updateCartItemNote,
     sendToKitchen,
     settleQrOrder,
+
     // Calculations
     subtotal,
     vat,

@@ -22,7 +22,7 @@ function makeRequest(method: string, url: string, body?: unknown) {
 }
 
 function makeSupabaseMock(result: { data?: unknown; error?: unknown }) {
-  const chain = {
+  const chain: any = {
     select: vi.fn(() => chain),
     eq: vi.fn(() => chain),
     maybeSingle: vi.fn(async () => result),
@@ -31,11 +31,12 @@ function makeSupabaseMock(result: { data?: unknown; error?: unknown }) {
     insert: vi.fn(() => chain),
     single: vi.fn(async () => result),
     delete: vi.fn(() => chain),
+    then: (resolve: any) => Promise.resolve(result).then(resolve),
   };
   return { from: vi.fn(() => chain) };
 }
 
-describe('cart draft API', () => {
+describe('cart draft API (Phase 2)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getAuthenticatedStaff.mockResolvedValue({ id: 'staff-1' });
@@ -47,8 +48,23 @@ describe('cart draft API', () => {
     expect(response.status).toBe(401);
   });
 
-  it('validates table and cart payloads', async () => {
-    expect((await GET(makeRequest('GET', '/api/pos/cart-draft'))).status).toBe(400);
+  it('fetches all cart drafts when tableId is omitted (Item #18)', async () => {
+    const drafts = [
+      { table_id: 'B1', cart: [{ id: 'SP1', quantity: 2 }], version: 1 },
+      { table_id: 'B2', cart: [{ id: 'SP2', quantity: 1 }], version: 2 },
+    ];
+    const client = makeSupabaseMock({ data: drafts, error: null });
+    createAdminSupabaseClient.mockReturnValue(client);
+
+    const res = await GET(makeRequest('GET', '/api/pos/cart-draft'));
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(json.drafts).toHaveLength(2);
+    expect(client.from).toHaveBeenCalledWith('pos_cart_drafts');
+  });
+
+  it('validates cart payloads with max item limits', async () => {
     const response = await PUT(makeRequest('PUT', '/api/pos/cart-draft', {
       tableId: 'B3',
       cart: Array.from({ length: 51 }, () => ({})),
@@ -56,8 +72,13 @@ describe('cart draft API', () => {
     expect(response.status).toBe(400);
   });
 
-  it('reads, writes, and deletes a draft', async () => {
-    const draft = { table_id: 'B3', cart: [], version: 1 };
+  it('reads, writes, and deletes a draft with customer sync (Item #10)', async () => {
+    const draft = {
+      table_id: 'B3',
+      cart: [{ id: 'SP001', quantity: 1 }],
+      selected_customer: { IDKH: 'KH001', 'Tên khách hàng': 'Nguyễn Văn A' },
+      version: 1,
+    };
     const client = makeSupabaseMock({ data: draft, error: null });
     createAdminSupabaseClient.mockReturnValue(client);
 
@@ -65,6 +86,7 @@ describe('cart draft API', () => {
     expect((await PUT(makeRequest('PUT', '/api/pos/cart-draft', {
       tableId: 'B3',
       cart: [{ id: 'SP001', quantity: 1 }],
+      selectedCustomer: { IDKH: 'KH001', 'Tên khách hàng': 'Nguyễn Văn A' },
       expectedVersion: 1,
     }))).status).toBe(200);
     expect((await DELETE(makeRequest('DELETE', '/api/pos/cart-draft?tableId=B3'))).status).toBe(200);

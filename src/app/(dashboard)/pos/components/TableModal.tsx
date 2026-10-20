@@ -3,8 +3,10 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '../utils/formatters';
 import type { Table, CartItem } from '../types/pos';
+import type { TablePresenceSummary } from '@/hooks/useTablePresence';
 
 interface TableModalProps {
   tables: Table[];
@@ -13,6 +15,7 @@ interface TableModalProps {
   onSelectTable: (tableId: string) => void;
   onClose: () => void;
   onShowTransfer: () => void;
+  presenceByTable?: Map<string, TablePresenceSummary>;
 }
 
 export const TableModal: React.FC<TableModalProps> = ({
@@ -21,7 +24,8 @@ export const TableModal: React.FC<TableModalProps> = ({
   selectedTableId,
   onSelectTable,
   onClose,
-  onShowTransfer
+  onShowTransfer,
+  presenceByTable,
 }) => {
   const calculateTotal = (items: CartItem[]): number => {
     return items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -34,18 +38,28 @@ export const TableModal: React.FC<TableModalProps> = ({
   const canTransferFromTable = selectedTable && selectedTable['Tên bàn'] !== 'Khách mua về';
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-2">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden">
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-2 backdrop-blur-sm">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[92vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex justify-between items-center p-4 border-b border-gray-200">
-          <h2 className="text-lg font-bold text-gray-800">
-            Chọn bàn: {selectedTable ? selectedTable['Tên bàn'] : 'Không xác định'}
-          </h2>
+          <div>
+            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+              Sơ đồ bàn phục vụ
+              {selectedTable && (
+                <Badge variant="outline" className="text-xs border-indigo-300 text-indigo-700 bg-indigo-50">
+                  Đang chọn: {selectedTable['Tên bàn']}
+                </Badge>
+              )}
+            </h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Chọn bàn để gọi món, xem giỏ hàng và theo dõi khách quét QR theo thời gian thực
+            </p>
+          </div>
           <div className="flex space-x-2">
             {canTransfer && canTransferFromTable && (
               <Button
                 onClick={onShowTransfer}
-                className="px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 flex items-center space-x-1 text-sm"
+                className="px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 flex items-center space-x-1 text-sm shadow-sm"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
@@ -65,20 +79,23 @@ export const TableModal: React.FC<TableModalProps> = ({
         </div>
 
         {/* Tables Grid */}
-        <div className="p-4 overflow-y-auto max-h-[calc(90vh-120px)]">
-          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 mb-4">
+        <div className="p-4 overflow-y-auto flex-1">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 mb-4">
             {tables.map((table) => {
-              const hasOrder = activeOrders.has(table.IDBAN) &&
-                activeOrders.get(table.IDBAN)!.length > 0;
+              const tableItems = activeOrders.get(table.IDBAN) || [];
+              const hasOrder = tableItems.length > 0;
               const isCurrentTable = selectedTableId === table.IDBAN;
+              const presence = presenceByTable?.get(table.IDBAN);
 
               return (
                 <TableCard
                   key={table.IDBAN}
                   table={table}
                   hasOrder={hasOrder}
+                  itemCount={tableItems.reduce((sum, it) => sum + it.quantity, 0)}
                   isCurrentTable={isCurrentTable}
-                  orderTotal={hasOrder ? calculateTotal(activeOrders.get(table.IDBAN)!) : 0}
+                  orderTotal={hasOrder ? calculateTotal(tableItems) : 0}
+                  presence={presence}
                   onSelect={onSelectTable}
                 />
               );
@@ -96,113 +113,120 @@ export const TableModal: React.FC<TableModalProps> = ({
 interface TableCardProps {
   table: Table;
   hasOrder: boolean;
+  itemCount: number;
   isCurrentTable: boolean;
   orderTotal: number;
+  presence?: TablePresenceSummary;
   onSelect: (tableId: string) => void;
 }
 
 const TableCard: React.FC<TableCardProps> = ({
   table,
   hasOrder,
+  itemCount,
   isCurrentTable,
   orderTotal,
+  presence,
   onSelect
 }) => {
+  const isTakeaway = table['Tên bàn'] === 'Khách mua về';
+  // Sửa lỗi logic: kiểm tra cả hasOrder lẫn Trạng thái sử dụng (thay vì Trạng thái chung của bàn)
+  const isOccupied = hasOrder || table['Trạng thái sử dụng'] === 'Đang sử dụng';
+
   const getTableStatusClass = () => {
-    if (table['Tên bàn'] === 'Khách mua về') {
-      return "bg-gray-100 border-gray-200 hover:bg-gray-200";
+    if (isTakeaway) {
+      return "bg-slate-50 border-slate-200 hover:bg-slate-100";
     }
-    
-    if (hasOrder || table['Trạng thái'] === 'Đang sử dụng') {
-      return "bg-yellow-100 border-yellow-200 hover:bg-yellow-200";
+    if (isOccupied) {
+      return "bg-amber-50/80 border-amber-300 hover:bg-amber-100/90";
     }
-    
-    return "bg-green-100 border-green-200 hover:bg-green-200";
+    return "bg-emerald-50/70 border-emerald-300 hover:bg-emerald-100/80";
   };
 
   const getStatusIcon = () => {
-    if (table['Tên bàn'] === 'Khách mua về') {
+    if (isTakeaway) {
       return (
-        <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
             d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
         </svg>
       );
     }
     
-    if (hasOrder || table['Trạng thái'] === 'Đang sử dụng') {
+    if (isOccupied) {
       return (
-        <svg className="w-4 h-4 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
+        <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" title="Đang có khách" />
       );
     }
     
     return (
-      <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
+      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" title="Bàn trống" />
     );
   };
+
+  const hasCashierViewing = presence?.cashiers && presence.cashiers.length > 0;
+  const hasCustomerViewing = presence?.customerCount && presence.customerCount > 0;
 
   return (
     <Card
       onClick={() => onSelect(table.IDBAN)}
-      className={`p-3 rounded-lg cursor-pointer border-2 transition-all duration-200 hover:shadow-md ${getTableStatusClass()} ${
-        isCurrentTable ? 'ring-2 ring-blue-500 shadow-lg' : ''
+      className={`p-3 rounded-xl cursor-pointer border-2 transition-all duration-200 hover:shadow-md flex flex-col justify-between min-h-[140px] ${getTableStatusClass()} ${
+        isCurrentTable ? 'ring-2 ring-blue-600 shadow-md border-blue-500' : ''
       }`}
     >
-      <div className="flex items-start justify-between mb-2">
-        <h3 className="font-bold text-gray-800 text-sm">
-          {table['Tên bàn']}
-        </h3>
-        {getStatusIcon()}
+      <div>
+        <div className="flex items-start justify-between mb-1.5">
+          <h3 className="font-bold text-gray-800 text-sm truncate">
+            {table['Tên bàn']}
+          </h3>
+          {getStatusIcon()}
+        </div>
+
+        <div className="space-y-1">
+          <p className="text-[11px] text-gray-500 flex items-center">
+            Sức chứa: {table['Sức chứa tối đa'] || '4'} khách
+          </p>
+
+          {!isTakeaway && (
+            <p className={`text-xs font-semibold ${isOccupied ? 'text-amber-700' : 'text-emerald-700'}`}>
+              {isOccupied ? `Đang có khách (${itemCount} món)` : 'Bàn trống'}
+            </p>
+          )}
+
+          {hasOrder && (
+            <div className="pt-1">
+              <span className="text-xs font-bold text-blue-700">
+                {formatCurrency(orderTotal)}
+              </span>
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="space-y-1">
-        <p className="text-xs text-gray-600 flex items-center">
-          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-          </svg>
-          SC: {table['Sức chứa tối đa']}
-        </p>
-
-        {table['Tên bàn'] !== 'Khách mua về' && (
-          <p className={`text-xs font-medium flex items-center ${
-            hasOrder ? 'text-yellow-600' : 'text-gray-600'
-          }`}>
-            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            {table['Trạng thái']}
-          </p>
-        )}
-
-        {hasOrder && (
-          <div className="mt-2 pt-2 border-t border-gray-200">
-            <p className="text-xs font-medium text-blue-600 flex items-center">
-              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-                  d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-              {formatCurrency(orderTotal)}
-            </p>
+      {/* Realtime Presence Badges: Ai đang xem bàn */}
+      <div className="mt-2 pt-1.5 border-t border-black/5 space-y-1">
+        {hasCashierViewing && (
+          <div className="flex items-center gap-1 text-[10px] text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded font-medium truncate" title={`Thu ngân ${presence.cashiers.join(', ')} đang mở giỏ hàng bàn này`}>
+            <span>🖥️</span>
+            <span className="truncate">{presence.cashiers.join(', ')} đang mở</span>
           </div>
         )}
 
+        {hasCustomerViewing ? (
+          <div className="flex items-center gap-1 text-[10px] text-amber-800 bg-amber-100 border border-amber-300 px-1.5 py-0.5 rounded font-semibold animate-pulse truncate" title={`${presence.customerCount} khách đang quét QR xem menu và chọn món`}>
+            <span>📱</span>
+            <span className="truncate">
+              {presence.customerCount} khách xem menu {presence.customerItemCount > 0 ? `(${presence.customerItemCount} món tạm)` : ''}
+            </span>
+          </div>
+        ) : null}
+
         {isCurrentTable && (
-          <div className="mt-2 pt-2 border-t border-blue-200">
-            <div className="flex items-center text-blue-600 text-xs font-medium">
-              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" 
-                  d="M5 13l4 4L19 7" />
-              </svg>
-              Đang chọn
-            </div>
+          <div className="flex items-center text-blue-600 text-[11px] font-bold">
+            <svg className="w-3.5 h-3.5 mr-1 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+            </svg>
+            Đang chọn
           </div>
         )}
       </div>
@@ -211,22 +235,30 @@ const TableCard: React.FC<TableCardProps> = ({
 };
 
 const TableLegend: React.FC = () => (
-  <div className="flex flex-wrap gap-4 justify-center pt-3 border-t border-gray-200">
+  <div className="flex flex-wrap gap-4 justify-center pt-3 border-t border-gray-200 text-xs">
     <div className="flex items-center">
-      <div className="w-3 h-3 bg-green-100 rounded mr-1 border border-green-200"></div>
-      <span className="text-gray-700 text-xs">Bàn trống</span>
+      <div className="w-3 h-3 bg-emerald-100 rounded mr-1.5 border border-emerald-300"></div>
+      <span className="text-gray-700">Bàn trống</span>
     </div>
     <div className="flex items-center">
-      <div className="w-3 h-3 bg-yellow-100 rounded mr-1 border border-yellow-200"></div>
-      <span className="text-gray-700 text-xs">Đang có khách</span>
+      <div className="w-3 h-3 bg-amber-100 rounded mr-1.5 border border-amber-300"></div>
+      <span className="text-gray-700">Đang có khách / Có đơn</span>
     </div>
     <div className="flex items-center">
-      <div className="w-3 h-3 bg-gray-100 rounded mr-1 border border-gray-200"></div>
-      <span className="text-gray-700 text-xs">Mang về</span>
+      <div className="w-3 h-3 bg-slate-100 rounded mr-1.5 border border-slate-300"></div>
+      <span className="text-gray-700">Khách mua về</span>
     </div>
     <div className="flex items-center">
-      <div className="w-3 h-3 bg-blue-100 rounded mr-1 border-2 border-blue-500"></div>
-      <span className="text-gray-700 text-xs">Đang chọn</span>
+      <span className="mr-1">🖥️</span>
+      <span className="text-indigo-700 font-medium">Thu ngân đang mở</span>
+    </div>
+    <div className="flex items-center">
+      <span className="mr-1">📱</span>
+      <span className="text-amber-800 font-medium">Khách quét QR đang xem</span>
+    </div>
+    <div className="flex items-center">
+      <div className="w-3 h-3 bg-blue-100 rounded mr-1.5 border-2 border-blue-600"></div>
+      <span className="text-blue-700 font-bold">Đang chọn</span>
     </div>
   </div>
 );

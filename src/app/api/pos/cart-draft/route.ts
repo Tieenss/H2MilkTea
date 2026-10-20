@@ -7,11 +7,20 @@ export async function GET(request: NextRequest) {
   const staff = await getAuthenticatedStaff(request.headers.get('cookie') || '');
   if (!staff) return NextResponse.json({ success: false, error: 'Phiên đăng nhập đã hết hạn.' }, { status: 401 });
 
-  const tableId = request.nextUrl.searchParams.get('tableId')?.trim();
-  if (!tableId) return NextResponse.json({ success: false, error: 'Thiếu mã bàn.' }, { status: 400 });
-
   const supabase = createAdminSupabaseClient();
   if (!supabase) return NextResponse.json({ success: false, error: 'Dịch vụ dữ liệu chưa sẵn sàng.' }, { status: 503 });
+
+  const tableId = request.nextUrl.searchParams.get('tableId')?.trim();
+
+  // Nếu không truyền tableId: Trả về danh sách tất cả các bản nháp của toàn bộ các bàn (Mục #18)
+  if (!tableId) {
+    const { data, error } = await supabase.from('pos_cart_drafts').select('*');
+    if (error) {
+      console.error('Read all cart drafts failed:', error);
+      return NextResponse.json({ success: false, error: 'Không tải được danh sách giỏ hàng các bàn.' }, { status: 500 });
+    }
+    return NextResponse.json({ success: true, drafts: data || [] });
+  }
 
   const { data, error } = await supabase.from('pos_cart_drafts').select('*').eq('table_id', tableId).maybeSingle();
   if (error) {
@@ -30,6 +39,7 @@ export async function PUT(request: NextRequest) {
   const tableId = String(body.tableId || '').trim();
   const cart = body.cart;
   const expectedVersion = body.expectedVersion == null ? null : Number(body.expectedVersion);
+  const selectedCustomer = body.selectedCustomer !== undefined ? body.selectedCustomer : null;
 
   if (!tableId || !Array.isArray(cart) || cart.length > MAX_CART_ITEMS) {
     return NextResponse.json({ success: false, error: 'Dữ liệu giỏ hàng không hợp lệ.' }, { status: 400 });
@@ -48,6 +58,7 @@ export async function PUT(request: NextRequest) {
       .from('pos_cart_drafts')
       .update({
         cart,
+        selected_customer: selectedCustomer,
         version: nextVersion,
         updated_by: staff.id,
         updated_at: new Date().toISOString(),
@@ -108,6 +119,7 @@ export async function PUT(request: NextRequest) {
     .insert({
       table_id: tableId,
       cart,
+      selected_customer: selectedCustomer,
       version: 1,
       updated_by: staff.id,
       updated_at: new Date().toISOString(),

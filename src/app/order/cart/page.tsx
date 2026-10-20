@@ -4,6 +4,7 @@ import React, { useRef, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Minus, Plus, Trash2, ShoppingBag, MessageSquare, Send, CheckCircle2 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { useTablePresence } from '@/hooks/useTablePresence';
 import toast from 'react-hot-toast';
 
 function CartPageContent() {
@@ -20,6 +21,13 @@ function CartPageContent() {
   const idempotencyKey = useRef<string | null>(null);
 
   const tableParam = searchParams.get('table') || tableId;
+
+  // Realtime Presence: Khách đang mở giỏ hàng của bàn (Mục #7)
+  useTablePresence({
+    role: 'customer_qr',
+    tableId: tableParam || null,
+    itemCount: totalItems,
+  });
 
   const handleSubmitOrder = async () => {
     if (items.length === 0) {
@@ -59,7 +67,17 @@ function CartPageContent() {
         setOrderSuccess(true);
         clearCart();
         toast.success('Đặt món thành công!');
-        if (data.trackingToken) router.push(`/order/status?token=${encodeURIComponent(data.trackingToken)}`);
+        if (data.trackingToken) {
+          if (typeof window !== 'undefined') {
+            try {
+              if (tableParam) {
+                localStorage.setItem(`h2_table_order_token_${tableParam}`, data.trackingToken);
+              }
+              localStorage.setItem('h2_active_order_token', data.trackingToken);
+            } catch {}
+          }
+          router.push(`/order/status?token=${encodeURIComponent(data.trackingToken)}`);
+        }
       } else {
         toast.error(data.error || 'Có lỗi xảy ra, vui lòng thử lại');
       }

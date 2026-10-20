@@ -23,11 +23,15 @@ export interface CartItem {
   quantity: number;
   note?: string;
   unit: string;
+  category?: string;
   size?: 'S' | 'M' | 'L' | string;
   sugar?: '0%' | '30%' | '50%' | '70%' | '100%' | string;
   ice?: 'không đá' | 'ít đá' | 'vừa đá' | 'nhiều đá' | 'nóng' | string;
   toppings?: string[];
   lineItemKey?: string;
+  printStatus?: 'new' | 'printed' | 'modified';
+  printedQuantity?: number;
+  printedSignature?: string;
 }
 
 // Customer info for receipt

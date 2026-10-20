@@ -4,10 +4,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CartItem } from '../types/pos';
 import { createClient } from '@/lib/supabase/client';
 import { diffCartItems, resolveCartConflict, type ConflictingItem } from '@/lib/cart/mergeCart';
+import type { Customer } from '@/app/(dashboard)/khachhang/types/customer';
 
 export interface CartDraft {
   table_id: string;
   cart: CartItem[];
+  selected_customer?: Customer | null;
   version: number;
 }
 
@@ -35,10 +37,19 @@ interface UseSharedCartDraftOptions {
   tableId: string | null;
   cart: CartItem[];
   setCart: (cart: CartItem[]) => void;
+  selectedCustomer?: Customer | null;
   onRemoteCart?: (tableId: string, cart: CartItem[]) => void;
+  onRemoteCustomer?: (tableId: string, customer: Customer | null) => void;
 }
 
-export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: UseSharedCartDraftOptions) {
+export function useSharedCartDraft({
+  tableId,
+  cart,
+  setCart,
+  selectedCustomer,
+  onRemoteCart,
+  onRemoteCustomer,
+}: UseSharedCartDraftOptions) {
   const [status, setStatus] = useState<SharedCartStatus>('disabled');
   const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>('CLOSED');
   const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null);
@@ -48,6 +59,7 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
   const initializedTableRef = useRef<string | null>(null);
   const pendingRemoteCartRef = useRef<string | null>(null);
   const cartRef = useRef(cart);
+  const customerRef = useRef(selectedCustomer);
   const statusRef = useRef<SharedCartStatus>(status);
   const writeInFlightRef = useRef(false);
   const pollIntervalRef = useRef<number | null>(null);
@@ -55,6 +67,7 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
   const debounceTimerRef = useRef<number | null>(null);
 
   cartRef.current = cart;
+  customerRef.current = selectedCustomer;
   statusRef.current = status;
 
   const cancelPendingAutosave = useCallback(() => {
@@ -67,6 +80,7 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
   const applyDraft = useCallback((draft: CartDraft | null, force = false) => {
     const remoteVersion = draft?.version || 0;
     const remoteCart = draft?.cart || [];
+    const remoteCustomer = draft?.selected_customer ?? null;
 
     // Lần đầu mở bàn (force)
     if (force) {
@@ -80,7 +94,12 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
       }
       pendingRemoteCartRef.current = JSON.stringify(remoteCart);
       setCart(remoteCart);
-      if (tableId) onRemoteCart?.(tableId, remoteCart);
+      if (tableId) {
+        onRemoteCart?.(tableId, remoteCart);
+        if (draft && draft.selected_customer !== undefined) {
+          onRemoteCustomer?.(tableId, remoteCustomer);
+        }
+      }
       setLastSyncAt(new Date());
       setStatus('connected');
       setConflictData(null);
@@ -88,6 +107,11 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
     }
 
     if (remoteVersion <= versionRef.current) return;
+
+    // Đồng bộ khách hàng nếu có cập nhật từ thiết bị khác
+    if (tableId && draft && draft.selected_customer !== undefined) {
+      onRemoteCustomer?.(tableId, remoteCustomer);
+    }
 
     // So sánh xung đột giữa localCart và remoteCart theo lineItemKey
     const currentLocalCart = cartRef.current;
@@ -113,7 +137,7 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
         });
       }
     }
-  }, [onRemoteCart, setCart, tableId]);
+  }, [onRemoteCart, onRemoteCustomer, setCart, tableId]);
 
   const fetchDraft = useCallback(async (currentTableId: string, isInitialLoad = false) => {
     if (writeInFlightRef.current) return;
@@ -206,7 +230,7 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
     };
   }, [applyDraft, fetchDraft, tableId]);
 
-  // Debounce Autosave
+  // Debounce Autosave (lưu cả cart và selectedCustomer)
   useEffect(() => {
     if (!tableId || statusRef.current === 'conflict') return;
     const cartSnapshot = JSON.stringify(cart);
@@ -229,6 +253,7 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
           body: JSON.stringify({
             tableId,
             cart: cartRef.current,
+            selectedCustomer: customerRef.current,
             expectedVersion: versionRef.current,
           }),
         });
@@ -257,7 +282,7 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
         debounceTimerRef.current = null;
       }
     };
-  }, [cart, fetchDraft, tableId]);
+  }, [cart, selectedCustomer, fetchDraft, tableId]);
 
   // Giải quyết xung đột theo lựa chọn của thu ngân
   const resolveConflict = useCallback(async (strategy: 'keep_local' | 'take_remote' | 'merge_quantities') => {
@@ -278,6 +303,7 @@ export function useSharedCartDraft({ tableId, cart, setCart, onRemoteCart }: Use
         body: JSON.stringify({
           tableId,
           cart: finalCart,
+          selectedCustomer: customerRef.current,
           expectedVersion: targetVersion,
         }),
       });

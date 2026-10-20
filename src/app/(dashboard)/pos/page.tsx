@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Search, RefreshCw, Users, Filter, X, GalleryVertical } from 'lucide-react';
+import { Search, RefreshCw, Users, Filter, X, GalleryVertical, QrCode } from 'lucide-react';
 
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ import { CheckoutModal } from './components/CheckoutModal';
 import { TransferModal } from './components/TransferModal';
 import { NoteModal } from './components/NoteModal';
 import { ReceiptSettings } from './components/ReceiptSettings';
+import { TableQRModal } from './components/TableQRModal';
 import authUtils from '@/utils/authUtils';
 import './styles/pos.css';
 import { CustomerSelectModal } from '@/app/(dashboard)/pos/components/CustomerSelectModal';
@@ -50,6 +51,8 @@ export default function POSPage() {
     showTransferModal,
     showNoteModal,
     showClearConfirmation,
+    showTableQRModal,
+    setShowTableQRModal,
     selectedItemForNote,
     noteInput,
     setShowTableModal,
@@ -85,6 +88,7 @@ export default function POSPage() {
     conflictData,
     resolveConflict,
     canCheckout,
+    presenceByTable,
   } = usePOS();
 
   const userData = authUtils.getUserData();
@@ -92,22 +96,71 @@ export default function POSPage() {
   // Mobile state for showing/hiding cart
   const [showMobileCart, setShowMobileCart] = React.useState(false);
   const [isSearchExpanded, setIsSearchExpanded] = React.useState(false);
-  const sharedCartLabel = sharedCartStatus === 'connected'
-    ? `Đồng bộ giỏ hàng (${realtimeStatus})`
-    : sharedCartStatus === 'conflict'
-      ? 'Xung đột giỏ hàng'
+
+  const sharedCartLabel =
+    sharedCartStatus === 'connected'
+      ? `Đồng bộ giỏ hàng (${realtimeStatus})`
+      : sharedCartStatus === 'syncing'
+        ? `Đang đồng bộ giỏ hàng (${realtimeStatus})...`
+        : sharedCartStatus === 'loading'
+          ? 'Đang tải giỏ hàng bàn...'
+          : sharedCartStatus === 'conflict'
+            ? 'Xung đột giỏ hàng — cần xử lý'
+            : sharedCartStatus === 'offline'
+              ? 'Giỏ hàng ngoại tuyến'
+              : `Đồng bộ giỏ hàng (${realtimeStatus})`;
+
+  const sharedCartToneClass =
+    sharedCartStatus === 'conflict'
+      ? 'text-rose-700 bg-rose-50/70 border-b border-rose-100'
       : sharedCartStatus === 'offline'
-        ? 'Giỏ hàng ngoại tuyến'
-        : '';
+        ? 'text-amber-700 bg-amber-50/70 border-b border-amber-100'
+        : sharedCartStatus === 'syncing' || sharedCartStatus === 'loading'
+          ? 'text-blue-700 bg-blue-50/40 border-b border-slate-100'
+          : 'text-emerald-700 bg-emerald-50/40 border-b border-slate-100';
+
+  const currentTablePresence = selectedTableId ? presenceByTable?.get(selectedTableId) : undefined;
 
   return (
     <div className="bg-background ">
-      {sharedCartLabel && (
-        <div className={`px-3 py-1 text-xs ${sharedCartStatus === 'connected' ? 'text-green-700' : 'text-amber-700'}`} role="status">
-          {sharedCartLabel}
-          {lastSyncAt && ` · ${lastSyncAt.toLocaleTimeString('vi-VN')}`}
+      <div
+        className={`h-7 px-3 flex items-center justify-between text-xs transition-colors duration-200 select-none ${sharedCartToneClass}`}
+        role="status"
+        aria-live="polite"
+      >
+        <div className="flex items-center gap-1.5 truncate">
+          <span
+            className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+              sharedCartStatus === 'conflict'
+                ? 'bg-rose-500 animate-ping'
+                : sharedCartStatus === 'offline'
+                  ? 'bg-amber-500'
+                  : sharedCartStatus === 'syncing' || sharedCartStatus === 'loading'
+                    ? 'bg-blue-500 animate-pulse'
+                    : 'bg-emerald-500'
+            }`}
+          />
+          <span className="font-medium truncate">{sharedCartLabel}</span>
+          {lastSyncAt && (
+            <span className="text-slate-500 hidden sm:inline">
+              · Cập nhật lúc {lastSyncAt.toLocaleTimeString('vi-VN')}
+            </span>
+          )}
         </div>
-      )}
+        <div className="flex items-center gap-2">
+          {currentTablePresence && currentTablePresence.customerCount > 0 && (
+            <span className="text-[11px] font-semibold text-amber-800 bg-amber-100 px-2 py-0.2 rounded-full border border-amber-300 animate-pulse hidden md:inline-flex items-center gap-1">
+              <span>📱</span>
+              <span>{currentTablePresence.customerCount} khách đang xem menu</span>
+            </span>
+          )}
+          {selectedTableName && (
+            <span className="text-[11px] font-medium text-slate-600 flex-shrink-0 ml-2">
+              Đang chọn: <strong className="text-slate-800">{selectedTableName}</strong>
+            </span>
+          )}
+        </div>
+      </div>
       {/* Mobile Header - Simplified */}
       <div className="block lg:hidden">
         <Card className="p-2 border-b rounded-none">
@@ -124,6 +177,19 @@ export default function POSPage() {
                   {selectedTableName ? selectedTableName : 'Bàn'}
                 </span>
               </Button>
+
+              {selectedTableId && selectedTableName !== 'Khách mua về' && (
+                <Button
+                  onClick={() => setShowTableQRModal(true)}
+                  variant="outline"
+                  size="sm"
+                  className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 flex-shrink-0 text-xs px-2"
+                  title="Mở mã QR đặt món của bàn này"
+                >
+                  <QrCode className="w-3 h-3" />
+                  <span className="hidden xs:inline ml-1">QR</span>
+                </Button>
+              )}
 
               <Button
                 onClick={() => setShowCustomerModal(true)}
@@ -268,6 +334,20 @@ export default function POSPage() {
                 )}
               </Button>
 
+              {/* Nút hiển thị mã QR Bàn (Mục #11) */}
+              {selectedTableId && selectedTableName !== 'Khách mua về' && (
+                <Button
+                  onClick={() => setShowTableQRModal(true)}
+                  variant="outline"
+                  size="sm"
+                  className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 text-xs"
+                  title="Hiện mã QR đặt món của bàn này"
+                >
+                  <QrCode className="w-3.5 h-3.5 mr-1" />
+                  QR Bàn
+                </Button>
+              )}
+
               <Button
                 onClick={() => setShowCustomerModal(true)}
                 variant="outline"
@@ -394,6 +474,7 @@ export default function POSPage() {
             })}
             onShowTableModal={() => setShowTableModal(true)}
             onShowCustomerModal={() => setShowCustomerModal(true)}
+            onShowQRModal={() => setShowTableQRModal(true)}
             onShowNoteModal={(item) => {
               setSelectedItemForNote(item);
               setNoteInput(item.note || '');
@@ -458,6 +539,10 @@ export default function POSPage() {
                   setShowMobileCart(false);
                   setShowCustomerModal(true);
                 }}
+                onShowQRModal={() => {
+                  setShowMobileCart(false);
+                  setShowTableQRModal(true);
+                }}
                 onShowNoteModal={(item) => {
                   setSelectedItemForNote(item);
                   setNoteInput(item.note || '');
@@ -488,6 +573,16 @@ export default function POSPage() {
           onSelectTable={selectTable}
           onClose={() => setShowTableModal(false)}
           onShowTransfer={() => setShowTransferModal(true)}
+          presenceByTable={presenceByTable}
+        />
+      )}
+
+      {showTableQRModal && (
+        <TableQRModal
+          isOpen={showTableQRModal}
+          onClose={() => setShowTableQRModal(false)}
+          tableId={selectedTableId}
+          tableName={selectedTableName}
         />
       )}
 

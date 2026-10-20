@@ -2,17 +2,18 @@
 
 import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Search, X } from 'lucide-react';
+import { Search, X, LayoutGrid, List } from 'lucide-react';
 import { CustomerHeader } from '../components/CustomerHeader';
 import { CategoryTabs } from '../components/CategoryTabs';
 import { ProductCard } from '../components/ProductCard';
 import { ProductDetail } from '../components/ProductDetail';
 import { CartFloatingBar } from '../components/CartFloatingBar';
+import { CustomerChatbot } from '../components/CustomerChatbot';
 import { useCart } from '../context/CartContext';
+import { useTablePresence } from '@/hooks/useTablePresence';
 import type { Product } from '../types/customer-order';
-import toast from 'react-hot-toast';
 
-// Import menu data
+// Import fallback menu data
 import menuData from '@/data/DMHH.json';
 
 function MenuPageContent() {
@@ -25,13 +26,73 @@ function MenuPageContent() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [catalogProducts, setCatalogProducts] = useState<Product[]>(() =>
+    (menuData as Product[]).filter(p => p['Trạng thái'] === 'Hoạt động')
+  );
+  const [activeTableToken, setActiveTableToken] = useState<string | null>(null);
 
   const tableParam = searchParams.get('table') || tableId;
 
-  // Filter active products only
-  const products: Product[] = useMemo(() => {
-    return (menuData as Product[]).filter(p => p['Trạng thái'] === 'Hoạt động');
+  // Realtime Presence: Báo cho máy POS biết có khách đang xem menu và chọn món tại bàn này (Mục #7)
+    useTablePresence({
+    role: 'customer_qr',
+    tableId: tableParam || null,
+    itemCount: totalItems,
+  });
+
+  // Kiểm tra nếu bàn đang có đơn phục vụ trước đó để hiện thanh truy cập giỏ hàng bàn (Mục #13)
+  useEffect(() => {
+    try {
+      const savedToken = (tableParam ? localStorage.getItem(`h2_table_order_token_${tableParam}`) : null) || localStorage.getItem('h2_active_order_token');
+      if (savedToken) setActiveTableToken(savedToken);
+    } catch {
+      // Bỏ qua
+    }
+  }, [tableParam]);
+
+  // Khôi phục tùy chọn chế độ xem Grid / List từ localStorage (Mục #13)
+  useEffect(() => {
+    try {
+      const savedMode = localStorage.getItem('h2_menu_view_mode');
+      if (savedMode === 'grid' || savedMode === 'list') {
+        setViewMode(savedMode);
+      }
+    } catch {
+      // Bỏ qua lỗi truy cập storage
+    }
   }, []);
+
+  const handleToggleViewMode = (mode: 'grid' | 'list') => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem('h2_menu_view_mode', mode);
+    } catch {
+      // Bỏ qua
+    }
+  };
+
+  // Đồng bộ danh mục sản phẩm trực tiếp từ Supabase qua API để luôn khớp giá với máy POS
+  useEffect(() => {
+    let active = true;
+    fetch('/api/orders?catalog=1')
+      .then(res => res.json())
+      .then(result => {
+        if (active && result?.success && Array.isArray(result.products) && result.products.length > 0) {
+          setCatalogProducts(
+            (result.products as Product[]).filter(p => !p['Trạng thái'] || p['Trạng thái'] === 'Hoạt động')
+          );
+        }
+      })
+      .catch(() => {
+        // Giữ nguyên dữ liệu fallback từ DMHH.json nếu mất mạng
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const products = catalogProducts;
 
   // Get unique categories and counts
   const { categories, categoryCounts } = useMemo(() => {
@@ -63,7 +124,6 @@ function MenuPageContent() {
   };
 
   const handleQuickAdd = (product: Product) => {
-    // Quick add with default options
     setSelectedProduct(product);
     setIsDetailOpen(true);
   };
@@ -73,7 +133,7 @@ function MenuPageContent() {
   };
 
   return (
-    <div className="min-h-screen pb-24">
+    <div className="min-h-screen pb-28">
       <CustomerHeader onCartClick={handleViewCart} />
 
       {/* Search Bar */}
@@ -110,19 +170,61 @@ function MenuPageContent() {
         categoryCounts={categoryCounts}
       />
 
-      {/* Products Grid */}
-      <div className="px-4 py-4">
+      {/* View Mode & Results Count Bar (Mục #13) */}
+      <div className="px-4 pt-3 pb-1 flex items-center justify-between text-xs text-gray-500">
+        <span>Hiển thị <strong className="text-gray-800">{filteredProducts.length}</strong> món</span>
+        <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-lg border border-gray-200">
+          <button
+            onClick={() => handleToggleViewMode('grid')}
+            className={`p-1.5 rounded-md transition-colors ${
+              viewMode === 'grid' ? 'bg-white text-orange-600 shadow-xs font-bold' : 'text-gray-500 hover:text-gray-700'
+            }`}
+            title="Xem dạng lưới 2 cột"
+            aria-label="Xem dạng lưới 2 cột"
+          >
+            <LayoutGrid className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => handleToggleViewMode('list')}
+            className={`p-1.5 rounded-md transition-colors ${
+              viewMode === 'list' ? 'bg-white text-orange-600 shadow-xs font-bold' : 'text-gray-500 hover:text-gray-700'
+            }`}
+            title="Xem dạng danh sách ngang dễ nhìn"
+            aria-label="Xem dạng danh sách ngang dễ nhìn"
+          >
+            <List className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Products Display (Grid vs List) */}
+      <div className="px-4 py-2">
         {filteredProducts.length > 0 ? (
-          <div className="grid grid-cols-2 gap-3">
-            {filteredProducts.map((product) => (
-              <ProductCard
-                key={product.IDSP}
-                product={product}
-                onSelect={handleSelectProduct}
-                onQuickAdd={handleQuickAdd}
-              />
-            ))}
-          </div>
+          viewMode === 'grid' ? (
+            <div className="grid grid-cols-2 gap-3">
+              {filteredProducts.map((product) => (
+                <ProductCard
+                  key={product.IDSP}
+                  product={product}
+                  viewMode="grid"
+                  onSelect={handleSelectProduct}
+                  onQuickAdd={handleQuickAdd}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {filteredProducts.map((product) => (
+                <ProductCard
+                  key={product.IDSP}
+                  product={product}
+                  viewMode="list"
+                  onSelect={handleSelectProduct}
+                  onQuickAdd={handleQuickAdd}
+                />
+              ))}
+            </div>
+          )
         ) : (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <span className="text-5xl mb-4">🔍</span>
@@ -138,12 +240,36 @@ function MenuPageContent() {
         )}
       </div>
 
+      {/* Trợ lý AI tư vấn gọi món cho khách (Mục #13) */}
+      <CustomerChatbot
+        onSelectProduct={handleSelectProduct}
+        catalogProducts={catalogProducts}
+      />
+
       {/* Product Detail Bottom Sheet */}
       <ProductDetail
         product={selectedProduct}
         isOpen={isDetailOpen}
         onClose={() => setIsDetailOpen(false)}
       />
+
+      {/* Thanh nổi truy cập giỏ hàng & hóa đơn của bàn (Mục #13) */}
+      {activeTableToken && (
+        <div className="fixed bottom-20 left-4 right-4 z-40 max-w-lg mx-auto pointer-events-auto">
+          <button
+            onClick={() => router.push(`/order/status?token=${encodeURIComponent(activeTableToken)}`)}
+            className="w-full flex items-center justify-between px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-lg shadow-emerald-700/25 active:scale-[0.98] transition-all"
+          >
+            <div className="flex items-center gap-2">
+              <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-300 animate-ping" />
+              <span className="text-xs font-bold tracking-wide">Bàn đang có đơn phục vụ</span>
+            </div>
+            <span className="text-xs font-semibold underline underline-offset-2 flex items-center gap-1">
+              Quản lý giỏ hàng bàn →
+            </span>
+          </button>
+        </div>
+      )}
 
       {/* Cart Floating Bar */}
       <CartFloatingBar onViewCart={handleViewCart} />
