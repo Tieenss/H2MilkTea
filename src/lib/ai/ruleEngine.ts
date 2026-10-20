@@ -9,7 +9,7 @@ export interface RuleMatchResult {
   output?: AiOutput;
 }
 
-const GREETING_REGEX = /^(xin chào(\s+(bạn|bot|em|shop|ad))?|chào(\s+(bạn|bot|em|shop|ad|buổi sáng|buổi trưa|buổi chiều|buổi tối))?|hello(\s+(bạn|bot))?|hi(\s+(bạn|bot))?|alo(\s+(bạn|bot))?|hey)[!. ]*$/i;
+const GREETING_REGEX = /^(xin chào(\s+(bạn|bot|em|shop|ad|trợ lý|ai))?|chào(\s+(bạn|bot|em|shop|ad|trợ lý|ai|buổi sáng|buổi trưa|buổi chiều|buổi tối))?|hello(\s+(bạn|bot|trợ lý|ai))?|hi(\s+(bạn|bot))?|alo(\s+(bạn|bot))?|hey)[!. ]*$/i;
 const TABLE_ONLY_REGEX = /^(mở|chuyển( sang)?|chọn|vào)\s+(bàn\s+[a-z0-9]+|khách mua về|mang về)[!. ]*$/i;
 
 /**

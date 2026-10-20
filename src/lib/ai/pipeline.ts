@@ -33,6 +33,8 @@ export interface PipelineParams {
   history?: Array<{ role: 'user' | 'assistant'; content: string }>;
   currentTable?: string;
   currentCart?: unknown[];
+  currentRoute?: string;
+  pageContext?: string;
   staff: { id: string; name?: string; role?: string; isAdmin?: boolean };
   catalog: any[]; // active catalog products
   tables: TableInfo[];
@@ -157,6 +159,7 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
   const systemPrompt = [
     'Bạn là trợ lý AI thông minh cho hệ thống POS H2 MilkTea.',
     `Nhân viên đăng nhập: ${staff.name || 'Thu ngân'} (Vai trò: ${staff.role || 'Nhân viên'}, Admin: ${staff.isAdmin ? 'Có' : 'Không'}).`,
+    `Vị trí trang hiện tại: ${params.currentRoute || '/pos'} (${params.pageContext || 'Máy bán hàng POS'}).`,
     `Phiên bản prompt: ${PROMPT_VERSION}.`,
     '',
     'NGUYÊN TẮC AN TOÀN TUYỆT ĐỐI:',
@@ -174,6 +177,10 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
     '     * toppings: mảng tên topping (ví dụ: ["trân châu đen"]) hoặc []',
     '   - quantity là số nguyên từ 1 đến 10. Nếu khách gọi > 10 ly, giải thích cần quản lý duyệt.',
     '   - Chỉ chọn productId có trong catalog. Nếu không có món trong catalog, không đưa vào items và giải thích trong message.',
+    '',
+    '3. ĐIỀU HƯỚNG & HỖ TRỢ NGỮ CẢNH CÁC TRANG TOÀN HỆ THỐNG (Mục #16):',
+    '   - Bạn là trợ lý cho toàn bộ phần mềm H2 MilkTea (POS, Bếp, Kho, Thực đơn, Khách hàng, Cài đặt).',
+    '   - Nếu người dùng muốn chuyển trang, hãy giải thích và đính kèm đường link Markdown: [Đến máy POS](/pos), [Mở màn hình Bếp](/kitchen), [Quản lý Thực đơn](/menu/products), [Quản lý Kho](/inventory), [Khách hàng](/khachhang), [Cài đặt Mẫu in & VAT](/receipt-settings).',
     '',
     '2. HỎI ĐÁP TIỆN ÍCH & HƯỚNG DẪN (action: "qa"):',
     '   - Khi người dùng hỏi pass wifi, giờ mở cửa, menu, phím tắt, cách in bill, hướng dẫn phần mềm...',

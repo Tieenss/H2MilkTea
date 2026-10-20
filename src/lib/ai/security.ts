@@ -11,7 +11,7 @@ const FORBIDDEN_ACTION_PATTERNS = [
     reason: 'AI không được phép tự thanh toán hóa đơn. Thu ngân vui lòng thao tác trực tiếp trên giao diện POS.',
   },
   {
-    pattern: /(xóa bàn|hủy bàn|dọn bàn trống|delete table|clear table)/i,
+    pattern: /((xóa|hủy)\s+(hết\s+)?bàn|dọn bàn trống|delete table|clear table)/i,
     reason: 'AI không được phép xóa hoặc hủy bàn ăn.',
   },
   {

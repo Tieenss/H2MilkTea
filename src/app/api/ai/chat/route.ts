@@ -20,6 +20,8 @@ export async function POST(request: NextRequest) {
       history?: unknown;
       table?: unknown;
       cart?: unknown;
+      pathname?: unknown;
+      pageContext?: unknown;
     };
     const message = typeof body.message === 'string' ? body.message.trim() : '';
     if (!message) {
@@ -93,6 +95,8 @@ export async function POST(request: NextRequest) {
       history,
       currentTable: typeof body.table === 'string' ? body.table : undefined,
       currentCart: Array.isArray(body.cart) ? body.cart : [],
+      currentRoute: typeof body.pathname === 'string' ? body.pathname : undefined,
+      pageContext: typeof body.pageContext === 'string' ? body.pageContext : undefined,
       staff: {
         id: staff.id,
         name: staff.name,

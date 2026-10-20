@@ -24,7 +24,7 @@ import './styles/pos.css';
 import { CustomerSelectModal } from '@/app/(dashboard)/pos/components/CustomerSelectModal';
 import { QROrderInbox } from './components/QROrderInbox';
 import type { Customer } from '@/app/(dashboard)/khachhang/types/customer';
-import { POSAssistant } from './components/POSAssistant';
+// POSAssistant moved to GlobalAssistant across all dashboard pages (Mục #16)
 import { CartConflictModal } from './components/CartConflictModal';
 
 export default function POSPage() {
@@ -430,16 +430,7 @@ export default function POSPage() {
       </div>
 
       <QROrderInbox onSettle={settleQrOrder} />
-      <POSAssistant
-        onAddToCart={addToCart}
-        onAdjustQuantity={adjustQuantity}
-        cart={cart}
-        selectedTableName={selectedTableName}
-        selectedTableId={selectedTableId}
-        tables={tables}
-        onSelectTable={selectTable}
-        products={products}
-      />
+{/* Trợ lý AI GlobalAssistant đã được gắn ở DashboardLayout (Mục #16) */}
 
       {/* Main Content */}
       <div className="flex flex-col lg:flex-row h-[calc(100vh-8rem)] lg:h-[calc(100vh-12rem)]">

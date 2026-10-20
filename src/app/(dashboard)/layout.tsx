@@ -9,6 +9,7 @@ import { ScrollToTop } from '@/components/ui/scroll-to-top';
 import { RouteProgress } from '@/components/ui/route-progress';
 import { cn } from '@/lib/utils';
 import { TodayOrdersProvider } from '@/context/TodayOrdersContext';
+import { GlobalAssistant } from '@/components/GlobalAssistant';
 
 export default function DashboardLayout({
   children,
@@ -112,6 +113,8 @@ export default function DashboardLayout({
       </div>
       
       <ScrollToTop />
+      {/* Trợ lý AI toàn hệ thống nhận diện ngữ cảnh từng trang (Mục #16) */}
+      <GlobalAssistant />
     </TodayOrdersProvider>
   );
 }
