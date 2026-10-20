@@ -24,15 +24,26 @@ export default function DashboardLayout({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 1024) {
-        setSidebarCollapsed(true);
+    // Khôi phục trạng thái sidebar từ localStorage đã lưu trên máy (Mục #17)
+    try {
+      const savedCollapsed = localStorage.getItem('h2_sidebar_collapsed');
+      if (savedCollapsed !== null) {
+        setSidebarCollapsed(savedCollapsed === 'true');
       } else {
+        // Mặc định mở rộng khi mới vào trên máy tính để tiện thao tác
+        setSidebarCollapsed(false);
+      }
+    } catch {
+      // fallback
+    }
+
+    const handleResize = () => {
+      // Khi ở kích thước màn hình nhỏ (< 1024px), tự động reset trạng thái collapse
+      if (window.innerWidth < 1024) {
         setSidebarCollapsed(false);
       }
     };
 
-    handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -54,7 +65,15 @@ export default function DashboardLayout({
   }, [router, pathname]);
 
   const handleToggleSidebar = () => {
-    setSidebarCollapsed(!sidebarCollapsed);
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('h2_sidebar_collapsed', String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
   };
 
   const handleMobileMenuToggle = () => {

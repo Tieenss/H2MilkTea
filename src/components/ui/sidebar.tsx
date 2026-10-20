@@ -5,10 +5,18 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { X, ChevronDown, ChevronRight } from 'lucide-react';
+import { X, ChevronDown, ChevronRight, RotateCcw } from 'lucide-react';
 import { navigation, NavigationItem } from '@/lib/navigation';
 import authUtils from '@/utils/authUtils';
 import { TodayOrdersBadge } from '@/components/TodayOrdersBadge';
+import { toast } from 'react-hot-toast';
+import {
+    getFeatureBadge,
+    recordFeatureVisit,
+    resetFeatureTracker,
+    getDeviceFeatureState,
+    type DeviceFeatureState,
+} from '@/utils/featureTracker';
 
 interface SidebarProps {
     collapsed: boolean;
@@ -23,7 +31,29 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, className }: Sid
     const [isAdmin, setIsAdmin] = useState(false);
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
     const [isLoading, setIsLoading] = useState(true);
-    
+    const [deviceFeatureState, setDeviceFeatureState] = useState<DeviceFeatureState>(getDeviceFeatureState());
+
+    // Cập nhật trạng thái tính năng khi chuyển trang (Mục #8)
+    useEffect(() => {
+        if (pathname) {
+            const nextState = recordFeatureVisit(pathname);
+            setDeviceFeatureState(nextState);
+        }
+    }, [pathname]);
+
+    // Lắng nghe sự kiện cập nhật trạng thái tính năng trên máy
+    useEffect(() => {
+        const handleUpdate = () => {
+            setDeviceFeatureState(getDeviceFeatureState());
+        };
+        window.addEventListener('h2_feature_state_updated', handleUpdate);
+        window.addEventListener('storage', handleUpdate);
+        return () => {
+            window.removeEventListener('h2_feature_state_updated', handleUpdate);
+            window.removeEventListener('storage', handleUpdate);
+        };
+    }, []);
+
     useEffect(() => {
         const loadUserPermissions = () => {
             try {
@@ -197,35 +227,45 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, className }: Sid
                         </div>
                     )}
 
-                    {/* Tooltip for collapsed group - FIX: Hiển thị children khi hover */}
+                    {/* Tooltip for collapsed group */}
                     {collapsed && (
                         <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[99999] pointer-events-none shadow-xl min-w-max max-w-xs">
                             <div className="font-medium mb-2">{item.name}</div>
                             {item.children && item.children.length > 0 && (
                                 <div className="space-y-1">
-                                    {item.children.map(child => (
-                                        <Link
-                                            key={child.name}
-                                            href={child.href || '#'}
-                                            onClick={onMobileClose}
-                                            className={cn(
-                                                "flex items-center text-xs py-1 px-2 rounded hover:bg-gray-800 transition-colors pointer-events-auto",
-                                                pathname === child.href 
-                                                    ? "bg-blue-600 text-white" 
-                                                    : "text-gray-300 hover:text-white"
-                                            )}
-                                        >
-                                            <child.icon className="h-3 w-3 mr-2 flex-shrink-0" />
-                                            <span className="flex-1">{child.name}</span>
-                                            {child.name === 'Đơn hàng' ? (
-                                                <TodayOrdersBadge />
-                                            ) : child.badge ? (
-                                                <span className="ml-2 px-1.5 py-0.5 text-xs bg-red-500 text-white rounded-full">
-                                                    {child.badge}
-                                                </span>
-                                            ) : null}
-                                        </Link>
-                                    ))}
+                                    {item.children.map(child => {
+                                        const childBadge = getFeatureBadge(child.href, deviceFeatureState);
+                                        return (
+                                            <Link
+                                                key={child.name}
+                                                href={child.href || '#'}
+                                                onClick={onMobileClose}
+                                                className={cn(
+                                                    "flex items-center text-xs py-1 px-2 rounded hover:bg-gray-800 transition-colors pointer-events-auto",
+                                                    pathname === child.href 
+                                                        ? "bg-blue-600 text-white" 
+                                                        : "text-gray-300 hover:text-white"
+                                                )}
+                                            >
+                                                <child.icon className="h-3 w-3 mr-2 flex-shrink-0" />
+                                                <span className="flex-1">{child.name}</span>
+                                                {child.name === 'Đơn hàng' ? (
+                                                    <TodayOrdersBadge />
+                                                ) : childBadge ? (
+                                                    <span className={cn(
+                                                        "ml-2 px-1.5 py-0.5 text-[9px] font-bold rounded-full shadow-sm",
+                                                        childBadge.className
+                                                    )}>
+                                                        {childBadge.label}
+                                                    </span>
+                                                ) : child.badge ? (
+                                                    <span className="ml-2 px-1.5 py-0.5 text-xs bg-red-500 text-white rounded-full">
+                                                        {child.badge}
+                                                    </span>
+                                                ) : null}
+                                            </Link>
+                                        );
+                                    })}
                                 </div>
                             )}
                             <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-900"></div>
@@ -235,10 +275,11 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, className }: Sid
             );
         }
 
-        // Regular menu item - FIX: Cải thiện active state
+        // Regular menu item
         if (!item.href) return null;
         
         const isActive = pathname === item.href;
+        const itemBadge = getFeatureBadge(item.href, deviceFeatureState);
         
         return (
             <div key={item.name} className="relative">
@@ -248,9 +289,9 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, className }: Sid
                     className={cn(
                         "flex items-center rounded-lg text-sm font-medium transition-all duration-200 ease-in-out group relative",
                         collapsed ? "px-2 py-2 justify-center" : "px-3 py-2 space-x-3",
-                        level > 0 && !collapsed ? "ml-2 pl-4" : "", // Tăng padding cho sub-items
+                        level > 0 && !collapsed ? "ml-2 pl-4" : "",
                         isActive
-                            ? "bg-blue-600 text-white shadow-sm" // Đổi màu nền đậm hơn cho active
+                            ? "bg-blue-600 text-white shadow-sm"
                             : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"
                     )}
                     title={collapsed ? item.name : undefined}
@@ -258,7 +299,7 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, className }: Sid
                     <div className="flex-shrink-0 w-4 h-4 flex items-center justify-center">
                         <Icon className={cn(
                             "h-4 w-4 transition-colors duration-200",
-                            isActive ? "text-white" : "" // Icon màu trắng khi active
+                            isActive ? "text-white" : ""
                         )} />
                     </div>
                     
@@ -269,6 +310,13 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, className }: Sid
                             </span>
                             {item.name === 'Đơn hàng' ? (
                                 <TodayOrdersBadge />
+                            ) : itemBadge ? (
+                                <span className={cn(
+                                    "ml-2 px-1.5 py-0.5 text-[10px] font-bold rounded-full shadow-sm",
+                                    itemBadge.className
+                                )}>
+                                    {itemBadge.label}
+                                </span>
                             ) : item.badge ? (
                                 <span className={cn(
                                     "ml-2 px-1.5 py-0.5 text-xs rounded-full",
@@ -290,6 +338,13 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, className }: Sid
                             {item.name}
                             {item.name === 'Đơn hàng' ? (
                                 <TodayOrdersBadge />
+                            ) : itemBadge ? (
+                                <span className={cn(
+                                    "ml-2 px-1.5 py-0.5 text-[9px] font-bold rounded-full",
+                                    itemBadge.className
+                                )}>
+                                    {itemBadge.label}
+                                </span>
                             ) : item.badge ? (
                                 <span className="ml-2 px-1.5 py-0.5 text-xs bg-red-500 text-white rounded-full">
                                     {item.badge}
@@ -383,6 +438,28 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, className }: Sid
                         </div>
                     )}
                 </nav>
+
+                {/* Machine Feature State Control (Mục #8) */}
+                {!collapsed && (
+                    <div className="p-3 border-t border-gray-100 bg-gray-50/80 flex items-center justify-between">
+                        <div className="flex items-center space-x-1.5">
+                            <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                            <span className="text-[11px] text-gray-500 font-medium">Theo máy này</span>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                resetFeatureTracker();
+                                toast.success('Đã reset toàn bộ trạng thái tính năng về mặc định!');
+                            }}
+                            className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold hover:underline flex items-center gap-1"
+                            title="Khôi phục trạng thái Hot/Mới/Gần đây ban đầu cho máy này"
+                        >
+                            <RotateCcw className="w-3 h-3" />
+                            Reset chức năng
+                        </button>
+                    </div>
+                )}
             </div>
         </>
     );

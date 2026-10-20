@@ -11,7 +11,6 @@ import {
     DropdownMenuItem,
     DropdownMenuSeparator,
     DropdownMenuTrigger,
-    DropdownMenuPortal, // Import Portal nếu có
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import authUtils from '@/utils/authUtils';
@@ -19,7 +18,6 @@ import GoogleDriveUtils from '@/utils/googleDriveUtils';
 import {
     Bell,
     LogOut,
-    Search,
     Menu,
     ChevronLeft,
     ChevronRight,
@@ -28,14 +26,19 @@ import {
     Package,
     AlertCircle,
     CheckCircle,
-    Clock,
-    Droplets,
     Cloud,
     CloudOff,
     RefreshCw,
-    WifiOff
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import {
+    getStoredNotifications,
+    markAsRead,
+    markAllAsRead,
+    clearAllNotifications,
+    getUnreadCount,
+    type AppNotification,
+} from '@/utils/notificationStore';
 
 interface HeaderProps {
     onToggleSidebar: () => void;
@@ -43,100 +46,13 @@ interface HeaderProps {
     onMobileMenuToggle: () => void;
 }
 
-// Mock notifications data
-const getNotifications = (googleDriveStatus: any) => {
-    const baseNotifications = [
-        {
-            id: 1,
-            title: 'Cảnh báo tồn kho',
-            message: 'Nguyên liệu bột mì sắp hết (còn 5kg)',
-            time: '5 phút trước',
-            type: 'warning',
-            icon: AlertCircle,
-            unread: true
-        },
-        {
-            id: 2,
-            title: 'Xuất kho thành công',
-            message: 'Đã xuất 50kg đường cho đơn hàng #DH001',
-            time: '15 phút trước',
-            type: 'success',
-            icon: CheckCircle,
-            unread: true
-        },
-        {
-            id: 3,
-            title: 'Kiểm tra chất lượng nước',
-            message: 'Cần kiểm tra pH nước trong 1 giờ tới',
-            time: '30 phút trước',
-            type: 'info',
-            icon: Droplets,
-            unread: false
-        },
-        {
-            id: 4,
-            title: 'Nhập kho hoàn tất',
-            message: 'Đã nhập 100kg bột mì từ nhà cung cấp A',
-            time: '1 giờ trước',
-            type: 'success',
-            icon: Package,
-            unread: false
-        },
-        {
-            id: 5,
-            title: 'Hẹn giờ kiểm kho',
-            message: 'Kiểm kho định kỳ sẽ bắt đầu lúc 14:00',
-            time: '2 giờ trước',
-            type: 'info',
-            icon: Clock,
-            unread: false
-        }
-    ];
-
-    // Thêm thông báo Google Drive nếu cần
-    const googleDriveNotifications = [];
-    
-    if (!googleDriveStatus.connected) {
-        googleDriveNotifications.push({
-            id: 'gdrive-1',
-            title: 'Google Drive chưa kết nối',
-            message: 'Hãy kết nối Google Drive để tự động backup dữ liệu',
-            time: 'Bây giờ',
-            type: 'warning',
-            icon: CloudOff,
-            unread: true
-        });
-    } else if (googleDriveStatus.needsSync) {
-        googleDriveNotifications.push({
-            id: 'gdrive-2', 
-            title: 'Cần backup dữ liệu',
-            message: 'Dữ liệu chưa được backup trong 24 giờ qua',
-            time: 'Bây giờ',
-            type: 'warning',
-            icon: RefreshCw,
-            unread: true
-        });
-    } else if (googleDriveStatus.connected && googleDriveStatus.autoBackup) {
-        googleDriveNotifications.push({
-            id: 'gdrive-3',
-            title: 'Google Drive đang hoạt động',
-            message: 'Tự động backup dữ liệu mỗi ngày đã được bật',
-            time: googleDriveStatus.lastSync ? new Date(googleDriveStatus.lastSync).toLocaleTimeString('vi-VN') : 'Bây giờ',
-            type: 'success',
-            icon: Cloud,
-            unread: false
-        });
-    }
-
-    return [...googleDriveNotifications, ...baseNotifications];
-};
-
 export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }: HeaderProps) {
     const userData = authUtils.getUserData();
     const router = useRouter();
     const [currentTime, setCurrentTime] = useState(new Date());
     const [userDropdownOpen, setUserDropdownOpen] = useState(false);
     const [notificationDropdownOpen, setNotificationDropdownOpen] = useState(false);
+    const [notifications, setNotifications] = useState<AppNotification[]>([]);
     const [googleDriveStatus, setGoogleDriveStatus] = useState<{
         connected: boolean;
         autoBackup: boolean;
@@ -155,6 +71,22 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
             router.push('/');
         }
     }, [userData, router]);
+
+    // Đồng bộ danh sách thông báo từ store
+    useEffect(() => {
+        setNotifications(getStoredNotifications());
+
+        const handleUpdate = () => {
+            setNotifications(getStoredNotifications());
+        };
+
+        window.addEventListener('h2_notifications_updated', handleUpdate);
+        window.addEventListener('storage', handleUpdate);
+        return () => {
+            window.removeEventListener('h2_notifications_updated', handleUpdate);
+            window.removeEventListener('storage', handleUpdate);
+        };
+    }, []);
 
     // Cập nhật thời gian thực
     useEffect(() => {
@@ -180,19 +112,14 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
             });
         };
 
-        // Kiểm tra ngay lập tức
         checkGoogleDriveStatus();
-
-        // Kiểm tra định kỳ mỗi 30 giây
         const statusTimer = setInterval(checkGoogleDriveStatus, 30000);
-
         return () => clearInterval(statusTimer);
     }, []);
 
     const handleLogout = () => {
         authUtils.logout();
         toast.success('Đăng xuất thành công!');
-        // Sử dụng window.location để redirect ngay lập tức
         window.location.href = '/';
     };
 
@@ -226,9 +153,9 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
     const getNotificationColor = (type: string) => {
         switch (type) {
             case 'warning':
-                return 'text-orange-600 bg-orange-50';
+                return 'text-amber-600 bg-amber-50';
             case 'success':
-                return 'text-green-600 bg-green-50';
+                return 'text-emerald-600 bg-emerald-50';
             case 'info':
                 return 'text-blue-600 bg-blue-50';
             default:
@@ -284,7 +211,7 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
         return 'text-blue-600';
     };
 
-    const unreadCount = getNotifications(googleDriveStatus).filter((n: any) => n.unread).length;
+    const unreadCount = getUnreadCount(notifications);
 
     return (
         <div className="h-16 bg-white border-b border-gray-200 fixed top-0 left-0 right-0 z-40">
@@ -303,7 +230,7 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
 
                     {/* Logo and title */}
                     <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8  rounded-lg flex items-center justify-center">
+                        <div className="w-8 h-8 rounded-lg flex items-center justify-center">
                             <img
                                 src="/logo-h2.png"
                                 alt="H2 MilkTea Logo"
@@ -320,6 +247,7 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
                         size="icon"
                         onClick={onToggleSidebar}
                         className="hidden lg:flex ml-2 transition-all duration-200"
+                        title={sidebarCollapsed ? "Mở rộng thanh menu" : "Thu gọn thanh menu"}
                     >
                         {sidebarCollapsed ? (
                             <ChevronRight className="h-4 w-4" />
@@ -351,88 +279,125 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
                         <span className="font-mono font-semibold">{formatTime(currentTime)}</span>
                     </div>
 
-                    {/* Notification dropdown */}
+                    {/* Notification dropdown (Mục #15: Chấm xanh unread, click điều hướng, dọn thông báo) */}
                     <DropdownMenu open={notificationDropdownOpen} onOpenChange={setNotificationDropdownOpen}>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="relative transition-all duration-200">
-                                <Bell className="h-5 w-5" />
+                            <Button variant="ghost" size="icon" className="relative transition-all duration-200" title="Thông báo hệ thống">
+                                <Bell className="h-5 w-5 text-gray-700" />
                                 {unreadCount > 0 && (
-                                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
-                                        {unreadCount}
+                                    <span className="absolute top-1.5 right-1.5 flex h-3 w-3">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 ring-2 ring-white"></span>
                                     </span>
                                 )}
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-96 p-0" sideOffset={8}>
+                        <DropdownMenuContent align="end" className="w-96 p-0 shadow-2xl rounded-2xl border border-gray-200 overflow-hidden" sideOffset={8}>
                             {/* Header */}
-                            <div className="px-4 py-3 border-b bg-gray-50">
+                            <div className="px-4 py-3 border-b bg-gray-50/80">
                                 <div className="flex items-center justify-between">
-                                    <h3 className="font-semibold text-gray-800">Thông báo</h3>
-                                    <Badge variant="secondary" className="text-xs">
-                                        {unreadCount} mới
-                                    </Badge>
+                                    <div className="flex items-center space-x-2">
+                                        <h3 className="font-bold text-gray-800 text-sm">Thông báo</h3>
+                                        {unreadCount > 0 && (
+                                            <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border-0 text-xs font-semibold">
+                                                {unreadCount} mới
+                                            </Badge>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center space-x-1">
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                const updated = markAllAsRead();
+                                                setNotifications(updated);
+                                                toast.success('Đã đánh dấu đã đọc');
+                                            }}
+                                            className="text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+                                        >
+                                            Đã đọc hết
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                const updated = clearAllNotifications();
+                                                setNotifications(updated);
+                                                toast.success('Đã dọn dẹp thông báo');
+                                            }}
+                                            className="text-xs text-gray-400 hover:text-red-600 font-medium px-2 py-1 rounded hover:bg-red-50 transition-colors"
+                                        >
+                                            Dọn dẹp
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* Notifications list - với max height và scroll */}
-                            <div className="max-h-80 overflow-y-auto">
-                                <div className="p-2">
-                                    {getNotifications(googleDriveStatus).map((notification: any) => {
-                                        const Icon = notification.icon;
+                            {/* Notifications list */}
+                            <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
+                                {notifications.length === 0 ? (
+                                    <div className="p-8 text-center text-gray-400 text-sm">
+                                        Không có thông báo nào
+                                    </div>
+                                ) : (
+                                    notifications.map((notification) => {
+                                        const Icon = notification.type === 'warning' ? AlertCircle : notification.type === 'success' ? CheckCircle : Package;
                                         return (
                                             <div
                                                 key={notification.id}
-                                                className={`flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors duration-150 ${notification.unread ? 'bg-blue-50/50' : ''
-                                                    }`}
-                                                onClick={async () => {
-                                                    // Nếu là thông báo Google Drive, chuyển đến trang cài đặt và lấy dữ liệu mới nhất
-                                                    if (notification.id.toString().startsWith('gdrive')) {
-                                                        try {
-                                                            // Thực hiện đồng bộ dữ liệu mới nhất từ Google Drive
-                                                            const success = await GoogleDriveUtils.syncLatestData();
-                                                            if (success) {
-                                                                toast.success('Đã đồng bộ dữ liệu mới nhất từ Google Drive!');
-                                                            } else {
-                                                                toast.error('Không thể đồng bộ dữ liệu từ Google Drive');
-                                                            }
-                                                        } catch (error) {
-                                                            console.error('Lỗi đồng bộ Google Drive:', error);
-                                                            toast.error('Có lỗi xảy ra khi đồng bộ dữ liệu');
-                                                        }
-                                                        router.push('/settingdata');
-                                                        setNotificationDropdownOpen(false);
+                                                className={`flex items-start space-x-3 p-3.5 hover:bg-gray-50/80 cursor-pointer transition-colors duration-150 ${
+                                                    notification.unread ? 'bg-emerald-50/30' : ''
+                                                }`}
+                                                onClick={() => {
+                                                    markAsRead(notification.id);
+                                                    setNotificationDropdownOpen(false);
+                                                    if (notification.route) {
+                                                        router.push(notification.route);
                                                     }
                                                 }}
                                             >
-                                                <div className={`p-2 rounded-lg flex-shrink-0 ${getNotificationColor(notification.type)}`}>
+                                                <div className={`p-2 rounded-xl flex-shrink-0 mt-0.5 ${getNotificationColor(notification.type)}`}>
                                                     <Icon className="h-4 w-4" />
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center justify-between">
-                                                        <p className="text-sm font-medium text-gray-800 truncate">
+                                                        <p className="text-sm font-semibold text-gray-800 truncate">
                                                             {notification.title}
                                                         </p>
                                                         {notification.unread && (
-                                                            <div className="w-2 h-2 bg-blue-500 rounded-full ml-2 flex-shrink-0"></div>
+                                                            <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full ml-2 flex-shrink-0 animate-pulse shadow-sm" title="Mới chưa đọc" />
                                                         )}
                                                     </div>
-                                                    <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+                                                    <p className="text-xs text-gray-600 mt-1 leading-relaxed line-clamp-2">
                                                         {notification.message}
                                                     </p>
-                                                    <p className="text-xs text-gray-400 mt-1">
-                                                        {notification.time}
-                                                    </p>
+                                                    <div className="flex items-center justify-between mt-2 pt-1">
+                                                        <span className="text-[11px] text-gray-400">
+                                                            {notification.time}
+                                                        </span>
+                                                        <span className="text-[11px] text-blue-600 font-medium hover:underline flex items-center">
+                                                            {notification.actionLabel || 'Xem ngay'} &rarr;
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         );
-                                    })}
-                                </div>
+                                    })
+                                )}
                             </div>
 
                             {/* Footer */}
-                            <div className="px-4 py-3 border-t bg-gray-50">
-                                <Button variant="ghost" size="sm" className="w-full text-center text-sm hover:bg-gray-100 transition-colors duration-150">
-                                    Xem tất cả thông báo
+                            <div className="px-4 py-2.5 border-t bg-gray-50/80">
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                        setNotificationDropdownOpen(false);
+                                        router.push('/notifications');
+                                    }}
+                                    className="w-full text-center text-xs font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50 transition-colors"
+                                >
+                                    Xem và quản lý tất cả thông báo
                                 </Button>
                             </div>
                         </DropdownMenuContent>
@@ -457,7 +422,6 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
                                         {userData?.['Họ và Tên'] || 'Người dùng'}
                                     </p>
                                     <p className="text-xs text-gray-500">
-
                                         {userData?.username || ''}
                                     </p>
                                 </div>

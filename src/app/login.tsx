@@ -76,7 +76,7 @@ const LoginPage = () => {
             console.log('Login successful:', user);
             
             // Hiển thị tên người dùng từ data
-            const displayName = user?.['Họ và Tên'] || user?.username || formData.username;
+            const displayName = (user as any)?.['Họ và Tên'] || (user as any)?.username || formData.username;
             toast.success(`Chào mừng ${displayName} đến với H2 MilkTea!`);
 
             // Đợi một chút để cookie được set
@@ -172,10 +172,9 @@ const LoginPage = () => {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-cyan-900 relative ">
+        <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-cyan-900 relative">
             {/* Animated Background */}
-            <div className="absolute inset-0">
-                
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
                 {/* Floating orbs */}
                 <div className="absolute top-20 left-20 w-64 h-64 bg-blue-400 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob"></div>
                 <div className="absolute top-40 right-20 w-64 h-64 bg-cyan-400 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000"></div>
@@ -183,13 +182,13 @@ const LoginPage = () => {
                 <div className="absolute bottom-40 right-40 w-64 h-64 bg-cyan-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-6000"></div>
             </div>
 
-            <div className="container relative z-10 container mx-auto px-4  ">
-                <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center min-h-screen">
+            <div className="container relative z-10 mx-auto px-4 py-8 lg:py-12">
+                <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center min-h-[calc(100vh-4rem)]">
                     
-                    {/* Left Side - Branding & Features */}
-                    <div className="text-white space-y-8">
-                        {/* Logo & Brand */}
-                        <div className="space-y-6">
+                    {/* Left Side (Desktop: Left Col / Mobile: Bottom Col after Login) */}
+                    <div className="text-white space-y-8 order-2 lg:order-1 pt-6 lg:pt-0">
+                        {/* Logo & Brand (Desktop view) */}
+                        <div className="hidden lg:block space-y-6">
                             <div className="flex items-center space-x-4">
                                 <div className="relative">
                                     <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-400 to-cyan-400 rounded-2xl shadow-2xl">
@@ -204,23 +203,20 @@ const LoginPage = () => {
                                         H2 MilkTea
                                     </h1>
                                     <div className="flex items-center space-x-2 mt-2">
-                                        <span className="text-sm text-blue-200">Version 1.0 </span>
-                                      
+                                        <span className="text-sm text-blue-200">Version 1.0</span>
                                     </div>
                                 </div>
                             </div>
 
                             <div className="space-y-4">
                                 <h2 className="text-3xl lg:text-4xl font-bold leading-tight">
-                                    Hệ thống quản lý bán hàng
-                              
+                                    Hệ thống quản lý bán hàng & POS thông minh
                                 </h2>
-                             
                             </div>
                         </div>
 
                         {/* Features Grid */}
-                        <div className="grid md:grid-cols-2 gap-4">
+                        <div className="grid sm:grid-cols-2 gap-4">
                             {features.map((feature, index) => {
                                 const IconComponent = feature.icon;
                                 return (
@@ -244,7 +240,7 @@ const LoginPage = () => {
                         </div>
 
                         {/* Social Links */}
-                        <div className="flex items-center space-x-4">
+                        <div className="flex items-center space-x-4 pt-2">
                             <div className="flex items-center space-x-2 text-blue-200">
                                 <Globe className="w-5 h-5" />
                                 <span className="text-sm font-medium">Kết nối với chúng tôi:</span>
@@ -266,17 +262,32 @@ const LoginPage = () => {
                         </div>
                     </div>
 
-                    {/* Right Side - Login Form */}
-                    <div className="flex items-center justify-center">
+                    {/* Right Side - Login Form (Mobile: Top Col order-1 / Desktop: Right Col order-2) (Mục #9) */}
+                    <div className="flex flex-col items-center justify-center order-1 lg:order-2">
+                        {/* Mobile Brand Header */}
+                        <div className="lg:hidden text-center mb-6">
+                            <div className="inline-flex items-center justify-center w-14 h-14 bg-gradient-to-br from-blue-400 to-cyan-400 rounded-2xl shadow-xl mb-3">
+                                <Coffee className="w-7 h-7 text-white" />
+                            </div>
+                            <h1 className="text-3xl font-extrabold text-white tracking-tight">H2 MilkTea</h1>
+                            <p className="text-xs text-blue-200 mt-1 font-medium">Hệ thống quản lý bán hàng & POS thông minh</p>
+                        </div>
+
                         <div className="w-full max-w-md">
                             <Card className="bg-white/95 backdrop-blur-xl shadow-2xl rounded-3xl border border-white/20 overflow-hidden">
-                                <CardContent className="p-8">
+                                <CardContent className="p-6 sm:p-8">
                                     
+                                    {/* Header text on Card */}
+                                    <div className="mb-6 text-center">
+                                        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Đăng nhập tài khoản</h2>
+                                        <p className="text-xs sm:text-sm text-gray-500 mt-1">Truy cập vào hệ thống làm việc của bạn</p>
+                                    </div>
+
                                     {/* Return URL Alert */}
                                     {searchParams?.get('returnUrl') && (
                                         <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-cyan-50 border-l-4 border-blue-500 rounded-lg">
                                             <div className="flex items-center">
-                                                <Shield className="w-5 h-5 mr-3 text-blue-600" />
+                                                <Shield className="w-5 h-5 mr-3 text-blue-600 flex-shrink-0" />
                                                 <p className="text-sm font-medium text-blue-800">
                                                     Yêu cầu xác thực để truy cập chức năng
                                                 </p>
@@ -284,9 +295,9 @@ const LoginPage = () => {
                                         </div>
                                     )}
 
-                                    <form onSubmit={handleSubmit} className="space-y-6">
+                                    <form onSubmit={handleSubmit} className="space-y-5">
                                         {/* Username Field */}
-                                        <div className="space-y-3">
+                                        <div className="space-y-2">
                                             <Label className="text-sm font-bold text-gray-700 flex items-center">
                                                 <User className="w-4 h-4 mr-2 text-blue-600" />
                                                 Tên đăng nhập
@@ -296,8 +307,9 @@ const LoginPage = () => {
                                                     name="username"
                                                     type="text"
                                                     required
+                                                    autoFocus
                                                     placeholder="Nhập tên đăng nhập"
-                                                    className="pl-4 pr-4 py-4 text-base bg-white border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                                                    className="pl-4 pr-4 py-3 sm:py-4 text-base bg-white border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
                                                     value={formData.username}
                                                     onChange={handleChange}
                                                 />
@@ -305,7 +317,7 @@ const LoginPage = () => {
                                         </div>
 
                                         {/* Password Field */}
-                                        <div className="space-y-3">
+                                        <div className="space-y-2">
                                             <Label className="text-sm font-bold text-gray-700 flex items-center">
                                                 <Lock className="w-4 h-4 mr-2 text-blue-600" />
                                                 Mật khẩu
@@ -316,7 +328,7 @@ const LoginPage = () => {
                                                     type={showPassword ? 'text' : 'password'}
                                                     required
                                                     placeholder="Nhập mật khẩu"
-                                                    className="pl-4 pr-12 py-4 text-base bg-white border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                                                    className="pl-4 pr-12 py-3 sm:py-4 text-base bg-white border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
                                                     value={formData.password}
                                                     onChange={handleChange}
                                                 />
@@ -324,6 +336,7 @@ const LoginPage = () => {
                                                     type="button"
                                                     className="absolute inset-y-0 right-0 pr-4 flex items-center"
                                                     onClick={() => setShowPassword(!showPassword)}
+                                                    tabIndex={-1}
                                                 >
                                                     {showPassword ? (
                                                         <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600 transition-colors" />
@@ -335,19 +348,19 @@ const LoginPage = () => {
                                         </div>
 
                                         {/* Remember Me */}
-                                        <div className="flex items-center justify-between">
+                                        <div className="flex items-center justify-between pt-1">
                                             <div className="flex items-center">
                                                 <input
                                                     id="remember-me"
                                                     name="remember-me"
                                                     type="checkbox"
-                                                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
                                                 />
-                                                <label htmlFor="remember-me" className="ml-3 text-sm text-gray-700 font-medium">
+                                                <label htmlFor="remember-me" className="ml-2 text-xs sm:text-sm text-gray-700 font-medium cursor-pointer">
                                                     Ghi nhớ đăng nhập
                                                 </label>
                                             </div>
-                                            <button type="button" className="text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors">
+                                            <button type="button" className="text-xs sm:text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors">
                                                 Quên mật khẩu?
                                             </button>
                                         </div>
@@ -356,32 +369,31 @@ const LoginPage = () => {
                                         <Button
                                             type="submit"
                                             disabled={loading}
-                                            className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white rounded-xl py-4 text-base font-bold transition-all duration-200 shadow-xl hover:shadow-2xl transform hover:scale-[1.02]"
+                                            className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white rounded-xl py-3.5 sm:py-4 text-base font-bold transition-all duration-200 shadow-xl hover:shadow-2xl transform hover:scale-[1.01]"
                                         >
                                             {loading ? (
                                                 <div className="flex items-center justify-center">
-                                                    <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin mr-3"></div>
+                                                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-3"></div>
                                                     Đang xử lý...
                                                 </div>
                                             ) : (
                                                 <div className="flex items-center justify-center">
-                                                    <Shield className="w-5 h-5 mr-3" />
+                                                    <Shield className="w-5 h-5 mr-2 sm:mr-3" />
                                                     Đăng nhập hệ thống
-                                                    <ArrowRight className="ml-3 w-5 h-5" />
+                                                    <ArrowRight className="ml-2 sm:ml-3 w-5 h-5" />
                                                 </div>
                                             )}
                                         </Button>
                                     </form>
 
                                     {/* Footer */}
-                                    <div className="mt-8 text-center space-y-4">
-                                        <p className="text-sm text-gray-600">
+                                    <div className="mt-6 sm:mt-8 text-center space-y-2">
+                                        <p className="text-xs sm:text-sm text-gray-600">
                                             Cần hỗ trợ?{' '}
                                             <button className="text-blue-600 font-bold hover:text-blue-800 transition-colors">
                                                 Liên hệ 0985561909 - Trần Văn Hà
                                             </button>
                                         </p>
-                                      
                                     </div>
                                 </CardContent>
                             </Card>

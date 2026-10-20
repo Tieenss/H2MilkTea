@@ -28,6 +28,7 @@ import {
     Calendar,
     AlertTriangle,
     Bot,
+    Bell,
 } from 'lucide-react';
 
 export interface NavigationItem {
@@ -296,6 +297,15 @@ export const navigation: NavigationItem[] = [
                 sidebar: true,
                 color: '#32CD32', // lime green
                 description: 'Tài liệu hướng dẫn chi tiết'
+            },
+            {
+                name: 'Trung tâm thông báo',
+                href: '/notifications',
+                icon: Bell,
+                dashboard: true,
+                sidebar: true,
+                color: '#10B981',
+                description: 'Quản lý cảnh báo và thông báo toàn hệ thống'
             },
 
          
