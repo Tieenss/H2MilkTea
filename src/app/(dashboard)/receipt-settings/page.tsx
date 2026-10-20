@@ -23,13 +23,15 @@ import {
   Smartphone,
   Eye,
   Copy,
-  Tag
+  Tag,
+  ChefHat
 } from 'lucide-react';
 import useReceiptTemplate from '../pos/hooks/useReceiptTemplate';
 import { useReceiptSettings } from '@/hooks/useReceiptSettings';
 import ReceiptPreview, { sampleReceiptData } from '@/components/ReceiptPreview';
 import { applyReceiptSettingsToAll } from '@/utils/receiptSettings';
 import { LabelSettingsTab } from '@/components/LabelSettingsTab';
+import { VatAndKitchenSettingsTab } from '@/components/VatAndKitchenSettingsTab';
 import toast from 'react-hot-toast';
 
 // Paper size configurations
@@ -337,6 +339,16 @@ export default function ReceiptSettingsPage() {
         </Button>
         <Button
           type="button"
+          variant={currentTab === 'vat-kitchen' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setCurrentTab('vat-kitchen')}
+          className={`flex items-center gap-2 ${currentTab === 'vat-kitchen' ? 'bg-orange-600 text-white' : 'border-orange-200 text-orange-700 hover:bg-orange-50'}`}
+        >
+          <ChefHat className="w-4 h-4" />
+          Thuế VAT & Khu Bếp
+        </Button>
+        <Button
+          type="button"
           variant={currentTab === 'report' ? 'default' : 'outline'}
           size="sm"
           onClick={() => setCurrentTab('report')}
@@ -349,6 +361,8 @@ export default function ReceiptSettingsPage() {
 
       {currentTab === 'label' ? (
         <LabelSettingsTab />
+      ) : currentTab === 'vat-kitchen' ? (
+        <VatAndKitchenSettingsTab />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Settings */}

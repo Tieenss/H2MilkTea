@@ -10,6 +10,8 @@ import { Customer } from '@/app/(dashboard)/khachhang/types/customer';
 import { getCustomerTypeColor } from '@/app/(dashboard)/khachhang/utils/customerFormatters';
 import { getLabelSettings } from '@/utils/labelSettings';
 import { printOrderLabels } from '@/utils/labelPrint';
+import { PrintSelectionModal, PrintActionType } from './PrintSelectionModal';
+import { printReceiptWithSettings } from '../utils/receiptPrint';
 import toast from 'react-hot-toast';
 import {
   AlertDialog,
@@ -45,6 +47,7 @@ interface CartSidebarProps {
   onShowQRModal?: () => void;
   onShowNoteModal: (item: CartItem) => void;
   onSendToKitchen?: () => Promise<void> | void;
+  onUpdateCartItemPrintStatus?: (itemIds: string[], status: 'printed' | 'new' | 'modified') => void;
 }
 
 export const CartSidebar: React.FC<CartSidebarProps> = ({
@@ -69,9 +72,12 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
   onShowCustomerModal,
   onShowQRModal,
   onShowNoteModal,
-  onSendToKitchen
+  onSendToKitchen,
+  onUpdateCartItemPrintStatus
 }) => {
   const [isSendingKitchen, setIsSendingKitchen] = useState(false);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [isPrintingModal, setIsPrintingModal] = useState(false);
   const [internalShowClearConfirmation, setInternalShowClearConfirmation] = useState(false);
   const isClearConfirmationOpen = controlledShowClearConfirmation !== undefined
     ? controlledShowClearConfirmation
@@ -95,24 +101,73 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
     }
   }, [cartSignature]);
 
-  const handlePrintAllLabels = async () => {
+  // Mở popup lựa chọn các món cần in tem / in hóa đơn (Mục #6)
+  const handlePrintAllLabels = () => {
     if (cart.length === 0) return;
+    setIsPrintModalOpen(true);
+  };
+
+  // Xử lý in từ Modal lựa chọn (Chỉ in tem, Chỉ in hóa đơn, hoặc In cả hai)
+  const handleConfirmPrintFromModal = async (action: PrintActionType, selectedItems: CartItem[]) => {
+    setIsPrintingModal(true);
     try {
-      const res = await printOrderLabels(
-        cart,
-        {
-          tableName: selectedTableName || 'Khách mang về',
-          cashierName: employee,
-          createdAt: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+      const orderInfo = {
+        tableName: selectedTableName || 'Khách mang về',
+        cashierName: employee,
+        createdAt: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+      };
+
+      // 1. In tem nhãn dán ly cho các món được tích chọn
+      if (action === 'labels' || action === 'both') {
+        const res = await printOrderLabels(selectedItems, orderInfo, { forceAll: true });
+        if (res.success) {
+          toast.success(res.message);
+          onUpdateCartItemPrintStatus?.(selectedItems.map((i) => i.id), 'printed');
+        } else {
+          toast.error(res.message);
         }
-      );
-      if (res.success) toast.success(res.message);
-      else toast.error(res.message);
+      }
+
+      // 2. In hóa đơn bán hàng
+      if (action === 'receipt' || action === 'both') {
+        try {
+          const receiptData = {
+            receiptNumber: `H2-${Date.now().toString().slice(-6)}`,
+            date: new Date(),
+            cashier: employee || 'Thu ngân',
+            customer: selectedCustomer ? selectedCustomer['Tên khách hàng'] : 'Khách lẻ',
+            table: selectedTableName || 'Mang về',
+            items: cart.map((i) => ({
+              name: `${i.name}${i.size ? ` (${i.size})` : ''}`,
+              quantity: i.quantity,
+              price: i.price,
+              total: i.price * i.quantity,
+              notes: i.note,
+            })),
+            subtotal,
+            discount: customerDiscount,
+            total,
+            paid: total,
+            change: 0,
+            notes: selectedCustomer ? `SĐT: ${selectedCustomer['Số điện thoại']}` : undefined,
+          };
+          await printReceiptWithSettings(receiptData, 'pos');
+          toast.success('Đã gửi lệnh in hóa đơn thành công.');
+        } catch (receiptErr) {
+          console.error('Lỗi in hóa đơn từ popup:', receiptErr);
+          toast.error('Không thể in hóa đơn.');
+        }
+      }
+
+      setIsPrintModalOpen(false);
     } catch (err: any) {
-      toast.error(err.message || 'Lỗi khi in tem nhãn');
+      toast.error(err.message || 'Lỗi khi thực hiện in');
+    } finally {
+      setIsPrintingModal(false);
     }
   };
 
+  // In riêng 1 con tem khi bấm vào icon Tag trên dòng sản phẩm (Mục #6)
   const handlePrintSingleItemLabel = async (item: CartItem) => {
     try {
       const res = await printOrderLabels(
@@ -121,21 +176,28 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
           tableName: selectedTableName || 'Khách mang về',
           cashierName: employee,
           createdAt: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-        }
+        },
+        { forceAll: true }
       );
-      if (res.success) toast.success(res.message);
-      else toast.error(res.message);
+      if (res.success) {
+        toast.success(res.message);
+        onUpdateCartItemPrintStatus?.([item.id], 'printed');
+      } else {
+        toast.error(res.message);
+      }
     } catch (err: any) {
       toast.error(err.message || 'Lỗi khi in tem');
     }
   };
 
+  // Gửi order sang khu bếp / quầy pha chế (Mục #1)
   const handleSendKitchen = async () => {
     if (!onSendToKitchen) return;
     setIsSendingKitchen(true);
     try {
       await onSendToKitchen();
       setSentKitchenSignature(cartSignature);
+      toast.success(`Đã gửi ${cart.length} món bàn ${selectedTableName || ''} đến quầy pha chế!`);
 
       // Tự động in tem nhãn nếu cấu hình autoPrintOnKitchenSend đang bật
       const labelSettings = getLabelSettings();
@@ -147,8 +209,12 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
             cashierName: employee,
             createdAt: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
           },
-          labelSettings
-        );
+          { customSettings: labelSettings, forceAll: false }
+        ).then((res) => {
+          if (res.success) {
+            onUpdateCartItemPrintStatus?.(cart.map((i) => i.id), 'printed');
+          }
+        });
       }
     } catch {
       // The POS hook already displays the server error to the cashier.
@@ -375,6 +441,16 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
           />
         </div>
       )}
+
+      {/* Modal Xác nhận in tem & hóa đơn trước khi thực hiện (Mục #6) */}
+      <PrintSelectionModal
+        isOpen={isPrintModalOpen}
+        onClose={() => setIsPrintModalOpen(false)}
+        cart={cart}
+        tableName={selectedTableName}
+        isPrinting={isPrintingModal}
+        onConfirmPrint={handleConfirmPrintFromModal}
+      />
     </div>
   );
 };
@@ -544,7 +620,7 @@ const CartSummary: React.FC<{
 
     {/* VAT */}
     <div className="flex justify-between items-center text-gray-600 text-sm">
-      <span>VAT (10%):</span>
+      <span>VAT ({subtotal > 0 ? Math.round((vat / subtotal) * 100) : 10}%):</span>
       <span className="font-medium">{formatCurrency(vat)}</span>
     </div>
 
@@ -631,18 +707,35 @@ const ActionButtons: React.FC<{
     <div className="space-y-3">
       {/* Send to Kitchen Button - Only show if handler is provided */}
       {onSendToKitchen && (
-        <Button
-          onClick={handleKitchenClick}
-          disabled={isDisabled || isSendingKitchen || isKitchenSent}
-          className={`w-full py-2.5 px-4 rounded-lg flex items-center justify-center space-x-2 transition-colors touch-target text-sm ${
-            isDisabled
-              ? 'bg-gray-300 cursor-not-allowed text-gray-500'
-              : 'bg-orange-500 hover:bg-orange-600 text-white'
-          }`}
-        >
-          <ChefHat className="w-4 h-4" />
-          <span>{needTable ? 'Chọn bàn để gửi bếp' : isSendingKitchen ? 'Đang gửi...' : isKitchenSent ? 'Đã gửi đến bếp' : 'Gửi đến bếp'}</span>
-        </Button>
+        <div className="space-y-1">
+          <Button
+            onClick={handleKitchenClick}
+            disabled={isDisabled || isSendingKitchen || isKitchenSent}
+            className={`w-full py-2.5 px-4 rounded-lg flex items-center justify-center space-x-2 transition-colors touch-target text-sm font-bold ${
+              isDisabled
+                ? 'bg-gray-300 cursor-not-allowed text-gray-500'
+                : isKitchenSent
+                ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
+                : 'bg-orange-500 hover:bg-orange-600 text-white shadow-sm'
+            }`}
+          >
+            <ChefHat className="w-4 h-4" />
+            <span>
+              {needTable
+                ? 'Chọn bàn để gửi bếp'
+                : isSendingKitchen
+                ? 'Đang chuyển xuống bếp...'
+                : isKitchenSent
+                ? '✓ Đã chuyển bếp pha chế'
+                : 'Gửi đến bếp pha chế'}
+            </span>
+          </Button>
+          {!needTable && !isDisabled && (
+            <p className="text-[10px] text-gray-500 text-center">
+              Chuyển danh sách món xuống quầy bếp & tự động in tem ly
+            </p>
+          )}
+        </div>
       )}
 
       {/* Checkout Button */}

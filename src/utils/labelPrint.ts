@@ -8,6 +8,31 @@ import {
 import { getLabelSettings, LABEL_PAPER_SIZES } from './labelSettings';
 import { formatCurrency } from '@/app/(dashboard)/pos/utils/formatters';
 
+// Chuẩn hóa chuỗi tiếng Việt (hỗ trợ cả NFC lẫn NFD) và loại bỏ dấu để so sánh danh mục chính xác
+const normalizeText = (text?: string): string => {
+  if (!text) return '';
+  return text
+    .normalize('NFC')
+    .toLowerCase()
+    .replace(/[àáạảãâầấậẩẫăằắặẳẵ]/g, 'a')
+    .replace(/[èéẹẻẽêềếệểễ]/g, 'e')
+    .replace(/[ìíịỉĩ]/g, 'i')
+    .replace(/[òóọỏõôồốộổỗơờớợởỡ]/g, 'o')
+    .replace(/[ùúụủũưừứựửữ]/g, 'u')
+    .replace(/[ỳýỵỷỹ]/g, 'y')
+    .replace(/đ/g, 'd')
+    .trim();
+};
+
+const COFFEE_KEYWORDS = [
+  'ca phe', 'cafe', 'coffee', 'bac xiu', 'espresso', 'latte', 'capuchino', 'cappuccino', 'cold brew', 'phin', 'den da', 'nau da'
+];
+
+export interface PrintOrderLabelsOptions {
+  customSettings?: LabelSettings;
+  forceAll?: boolean; // Khi thu ngân bấm in riêng lẻ 1 món hoặc đã chủ động tích chọn món từ modal
+}
+
 // Lấy kích thước tem theo mm
 export const getLabelDimensions = (settings: LabelSettings): { width: number; height: number } => {
   if (settings.paperSize === 'custom') {
@@ -332,29 +357,46 @@ export const printLabelsViaWebSerial = async (
 export const printOrderLabels = async (
   cartItems: CartItem[],
   orderInfo: LabelOrderInfo,
-  customSettings?: LabelSettings
+  customSettingsOrOptions?: LabelSettings | PrintOrderLabelsOptions
 ): Promise<{ success: boolean; labelCount: number; message: string }> => {
-  const settings = customSettings || getLabelSettings();
+  const options: PrintOrderLabelsOptions = 
+    customSettingsOrOptions && 'connectionType' in customSettingsOrOptions
+      ? { customSettings: customSettingsOrOptions as LabelSettings }
+      : (customSettingsOrOptions as PrintOrderLabelsOptions) || {};
+
+  const settings = options.customSettings || getLabelSettings();
 
   if (!settings.enabled) {
     return { success: false, labelCount: 0, message: 'Tính năng in tem nhãn dán ly đang bị tắt trong cài đặt.' };
   }
 
   // Lọc sản phẩm thuộc các danh mục được phép in tem
-  const applicableCategories = settings.applicableCategories.map(c => c.toLowerCase());
+  const applicableCategories = settings.applicableCategories.map(c => normalizeText(c));
+  const isCoffeeAllowed = applicableCategories.some(c => c.includes('ca phe') || c.includes('cafe') || c.includes('coffee'));
 
   // Tách từng sản phẩm theo số lượng (vd: số lượng 2 -> 2 ly)
   const printableItems: Omit<PrintableLabelItem, 'itemIndex' | 'totalItems'>[] = [];
 
   for (const item of cartItems) {
     const itemRecord = item as unknown as Record<string, unknown>;
-    const category = typeof itemRecord['Loại sản phẩm'] === 'string'
+    const rawCategory = typeof itemRecord['Loại sản phẩm'] === 'string'
       ? itemRecord['Loại sản phẩm']
       : typeof itemRecord.category === 'string'
       ? itemRecord.category
       : '';
-    const isApplicable = applicableCategories.length === 0 || 
-      applicableCategories.some(cat => category.toLowerCase().includes(cat) || item.name.toLowerCase().includes(cat));
+    const normCategory = normalizeText(rawCategory);
+    const normName = normalizeText(item.name);
+
+    // Kiểm tra món cà phê qua từ khóa nếu trong cài đặt đã bật danh mục Cà phê (Mục #6)
+    const isCoffeeItem = COFFEE_KEYWORDS.some(kw => normCategory.includes(kw) || normName.includes(kw));
+
+    // Nếu thu ngân bấm in riêng lẻ món này (cartItems.length === 1) hoặc có flag forceAll: Luôn cho phép in
+    const isForcePrint = options.forceAll || cartItems.length === 1;
+
+    const isApplicable = isForcePrint ||
+      applicableCategories.length === 0 || 
+      applicableCategories.some(cat => normCategory.includes(cat) || normName.includes(cat)) ||
+      (isCoffeeAllowed && isCoffeeItem);
 
     if (isApplicable) {
       const qty = Math.max(1, item.quantity || 1);
@@ -368,7 +410,7 @@ export const printOrderLabels = async (
           toppings: item.toppings,
           note: item.note,
           price: item.price,
-          category,
+          category: rawCategory,
         });
       }
     }

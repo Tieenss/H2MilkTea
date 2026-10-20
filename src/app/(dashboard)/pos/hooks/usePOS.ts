@@ -15,6 +15,7 @@ import { calculatePointsFromSpending } from '@/app/(dashboard)/khachhang/utils/c
 import { useSharedCartDraft, type CartDraft } from './useSharedCartDraft';
 import { useTablePresence } from '@/hooks/useTablePresence';
 import { createClient } from '@/lib/supabase/client';
+import { getVatSettings } from '@/utils/vatSettings';
 
 // Helper function to format date to Vietnamese format (DD/MM/YYYY HH:mm:ss)
 const formatToVietnameseDateTime = (date: Date): string => {
@@ -77,7 +78,8 @@ export const usePOS = () => {
     setCart,
     setActiveOrders,
     setSelectedTableId,
-    updateCartItemNote
+    updateCartItemNote,
+    updateItemsPrintStatus
   } = useCart();
 
   const selectedTableName = selectedTableId
@@ -882,9 +884,11 @@ export const usePOS = () => {
     };
   }, []);
 
-  // Calculate totals
+  // Calculate totals (Tính VAT động theo cấu hình hệ thống - Mục #4)
+  const vatSettings = getVatSettings();
+  const vatRate = vatSettings.enabled ? (vatSettings.ratePercent / 100) : 0;
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const vat = subtotal * 0.1;
+  const vat = subtotal * vatRate;
   let total = subtotal + vat;
 
   let customerDiscount = 0;
@@ -959,6 +963,7 @@ export const usePOS = () => {
     syncData,
     resetFilters,
     updateCartItemNote,
+    updateItemsPrintStatus,
     sendToKitchen,
     settleQrOrder,
 

@@ -228,6 +228,33 @@ export const useCart = () => {
     return activeOrders.size;
   }, [activeOrders]);
 
+  // Update print status for cart items (Mục #6)
+  const updateItemsPrintStatus = useCallback((itemIds: string[], status: 'printed' | 'new' | 'modified') => {
+    setCart(prevCart => {
+      const idSet = new Set(itemIds);
+      const updated = prevCart.map(item => {
+        if (idSet.has(item.id)) {
+          return {
+            ...item,
+            printStatus: status,
+            printedQuantity: status === 'printed' ? item.quantity : item.printedQuantity,
+          };
+        }
+        return item;
+      });
+
+      if (selectedTableId) {
+        setActiveOrders(prev => {
+          const next = new Map(prev);
+          next.set(selectedTableId, updated);
+          return next;
+        });
+      }
+
+      return updated;
+    });
+  }, [selectedTableId]);
+
   // Get table orders (for specific table)
   const getTableOrders = useCallback((tableId: string) => {
     return activeOrders.get(tableId) || [];
@@ -245,6 +272,7 @@ export const useCart = () => {
     adjustQuantity,
     updateQuantity,
     updateCartItemNote,
+    updateItemsPrintStatus,
     clearCart,
     clearAllCarts,
     getCartTotal,

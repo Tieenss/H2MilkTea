@@ -70,6 +70,7 @@ export default function POSPage() {
     removeFromCart,
     adjustQuantity,
     clearCart,
+    updateItemsPrintStatus,
     selectTable,
     transferTable,
     processPayment,
@@ -475,6 +476,7 @@ export default function POSPage() {
             onShowTableModal={() => setShowTableModal(true)}
             onShowCustomerModal={() => setShowCustomerModal(true)}
             onShowQRModal={() => setShowTableQRModal(true)}
+            onUpdateCartItemPrintStatus={updateItemsPrintStatus}
             onShowNoteModal={(item) => {
               setSelectedItemForNote(item);
               setNoteInput(item.note || '');
@@ -527,6 +529,7 @@ export default function POSPage() {
                 }}
                 selectedTableName={selectedTableName}
                 employee={nhanvien}
+                onUpdateCartItemPrintStatus={updateItemsPrintStatus}
                 onSendToKitchen={() => sendToKitchen({
                   tableId: selectedTableId || '', tableName: selectedTableName,
                   items: cart, employee: nhanvien || 'Thu ngân',

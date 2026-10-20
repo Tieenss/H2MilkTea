@@ -341,7 +341,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   <span className="font-medium">{formatCurrency(subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-gray-700 text-sm">
-                  <span>VAT (10%):</span>
+                  <span>VAT ({subtotal > 0 ? Math.round((vat / subtotal) * 100) : 10}%):</span>
                   <span className="font-medium">{formatCurrency(vat)}</span>
                 </div>
                 {customerDiscount > 0 && (
@@ -763,7 +763,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                <span className="font-medium">{formatCurrency(subtotal)}</span>
              </div>
              <div className="flex justify-between text-gray-700">
-               <span>VAT (10%):</span>
+               <span>VAT ({subtotal > 0 ? Math.round((vat / subtotal) * 100) : 10}%):</span>
                <span className="font-medium">{formatCurrency(vat)}</span>
              </div>
              {customerDiscount > 0 && (
