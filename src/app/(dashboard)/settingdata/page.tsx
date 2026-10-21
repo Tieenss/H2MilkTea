@@ -619,17 +619,17 @@ const SettingDataPage = () => {
               <CardContent>
                 <div className="space-y-4">
                   {Object.entries(performance?.recordCounts || {}).map(([tableName, count]) => (
-                    <div key={tableName} className="flex items-center justify-between p-3 rounded-lg bg-purple-50">
+                    <div key={tableName} className="flex items-center justify-between p-3 rounded-lg bg-purple-50 dark:bg-purple-950/40 border border-transparent dark:border-purple-800/40">
                       <div className="flex items-center gap-3">
                         {getTableIcon(tableName)}
                         <div>
-                          <p className="font-medium">{getTableDisplayName(tableName)}</p>
-                          <p className="text-sm text-gray-600">{tableName}</p>
+                          <p className="font-medium text-gray-900 dark:text-white">{getTableDisplayName(tableName)}</p>
+                          <p className="text-sm text-gray-600 dark:text-slate-400">{tableName}</p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold text-purple-900">{count}</p>
-                        <p className="text-sm text-gray-600">bản ghi</p>
+                        <p className="font-bold text-purple-900 dark:text-purple-300">{count}</p>
+                        <p className="text-sm text-gray-600 dark:text-slate-400">bản ghi</p>
                       </div>
                     </div>
                   ))}
