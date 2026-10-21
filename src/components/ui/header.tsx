@@ -68,6 +68,28 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
         needsSync: false
     });
 
+    // Dark Mode Toggle Logic
+    const [colorMode, setColorMode] = useState<'light' | 'dark' | 'system'>('light');
+
+    useEffect(() => {
+        const initial = getAppearanceSettings();
+        setColorMode(initial.colorMode);
+        const handleThemeUpdate = () => {
+            setColorMode(getAppearanceSettings().colorMode);
+        };
+        window.addEventListener('h2_appearance_settings_updated', handleThemeUpdate);
+        return () => window.removeEventListener('h2_appearance_settings_updated', handleThemeUpdate);
+    }, []);
+
+    const toggleQuickDarkMode = () => {
+        const current = getAppearanceSettings();
+        const nextMode = current.colorMode === 'dark' ? 'light' : 'dark';
+        const updated = { ...current, colorMode: nextMode, lastUpdated: new Date().toISOString() };
+        saveAppearanceSettings(updated);
+        setColorMode(nextMode);
+        toast.success(nextMode === 'dark' ? '🌙 Đã kích hoạt Giao diện Tối' : '☀️ Đã kích hoạt Giao diện Sáng');
+    };
+
     // Khởi tạo an toàn sau khi mount ở Client để tránh Hydration Mismatch
     useEffect(() => {
         setMounted(true);
