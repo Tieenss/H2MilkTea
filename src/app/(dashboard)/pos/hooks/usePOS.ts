@@ -95,6 +95,13 @@ export const usePOS = () => {
     });
   }, [setActiveOrders]);
 
+  const handleRemoteCustomer = useCallback((tblId: string, cust: Customer | null) => {
+    tableCustomersRef.current.set(tblId, cust);
+    if (tblId === selectedTableId) {
+      setSelectedCustomer(cust);
+    }
+  }, [selectedTableId]);
+
   const {
     status: sharedCartStatus,
     realtimeStatus,
@@ -110,12 +117,7 @@ export const usePOS = () => {
     setCart,
     selectedCustomer,
     onRemoteCart: applyRemoteCart,
-    onRemoteCustomer: (tblId, cust) => {
-      tableCustomersRef.current.set(tblId, cust);
-      if (tblId === selectedTableId) {
-        setSelectedCustomer(cust);
-      }
-    },
+    onRemoteCustomer: handleRemoteCustomer,
   });
 
   // Realtime Presence: Theo dõi ai đang xem/chọn món ở từng bàn
@@ -127,16 +129,22 @@ export const usePOS = () => {
   });
 
   const clearCart = useCallback(() => {
+    cancelPendingAutosave();
     clearLocalCart();
     if (selectedTableId) {
       tableCustomersRef.current.delete(selectedTableId);
       updateTableStatus(selectedTableId, 'Trống');
+      setActiveOrders((prev) => {
+        const next = new Map(prev);
+        next.delete(selectedTableId);
+        return next;
+      });
     }
     setSelectedCustomer(null);
     void clearSharedCartDraft().catch((error) => {
       console.error('Không thể xóa giỏ hàng dùng chung:', error);
     });
-  }, [clearLocalCart, clearSharedCartDraft, selectedTableId, updateTableStatus]);
+  }, [cancelPendingAutosave, clearLocalCart, clearSharedCartDraft, selectedTableId, updateTableStatus, setActiveOrders]);
 
   // Modal state
   const [modalState, setModalState] = useState<ModalState>({
@@ -510,8 +518,8 @@ export const usePOS = () => {
     const existingCustomer = tableCustomersRef.current.get(tableId) || null;
     setSelectedCustomer(existingCustomer);
 
-    // Update table status if needed
-    if (table['Tên bàn'] !== 'Khách mua về' && table['Trạng thái sử dụng'] !== 'Đang sử dụng') {
+    // Update table status if needed (chỉ cập nhật Đang sử dụng nếu bàn thực sự có món)
+    if (table['Tên bàn'] !== 'Khách mua về' && tableCart.length > 0 && table['Trạng thái sử dụng'] !== 'Đang sử dụng') {
       updateTableStatus(tableId, 'Đang sử dụng');
     }
 

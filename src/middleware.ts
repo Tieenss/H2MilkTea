@@ -35,6 +35,12 @@ export function middleware(request: NextRequest) {
     '/not-found',
     '/profile',
     '/receipt-settings',
+    '/notifications',
+    '/pos-hub',
+    '/menu',
+    '/reports',
+    '/settings',
+    '/settings/appearance',
     // POS & Bán hàng
     '/pos',
     '/orders',

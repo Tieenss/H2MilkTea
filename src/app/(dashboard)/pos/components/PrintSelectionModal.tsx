@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Printer,
   Receipt,
@@ -9,8 +9,6 @@ import {
   Square,
   X,
   Sparkles,
-  RefreshCw,
-  AlertCircle,
   Layers
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -29,6 +27,11 @@ interface PrintSelectionModalProps {
   onConfirmPrint: (action: PrintActionType, selectedItems: CartItem[]) => Promise<void>;
 }
 
+// Khóa định danh duy nhất cho từng dòng trong danh sách chọn in
+export const getPrintItemKey = (item: CartItem, index: number): string => {
+  return item.lineItemKey || `${item.id}_${item.size || 'M'}_${item.sugar || ''}_${item.ice || ''}_${(item.toppings || []).join('-')}_${index}`;
+};
+
 export function PrintSelectionModal({
   isOpen,
   onClose,
@@ -37,56 +40,67 @@ export function PrintSelectionModal({
   isPrinting = false,
   onConfirmPrint,
 }: PrintSelectionModalProps) {
-  // Quản lý danh sách ID món được chọn để in tem
-  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
+  // Quản lý danh sách Key món được chọn để in tem
+  const [selectedItemKeys, setSelectedItemKeys] = useState<Set<string>>(new Set());
+  const wasOpenRef = useRef(false);
 
-  // Khi modal mở, mặc định chọn các món 'new' hoặc 'modified', bỏ tích các món 'printed' (Mục #6)
+  // Chỉ khởi tạo khi modal chuyển từ đóng sang mở (tránh reset lựa chọn của thu ngân khi background sync re-render)
   useEffect(() => {
     if (isOpen) {
-      const initialSelected = new Set<string>();
-      cart.forEach((item) => {
-        // Món mới hoặc đã sửa: Tự động tích chọn
-        // Món đã in trước đó: Mặc định bỏ tích để tránh in lãng phí tem
-        if (item.printStatus !== 'printed') {
-          initialSelected.add(item.id);
+      if (!wasOpenRef.current) {
+        wasOpenRef.current = true;
+        const initialSelected = new Set<string>();
+        cart.forEach((item, index) => {
+          // Món mới hoặc đã sửa: Tự động tích chọn
+          // Món đã in trước đó: Mặc định bỏ tích để tránh in lãng phí tem
+          if (item.printStatus !== 'printed') {
+            initialSelected.add(getPrintItemKey(item, index));
+          }
+        });
+
+        // Nếu tất cả các món đều đã in, tích chọn tất cả để thu ngân tiện in lại nếu muốn
+        if (initialSelected.size === 0 && cart.length > 0) {
+          cart.forEach((item, index) => initialSelected.add(getPrintItemKey(item, index)));
         }
-      });
 
-      // Nếu tất cả các món đều đã in, tích chọn tất cả để thu ngân tiện in lại nếu muốn
-      if (initialSelected.size === 0 && cart.length > 0) {
-        cart.forEach((i) => initialSelected.add(i.id));
+        setSelectedItemKeys(initialSelected);
       }
-
-      setSelectedItemIds(initialSelected);
+    } else {
+      wasOpenRef.current = false;
     }
   }, [isOpen, cart]);
 
-  const toggleItem = (id: string) => {
-    setSelectedItemIds((prev) => {
+  const toggleItem = (key: string) => {
+    setSelectedItemKeys((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   };
 
   const handleSelectAll = () => {
-    setSelectedItemIds(new Set(cart.map((i) => i.id)));
+    setSelectedItemKeys(new Set(cart.map((item, idx) => getPrintItemKey(item, idx))));
   };
 
   const handleDeselectAll = () => {
-    setSelectedItemIds(new Set());
+    setSelectedItemKeys(new Set());
   };
 
   const handleSelectNewAndModifiedOnly = () => {
-    setSelectedItemIds(
-      new Set(cart.filter((i) => i.printStatus !== 'printed').map((i) => i.id))
+    setSelectedItemKeys(
+      new Set(
+        cart
+          .map((item, idx) => ({ key: getPrintItemKey(item, idx), status: item.printStatus }))
+          .filter((item) => item.status !== 'printed')
+          .map((item) => item.key)
+      )
     );
   };
 
   const selectedCartItems = useMemo(() => {
-    return cart.filter((i) => selectedItemIds.has(i.id));
-  }, [cart, selectedItemIds]);
+    return cart.filter((item, idx) => selectedItemKeys.has(getPrintItemKey(item, idx)));
+  }, [cart, selectedItemKeys]);
 
   const totalCupsToPrint = useMemo(() => {
     return selectedCartItems.reduce((acc, curr) => acc + (curr.quantity || 1), 0);
@@ -95,52 +109,54 @@ export function PrintSelectionModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in">
-      <div className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-3xl bg-white shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in">
+      <div className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-3xl bg-white shadow-2xl border-2 border-indigo-200 overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-100 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 px-5 py-4 text-white">
+        <div className="flex items-center justify-between border-b border-indigo-100 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 px-5 py-4 text-white">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm shadow-inner">
               <Printer className="h-5 w-5" />
             </div>
             <div>
               <h3 className="font-bold text-base leading-tight">Xác Nhận In Tem & Hóa Đơn</h3>
-              <p className="text-xs text-purple-100">Bàn: {tableName} · Tổng {cart.length} dòng món</p>
+              <p className="text-xs text-purple-100 mt-0.5">Bàn: {tableName} · Tổng {cart.length} dòng món</p>
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
             disabled={isPrinting}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 hover:bg-white/20 active:scale-95 text-white"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 hover:bg-white/25 active:scale-95 text-white transition-all"
+            title="Đóng cửa sổ"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Quick Filter Buttons */}
-        <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/70 px-5 py-2.5 text-xs text-gray-600">
-          <span className="font-medium">
-            Đã chọn: <strong className="text-purple-700">{selectedItemIds.size}/{cart.length} món ({totalCupsToPrint} ly)</strong>
+        <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50/90 px-4 py-2.5 text-xs text-gray-700">
+          <span className="font-semibold">
+            Đã chọn: <strong className="text-indigo-700 font-bold">{selectedItemKeys.size}/{cart.length} món ({totalCupsToPrint} ly)</strong>
           </span>
-          <div className="flex gap-2">
+          <div className="flex gap-1.5">
             <button
               type="button"
               onClick={handleSelectNewAndModifiedOnly}
-              className="rounded-lg bg-white px-2 py-1 text-[11px] font-semibold border border-gray-200 text-gray-700 hover:bg-gray-100 active:scale-95"
+              className="rounded-lg bg-white px-2.5 py-1 text-[11px] font-semibold border border-indigo-200 text-indigo-700 hover:bg-indigo-50 active:scale-95 transition-all shadow-2xs"
             >
-              Chỉ món mới & sửa
+              Chỉ mới & sửa
             </button>
             <button
               type="button"
               onClick={handleSelectAll}
-              className="rounded-lg bg-white px-2 py-1 text-[11px] font-semibold border border-gray-200 text-gray-700 hover:bg-gray-100 active:scale-95"
+              className="rounded-lg bg-white px-2.5 py-1 text-[11px] font-semibold border border-gray-300 text-gray-700 hover:bg-gray-100 active:scale-95 transition-all shadow-2xs"
             >
               Tất cả
             </button>
             <button
               type="button"
               onClick={handleDeselectAll}
-              className="rounded-lg bg-white px-2 py-1 text-[11px] font-semibold border border-gray-200 text-gray-700 hover:bg-gray-100 active:scale-95"
+              className="rounded-lg bg-white px-2.5 py-1 text-[11px] font-semibold border border-gray-300 text-gray-600 hover:bg-gray-100 active:scale-95 transition-all shadow-2xs"
             >
               Bỏ chọn
             </button>
@@ -148,25 +164,35 @@ export function PrintSelectionModal({
         </div>
 
         {/* List of Items with Print Status */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-2">
-          {cart.map((item) => {
-            const isSelected = selectedItemIds.has(item.id);
+        <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
+          {cart.map((item, index) => {
+            const itemKey = getPrintItemKey(item, index);
+            const isSelected = selectedItemKeys.has(itemKey);
             const status = item.printStatus || 'new';
 
             return (
               <div
-                key={item.id}
-                onClick={() => toggleItem(item.id)}
-                className={`flex items-center justify-between p-3 rounded-2xl border cursor-pointer select-none transition-all ${
+                key={itemKey}
+                onClick={() => toggleItem(itemKey)}
+                role="checkbox"
+                aria-checked={isSelected}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === ' ' || e.key === 'Enter') {
+                    e.preventDefault();
+                    toggleItem(itemKey);
+                  }
+                }}
+                className={`flex items-center justify-between p-3.5 rounded-2xl border-2 cursor-pointer select-none transition-all duration-150 ${
                   isSelected
-                    ? 'border-purple-300 bg-purple-50/50 shadow-xs'
-                    : 'border-gray-200 bg-white hover:border-gray-300 opacity-70'
+                    ? 'border-indigo-500 bg-indigo-50/70 shadow-sm'
+                    : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50/50 opacity-75'
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <div className="text-purple-600">
+                  <div className="text-indigo-600 flex-shrink-0">
                     {isSelected ? (
-                      <CheckSquare className="h-5 w-5" />
+                      <CheckSquare className="h-5 w-5 text-indigo-600" />
                     ) : (
                       <Square className="h-5 w-5 text-gray-400" />
                     )}
@@ -178,42 +204,42 @@ export function PrintSelectionModal({
                         {item.name}
                       </span>
                       {item.size && (
-                        <span className="rounded bg-gray-100 px-1.5 py-0.2 text-[10px] font-bold text-gray-600">
-                          {item.size}
+                        <span className="rounded-md bg-indigo-100 border border-indigo-200 px-1.5 py-0.2 text-[10px] font-bold text-indigo-800">
+                          Size {item.size}
                         </span>
                       )}
                     </div>
 
                     {/* Options: Sugar, Ice, Toppings */}
-                    <div className="text-[11px] text-gray-500 truncate mt-0.5">
+                    <div className="text-[11px] text-gray-600 truncate mt-0.5 font-medium">
                       {item.sugar && <span>Đường: {item.sugar} </span>}
                       {item.ice && <span>· Đá: {item.ice} </span>}
                       {item.toppings && item.toppings.length > 0 && (
                         <span>· +{item.toppings.join(', ')}</span>
                       )}
-                      {item.note && <span className="italic"> * {item.note}</span>}
+                      {item.note && <span className="italic text-amber-700"> * {item.note}</span>}
                     </div>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2.5 shrink-0 pl-2">
-                  <span className="text-xs font-semibold text-gray-700">
+                  <span className="text-xs font-bold text-gray-800 bg-white px-2 py-1 rounded-lg border border-gray-200 shadow-2xs">
                     {item.quantity} ly
                   </span>
 
                   {/* Print Status Badge (Mục #6) */}
                   {status === 'new' && (
-                    <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100 text-[10px] font-bold">
+                    <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-100 text-[10px] font-bold">
                       Vừa thêm
                     </Badge>
                   )}
                   {status === 'modified' && (
-                    <Badge className="bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-100 text-[10px] font-bold">
+                    <Badge className="bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-100 text-[10px] font-bold">
                       Đã sửa
                     </Badge>
                   )}
                   {status === 'printed' && (
-                    <Badge className="bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-100 text-[10px]">
+                    <Badge className="bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-100 text-[10px]">
                       Đã in
                     </Badge>
                   )}
@@ -224,14 +250,14 @@ export function PrintSelectionModal({
         </div>
 
         {/* Action Buttons Footer */}
-        <div className="border-t border-gray-100 bg-gray-50/80 p-4 space-y-2.5">
+        <div className="border-t-2 border-gray-100 bg-gray-50/90 p-4 space-y-2.5">
           <div className="grid grid-cols-2 gap-2.5">
             {/* Nút 1: Chỉ in tem nhãn các món đã chọn */}
             <Button
               type="button"
-              disabled={isPrinting || selectedItemIds.size === 0}
+              disabled={isPrinting || selectedItemKeys.size === 0}
               onClick={() => onConfirmPrint('labels', selectedCartItems)}
-              className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs py-2.5 rounded-xl shadow-sm flex items-center justify-center gap-1.5"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs py-2.5 rounded-xl shadow-sm flex items-center justify-center gap-1.5 transition-all"
             >
               <Tag className="h-4 w-4" />
               <span>Chỉ in tem ly ({totalCupsToPrint})</span>
@@ -243,7 +269,7 @@ export function PrintSelectionModal({
               disabled={isPrinting}
               onClick={() => onConfirmPrint('receipt', selectedCartItems)}
               variant="outline"
-              className="border-blue-200 text-blue-700 hover:bg-blue-50 font-bold text-xs py-2.5 rounded-xl flex items-center justify-center gap-1.5"
+              className="border-2 border-blue-200 text-blue-700 hover:bg-blue-50 font-bold text-xs py-2.5 rounded-xl flex items-center justify-center gap-1.5 transition-all"
             >
               <Receipt className="h-4 w-4" />
               <span>Chỉ in hóa đơn</span>
@@ -253,12 +279,12 @@ export function PrintSelectionModal({
           {/* Nút 3: In cả hai (Tem nhãn + Hóa đơn) */}
           <Button
             type="button"
-            disabled={isPrinting || selectedItemIds.size === 0}
+            disabled={isPrinting || selectedItemKeys.size === 0}
             onClick={() => onConfirmPrint('both', selectedCartItems)}
-            className="w-full bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:opacity-95 text-white font-black text-sm py-3 rounded-xl shadow-md flex items-center justify-center gap-2"
+            className="w-full bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:opacity-95 active:scale-[0.99] text-white font-black text-sm py-3 rounded-xl shadow-md flex items-center justify-center gap-2 transition-all"
           >
             <Layers className="h-4 w-4" />
-            <span>In cả hai (In {totalCupsToPrint} tem dán + Hóa đơn)</span>
+            <span>In cả hai ({totalCupsToPrint} tem dán + Hóa đơn)</span>
           </Button>
         </div>
       </div>
