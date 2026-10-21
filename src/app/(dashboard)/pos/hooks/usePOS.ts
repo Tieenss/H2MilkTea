@@ -1,4 +1,18 @@
 
+'use client';
+
+import { useState, useCallback, useEffect, useRef } from 'react';
+import toast from 'react-hot-toast';
+
+import type { Product, Table, CartItem, Category, POSState, ModalState } from '../types/pos';
+import { useProducts } from './useProducts';
+import { useTables } from './useTables';
+import { useCart } from './useCart';
+import { formatCurrency, generateId, formatDate } from '../utils/formatters';
+import { printReceipt } from '../utils/receipt';
+import authUtils from '@/utils/authUtils';
+import { Customer } from '@/app/(dashboard)/khachhang/types/customer';
+
 function playPosChimeSound() {
   try {
     const AudioContextClass = typeof window !== 'undefined' ? (window.AudioContext || (window as any).webkitAudioContext) : null;
@@ -29,20 +43,6 @@ function playPosChimeSound() {
     osc2.stop(now + 0.45);
   } catch {}
 }
-
-'use client';
-
-import { useState, useCallback, useEffect, useRef } from 'react';
-import toast from 'react-hot-toast';
-
-import type { Product, Table, CartItem, Category, POSState, ModalState } from '../types/pos';
-import { useProducts } from './useProducts';
-import { useTables } from './useTables';
-import { useCart } from './useCart';
-import { formatCurrency, generateId, formatDate } from '../utils/formatters';
-import { printReceipt } from '../utils/receipt';
-import authUtils from '@/utils/authUtils';
-import { Customer } from '@/app/(dashboard)/khachhang/types/customer';
 import { calculatePointsFromSpending } from '@/app/(dashboard)/khachhang/utils/customerFormatters';
 import { useSharedCartDraft, type CartDraft } from './useSharedCartDraft';
 import { useTablePresence } from '@/hooks/useTablePresence';
