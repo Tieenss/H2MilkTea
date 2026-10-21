@@ -183,7 +183,7 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, className }: Sid
             
             return (
                 <div key={item.name} className="relative">
-                    {/* Group Header (Hỗ trợ click vào Hub hoặc toggle con - Mục #6) */
+                    {/* Group Header (Hỗ trợ click vào Hub hoặc toggle con - Mục #6) */}
                     <div
                         className={cn(
                             "w-full flex items-center rounded-lg text-sm font-medium transition-all duration-200 ease-in-out group relative",
