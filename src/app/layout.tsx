@@ -28,7 +28,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="vi">
+    <html lang="vi" suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/manifest.json" />
         <meta
@@ -43,7 +43,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="antialiased min-h-screen text-gray-900 bg-gray-50">
+      <body className="antialiased min-h-screen text-gray-900 bg-gray-50 dark:bg-gray-950 dark:text-gray-100" suppressHydrationWarning>
         <AppearanceProvider />
         {children}
         <ToastProvider />

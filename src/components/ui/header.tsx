@@ -49,9 +49,10 @@ interface HeaderProps {
 }
 
 export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }: HeaderProps) {
-    const userData = authUtils.getUserData();
     const router = useRouter();
-    const [currentTime, setCurrentTime] = useState(new Date());
+    const [userData, setUserData] = useState<any>(null);
+    const [mounted, setMounted] = useState(false);
+    const [currentTime, setCurrentTime] = useState<Date | null>(null);
     const [userDropdownOpen, setUserDropdownOpen] = useState(false);
     const [notificationDropdownOpen, setNotificationDropdownOpen] = useState(false);
     const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -67,12 +68,19 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
         needsSync: false
     });
 
-    // Thêm kiểm tra userData ở đầu
+    // Khởi tạo an toàn sau khi mount ở Client để tránh Hydration Mismatch
     useEffect(() => {
-        if (!userData) {
+        setMounted(true);
+        const user = authUtils.getUserData();
+        if (!user) {
             router.push('/');
+            return;
         }
-    }, [userData, router]);
+        setUserData(user);
+        setCurrentTime(new Date());
+        const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+        return () => clearInterval(timer);
+    }, [router]);
 
     // Đồng bộ danh sách thông báo từ store
     useEffect(() => {
@@ -125,12 +133,16 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
         window.location.href = '/';
     };
 
-    // Nếu không có userData, return loading hoặc null
-    if (!userData) {
+    // Render placeholder đồng bộ lúc server / client render ban đầu
+    if (!mounted || !userData) {
         return (
-            <div className="h-16 bg-white border-b border-gray-200 fixed top-0 left-0 right-0 z-40">
-                <div className="flex items-center justify-center h-full">
-                    <div className="text-gray-500">Đang tải...</div>
+            <div className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 fixed top-0 left-0 right-0 z-40">
+                <div className="flex items-center justify-between h-full px-6">
+                    <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 rounded-lg bg-gray-200 dark:bg-gray-800 animate-pulse" />
+                        <div className="w-24 h-4 rounded bg-gray-200 dark:bg-gray-800 animate-pulse" />
+                    </div>
+                    <div className="w-32 h-6 rounded bg-gray-200 dark:bg-gray-800 animate-pulse" />
                 </div>
             </div>
         );
@@ -276,10 +288,12 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
                     </div>
 
                     {/* Real-time clock */}
-                    <div className="hidden md:flex items-center space-x-2 text-sm text-gray-600">
-                        <span>{formatDate(currentTime)}</span>
-                        <span className="font-mono font-semibold">{formatTime(currentTime)}</span>
-                    </div>
+                    {currentTime && (
+                        <div className="hidden md:flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
+                            <span>{formatDate(currentTime)}</span>
+                            <span className="font-mono font-semibold">{formatTime(currentTime)}</span>
+                        </div>
+                    )}
 
                     {/* Quick Dark Mode Toggle */}
                     <Button
