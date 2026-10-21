@@ -54,6 +54,7 @@ function CartPageContent() {
             ice: item.ice,
             note: item.note,
             unit: item.product['Đơn vị tính'],
+            image: item.product['Hình ảnh'] || undefined,
           })),
           totalAmount,
           note: orderNote,

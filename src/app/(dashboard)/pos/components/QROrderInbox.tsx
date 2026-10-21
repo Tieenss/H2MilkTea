@@ -34,7 +34,10 @@ function playAlert() {
   } catch { /* Audio is optional; the visible inbox remains authoritative. */ }
 }
 
-export function QROrderInbox({ onSettle }: { onSettle: (order: IncomingOrder) => void }) {
+export function QROrderInbox({ onSettle, onAccept }: { 
+    onSettle: (order: IncomingOrder) => void;
+    onAccept?: (order: IncomingOrder) => void;
+  }) {
   const [orders, setOrders] = useState<IncomingOrder[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [processingId, setProcessingId] = useState('');
@@ -65,8 +68,17 @@ export function QROrderInbox({ onSettle }: { onSettle: (order: IncomingOrder) =>
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pos_orders', filter: 'source=eq.QR_TABLE' }, () => void refresh())
       .subscribe((status) => setIsConnected(status === 'SUBSCRIBED'));
+    const handleSettled = (e: any) => {
+      const settledIds = e.detail?.orderIds || [];
+      if (settledIds.length > 0) {
+        setOrders(prev => prev.filter(o => !settledIds.includes(o.id)));
+      }
+      void refresh();
+    };
+    window.addEventListener('pos_order_settled', handleSettled);
     const fallback = window.setInterval(refresh, 20000);
     return () => {
+      window.removeEventListener('pos_order_settled', handleSettled);
       window.clearInterval(fallback);
       void supabase.removeChannel(channel);
     };
@@ -88,6 +100,9 @@ export function QROrderInbox({ onSettle }: { onSettle: (order: IncomingOrder) =>
       });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || 'Không xử lý được đơn.');
+      if (decision === 'accept' && onAccept) {
+        onAccept(order);
+      }
       await refresh();
     } catch (decisionError) {
       setError(decisionError instanceof Error ? decisionError.message : 'Không xử lý được đơn.');

@@ -43,7 +43,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body: CheckoutBody = await request.json();
-    const { tableId, tableName, invoiceId, paymentForm, cart, linkedOrderIds = [], idempotencyKey } = body;
+    const { tableId, tableName, invoiceId, paymentForm, cart, idempotencyKey } = body;
+    const rawLinked = body.linkedOrderIds || (body as any).orderIds;
+    const linkedOrderIds: string[] = Array.isArray(rawLinked) ? rawLinked : [];
 
     if (!invoiceId?.trim()) {
       return NextResponse.json({ success: false, error: 'Thiếu mã hóa đơn.' }, { status: 400 });
@@ -182,16 +184,31 @@ export async function POST(request: NextRequest) {
     }
 
     // 2.6 Đồng bộ đơn bếp pos_orders sang 'paid'
+    // 2.6 Đồng bộ đơn pos_orders sang 'paid' và 'completed'
     if (linkedOrderIds.length > 0) {
       await supabase
         .from('pos_orders')
         .update({
           payment_status: 'paid',
+          order_status: 'completed',
           payment_method: paymentType,
           invoice_id: invoiceId,
           updated_at: new Date().toISOString(),
         })
         .in('id', linkedOrderIds);
+    } else if (tableId && tableId !== 'Khách mua về') {
+      // Tự động tìm và hoàn tất tất cả đơn QR đang active của bàn này
+      await supabase
+        .from('pos_orders')
+        .update({
+          payment_status: 'paid',
+          order_status: 'completed',
+          payment_method: paymentType,
+          invoice_id: invoiceId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('table_id', tableId)
+        .eq('payment_status', 'unpaid');
     }
 
     return NextResponse.json({ success: true, invoiceId });

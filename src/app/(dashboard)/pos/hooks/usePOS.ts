@@ -1,3 +1,35 @@
+
+function playPosChimeSound() {
+  try {
+    const AudioContextClass = typeof window !== 'undefined' ? (window.AudioContext || (window as any).webkitAudioContext) : null;
+    if (!AudioContextClass) return;
+    const ctx = new AudioContextClass();
+    const now = ctx.currentTime;
+    
+    // Nốt 1 (880Hz)
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.frequency.setValueAtTime(880, now);
+    gain1.gain.setValueAtTime(0.15, now);
+    gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.3);
+
+    // Nốt 2 (1320Hz)
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.frequency.setValueAtTime(1320, now + 0.12);
+    gain2.gain.setValueAtTime(0.18, now + 0.12);
+    gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.45);
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.start(now + 0.12);
+    osc2.stop(now + 0.45);
+  } catch {}
+}
+
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
@@ -259,6 +291,11 @@ export const usePOS = () => {
         } else {
           const draft = payload.new as CartDraft;
           if (draft && draft.table_id) {
+            // Nếu có món và khác máy hiện tại -> phát âm thanh chuông tinh tinh
+            const myDeviceId = getDeviceId();
+            if (draft.device_id && draft.device_id !== myDeviceId && Array.isArray(draft.cart) && draft.cart.length > 0) {
+              playPosChimeSound();
+            }
             setActiveOrders((current) => {
               const next = new Map(current);
               if (Array.isArray(draft.cart) && draft.cart.length > 0) {
@@ -363,22 +400,59 @@ export const usePOS = () => {
   const settleQrOrder = useCallback((order: {
     id: string;
     table_id: string;
-    items: Array<{ productId: string; productName: string; quantity: number; unitPrice: number; note?: string; size?: string; sugar?: string; ice?: string; unit?: string }>;
+    table_name?: string;
+    items: Array<{ productId: string; productName: string; quantity: number; unitPrice: number; note?: string; size?: string; sugar?: string; ice?: string; unit?: string; image?: string }>;
   }) => {
     setSelectedTableId(order.table_id);
-    setCart(order.items.map((item) => ({
-      id: item.productId,
-      name: item.productName,
-      price: Number(item.unitPrice),
-      quantity: Number(item.quantity),
-      unit: item.unit || 'Ly',
-      image: undefined,
-      note: [item.size && `Size ${item.size}`, item.sugar && `Đường ${item.sugar}`, item.ice && `Đá ${item.ice}`, item.note].filter(Boolean).join(' · '),
-    })));
+    setCart(order.items.map((item) => {
+      // Tìm ảnh sản phẩm thật từ danh mục quán
+      const foundProduct = products.find(p => p.IDSP === item.productId || p['Tên sản phẩm'] === item.productName);
+      const realImage = item.image || foundProduct?.['Hình ảnh'] || undefined;
+
+      return {
+        id: item.productId,
+        name: item.productName,
+        price: Number(item.unitPrice),
+        quantity: Number(item.quantity),
+        unit: item.unit || foundProduct?.['Đơn vị tính'] || 'Ly',
+        image: realImage,
+        note: [item.size && `Size ${item.size}`, item.sugar && `Đường ${item.sugar}`, item.ice && `Đá ${item.ice}`, item.note].filter(Boolean).join(' · '),
+      };
+    }));
     setActivePOSOrderIds([order.id]);
     setSelectedCustomer(null);
     setShowCheckoutModal(true);
-  }, [setSelectedTableId, setCart]);
+  }, [setSelectedTableId, setCart, products]);
+
+  // Nhận đơn QR và nạp món vào giỏ hàng của bàn
+  const acceptQrOrder = useCallback((order: {
+    id: string;
+    table_id: string;
+    table_name?: string;
+    items: Array<{ productId: string; productName: string; quantity: number; unitPrice: number; note?: string; size?: string; sugar?: string; ice?: string; unit?: string; image?: string }>;
+  }) => {
+    setSelectedTableId(order.table_id);
+    const convertedItems: CartItem[] = order.items.map((item) => {
+      const foundProduct = products.find(p => p.IDSP === item.productId || p['Tên sản phẩm'] === item.productName);
+      const realImage = item.image || foundProduct?.['Hình ảnh'] || undefined;
+
+      return {
+        id: item.productId,
+        name: item.productName,
+        price: Number(item.unitPrice),
+        quantity: Number(item.quantity),
+        unit: item.unit || foundProduct?.['Đơn vị tính'] || 'Ly',
+        image: realImage,
+        note: [item.size && `Size ${item.size}`, item.sugar && `Đường ${item.sugar}`, item.ice && `Đá ${item.ice}`, item.note].filter(Boolean).join(' · '),
+      };
+    });
+
+    setCart(convertedItems);
+    saveSharedCartDraft(order.table_id, convertedItems, null);
+    setActivePOSOrderIds((prev) => prev.includes(order.id) ? prev : [...prev, order.id]);
+    updateTableStatus(order.table_id, 'Đang sử dụng');
+    showNotification(`Đã nhận đơn và nạp các món vào ${order.table_name || 'bàn'}!`);
+  }, [setSelectedTableId, setCart, products, saveSharedCartDraft, updateTableStatus, showNotification]);
 
   // Fetch customers
   const fetchCustomers = useCallback(async () => {
@@ -701,6 +775,7 @@ export const usePOS = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           orderIds: activePOSOrderIds,
+          linkedOrderIds: activePOSOrderIds,
           tableId: selectedTableId,
           tableName: selectedTableName,
           items: cart,
@@ -771,6 +846,10 @@ export const usePOS = () => {
       setSelectedCustomer(null);
       setShowCheckoutModal(false);
 
+      // Phát event để QROrderInbox xóa đơn tức thì
+      if (typeof window !== 'undefined' && activePOSOrderIds.length > 0) {
+        window.dispatchEvent(new CustomEvent('pos_order_settled', { detail: { orderIds: activePOSOrderIds } }));
+      }
       showNotification('Thanh toán thành công!');
     } catch (error: any) {
       console.error('Lỗi thanh toán:', error);
@@ -974,6 +1053,7 @@ export const usePOS = () => {
     updateItemsPrintStatus,
     sendToKitchen,
     settleQrOrder,
+    acceptQrOrder,
 
     // Calculations
     subtotal,

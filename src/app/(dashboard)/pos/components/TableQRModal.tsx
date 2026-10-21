@@ -26,7 +26,7 @@ export const TableQRModal: React.FC<TableQRModalProps> = ({
     if (!isOpen || !tableId) return;
 
     const origin = typeof window !== 'undefined' ? window.location.origin : 'https://h2milktea.vercel.app';
-    const url = `${origin}/order/menu?table=${encodeURIComponent(tableId)}`;
+    const url = `${origin}/order?table=${encodeURIComponent(tableId)}`;
     setOrderUrl(url);
 
     QRCode.toDataURL(url, {
@@ -117,7 +117,7 @@ export const TableQRModal: React.FC<TableQRModalProps> = ({
             </div>
             <div>
               <h3 className="font-bold text-slate-800 text-base">Mã QR Đặt Món</h3>
-              <p className="text-xs text-slate-500 font-medium">{tableName}</p>
+              <p className="text-xs text-slate-500 font-medium">{tableName} <span className="text-[10px] text-indigo-600 bg-indigo-50 dark:bg-indigo-950 px-1.5 py-0.5 rounded font-mono ml-1">Mã: {tableId}</span></p>
             </div>
           </div>
           <Button onClick={onClose} variant="ghost" size="icon" className="h-8 w-8 rounded-full text-slate-400 hover:text-slate-600">
@@ -151,14 +151,15 @@ export const TableQRModal: React.FC<TableQRModalProps> = ({
 
           {/* Action Buttons */}
           <div className="grid grid-cols-2 gap-2.5 w-full">
-            <Button
-              onClick={handleOpenDemo}
-              variant="outline"
-              className="w-full text-xs font-semibold border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+            <a
+              href={orderUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center w-full px-3 py-2 text-xs font-semibold border border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-950/60 rounded-md transition-colors"
             >
               <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
               Mở trang khách
-            </Button>
+            </a>
             <Button
               onClick={handlePrint}
               className="w-full text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"

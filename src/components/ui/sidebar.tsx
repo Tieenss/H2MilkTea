@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { X, ChevronDown, ChevronRight, RotateCcw } from 'lucide-react';
+import { X, ChevronDown, ChevronRight, RotateCcw, HelpCircle } from 'lucide-react';
 import { navigation, NavigationItem } from '@/lib/navigation';
 import authUtils from '@/utils/authUtils';
 import { TodayOrdersBadge } from '@/components/TodayOrdersBadge';
@@ -477,19 +477,26 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, className }: Sid
 
                 {/* Machine Feature State Control (Mục #8) */}
                 {!collapsed && (
-                    <div className="p-3 border-t border-gray-100 bg-gray-50/80 flex items-center justify-between">
+                    <div className="p-3 border-t border-gray-100 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-900/60 flex items-center justify-between text-[11px]">
                         <div className="flex items-center space-x-1.5">
                             <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-                            <span className="text-[11px] text-gray-500 font-medium">Theo máy này</span>
+                            <span className="text-gray-500 dark:text-gray-400 font-medium">Theo máy này</span>
+                            <div className="relative group cursor-help inline-flex items-center">
+                                <HelpCircle className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" />
+                                <div className="absolute bottom-full left-0 mb-2 w-56 p-2 bg-gray-900 text-white text-[10.5px] rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none leading-relaxed border border-gray-700">
+                                    <div className="font-semibold text-amber-300 mb-0.5">Chú thích tính năng:</div>
+                                    Xóa lịch sử lượt click trên trình duyệt máy này để khôi phục lại các huy hiệu <strong>[Mới]</strong>, <strong>[Hot]</strong> trên thanh menu về mặc định ban đầu.
+                                </div>
+                            </div>
                         </div>
                         <button
                             type="button"
                             onClick={() => {
                                 resetFeatureTracker();
-                                toast.success('Đã reset toàn bộ trạng thái tính năng về mặc định!');
+                                toast.success('Đã khôi phục trạng thái huy hiệu tính năng về mặc định!');
                             }}
-                            className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold hover:underline flex items-center gap-1"
-                            title="Khôi phục trạng thái Hot/Mới/Gần đây ban đầu cho máy này"
+                            className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-semibold hover:underline flex items-center gap-1 transition-colors"
+                            title="Khôi phục trạng thái Hot/Mới ban đầu cho máy này"
                         >
                             <RotateCcw className="w-3 h-3" />
                             Reset chức năng

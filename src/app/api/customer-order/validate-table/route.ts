@@ -51,7 +51,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Find table by IDBAN
-    const table = tables.find(t => String(t['IDBAN']).trim().toLocaleLowerCase('vi') === tableId.toLocaleLowerCase('vi'));
+    const norm = tableId.trim().toLocaleLowerCase('vi');
+    const table = tables.find(t => 
+      String(t['IDBAN'] || '').trim().toLocaleLowerCase('vi') === norm ||
+      String(t['Tên bàn'] || '').trim().toLocaleLowerCase('vi') === norm
+    );
     
     if (table) {
       if (table['Trạng thái'] === 'Ngừng hoạt động' || table['Trạng thái'] === 'Bảo trì') {
