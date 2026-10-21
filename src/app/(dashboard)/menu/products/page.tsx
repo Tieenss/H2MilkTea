@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Package, Plus, X, Upload, Copy, Eye } from 'lucide-react';
+import { Package, Plus, X, Upload, Copy, Eye, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -23,6 +23,7 @@ import { INITIAL_PRODUCT_FORM_DATA } from './utils/constants';
 import authUtils from '@/utils/authUtils';
 import toast from 'react-hot-toast';
 import { ImportModal } from './components/ImportModal';
+import { AIProductCreatorModal } from './components/AIProductCreatorModal';
 
 export default function ProductPage() {
   const router = useRouter();
@@ -46,6 +47,7 @@ export default function ProductPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isManager, setIsManager] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isAIModalOpen, setIsAIModalOpen] = useState(false);
 
   // Check user permissions
   React.useEffect(() => {
@@ -218,6 +220,19 @@ export default function ProductPage() {
           Quản lý sản phẩm
         </h3>
         <div className="flex items-center gap-2">
+          <Button
+            onClick={() => {
+              if (!isAdmin && !isManager) {
+                toast.error('Bạn không có quyền thực hiện chức năng này!');
+                return;
+              }
+              setIsAIModalOpen(true);
+            }}
+            className="flex items-center gap-1.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white shadow-sm font-semibold"
+          >
+            <Sparkles className="h-4 w-4 text-yellow-300 animate-pulse" />
+            Thêm bằng AI ✨
+          </Button>
 
           <Dialog
             open={isDialogOpen}
@@ -413,6 +428,14 @@ export default function ProductPage() {
           )}
         </DialogContent>
       </Dialog>
+      <AIProductCreatorModal
+        isOpen={isAIModalOpen}
+        onClose={() => setIsAIModalOpen(false)}
+        currentProducts={products}
+        onAddProduct={addProduct}
+        onAddMultipleProducts={addMultipleProducts}
+        generateProductId={generateProductId}
+      />
     </div>
   );
 }
