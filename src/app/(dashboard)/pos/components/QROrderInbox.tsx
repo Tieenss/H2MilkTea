@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BellRing, Check, Clock3, X } from 'lucide-react';
+import { BellRing, Check, Clock3, X, ChevronUp, ChevronDown, Trash2, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
 
@@ -42,6 +42,7 @@ export function QROrderInbox({ onSettle, onAccept }: {
   const [isConnected, setIsConnected] = useState(false);
   const [processingId, setProcessingId] = useState('');
   const [error, setError] = useState('');
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const knownIds = useRef(new Set<string>());
 
   const refresh = useCallback(async () => {
@@ -84,12 +85,16 @@ export function QROrderInbox({ onSettle, onAccept }: {
     };
   }, [refresh]);
 
-  const decide = async (order: IncomingOrder, decision: 'accept' | 'reject') => {
+  const decide = async (order: IncomingOrder, decision: 'accept' | 'reject' | 'cancel' | 'dismiss') => {
     let reason = '';
-    if (decision === 'reject') {
-      reason = window.prompt(`Lý do từ chối đơn bàn ${order.table_name}:`, '')?.trim() || '';
-      if (!reason) return;
+    if (decision === 'reject' || decision === 'cancel') {
+      const confirmMsg = decision === 'cancel'
+        ? `Bạn có chắc chắn muốn hủy đơn hàng của ${order.table_name}?`
+        : `Lý do từ chối đơn bàn ${order.table_name}:`;
+      reason = window.prompt(confirmMsg, 'Khách yêu cầu hủy / Đơn thử nghiệm')?.trim() || '';
+      if (!reason && decision === 'reject') return;
     }
+
     setProcessingId(order.id);
     setError('');
     try {
@@ -103,6 +108,8 @@ export function QROrderInbox({ onSettle, onAccept }: {
       if (decision === 'accept' && onAccept) {
         onAccept(order);
       }
+      // Loại bỏ đơn khỏi state local ngay tức thì
+      setOrders(prev => prev.filter(o => o.id !== order.id));
       await refresh();
     } catch (decisionError) {
       setError(decisionError instanceof Error ? decisionError.message : 'Không xử lý được đơn.');
@@ -112,18 +119,65 @@ export function QROrderInbox({ onSettle, onAccept }: {
     }
   };
 
+  // Dọn dẹp nhanh tất cả các đơn đã nhận
+  const handleClearAllAccepted = async () => {
+    const acceptedOrders = orders.filter(o => o.order_status === 'accepted');
+    if (acceptedOrders.length === 0) return;
+
+    if (!window.confirm(`Bạn có muốn đánh dấu hoàn tất và xóa ${acceptedOrders.length} đơn đã nhận này khỏi màn hình không?`)) {
+      return;
+    }
+
+    for (const o of acceptedOrders) {
+      void fetch('/api/pos/orders/decision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: o.id, decision: 'dismiss' }),
+      });
+    }
+    setOrders(prev => prev.filter(o => o.order_status !== 'accepted'));
+  };
+
   if (!orders.length && !error) return null;
   return (
     <section className="mx-2 mb-3 rounded-xl border-2 border-amber-300 bg-amber-50 p-3 shadow-sm lg:mx-0" aria-live="polite">
-      <header className="mb-3 flex items-center justify-between gap-3">
+      
+      <header className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <BellRing className="h-5 w-5 text-amber-700" />
-          <h2 className="font-bold text-amber-950">Đơn QR cần xử lý <span className="rounded-full bg-red-600 px-2 py-0.5 text-xs text-white">{orders.length}</span></h2>
+          <BellRing className="h-5 w-5 text-amber-700 animate-bounce" />
+          <h2 className="font-bold text-amber-950 text-sm sm:text-base flex items-center gap-2">
+            Đơn QR cần xử lý
+            <span className="rounded-full bg-red-600 px-2 py-0.5 text-xs text-white font-extrabold">{orders.length}</span>
+          </h2>
         </div>
-        <span className={`text-xs ${isConnected ? 'text-green-700' : 'text-amber-800'}`}>{isConnected ? '● Realtime' : 'Đang đồng bộ dự phòng'}</span>
+
+        <div className="flex items-center gap-2">
+          {orders.some(o => o.order_status === 'accepted') && (
+            <button
+              type="button"
+              onClick={handleClearAllAccepted}
+              className="text-[11px] font-semibold text-amber-900 bg-amber-200/70 hover:bg-amber-300 px-2 py-1 rounded-md transition-colors flex items-center gap-1"
+              title="Đánh dấu hoàn tất và xóa toàn bộ đơn đã nhận"
+            >
+              <Trash2 className="w-3 h-3" />
+              Dọn đơn đã nhận
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="p-1 rounded-md hover:bg-amber-200/80 text-amber-800 transition-colors"
+            title={isCollapsed ? "Mở rộng danh sách đơn" : "Thu gọn thông báo"}
+          >
+            {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+          </button>
+        </div>
       </header>
-      {error && <p role="alert" className="mb-2 text-sm text-red-700">{error}</p>}
-      <div className="space-y-3">
+
+      {!isCollapsed && (
+        <div className="mt-3 space-y-3">
+
         {orders.map((order) => (
           <article key={order.id} className="rounded-lg border border-amber-200 bg-white p-3">
             <div className="flex flex-wrap items-start justify-between gap-2">
@@ -155,6 +209,7 @@ export function QROrderInbox({ onSettle, onAccept }: {
           </article>
         ))}
       </div>
+      )}
     </section>
   );
 }
