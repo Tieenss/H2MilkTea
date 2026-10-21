@@ -73,8 +73,9 @@ import {
   COLOR_MODE_OPTIONS,
 } from '@/utils/appearanceSettings';
 import { navigation, getNavigationByGroup } from '@/lib/navigation';
-import { RARITY_CONFIGS } from '@/app/order/components/DrinkGachaCSGO';
+import { RARITY_CONFIGS, getProductPrice } from '@/app/order/components/DrinkGachaCSGO';
 import { GOOGLE_DRIVE_CONFIG } from '@/config/googleDrive';
+import GoogleDriveUtils from '@/utils/googleDriveUtils';
 
 describe('Phase 8, 9, 10 Enhancements Verification', () => {
   beforeEach(() => {
@@ -202,13 +203,24 @@ describe('Phase 8, 9, 10 Enhancements Verification', () => {
       expect(RARITY_CONFIGS.milspec.label).toContain('Mil-Spec');
       expect(RARITY_CONFIGS.milspec.borderColor).toBe('border-blue-500');
     });
+
+    it('parses product price accurately from Đơn giá or Giá bán', () => {
+      const p1: any = { IDSP: 'SP1', 'Tên sản phẩm': 'Trà Sữa Truyền Thống', 'Đơn giá': '28000' };
+      const p2: any = { IDSP: 'SP2', 'Tên sản phẩm': 'Trà Đào Cam Sả', 'Đơn giá': '32.000đ' };
+      const p3: any = { IDSP: 'SP3', 'Tên sản phẩm': 'Hồng Trà', 'Giá bán': 25000 };
+
+      expect(getProductPrice(p1)).toBe(28000);
+      expect(getProductPrice(p2)).toBe(32000);
+      expect(getProductPrice(p3)).toBe(25000);
+    });
   });
 
   describe('Item #8: Google Drive Configuration & Utils', () => {
-    it('supports custom client ID via localStorage', () => {
+    it('supports custom client ID via localStorage and exposes syncLatestData', () => {
       GOOGLE_DRIVE_CONFIG.setCustomClientId('987654321-custom.apps.googleusercontent.com');
       expect(GOOGLE_DRIVE_CONFIG.CLIENT_ID).toBe('987654321-custom.apps.googleusercontent.com');
       expect(GOOGLE_DRIVE_CONFIG.isValid()).toBe(true);
+      expect(typeof GoogleDriveUtils.syncLatestData).toBe('function');
 
       const debug = GOOGLE_DRIVE_CONFIG.getDebugInfo();
       expect(debug.hasClientId).toBe(true);

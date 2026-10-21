@@ -41,6 +41,7 @@ import {
     getUnreadCount,
     type AppNotification,
 } from '@/utils/notificationStore';
+import { getAppearanceSettings, saveAppearanceSettings } from '@/utils/appearanceSettings';
 
 interface HeaderProps {
     onToggleSidebar: () => void;
@@ -83,7 +84,7 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
 
     const toggleQuickDarkMode = () => {
         const current = getAppearanceSettings();
-        const nextMode = current.colorMode === 'dark' ? 'light' : 'dark';
+        const nextMode: 'dark' | 'light' = current.colorMode === 'dark' ? 'light' : 'dark';
         const updated = { ...current, colorMode: nextMode, lastUpdated: new Date().toISOString() };
         saveAppearanceSettings(updated);
         setColorMode(nextMode);
@@ -140,7 +141,7 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
                 connected: isConnected,
                 autoBackup: authInfo?.autoSyncEnabled || false,
                 lastSync: authInfo?.lastSync || null,
-                needsSync: needsSync && authInfo?.autoSyncEnabled
+                needsSync: Boolean(needsSync && authInfo?.autoSyncEnabled)
             });
         };
 

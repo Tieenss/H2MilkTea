@@ -382,7 +382,53 @@ class GoogleDriveUtils {
     }
   }
 
-  // 7. Xóa các bản sao lưu cũ để tiết kiệm dung lượng
+  // 7. Đồng bộ dữ liệu mới nhất (tải bản backup mới nhất từ Drive và khôi phục, hoặc tạo bản sao lưu mới nếu Drive trống)
+  async syncLatestData(): Promise<boolean> {
+    try {
+      const listRes = await this.listBackups();
+      if (!listRes.success) return false;
+
+      if (listRes.files && listRes.files.length > 0) {
+        const latestFile = listRes.files[0];
+        const dl = await this.downloadBackup(latestFile.id);
+        if (!dl.success || !dl.data) return false;
+
+        const backupPayload = dl.data.tables ? dl.data : dl.data.backup || dl.data;
+
+        if (typeof window !== 'undefined' && backupPayload.localStorageData) {
+          Object.entries(backupPayload.localStorageData).forEach(([k, v]) => {
+            if (typeof v === 'string') {
+              localStorage.setItem(k, v);
+            } else if (v !== undefined && v !== null) {
+              localStorage.setItem(k, JSON.stringify(v));
+            }
+          });
+        }
+
+        if (backupPayload.tables) {
+          await fetch('/api/backup/restore', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tables: backupPayload.tables }),
+          });
+        }
+
+        this.updateLastSyncTime();
+        return true;
+      } else {
+        const exportRes = await fetch('/api/backup/export');
+        if (!exportRes.ok) return false;
+        const exportData = await exportRes.json();
+        const up = await this.uploadBackup(exportData.backup || exportData);
+        return up.success;
+      }
+    } catch (err) {
+      console.error('Lỗi syncLatestData:', err);
+      return false;
+    }
+  }
+
+  // 8. Xóa các bản sao lưu cũ để tiết kiệm dung lượng
   async deleteOldBackups(keepCount = 10): Promise<void> {
     try {
       const listRes = await this.listBackups();

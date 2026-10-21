@@ -77,7 +77,7 @@ const SyncStatusCard: React.FC<SyncStatusCardProps> = ({ onSyncComplete }) => {
         connected: isConnected,
         autoBackup: authInfo?.autoSyncEnabled || false,
         lastSync: authInfo?.lastSync || null,
-        needsSync: needsSync && authInfo?.autoSyncEnabled,
+        needsSync: Boolean(needsSync && authInfo?.autoSyncEnabled),
         syncProgress: 0,
         isSyncing: false,
         lastBackupSize,

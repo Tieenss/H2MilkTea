@@ -84,6 +84,11 @@ interface DrinkGachaCSGOProps {
   products: Product[];
 }
 
+export function getProductPrice(p: Product): number {
+  const raw = p['Đơn giá'] ?? (p as unknown as Record<string, unknown>)['Giá bán'] ?? 0;
+  return parseInt(String(raw).replace(/[^\d]/g, ''), 10) || 0;
+}
+
 export function DrinkGachaCSGO({ isOpen, onClose, products }: DrinkGachaCSGOProps) {
   const { addItem } = useCart();
   const [isSpinning, setIsSpinning] = useState(false);
@@ -168,7 +173,7 @@ export function DrinkGachaCSGO({ isOpen, onClose, products }: DrinkGachaCSGOProp
 
     return products.map((p, idx) => {
       const name = (p['Tên sản phẩm'] || '').toLowerCase();
-      const price = Number(p['Giá bán']) || 0;
+      const price = getProductPrice(p);
 
       let tier: RarityTier = 'milspec';
       if (price >= 35000 || name.includes('đặc biệt') || name.includes('special') || idx % 12 === 0) {
@@ -292,21 +297,14 @@ export function DrinkGachaCSGO({ isOpen, onClose, products }: DrinkGachaCSGOProp
   // Thêm món trúng thưởng vào giỏ hàng
   const handleAddToCart = () => {
     if (!winner) return;
-    const basePrice = Number(winner.product['Giá bán']) || 0;
-    const finalPrice = selectedSize === 'L' ? basePrice + 5000 : basePrice;
 
-    addItem(
-      {
-        ...winner.product,
-        'Giá bán': finalPrice,
-      },
-      1,
-      selectedSize,
-      'Bình thường (100%)',
-      'Bình thường (100%)',
-      [],
-      `[🎰 Trúng Gacha CS:GO - Độ hiếm: ${winner.rarity.label}]`
-    );
+    addItem(winner.product, {
+      size: selectedSize,
+      sugar: '100%',
+      ice: 'Đá chung',
+      note: `[🎰 Trúng Gacha CS:GO - Độ hiếm: ${winner.rarity.label}]`,
+      quantity: 1,
+    });
 
     toast.success(`Đã thêm ${winner.product['Tên sản phẩm']} (Size ${selectedSize}) vào giỏ hàng!`);
     onClose();
@@ -413,7 +411,7 @@ export function DrinkGachaCSGO({ isOpen, onClose, products }: DrinkGachaCSGOProp
 
                     <div className="text-center pt-1 border-t border-gray-800">
                       <span className="text-[11px] font-extrabold text-amber-400">
-                        {Number(item.product['Giá bán'] || 0).toLocaleString()}đ
+                        {getProductPrice(item.product).toLocaleString()}đ
                       </span>
                     </div>
                   </div>
@@ -463,8 +461,8 @@ export function DrinkGachaCSGO({ isOpen, onClose, products }: DrinkGachaCSGOProp
                 <div className="text-right shrink-0">
                   <div className="text-lg font-black text-amber-400">
                     {(selectedSize === 'L'
-                      ? Number(winner.product['Giá bán'] || 0) + 5000
-                      : Number(winner.product['Giá bán'] || 0)
+                      ? getProductPrice(winner.product) + 5000
+                      : getProductPrice(winner.product)
                     ).toLocaleString()}
                     đ
                   </div>
