@@ -187,6 +187,7 @@ export function GlobalAssistant() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatWindowRef = useRef<HTMLDivElement>(null);
   const isResizingRef = useRef(false);
+  const [isResizing, setIsResizing] = useState(false);
 
   // 1. Khôi phục kích thước và lịch sử chat từ localStorage
   useEffect(() => {
@@ -237,33 +238,48 @@ export function GlobalAssistant() {
     }
   }, [messages, isLoading, isOpen, scrollToBottom]);
 
-  // 3. XỬ LÝ KÉO MỞ RỘNG / THU HẸP KHUNG CHAT (Mục #2)
+  // 3. XỬ LÝ KÉO MỞ RỘNG / THU HẸP KHUNG CHAT 60FPS SMOOTH (Mục #10)
   const handleMouseDownResize = (e: React.MouseEvent) => {
     e.preventDefault();
     isResizingRef.current = true;
+    setIsResizing(true);
     const startX = e.clientX;
     const startY = e.clientY;
     const startWidth = dimensions.width;
     const startHeight = dimensions.height;
+    let currentW = startWidth;
+    let currentH = startHeight;
+    let rafId: number | null = null;
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
       if (!isResizingRef.current) return;
-      // Kéo từ góc trên-trái (kéo sang trái -> tăng width, kéo lên trên -> tăng height)
       const deltaX = startX - moveEvent.clientX;
       const deltaY = startY - moveEvent.clientY;
 
       const newWidth = Math.min(Math.max(startWidth + deltaX, 360), Math.min(window.innerWidth - 32, 850));
       const newHeight = Math.min(Math.max(startHeight + deltaY, 400), Math.min(window.innerHeight - 80, 800));
 
-      const updated = { width: newWidth, height: newHeight };
-      setDimensions(updated);
-      try {
-        localStorage.setItem('h2_global_assistant_size', JSON.stringify(updated));
-      } catch {}
+      currentW = newWidth;
+      currentH = newHeight;
+
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        if (chatWindowRef.current) {
+          chatWindowRef.current.style.width = `${currentW}px`;
+          chatWindowRef.current.style.height = `${currentH}px`;
+        }
+      });
     };
 
     const handleMouseUp = () => {
       isResizingRef.current = false;
+      setIsResizing(false);
+      if (rafId) cancelAnimationFrame(rafId);
+      const updated = { width: currentW, height: currentH };
+      setDimensions(updated);
+      try {
+        localStorage.setItem('h2_global_assistant_size', JSON.stringify(updated));
+      } catch {}
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
@@ -437,7 +453,7 @@ export function GlobalAssistant() {
               ? { width: 'calc(100vw - 32px)', height: 'calc(100vh - 40px)', bottom: '20px', right: '16px' }
               : { width: `${dimensions.width}px`, height: `${dimensions.height}px`, bottom: '80px', right: '16px' }
           }
-          className="fixed z-50 flex flex-col rounded-3xl border border-indigo-200/80 bg-white shadow-2xl overflow-hidden transition-all duration-150 animate-in fade-in slide-in-from-bottom-4"
+          className={`fixed z-50 flex flex-col rounded-3xl border border-indigo-200/80 bg-white shadow-2xl overflow-hidden ${isResizing ? "transition-none select-none" : "transition-all duration-150"} animate-in fade-in slide-in-from-bottom-4`}
         >
           {/* Resize Handle ở góc trên bên trái (Mục #2) */}
           {!isMaximized && (
@@ -508,7 +524,7 @@ export function GlobalAssistant() {
           </div>
 
           {/* Danh Sách Tin Nhắn (Mục #3: Mở khóa bôi đen select-text) */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3.5 select-text cursor-text">
+          <div className="flex-1 overflow-y-auto p-4 space-y-3.5 select-text cursor-text" style={{ fontSize: "var(--h2-chatbot-font-size, 14px)" }}>
             {messages.map((msg, index) => {
               const isUser = msg.role === 'user';
               return (
@@ -567,9 +583,20 @@ export function GlobalAssistant() {
             })}
 
             {isLoading && (
-              <div className="flex items-center gap-2 text-xs text-gray-400 italic py-2">
-                <Loader2 className="h-4 w-4 animate-spin text-indigo-600" />
-                <span>Trợ lý đang phân tích và tìm câu trả lời...</span>
+              <div className="flex flex-col items-start gap-1.5 py-1">
+                <div className="flex items-center gap-1.5 text-[10px] text-gray-400 font-semibold px-1">
+                  <span>Trợ lý H2 MilkTea</span>
+                </div>
+                <div className="rounded-2xl px-4 py-3 bg-gradient-to-r from-indigo-50/80 via-purple-50/80 to-pink-50/80 border border-indigo-100 shadow-xs flex items-center gap-3">
+                  <div className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce [animation-delay:-0.3s]" />
+                    <span className="w-2 h-2 rounded-full bg-purple-500 animate-bounce [animation-delay:-0.15s]" />
+                    <span className="w-2 h-2 rounded-full bg-pink-500 animate-bounce" />
+                  </div>
+                  <span className="text-xs font-medium text-indigo-900/80 animate-pulse">
+                    Đang suy nghĩ câu trả lời phù hợp nhất...
+                  </span>
+                </div>
               </div>
             )}
 

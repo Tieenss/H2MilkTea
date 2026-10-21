@@ -95,7 +95,7 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, className }: Sid
     // Auto-expand groups that contain active item
     useEffect(() => {
         const activeGroup = navigation.find(item => 
-            item.isGroup && item.children?.some(child => child.href === pathname)
+            item.isGroup && (item.children?.some(child => child.href === pathname) || item.href === pathname)
         );
         
         if (activeGroup && !collapsed) {
@@ -183,42 +183,78 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, className }: Sid
             
             return (
                 <div key={item.name} className="relative">
-                    {/* Group Header */}
-                    <button
-                        onClick={() => toggleGroup(item.name)}
-                        disabled={collapsed}
+                    {/* Group Header (Hỗ trợ click vào Hub hoặc toggle con - Mục #6) */
+                    <div
                         className={cn(
                             "w-full flex items-center rounded-lg text-sm font-medium transition-all duration-200 ease-in-out group relative",
-                            collapsed ? "px-2 py-2 justify-center" : "px-3 py-2 space-x-3",
-                            hasActiveChild 
-                                ? "bg-blue-50 text-blue-700" 
-                                : "text-gray-600 hover:bg-gray-50 hover:text-gray-800",
-                            collapsed && "cursor-default"
+                            collapsed ? "px-2 py-2 justify-center" : "px-2 py-1.5",
+                            (hasActiveChild || (item.href && pathname === item.href))
+                                ? "bg-indigo-50 text-indigo-700 font-semibold" 
+                                : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
                         )}
                         title={collapsed ? item.name : undefined}
                     >
-                        <div className="flex-shrink-0 w-4 h-4 flex items-center justify-center">
-                            <Icon className={cn(
-                                "h-4 w-4 transition-colors duration-200",
-                                hasActiveChild ? "text-blue-700" : ""
-                            )} />
-                        </div>
-                        
-                        {!collapsed && (
-                            <>
-                                <span className="flex-1 text-left whitespace-nowrap">
-                                    {item.name}
-                                </span>
-                                <div className="flex-shrink-0">
-                                    {isExpanded ? (
-                                        <ChevronDown className="h-3 w-3 transition-transform duration-200" />
-                                    ) : (
-                                        <ChevronRight className="h-3 w-3 transition-transform duration-200" />
-                                    )}
+                        {item.href ? (
+                            <Link
+                                href={item.href}
+                                onClick={onMobileClose}
+                                className={cn(
+                                    "flex items-center flex-1 min-w-0 transition-colors",
+                                    collapsed ? "justify-center" : "gap-3 py-1"
+                                )}
+                            >
+                                <div className="flex-shrink-0 w-4 h-4 flex items-center justify-center">
+                                    <Icon className={cn(
+                                        "h-4 w-4 transition-colors duration-200",
+                                        (hasActiveChild || (item.href && pathname === item.href)) ? "text-indigo-600" : "text-gray-500"
+                                    )} />
                                 </div>
-                            </>
+                                {!collapsed && (
+                                    <span className="flex-1 text-left truncate">
+                                        {item.name}
+                                    </span>
+                                )}
+                            </Link>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={() => toggleGroup(item.name)}
+                                className={cn(
+                                    "flex items-center flex-1 min-w-0 text-left",
+                                    collapsed ? "justify-center" : "gap-3 py-1"
+                                )}
+                            >
+                                <div className="flex-shrink-0 w-4 h-4 flex items-center justify-center">
+                                    <Icon className="h-4 w-4 text-gray-500" />
+                                </div>
+                                {!collapsed && (
+                                    <span className="flex-1 text-left truncate">
+                                        {item.name}
+                                    </span>
+                                )}
+                            </button>
                         )}
-                    </button>
+
+                        {!collapsed && (
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    toggleGroup(item.name);
+                                }}
+                                className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-200/60 rounded-md transition-colors ml-1"
+                                title={isExpanded ? "Thu gọn danh mục" : "Mở rộng danh mục"}
+                                aria-label="Toggle group"
+                            >
+                                {isExpanded ? (
+                                    <ChevronDown className="h-3.5 w-3.5 transition-transform duration-200" />
+                                ) : (
+                                    <ChevronRight className="h-3.5 w-3.5 transition-transform duration-200" />
+                                )}
+                            </button>
+                        )}
+                    </div>
 
                     {/* Group Children */}
                     {showChildren && (

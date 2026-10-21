@@ -2,13 +2,14 @@
 
 import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Search, X, LayoutGrid, List } from 'lucide-react';
+import { Search, X, LayoutGrid, List, Sparkles } from 'lucide-react';
 import { CustomerHeader } from '../components/CustomerHeader';
 import { CategoryTabs } from '../components/CategoryTabs';
 import { ProductCard } from '../components/ProductCard';
 import { ProductDetail } from '../components/ProductDetail';
 import { CartFloatingBar } from '../components/CartFloatingBar';
 import { CustomerChatbot } from '../components/CustomerChatbot';
+import { DrinkGachaCSGO } from '../components/DrinkGachaCSGO';
 import { useCart } from '../context/CartContext';
 import { useTablePresence } from '@/hooks/useTablePresence';
 import type { Product } from '../types/customer-order';
@@ -31,6 +32,7 @@ function MenuPageContent() {
     (menuData as Product[]).filter(p => p['Trạng thái'] === 'Hoạt động')
   );
   const [activeTableToken, setActiveTableToken] = useState<string | null>(null);
+  const [isGachaOpen, setIsGachaOpen] = useState(false);
 
   const tableParam = searchParams.get('table') || tableId;
 
@@ -170,6 +172,37 @@ function MenuPageContent() {
         categoryCounts={categoryCounts}
       />
 
+      {/* Banner Gacha CS:GO Mở Hòm Đồ Uống (Mục #1) */}
+      <div className="px-4 pt-3">
+        <button
+          type="button"
+          onClick={() => setIsGachaOpen(true)}
+          className="w-full relative overflow-hidden rounded-2xl bg-gradient-to-r from-gray-900 via-indigo-950 to-purple-950 border border-yellow-500/40 p-3 text-left shadow-lg shadow-purple-900/10 flex items-center justify-between group active:scale-98 transition-transform"
+        >
+          <div className="flex items-center gap-3 z-10">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-yellow-500 text-black flex items-center justify-center font-black shadow-md shadow-yellow-500/30 shrink-0 group-hover:rotate-12 transition-transform">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-black uppercase tracking-wider text-yellow-300">
+                  CS:GO Drink Gacha
+                </span>
+                <span className="px-1.5 py-0.2 bg-red-600 text-white text-[9px] font-extrabold rounded-full uppercase">
+                  Hot
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-300 mt-0.5">
+                Không biết hôm nay uống gì? Thử vận may mở hòm nhận món ngay!
+              </p>
+            </div>
+          </div>
+          <div className="z-10 px-3 py-1.5 rounded-xl bg-yellow-400 text-black text-xs font-extrabold shrink-0 group-hover:bg-yellow-300 transition-colors shadow-sm">
+            Quay ngay 🎰
+          </div>
+        </button>
+      </div>
+
       {/* View Mode & Results Count Bar (Mục #13) */}
       <div className="px-4 pt-3 pb-1 flex items-center justify-between text-xs text-gray-500">
         <span>Hiển thị <strong className="text-gray-800">{filteredProducts.length}</strong> món</span>
@@ -244,6 +277,13 @@ function MenuPageContent() {
       <CustomerChatbot
         onSelectProduct={handleSelectProduct}
         catalogProducts={catalogProducts}
+      />
+
+            {/* Modal CS:GO Gacha Quay Thưởng (Mục #1) */}
+      <DrinkGachaCSGO
+        isOpen={isGachaOpen}
+        onClose={() => setIsGachaOpen(false)}
+        products={catalogProducts}
       />
 
       {/* Product Detail Bottom Sheet */}

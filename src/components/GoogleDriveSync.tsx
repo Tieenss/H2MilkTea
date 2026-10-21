@@ -23,142 +23,122 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { 
-  Cloud, 
-  CloudOff, 
-  Upload, 
-  Download, 
-  Trash2, 
+import {
+  Cloud,
+  CloudOff,
+  Upload,
+  Download,
+  Trash2,
   RefreshCw,
   CheckCircle2,
   AlertTriangle,
   User,
   Calendar,
-  FileText
+  FileText,
+  KeyRound,
+  ExternalLink,
+  ShieldCheck,
 } from 'lucide-react';
-import GoogleDriveUtils from '@/utils/googleDriveUtils';
-import AuthUtils from '@/utils/authUtils';
+import GoogleDriveUtils, { GoogleDriveFile } from '@/utils/googleDriveUtils';
+import { GOOGLE_DRIVE_CONFIG } from '@/config/googleDrive';
+import { toast } from 'react-hot-toast';
 
 interface GoogleDriveSyncProps {
   onSyncComplete?: (success: boolean, message: string) => void;
 }
 
-const GoogleDriveSync: React.FC<GoogleDriveSyncProps> = ({ onSyncComplete }) => {
+export const GoogleDriveSync: React.FC<GoogleDriveSyncProps> = ({ onSyncComplete }) => {
   const [loading, setLoading] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   const [userInfo, setUserInfo] = useState<any>(null);
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
-  const [backupFiles, setBackupFiles] = useState<any[]>([]);
+  const [backupFiles, setBackupFiles] = useState<GoogleDriveFile[]>([]);
   const [showBackupList, setShowBackupList] = useState(false);
-  const [showDebugInfo, setShowDebugInfo] = useState(false);
+  const [showConfigModal, setShowConfigModal] = useState(false);
+  const [customClientId, setCustomClientId] = useState('');
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setCustomClientId(localStorage.getItem('h2_custom_google_client_id') || '');
+    }
     checkAuthStatus();
     loadBackupFiles();
-    
-    // Khởi động auto backup timer nếu đã enable
+
     const authInfo = GoogleDriveUtils.getAuthInfo();
     if (authInfo?.autoSyncEnabled) {
       GoogleDriveUtils.startAutoBackupTimer();
     }
 
-    // Cleanup khi component unmount
     return () => {
       GoogleDriveUtils.stopAutoBackupTimer();
     };
   }, []);
 
-  // Kiểm tra trạng thái đăng nhập
   const checkAuthStatus = async () => {
     try {
-      console.log('🔍 Checking Google Drive configuration...');
-      
-      // Validate configuration trước
       const configValidation = GoogleDriveUtils.validateConfiguration();
       if (!configValidation.isValid) {
-        console.error('❌ Configuration validation failed:', configValidation);
-        setMessage({ 
-          type: 'error', 
-          text: `Lỗi cấu hình: ${configValidation.errors.join(', ')}` 
-        });
         return;
       }
 
-      console.log('✅ Configuration validation passed');
-      
-      const initialized = await GoogleDriveUtils.initializeGoogleAPI();
-      if (!initialized) {
-        const initError = GoogleDriveUtils.getInitializationError();
-        setMessage({ 
-          type: 'error', 
-          text: `Không thể khởi tạo Google API: ${initError || 'Unknown error'}` 
-        });
-        return;
-      }
-
-      // Thử khôi phục auth từ localStorage
-      console.log('🔄 Checking for stored authentication...');
+      await GoogleDriveUtils.initializeGoogleAPI();
       const restored = await GoogleDriveUtils.restoreAuthFromStorage();
-      
+
       if (restored) {
-        console.log('✅ Authentication restored from storage');
         setSignedIn(true);
         const authInfo = GoogleDriveUtils.getAuthInfo();
-        setUserInfo(authInfo?.user);
+        setUserInfo({
+          email: authInfo?.userEmail,
+          name: authInfo?.userName,
+          picture: authInfo?.userPicture,
+        });
         setAutoSyncEnabled(authInfo?.autoSyncEnabled || false);
-        
-        // Khởi động auto backup nếu đã enable
-        if (authInfo?.autoSyncEnabled) {
-          GoogleDriveUtils.startAutoBackupTimer();
-        }
       } else {
-        console.log('ℹ️ No valid stored authentication found');
         setSignedIn(false);
         setUserInfo(null);
-        setAutoSyncEnabled(false);
       }
-    } catch (error) {
-      console.error('❌ Error checking auth status:', error);
-      setMessage({ 
-        type: 'error', 
-        text: `Lỗi kiểm tra trạng thái: ${(error as Error).message}` 
-      });
+    } catch (err: any) {
+      console.error('Check auth status error:', err);
     }
   };
 
-  // Đăng nhập Google
   const handleSignIn = async () => {
     try {
       setLoading(true);
-      setMessage({ type: 'info', text: 'Đang kết nối với Google Drive...' });
-      
-      console.log('🔑 Starting Google Drive sign in...');
+      setMessage(null);
+
+      const configValidation = GoogleDriveUtils.validateConfiguration();
+      if (!configValidation.isValid) {
+        setShowConfigModal(true);
+        setMessage({
+          type: 'error',
+          text: 'Vui lòng nhập Google Client ID trước khi kết nối Google Drive!',
+        });
+        setLoading(false);
+        return;
+      }
+
       const result = await GoogleDriveUtils.signIn();
-      
-      console.log('📝 Sign in result:', result);
-      
       if (result.success) {
         setSignedIn(true);
         setUserInfo(result.user);
-        setMessage({ type: 'success', text: 'Đăng nhập Google Drive thành công!' });
-        onSyncComplete?.(true, 'Đã kết nối Google Drive');
-        
-        // Load backup files sau khi đăng nhập thành công
+        setAutoSyncEnabled(true);
+        setMessage({ type: 'success', text: 'Đã kết nối tài khoản Google Drive thành công!' });
+        toast.success('Kết nối Google Drive thành công!');
         await loadBackupFiles();
       } else {
-        console.error('❌ Sign in failed:', result.error);
-        setMessage({ type: 'error', text: result.error || 'Đăng nhập thất bại' });
+        setMessage({ type: 'error', text: result.error || 'Đăng nhập Google thất bại' });
+        toast.error(result.error || 'Đăng nhập Google thất bại');
       }
-    } catch (error) {
-      console.error('❌ Sign in error:', error);
-      setMessage({ type: 'error', text: (error as Error).message });
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error.message });
+      toast.error(error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // Đăng xuất
   const handleSignOut = async () => {
     try {
       setLoading(true);
@@ -167,328 +147,349 @@ const GoogleDriveSync: React.FC<GoogleDriveSyncProps> = ({ onSyncComplete }) => 
       setUserInfo(null);
       setAutoSyncEnabled(false);
       setBackupFiles([]);
-      setMessage({ type: 'info', text: 'Đã đăng xuất Google Drive' });
-    } catch (error) {
-      setMessage({ type: 'error', text: (error as Error).message });
+      setMessage({ type: 'info', text: 'Đã ngắt kết nối với Google Drive' });
+      toast.success('Đã đăng xuất Google Drive');
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error.message });
     } finally {
       setLoading(false);
     }
   };
 
-  // Backup thủ công
   const handleManualBackup = async () => {
     try {
       setLoading(true);
-      const result = await AuthUtils.manualBackupToGoogleDrive();
-      
-      if (result.success) {
-        setMessage({ type: 'success', text: result.message });
-        await loadBackupFiles(); // Reload danh sách
-        onSyncComplete?.(true, result.message);
-      } else {
-        setMessage({ type: 'error', text: result.message });
+      setMessage({ type: 'info', text: 'Đang trích xuất toàn bộ dữ liệu Supabase...' });
+
+      // 1. Gọi server API để lấy full dữ liệu hệ thống
+      const exportRes = await fetch('/api/backup/export');
+      const exportData = await exportRes.json();
+
+      if (!exportRes.ok || !exportData.success || !exportData.backup) {
+        throw new Error(exportData.message || 'Không thể trích xuất dữ liệu hệ thống');
       }
-    } catch (error) {
-      setMessage({ type: 'error', text: (error as Error).message });
+
+      setMessage({ type: 'info', text: 'Đang tải file sao lưu lên Google Drive...' });
+
+      // 2. Upload file backup lên Google Drive
+      const uploadResult = await GoogleDriveUtils.uploadBackup(exportData.backup);
+      if (uploadResult.success) {
+        await GoogleDriveUtils.deleteOldBackups(10);
+        setMessage({
+          type: 'success',
+          text: `Sao lưu thành công lên Google Drive! (${Object.entries(exportData.backup.summary || {})
+            .map(([tbl, count]) => `${tbl}: ${count}`)
+            .join(', ')})`,
+        });
+        toast.success('Sao lưu dữ liệu lên Google Drive thành công!');
+        onSyncComplete?.(true, 'Sao lưu thành công');
+        await loadBackupFiles();
+      } else {
+        throw new Error(uploadResult.error || 'Lỗi khi đẩy file lên Drive');
+      }
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error.message });
+      toast.error(error.message);
+      onSyncComplete?.(false, error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // Tải danh sách backup
   const loadBackupFiles = async () => {
-    if (!signedIn) {
-      console.log('ℹ️ Not signed in, skipping backup files load');
-      return;
-    }
-    
+    if (!GoogleDriveUtils.isSignedIn()) return;
     try {
-      console.log('📂 Loading backup files...');
       const result = await GoogleDriveUtils.listBackups();
-      if (result.success) {
-        console.log(`✅ Found ${result.files?.length || 0} backup files`);
-        setBackupFiles(result.files || []);
-      } else {
-        console.error('❌ Failed to load backup files:', result.error);
-        setMessage({ type: 'error', text: `Không thể tải danh sách backup: ${result.error}` });
+      if (result.success && result.files) {
+        setBackupFiles(result.files);
       }
     } catch (error) {
-      console.error('❌ Error loading backup files:', error);
-      setMessage({ type: 'error', text: `Lỗi tải backup: ${(error as Error).message}` });
+      console.error('Error loading backup files:', error);
     }
   };
 
-  // Khôi phục từ backup
   const handleRestore = async (fileId: string, fileName: string) => {
+    const confirmed = window.confirm(
+      `Bạn có chắc chắn muốn khôi phục dữ liệu từ bản sao lưu:\n"${fileName}"?\nDữ liệu hiện tại trên hệ thống sẽ được hợp nhất cập nhật từ file này.`
+    );
+    if (!confirmed) return;
+
     try {
       setLoading(true);
-      const result = await AuthUtils.restoreFromGoogleDrive(fileId);
-      
-      if (result.success) {
-        setMessage({ type: 'success', text: result.message });
-        onSyncComplete?.(true, `Đã khôi phục từ ${fileName}`);
-      } else {
-        setMessage({ type: 'error', text: result.message });
+      setMessage({ type: 'info', text: `Đang tải ${fileName} từ Google Drive...` });
+
+      const downloadResult = await GoogleDriveUtils.downloadBackup(fileId);
+      if (!downloadResult.success || !downloadResult.data) {
+        throw new Error(downloadResult.error || 'Không thể tải file backup');
       }
-    } catch (error) {
-      setMessage({ type: 'error', text: (error as Error).message });
+
+      setMessage({ type: 'info', text: 'Đang khôi phục dữ liệu vào cơ sở dữ liệu Supabase...' });
+
+      const restoreRes = await fetch('/api/backup/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(downloadResult.data),
+      });
+
+      const restoreResult = await restoreRes.json();
+      if (restoreResult.success) {
+        setMessage({
+          type: 'success',
+          text: `Khôi phục thành công từ ${fileName}! Vui lòng làm mới trang để thấy dữ liệu mới nhất.`,
+        });
+        toast.success('Khôi phục dữ liệu thành công!');
+        onSyncComplete?.(true, `Khôi phục từ ${fileName}`);
+      } else {
+        throw new Error(restoreResult.message || 'Lỗi khôi phục vào Supabase');
+      }
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error.message });
+      toast.error(error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // Bật/tắt tự động sync
   const handleAutoSyncToggle = (enabled: boolean) => {
     GoogleDriveUtils.setAutoSync(enabled);
     setAutoSyncEnabled(enabled);
-    
     if (enabled) {
-      setMessage({ type: 'success', text: 'Đã bật tự động backup mỗi ngày' });
+      setMessage({ type: 'success', text: 'Đã bật tự động sao lưu dữ liệu mỗi 24 giờ' });
+      toast.success('Đã kích hoạt tự động sao lưu');
     } else {
-      setMessage({ type: 'info', text: 'Đã tắt tự động backup' });
+      setMessage({ type: 'info', text: 'Đã tắt chế độ tự động sao lưu' });
     }
   };
 
-  // Format file size
-  const formatFileSize = (bytes: number) => {
-    if (!bytes) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  const handleSaveCustomClientId = () => {
+    if (!customClientId.trim()) {
+      localStorage.removeItem('h2_custom_google_client_id');
+      toast.success('Đã xóa Client ID tùy chỉnh');
+    } else {
+      GOOGLE_DRIVE_CONFIG.setCustomClientId(customClientId);
+      toast.success('Đã lưu Google Client ID mới!');
+    }
+    setShowConfigModal(false);
+    checkAuthStatus();
   };
 
-  // Format date
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString('vi-VN');
+  const formatFileSize = (bytes?: string) => {
+    if (!bytes) return 'N/A';
+    const num = parseInt(bytes, 10);
+    if (isNaN(num)) return 'N/A';
+    if (num < 1024) return `${num} B`;
+    if (num < 1024 * 1024) return `${(num / 1024).toFixed(1)} KB`;
+    return `${(num / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   return (
-    <div className="space-y-4">
-      {/* Message Alert */}
-      {message && (
-        <Alert className={`border-l-4 ${
-          message.type === 'success' ? 'border-l-green-500 bg-green-50' :
-          message.type === 'error' ? 'border-l-red-500 bg-red-50' :
-          'border-l-blue-500 bg-blue-50'
-        }`}>
-          <AlertDescription>{message.text}</AlertDescription>
-        </Alert>
-      )}
-
-      {/* Connection Card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              {signedIn ? (
-                <Cloud className="h-5 w-5 text-blue-600" />
-              ) : (
-                <CloudOff className="h-5 w-5 text-gray-400" />
-              )}
-              <CardTitle>Google Drive Sync</CardTitle>
-            </div>
-            <Badge variant={signedIn ? "default" : "secondary"}>
-              {signedIn ? "Đã kết nối" : "Chưa kết nối"}
-            </Badge>
-          </div>
-          <CardDescription>
-            Tự động đồng bộ dữ liệu lên Google Drive của bạn
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {!signedIn ? (
-            <div className="text-center space-y-4">
-              <p className="text-gray-600">
-                Kết nối với Google Drive để tự động backup dữ liệu mỗi ngày
-              </p>
-              <Button 
-                onClick={handleSignIn} 
-                disabled={loading}
-                className="bg-blue-600 hover:bg-blue-700"
+    <>
+      <Card className="w-full border-gray-200 shadow-sm">
+        <CardHeader className="pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center space-x-3">
+              <div
+                className={`p-2.5 rounded-xl ${
+                  signedIn ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-500'
+                }`}
               >
-                <Cloud className="h-4 w-4 mr-2" />
-                {loading ? 'Đang kết nối...' : 'Kết nối Google Drive'}
+                {signedIn ? <Cloud className="h-6 w-6" /> : <CloudOff className="h-6 w-6" />}
+              </div>
+              <div>
+                <CardTitle className="text-lg font-bold text-gray-900">
+                  Sao Lưu & Đồng Bộ Google Drive
+                </CardTitle>
+                <CardDescription className="text-xs text-gray-500">
+                  Lưu trữ tự động dữ liệu nhà hàng lên đám mây Google Drive an toàn
+                </CardDescription>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowConfigModal(true)}
+                className="text-xs gap-1.5"
+              >
+                <KeyRound className="w-3.5 h-3.5 text-indigo-600" />
+                Cấu hình Client ID
+              </Button>
+              <Badge
+                variant={signedIn ? 'default' : 'secondary'}
+                className={signedIn ? 'bg-emerald-600 hover:bg-emerald-600' : ''}
+              >
+                {signedIn ? 'Đã liên kết' : 'Chưa liên kết'}
+              </Badge>
+            </div>
+          </div>
+        </CardHeader>
+
+        <CardContent className="space-y-4">
+          {message && (
+            <Alert
+              className={`text-xs ${
+                message.type === 'error'
+                  ? 'border-red-200 bg-red-50 text-red-800'
+                  : message.type === 'success'
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                  : 'border-blue-200 bg-blue-50 text-blue-800'
+              }`}
+            >
+              <AlertDescription className="flex items-center justify-between">
+                <span>{message.text}</span>
+                <button
+                  type="button"
+                  onClick={() => setMessage(null)}
+                  className="font-bold ml-2 text-gray-500 hover:text-gray-800"
+                >
+                  ✕
+                </button>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* User Info Bar */}
+          {signedIn && userInfo && (
+            <div className="flex items-center justify-between p-3.5 bg-gray-50 rounded-xl border border-gray-200 text-xs">
+              <div className="flex items-center space-x-3">
+                {userInfo.picture ? (
+                  <img
+                    src={userInfo.picture}
+                    alt={userInfo.name || 'User'}
+                    className="w-8 h-8 rounded-full border border-gray-300"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold">
+                    <User className="w-4 h-4" />
+                  </div>
+                )}
+                <div>
+                  <div className="font-semibold text-gray-900">{userInfo.name || 'Tài khoản Google'}</div>
+                  <div className="text-gray-500 text-[11px]">{userInfo.email}</div>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSignOut}
+                disabled={loading}
+                className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                Đăng xuất
               </Button>
             </div>
-          ) : (
-            <div className="space-y-4">
-              {/* User Info */}
-              <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
-                {userInfo?.picture && (
-                  <img 
-                    src={userInfo.picture} 
-                    alt="Avatar" 
-                    className="h-10 w-10 rounded-full"
-                  />
-                )}
-                <div className="flex-1">
-                  <p className="font-medium">{userInfo?.name}</p>
-                  <p className="text-sm text-gray-600">{userInfo?.email}</p>
-                </div>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={handleSignOut}
-                  disabled={loading}
-                >
-                  Đăng xuất
-                </Button>
-              </div>
-
-              {/* Auto Sync Setting */}
-              <div className="flex items-center justify-between p-3 border rounded-lg">
-                <div>
-                  <p className="font-medium">Tự động backup</p>
-                  <p className="text-sm text-gray-600">
-                    Backup dữ liệu mỗi ngày
-                    {autoSyncEnabled && (
-                      <span className="ml-2 text-green-600">
-                        • Đang hoạt động
-                      </span>
-                    )}
-                  </p>
-                </div>
-                <Switch
-                  checked={autoSyncEnabled}
-                  onCheckedChange={handleAutoSyncToggle}
-                  disabled={loading}
-                />
-              </div>
-
-              {/* Last Sync Info */}
-              {(() => {
-                const authInfo = GoogleDriveUtils.getAuthInfo();
-                const lastSync = authInfo?.lastSync;
-                const shouldSync = GoogleDriveUtils.shouldAutoSync();
-                
-                return (
-                  <div className="p-3 bg-gray-50 rounded-lg text-sm">
-                    <div className="flex justify-between items-center">
-                      <span>Lần backup cuối:</span>
-                      <span className="font-medium">
-                        {lastSync ? new Date(lastSync).toLocaleString('vi-VN') : 'Chưa có'}
-                      </span>
-                    </div>
-                    {shouldSync && autoSyncEnabled && (
-                      <div className="mt-1 text-orange-600">
-                        ⏰ Cần backup (hơn 24 giờ)
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {/* Manual Actions */}
-              <div className="grid grid-cols-2 gap-2">
-                <Button 
-                  onClick={handleManualBackup} 
-                  disabled={loading}
-                  variant="outline"
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Backup ngay
-                </Button>
-                <Button 
-                  onClick={() => setShowBackupList(true)} 
-                  disabled={loading}
-                  variant="outline"
-                >
-                  <FileText className="h-4 w-4 mr-2" />
-                  Xem backup ({backupFiles.length})
-                </Button>
-              </div>
-
-              {/* Debug Actions */}
-              <div className="grid grid-cols-3 gap-2">
-                <Button 
-                  onClick={() => setShowDebugInfo(true)} 
-                  disabled={loading}
-                  variant="outline"
-                  size="sm"
-                >
-                  <AlertTriangle className="h-4 w-4 mr-2" />
-                  Debug Info
-                </Button>
-                <Button 
-                  onClick={() => {
-                    const validation = GoogleDriveUtils.validateConfiguration();
-                    setMessage({ 
-                      type: validation.isValid ? 'success' : 'error', 
-                      text: validation.isValid ? 'Cấu hình hợp lệ' : `Lỗi: ${validation.errors.join(', ')}` 
-                    });
-                  }} 
-                  disabled={loading}
-                  variant="outline"
-                  size="sm"
-                >
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Test Config
-                </Button>
-                <Button 
-                  onClick={async () => {
-                    try {
-                      setLoading(true);
-                      await GoogleDriveUtils.forceReinitialize();
-                      await checkAuthStatus();
-                      setMessage({ type: 'success', text: 'Đã reinitialize thành công' });
-                    } catch (error) {
-                      setMessage({ type: 'error', text: `Lỗi reinitialize: ${(error as Error).message}` });
-                    } finally {
-                      setLoading(false);
-                    }
-                  }} 
-                  disabled={loading}
-                  variant="outline"
-                  size="sm"
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Reinit
-                </Button>
-              </div>
-            </div>
           )}
+
+          {/* Actions & Auto-sync */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex items-center justify-between p-3.5 border border-gray-200 rounded-xl bg-white">
+              <div>
+                <div className="text-sm font-semibold text-gray-900">Tự động sao lưu</div>
+                <div className="text-xs text-gray-500">Tự động lưu bản backup mới mỗi 24h</div>
+              </div>
+              <Switch
+                checked={autoSyncEnabled}
+                onCheckedChange={handleAutoSyncToggle}
+                disabled={!signedIn || loading}
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              {!signedIn ? (
+                <Button
+                  onClick={handleSignIn}
+                  disabled={loading}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs gap-2 py-5"
+                >
+                  {loading ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Cloud className="h-4 w-4" />
+                  )}
+                  Đăng nhập & Kết nối Google Drive
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    onClick={handleManualBackup}
+                    disabled={loading}
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5"
+                  >
+                    {loading ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4" />
+                    )}
+                    Sao lưu ngay
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowBackupList(true);
+                      loadBackupFiles();
+                    }}
+                    disabled={loading}
+                    className="flex-1 text-xs gap-1.5"
+                  >
+                    <Download className="h-4 w-4 text-indigo-600" />
+                    Xem bản sao lưu ({backupFiles.length})
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Backup List Dialog */}
+      {/* Backup Files Modal */}
       <Dialog open={showBackupList} onOpenChange={setShowBackupList}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden">
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Cloud className="h-5 w-5" />
-              Danh sách Backup trên Google Drive
+              <FileText className="w-5 h-5 text-indigo-600" />
+              Danh sách bản sao lưu trên Google Drive
             </DialogTitle>
-            <DialogDescription>
-              {backupFiles.length} file backup được tìm thấy
+            <DialogDescription className="text-xs">
+              Thư mục lưu trữ: <strong>H2MilkTea_Backups</strong> (giữ lại tối đa 10 bản gần nhất)
             </DialogDescription>
           </DialogHeader>
-          
-          <div className="overflow-auto max-h-[60vh]">
-            {backupFiles.length > 0 ? (
+
+          <div className="flex-1 overflow-y-auto py-2">
+            {backupFiles.length === 0 ? (
+              <div className="text-center py-8 text-gray-500 text-sm">
+                Chưa có bản sao lưu nào trên Google Drive. Hãy nhấn "Sao lưu ngay" để tạo bản đầu tiên!
+              </div>
+            ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Tên file</TableHead>
-                    <TableHead>Ngày tạo</TableHead>
-                    <TableHead>Kích thước</TableHead>
-                    <TableHead>Thao tác</TableHead>
+                    <TableHead>Thời gian</TableHead>
+                    <TableHead>Dung lượng</TableHead>
+                    <TableHead className="text-right">Thao tác</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {backupFiles.map((file) => (
-                    <TableRow key={file.id}>
-                      <TableCell className="font-medium">{file.name}</TableCell>
-                      <TableCell>{formatDate(file.modifiedTime)}</TableCell>
-                      <TableCell>{formatFileSize(file.size)}</TableCell>
-                      <TableCell>
+                  {backupFiles.map((f) => (
+                    <TableRow key={f.id}>
+                      <TableCell className="font-mono text-xs font-medium text-gray-900">
+                        {f.name}
+                      </TableCell>
+                      <TableCell className="text-xs text-gray-500">
+                        {new Date(f.createdTime).toLocaleString('vi-VN')}
+                      </TableCell>
+                      <TableCell className="text-xs text-gray-500">
+                        {formatFileSize(f.size)}
+                      </TableCell>
+                      <TableCell className="text-right">
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleRestore(file.id, file.name)}
+                          onClick={() => handleRestore(f.id, f.name)}
                           disabled={loading}
+                          className="text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
                         >
-                          <Download className="h-4 w-4 mr-1" />
                           Khôi phục
                         </Button>
                       </TableCell>
@@ -496,97 +497,69 @@ const GoogleDriveSync: React.FC<GoogleDriveSyncProps> = ({ onSyncComplete }) => 
                   ))}
                 </TableBody>
               </Table>
-            ) : (
-              <div className="flex items-center justify-center h-32">
-                <p className="text-gray-500">Chưa có file backup nào</p>
-              </div>
             )}
           </div>
 
           <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setShowBackupList(false)}
-            >
+            <Button variant="outline" onClick={() => setShowBackupList(false)}>
               Đóng
             </Button>
-            <Button 
-              onClick={loadBackupFiles}
-                 disabled={loading}
-           >
-             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-             Làm mới
-           </Button>
-         </DialogFooter>
-       </DialogContent>
-     </Dialog>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-     {/* Debug Info Dialog */}
-     <Dialog open={showDebugInfo} onOpenChange={setShowDebugInfo}>
-       <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden">
-         <DialogHeader>
-           <DialogTitle className="flex items-center gap-2">
-             <AlertTriangle className="h-5 w-5" />
-             Debug Information
-           </DialogTitle>
-           <DialogDescription>
-             Chi tiết cấu hình và trạng thái Google Drive
-           </DialogDescription>
-         </DialogHeader>
-         
-         <div className="overflow-auto max-h-[60vh] space-y-4">
-           {/* Configuration Status */}
-           <div className="p-4 bg-gray-50 rounded-lg">
-             <h3 className="font-semibold mb-2">Configuration Status</h3>
-             <pre className="text-sm overflow-x-auto">
-               {JSON.stringify(GoogleDriveUtils.validateConfiguration(), null, 2)}
-             </pre>
-           </div>
-           
-           {/* Debug Info */}
-           <div className="p-4 bg-blue-50 rounded-lg">
-             <h3 className="font-semibold mb-2">Debug Info</h3>
-             <pre className="text-sm overflow-x-auto">
-               {JSON.stringify(GoogleDriveUtils.getDebugInfo(), null, 2)}
-             </pre>
-           </div>
-           
-           {/* Initialization Error */}
-           {GoogleDriveUtils.getInitializationError() && (
-             <div className="p-4 bg-red-50 rounded-lg">
-               <h3 className="font-semibold mb-2 text-red-700">Initialization Error</h3>
-               <p className="text-sm text-red-600">
-                 {GoogleDriveUtils.getInitializationError()}
-               </p>
-             </div>
-           )}
-         </div>
+      {/* Google Client ID Modal */}
+      <Dialog open={showConfigModal} onOpenChange={setShowConfigModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-indigo-600">
+              <KeyRound className="w-5 h-5" />
+              Cấu hình Google OAuth Client ID
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Nhập Web Client ID tạo từ <strong>Google Cloud Console</strong> để liên kết ứng dụng với tài khoản Google.
+            </DialogDescription>
+          </DialogHeader>
 
-         <DialogFooter>
-           <Button 
-             variant="outline" 
-             onClick={() => setShowDebugInfo(false)}
-           >
-             Đóng
-           </Button>
-           <Button 
-             onClick={async () => {
-               const testResult = await GoogleDriveUtils.testConnection();
-               setMessage({ 
-                 type: testResult.success ? 'success' : 'error', 
-                 text: testResult.message 
-               });
-             }}
-             disabled={loading}
-           >
-             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-             Test Connection
-           </Button>
-         </DialogFooter>
-       </DialogContent>
-     </Dialog>
-   </div>
- );
+          <div className="space-y-4 py-2 text-xs">
+            <div>
+              <label className="block font-semibold text-gray-700 mb-1">
+                Google Client ID (*.apps.googleusercontent.com)
+              </label>
+              <input
+                type="text"
+                value={customClientId}
+                onChange={(e) => setCustomClientId(e.target.value)}
+                placeholder="vd: 123456789-abcdef.apps.googleusercontent.com"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              />
+            </div>
+
+            <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 space-y-1.5">
+              <div className="font-semibold flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-amber-700" />
+                Lưu ý cấu hình Google Cloud Console:
+              </div>
+              <p>Thêm 2 địa chỉ sau vào mục <strong>Authorized JavaScript origins</strong>:</p>
+              <ul className="list-disc pl-4 space-y-0.5 font-mono text-[11px]">
+                <li>http://localhost:3000</li>
+                <li>https://h2milktea.vercel.app</li>
+              </ul>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowConfigModal(false)}>
+              Hủy
+            </Button>
+            <Button size="sm" onClick={handleSaveCustomClientId} className="bg-indigo-600 text-white">
+              Lưu cấu hình
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 };
 
 export default GoogleDriveSync;

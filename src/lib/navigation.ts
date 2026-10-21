@@ -1,5 +1,6 @@
 import {
     LayoutDashboard,
+    Palette,
     Users,
     Package,
     ShoppingCart,
@@ -59,10 +60,12 @@ export const navigation: NavigationItem[] = [
     // Group: POS & Bán hàng
     {
         name: 'POS & Bán hàng',
+        href: '/pos-hub',
         icon: ShoppingCart,
         dashboard: true,
         sidebar: true,
         isGroup: true,
+        description: 'Trung tâm bán hàng, sơ đồ bàn và đơn gọi món',
         children: [
             {
                 name: 'POS Bán hàng',
@@ -110,10 +113,12 @@ export const navigation: NavigationItem[] = [
     // Group: Menu & Sản phẩm
     {
         name: 'Menu & Sản phẩm',
+        href: '/menu',
         icon: Coffee,
         dashboard: true,
         sidebar: true,
         isGroup: true,
+        description: 'Quản lý menu, danh mục món và định lượng nguyên liệu',
         children: [
             {
                 name: 'Danh sách sản phẩm',
@@ -151,10 +156,12 @@ export const navigation: NavigationItem[] = [
     // Group: Quản lý kho
     {
         name: 'Quản lý kho',
+        href: '/inventory',
         icon: Warehouse,
         dashboard: true,
         sidebar: true,
         isGroup: true,
+        description: 'Quản lý nhập xuất tồn kho, kiểm kê và dự báo nhu cầu',
         children: [
             {
                 name: 'Nhập/xuất kho',
@@ -198,10 +205,12 @@ export const navigation: NavigationItem[] = [
     // Group: Báo cáo & Thống kê
     {
         name: 'Báo cáo',
+        href: '/reports',
         icon: PieChart,
         dashboard: true,
         sidebar: true,
         isGroup: true,
+        description: 'Báo cáo doanh thu, món bán chạy và hiệu suất kinh doanh',
         children: [
             {
                 name: 'Dashboard tổng quan',
@@ -247,12 +256,24 @@ export const navigation: NavigationItem[] = [
     // Group: Cài đặt hệ thống
     {
         name: 'Cài đặt',
+        href: '/settings',
         icon: Settings,
         dashboard: true,
         sidebar: true,
         isGroup: true,
+        description: 'Cài đặt giao diện, font chữ, mẫu in, chatbot và dữ liệu',
         children: [
 
+            {
+                name: 'Giao diện & Font chữ',
+                href: '/settings/appearance',
+                icon: Palette,
+                dashboard: true,
+                sidebar: true,
+                color: '#6366F1',
+                badge: 'Mới',
+                description: 'Tùy chỉnh font chữ, kích thước hiển thị và chủ đề màu sắc'
+            },
             {
                 name: 'Quản lý nhân viên',
                 href: '/nhanvien',

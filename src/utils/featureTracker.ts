@@ -1,6 +1,6 @@
 'use client';
 
-export type FeatureBadgeType = 'hot' | 'new' | 'recent' | null;
+export type FeatureBadgeType = 'hot' | 'new' | null;
 
 export interface FeatureBadgeInfo {
   label: string;
@@ -21,6 +21,7 @@ export const BASE_HOT_HREFS = ['/pos', '/orders', '/kitchen'];
 
 // Danh sách các chức năng mặc định là "Mới"
 export const BASE_NEW_HREFS = [
+  '/settings/appearance',
   '/settings/ai',
   '/receipt-settings',
   '/notifications',
@@ -105,15 +106,6 @@ export function getFeatureBadge(
   if (!href) return null;
 
   const state = currentState || getDeviceFeatureState();
-
-  // 1. Nếu là chức năng vừa vào gần đây nhất trên máy này -> Hiện "Gần đây"
-  if (state.lastVisitedHref === href) {
-    return {
-      label: 'Gần đây',
-      type: 'recent',
-      className: 'bg-amber-500 text-white',
-    };
-  }
 
   // 2. Nếu là chức năng "Mới" và máy này CHƯA từng vào -> Hiện "Mới"
   if (BASE_NEW_HREFS.includes(href) && !state.visitedHrefs.includes(href)) {

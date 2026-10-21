@@ -123,25 +123,24 @@ describe('Phase 6: UI/UX & System Polish (Items #8, #9, #15, #17)', () => {
       expect(badge?.type).toBe('hot');
     });
 
-    it('converts a "Mới" feature to "Gần đây" upon visiting, and removes "Mới" permanently on this device', () => {
+    it('removes "Mới" permanently upon visiting and does not display "Gần đây" badge', () => {
       resetFeatureTracker();
       
       // Step 1: User visits new feature /settings/ai
       recordFeatureVisit('/settings/ai');
       
-      // Immediately, it is the most recent feature
+      // Since "Gần đây" badge was removed per user request (Item #2), it is now null
       const badgeAfterVisit = getFeatureBadge('/settings/ai');
-      expect(badgeAfterVisit?.label).toBe('Gần đây');
-      expect(badgeAfterVisit?.type).toBe('recent');
+      expect(badgeAfterVisit).toBeNull();
 
       // Step 2: User moves to another feature /orders
       recordFeatureVisit('/orders');
 
-      // Now /orders is "Gần đây"
+      // /orders is core feature, retains 'Hot'
       const ordersBadge = getFeatureBadge('/orders');
-      expect(ordersBadge?.label).toBe('Gần đây');
+      expect(ordersBadge?.label).toBe('Hot');
 
-      // And /settings/ai is no longer "Gần đây" AND no longer "Mới" (since it was visited on this machine)
+      // And /settings/ai remains null (never turns "Mới" again)
       const aiBadgeAfterMoving = getFeatureBadge('/settings/ai');
       expect(aiBadgeAfterMoving).toBeNull();
     });
