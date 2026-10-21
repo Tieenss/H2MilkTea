@@ -448,11 +448,21 @@ export const usePOS = () => {
     });
 
     setCart(convertedItems);
-    saveSharedCartDraft(order.table_id, convertedItems, null);
+    tableCartsRef.current.set(order.table_id, convertedItems);
+    void fetch('/api/pos/cart-draft', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tableId: order.table_id,
+        cart: convertedItems,
+        selectedCustomer: null,
+      }),
+    }).catch((err) => console.warn('Lỗi lưu draft đơn QR:', err));
+
     setActivePOSOrderIds((prev) => prev.includes(order.id) ? prev : [...prev, order.id]);
     updateTableStatus(order.table_id, 'Đang sử dụng');
     showNotification(`Đã nhận đơn và nạp các món vào ${order.table_name || 'bàn'}!`);
-  }, [setSelectedTableId, setCart, products, saveSharedCartDraft, updateTableStatus, showNotification]);
+  }, [setSelectedTableId, setCart, products, updateTableStatus, showNotification]);
 
   // Fetch customers
   const fetchCustomers = useCallback(async () => {
