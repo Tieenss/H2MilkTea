@@ -325,7 +325,7 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, className }: Sid
                     className={cn(
                         "flex items-center rounded-lg text-sm font-medium transition-all duration-200 ease-in-out group relative",
                         collapsed ? "px-2 py-2 justify-center" : "px-3 py-2 space-x-3",
-                        level > 0 && !collapsed ? "ml-2 pl-4" : "",
+                        level > 0 && !collapsed ? "pl-2" : "",
                         isActive
                             ? "bg-blue-600 text-white shadow-sm"
                             : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"
@@ -340,24 +340,24 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, className }: Sid
                     </div>
                     
                     {!collapsed && (
-                        <div className="flex-1 flex items-center justify-between">
-                            <span className="whitespace-nowrap">
+                        <div className="flex-1 min-w-0 flex items-center justify-between gap-1.5">
+                            <span className="truncate text-xs font-medium">
                                 {item.name}
                             </span>
                             {item.name === 'Đơn hàng' ? (
-                                <TodayOrdersBadge />
+                                <div className="shrink-0"><TodayOrdersBadge /></div>
                             ) : itemBadge ? (
                                 <span className={cn(
-                                    "ml-2 px-1.5 py-0.5 text-[10px] font-bold rounded-full shadow-sm",
+                                    "shrink-0 px-1.5 py-0.5 text-[9.5px] font-bold rounded-full shadow-xs leading-none",
                                     itemBadge.className
                                 )}>
                                     {itemBadge.label}
                                 </span>
                             ) : item.badge ? (
                                 <span className={cn(
-                                    "ml-2 px-1.5 py-0.5 text-xs rounded-full",
+                                    "shrink-0 px-1.5 py-0.5 text-[10px] font-bold rounded-full leading-none",
                                     isActive 
-                                        ? "bg-white text-blue-600" 
+                                        ? "bg-white text-indigo-600" 
                                         : "bg-red-500 text-white"
                                 )}>
                                     {item.badge}

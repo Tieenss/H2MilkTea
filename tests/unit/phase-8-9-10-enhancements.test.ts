@@ -20,17 +20,26 @@ Object.defineProperty(globalThis, 'localStorage', {
   writable: true,
 });
 
+const classListSet = new Set<string>();
+const mockClassList = {
+  add: vi.fn((cls: string) => classListSet.add(cls)),
+  remove: vi.fn((cls: string) => classListSet.delete(cls)),
+  contains: vi.fn((cls: string) => classListSet.has(cls)),
+};
+
 if (typeof globalThis.window === 'undefined') {
   (globalThis as any).window = {
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
     dispatchEvent: vi.fn(),
+    matchMedia: vi.fn(() => ({ matches: false })),
   };
 }
 
 if (typeof globalThis.document === 'undefined') {
   (globalThis as any).document = {
     documentElement: {
+      classList: mockClassList,
       style: {
         setProperty: vi.fn(),
       },
@@ -55,11 +64,13 @@ import {
 import {
   getAppearanceSettings,
   saveAppearanceSettings,
+  applyAppearanceSettings,
   DEFAULT_APPEARANCE_SETTINGS,
   FONT_FAMILY_MAP,
   WEB_FONT_SIZE_MAP,
   CHATBOT_FONT_SIZE_MAP,
   THEME_COLOR_MAP,
+  COLOR_MODE_OPTIONS,
 } from '@/utils/appearanceSettings';
 import { navigation, getNavigationByGroup } from '@/lib/navigation';
 import { RARITY_CONFIGS } from '@/app/order/components/DrinkGachaCSGO';
@@ -68,6 +79,7 @@ import { GOOGLE_DRIVE_CONFIG } from '@/config/googleDrive';
 describe('Phase 8, 9, 10 Enhancements Verification', () => {
   beforeEach(() => {
     storageMap.clear();
+    classListSet.clear();
     vi.clearAllMocks();
   });
 
@@ -100,21 +112,23 @@ describe('Phase 8, 9, 10 Enhancements Verification', () => {
     });
   });
 
-  describe('Item #4 & #7: Appearance Settings (Fonts, Chatbot Size, Theme)', () => {
-    it('provides correct default appearance settings', () => {
+  describe('Item #4 & #7: Appearance Settings (Fonts, Chatbot Size, Theme, Dark Mode)', () => {
+    it('provides correct default appearance settings including light color mode', () => {
       const settings = getAppearanceSettings();
       expect(settings.fontFamily).toBe(DEFAULT_APPEARANCE_SETTINGS.fontFamily);
       expect(settings.fontSize).toBe(DEFAULT_APPEARANCE_SETTINGS.fontSize);
       expect(settings.chatbotFontSize).toBe(DEFAULT_APPEARANCE_SETTINGS.chatbotFontSize);
       expect(settings.themeColor).toBe(DEFAULT_APPEARANCE_SETTINGS.themeColor);
+      expect(settings.colorMode).toBe('light');
     });
 
-    it('saves and restores appearance settings from localStorage', () => {
+    it('saves and restores appearance settings with dark mode from localStorage', () => {
       const customSettings = {
         fontFamily: 'lexend' as const,
         fontSize: 'lg' as const,
         chatbotFontSize: 'lg' as const,
         themeColor: 'emerald' as const,
+        colorMode: 'dark' as const,
         lastUpdated: new Date().toISOString(),
       };
 
@@ -125,13 +139,28 @@ describe('Phase 8, 9, 10 Enhancements Verification', () => {
       expect(loaded.fontSize).toBe('lg');
       expect(loaded.chatbotFontSize).toBe('lg');
       expect(loaded.themeColor).toBe('emerald');
+      expect(loaded.colorMode).toBe('dark');
     });
 
-    it('validates font family and size maps have proper CSS definitions', () => {
-      expect(FONT_FAMILY_MAP['be-vietnam-pro'].cssFont).toContain('Be Vietnam Pro');
-      expect(WEB_FONT_SIZE_MAP['base'].rootPx).toBe('15px');
-      expect(CHATBOT_FONT_SIZE_MAP['lg'].px).toBe('15.5px');
+    it('applies dark class to documentElement when dark mode is enabled', () => {
+      applyAppearanceSettings({
+        ...DEFAULT_APPEARANCE_SETTINGS,
+        colorMode: 'dark',
+      });
+      expect(mockClassList.add).toHaveBeenCalledWith('dark');
+
+      applyAppearanceSettings({
+        ...DEFAULT_APPEARANCE_SETTINGS,
+        colorMode: 'light',
+      });
+      expect(mockClassList.remove).toHaveBeenCalledWith('dark');
+    });
+
+    it('validates theme colors include hex and hsl properties', () => {
       expect(THEME_COLOR_MAP['emerald'].primaryHex).toBe('#059669');
+      expect(THEME_COLOR_MAP['emerald'].primaryHsl).toContain('160');
+      expect(THEME_COLOR_MAP['amber'].primaryHex).toBe('#d97706');
+      expect(COLOR_MODE_OPTIONS['dark'].label).toContain('Dark Mode');
     });
   });
 

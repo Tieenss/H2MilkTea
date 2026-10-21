@@ -98,7 +98,7 @@ export default function DashboardLayout({
 
   return (
     <TodayOrdersProvider>
-      <div className="min-h-screen overflow-hidden">
+      <div className="min-h-screen overflow-hidden bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors duration-200">
         <Header 
           onToggleSidebar={handleToggleSidebar}
           sidebarCollapsed={sidebarCollapsed}

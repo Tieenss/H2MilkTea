@@ -17,6 +17,8 @@ import authUtils from '@/utils/authUtils';
 import GoogleDriveUtils from '@/utils/googleDriveUtils';
 import {
     Bell,
+    Sun,
+    Moon,
     LogOut,
     Menu,
     ChevronLeft,
@@ -279,7 +281,23 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
                         <span className="font-mono font-semibold">{formatTime(currentTime)}</span>
                     </div>
 
-                    {/* Notification dropdown (Mục #15: Chấm xanh unread, click điều hướng, dọn thông báo) */}
+                    {/* Quick Dark Mode Toggle */}
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        type="button"
+                        onClick={toggleQuickDarkMode}
+                        className="transition-colors text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+                        title={colorMode === 'dark' ? 'Chuyển sang Giao diện Sáng' : 'Chuyển sang Giao diện Tối (Dark Mode)'}
+                    >
+                        {colorMode === 'dark' ? (
+                            <Sun className="h-5 w-5 text-amber-400 hover:rotate-45 transition-transform" />
+                        ) : (
+                            <Moon className="h-5 w-5 text-indigo-600 hover:-rotate-12 transition-transform" />
+                        )}
+                    </Button>
+
+                                        {/* Notification dropdown (Mục #15: Chấm xanh unread, click điều hướng, dọn thông báo) */}
                     <DropdownMenu open={notificationDropdownOpen} onOpenChange={setNotificationDropdownOpen}>
                         <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="relative transition-all duration-200" title="Thông báo hệ thống">

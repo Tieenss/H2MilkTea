@@ -597,7 +597,7 @@ const SettingDataPage = () => {
 
       {/* Main Content */}
       <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 h-auto p-1.5 gap-1.5 bg-gray-100 rounded-xl">
           <TabsTrigger value="overview">Tổng Quan</TabsTrigger>
           <TabsTrigger value="tables">Dữ Liệu Bảng</TabsTrigger>
           <TabsTrigger value="management">Quản Lý</TabsTrigger>
