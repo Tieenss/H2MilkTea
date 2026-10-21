@@ -189,8 +189,8 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, className }: Sid
                             "w-full flex items-center rounded-lg text-sm font-medium transition-all duration-200 ease-in-out group relative",
                             collapsed ? "px-2 py-2 justify-center" : "px-2 py-1.5",
                             (hasActiveChild || (item.href && pathname === item.href))
-                                ? "bg-indigo-50 text-indigo-700 font-semibold" 
-                                : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+                                ? "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-semibold" 
+                                : "text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800/90 hover:text-gray-900 dark:hover:text-white"
                         )}
                         title={collapsed ? item.name : undefined}
                     >
@@ -243,7 +243,7 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, className }: Sid
                                     e.stopPropagation();
                                     toggleGroup(item.name);
                                 }}
-                                className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-200/60 rounded-md transition-colors ml-1"
+                                className="p-1 text-gray-400 dark:text-slate-400 hover:text-gray-700 dark:hover:text-white hover:bg-gray-200/60 dark:hover:bg-slate-700/70 rounded-md transition-colors ml-1"
                                 title={isExpanded ? "Thu gọn danh mục" : "Mở rộng danh mục"}
                                 aria-label="Toggle group"
                             >
@@ -328,7 +328,7 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, className }: Sid
                         level > 0 && !collapsed ? "pl-2" : "",
                         isActive
                             ? "bg-blue-600 text-white shadow-sm"
-                            : "text-gray-600 hover:bg-gray-50 hover:text-gray-800"
+                            : "text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800/90 hover:text-gray-900 dark:hover:text-white"
                     )}
                     title={collapsed ? item.name : undefined}
                 >
