@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
           .join('\n');
 
         const systemPrompt = `Bạn là Trợ lý ảo tư vấn gọi món thân thiện của quán H2 MilkTea.
-Hãy trả lời khách hàng một cách ngắn gọn, vui vẻ, lịch sự (dưới 3 câu) bằng tiếng Việt.
+Hãy trả lời khách hàng một cách vui vẻ, lịch sự, hoàn thành trọn vẹn câu nói bằng tiếng Việt (từ 2 đến 4 câu đầy đủ ý nghĩa, tuyệt đối không ngắt câu dở chừng).
 Tư vấn món phù hợp theo sở thích khách hàng dựa trên thực đơn sau:
 ${productCatalogSummary}
 Nếu khách hỏi về đường, đá, size: Quán có Size M (chuẩn), Size L (+5.000đ), mức đường 0%-30%-50%-70%-100%, mức đá vừa/ít/không đá.`;
@@ -125,7 +125,7 @@ Nếu khách hỏi về đường, đá, size: Quán có Size M (chuẩn), Size 
             ],
             generationConfig: {
               temperature: 0.7,
-              maxOutputTokens: 250,
+              maxOutputTokens: 800,
             },
           }),
         });

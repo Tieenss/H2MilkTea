@@ -543,7 +543,19 @@ export const GoogleDriveSync: React.FC<GoogleDriveSyncProps> = ({ onSyncComplete
               <p>Thêm 2 địa chỉ sau vào mục <strong>Authorized JavaScript origins</strong>:</p>
               <ul className="list-disc pl-4 space-y-0.5 font-mono text-[11px]">
                 <li>http://localhost:3000</li>
-                <li>https://h2milktea.vercel.app</li>
+                <li className="flex items-center justify-between">
+                    <span>https://h2milktea.vercel.app</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText('https://h2milktea.vercel.app');
+                        toast.success('Đã sao chép https://h2milktea.vercel.app!');
+                      }}
+                      className="px-2 py-0.5 bg-amber-600 text-white rounded font-sans text-[10px] font-bold hover:bg-amber-700"
+                    >
+                      Copy
+                    </button>
+                  </li>
               </ul>
             </div>
           </div>

@@ -229,7 +229,7 @@ export function CustomerChatbot({
                   className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
                 >
                   <div
-                    className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed ${
+                    className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed break-words whitespace-pre-wrap ${
                       msg.role === 'user'
                         ? 'bg-orange-500 text-white rounded-br-xs'
                         : 'bg-slate-100 text-slate-800 rounded-bl-xs'

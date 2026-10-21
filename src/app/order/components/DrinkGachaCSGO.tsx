@@ -84,6 +84,19 @@ interface DrinkGachaCSGOProps {
   products: Product[];
 }
 
+
+export function getDrinkThumbnail(p: Product): string {
+  if (p['Hình ảnh'] && p['Hình ảnh'].trim() !== '') return p['Hình ảnh'];
+  const name = (p['Tên sản phẩm'] || '').toLowerCase();
+  if (name.includes('cà phê') || name.includes('cafe')) {
+    return 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=200&q=80';
+  }
+  if (name.includes('đào') || name.includes('trái cây') || name.includes('chanh') || name.includes('vải') || name.includes('dâu')) {
+    return 'https://images.unsplash.com/photo-1556881286-fc6915169721?w=200&q=80';
+  }
+  return 'https://images.unsplash.com/photo-1558857563-b37cf5287e07?w=200&q=80';
+}
+
 export function getProductPrice(p: Product): number {
   const raw = p['Đơn giá'] ?? (p as unknown as Record<string, unknown>)['Giá bán'] ?? 0;
   return parseInt(String(raw).replace(/[^\d]/g, ''), 10) || 0;
@@ -428,15 +441,11 @@ export function DrinkGachaCSGO({ isOpen, onClose, products }: DrinkGachaCSGOProp
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-16 h-16 rounded-xl bg-black/50 border border-gray-700 p-1 shrink-0 overflow-hidden shadow-lg">
-                    {winner.product['Hình ảnh'] ? (
-                      <img
-                        src={winner.product['Hình ảnh']}
+                    <img
+                        src={getDrinkThumbnail(winner.product)}
                         alt={winner.product['Tên sản phẩm']}
                         className="w-full h-full object-cover rounded-lg"
                       />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-3xl">🧋</div>
-                    )}
                   </div>
                   <div>
                     <div className="flex items-center gap-2">

@@ -135,7 +135,7 @@ function MenuPageContent() {
   };
 
   return (
-    <div className="min-h-screen pb-28">
+    <div className="min-h-screen pb-28 max-w-5xl mx-auto bg-white shadow-xs">
       <CustomerHeader onCartClick={handleViewCart} />
 
       {/* Search Bar */}
@@ -234,7 +234,7 @@ function MenuPageContent() {
       <div className="px-4 py-2">
         {filteredProducts.length > 0 ? (
           viewMode === 'grid' ? (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
               {filteredProducts.map((product) => (
                 <ProductCard
                   key={product.IDSP}
@@ -246,7 +246,7 @@ function MenuPageContent() {
               ))}
             </div>
           ) : (
-            <div className="space-y-2.5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3">
               {filteredProducts.map((product) => (
                 <ProductCard
                   key={product.IDSP}
