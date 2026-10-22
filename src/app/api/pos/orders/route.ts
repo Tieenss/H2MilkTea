@@ -32,8 +32,11 @@ export async function GET(request: Request) {
   if (includeAccepted) {
     query = query.in('order_status', ['awaiting_confirmation', 'accepted']);
   } else {
-    // Mặc định: Lấy tất cả đơn mới chờ duyệt HOẶC đơn đã nhận mà khách đang xin hủy
-    query = query.or('order_status.eq.awaiting_confirmation,rejection_reason.ilike.YÊU CẦU HỦY ĐƠN%');
+    // Mặc định: Chỉ lấy đơn chưa kết thúc (không lấy đơn đã cancelled/completed)
+    // Và là đơn mới chờ duyệt HOẶC đơn đã nhận mà khách đang xin hủy
+    query = query
+      .in('order_status', ['awaiting_confirmation', 'accepted'])
+      .or('order_status.eq.awaiting_confirmation,rejection_reason.ilike.YÊU CẦU HỦY ĐƠN%');
   }
 
   const { data, error } = await query.order('created_at', { ascending: true });

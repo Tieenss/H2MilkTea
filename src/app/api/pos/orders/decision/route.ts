@@ -27,31 +27,45 @@ export async function POST(request: NextRequest) {
     const now = new Date().toISOString();
     let newOrderStatus = current.order_status;
     let newPaymentStatus = current.payment_status;
+    let newRejectionReason = current.rejection_reason;
 
     if (decision === 'accept') {
       newOrderStatus = 'accepted';
     } else if (decision === 'dismiss' || decision === 'complete') {
       newOrderStatus = 'completed';
       newPaymentStatus = 'paid';
-    } else if (decision === 'cancel' || decision === 'reject') {
+    } else if (decision === 'cancel') {
       newOrderStatus = 'cancelled';
+      newRejectionReason = String(reason ? `ĐÃ HỦY: ${reason}` : 'Nhân viên đã đồng ý hủy đơn').trim().slice(0, 300);
+    } else if (decision === 'reject') {
+      newOrderStatus = 'cancelled';
+      newRejectionReason = String(reason || 'Quán từ chối nhận đơn').trim().slice(0, 300);
     } else if (decision === 'reject_cancellation') {
       newOrderStatus = 'accepted';
+      newRejectionReason = String(reason ? `TỪ CHỐI HỦY: ${reason}` : 'Bếp đang làm dở, không thể hủy').trim().slice(0, 300);
     }
 
     const { data: updated, error } = await supabase.from('pos_orders').update({
       order_status: newOrderStatus,
       payment_status: newPaymentStatus,
       accepted_by: decision === 'accept' ? staff.email || staff.id : current.accepted_by,
-      rejection_reason: (decision === 'reject' || decision === 'reject_cancellation')
-        ? String(reason).trim().slice(0, 300)
-        : current.rejection_reason,
+      rejection_reason: newRejectionReason,
       updated_at: now,
       status_version: Number(current.status_version || 0) + 1,
     }).eq('id', id).eq('status_version', current.status_version).select('*').maybeSingle();
 
     if (error || !updated) {
       return NextResponse.json({ success: false, error: 'Đơn vừa được xử lý ở thiết bị khác. Hãy làm mới danh sách.' }, { status: 409 });
+    }
+
+    // Khi chấp nhận hủy đơn: Xóa giỏ hàng của bàn trong pos_cart_drafts và cập nhật bàn về Trống
+    if (decision === 'cancel' && current.table_id) {
+      try {
+        await supabase.from('pos_cart_drafts').delete().eq('table_id', current.table_id);
+        await supabase.from('DSBAN').update({ 'Trạng thái': 'Trống' }).eq('IDBAN', current.table_id);
+      } catch (cleanErr) {
+        console.warn('Lỗi dọn giỏ hàng bàn khi hủy đơn:', cleanErr);
+      }
     }
 
     if (updated.tracking_token) {
@@ -66,7 +80,7 @@ export async function POST(request: NextRequest) {
       } });
       await supabase.removeChannel(channel);
     }
-    return NextResponse.json({ success: true, order: updated });
+    return NextResponse.json({ success: true, order: updated, clearedTableId: decision === 'cancel' ? current.table_id : null });
   } catch (error) {
     console.error('QR order decision failed:', error);
     return NextResponse.json({ success: false, error: 'Không thể xử lý đơn QR.' }, { status: 500 });

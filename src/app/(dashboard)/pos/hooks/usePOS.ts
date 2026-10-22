@@ -178,6 +178,33 @@ export const usePOS = () => {
     });
   }, [cancelPendingAutosave, clearLocalCart, clearSharedCartDraft, selectedTableId, updateTableStatus, setActiveOrders]);
 
+  // Lắng nghe sự kiện hủy đơn QR từ quầy POS để làm sạch giỏ hàng bàn lập tức
+  useEffect(() => {
+    const handleOrderCancelled = (e: any) => {
+      const cancelledTableId = e.detail?.tableId;
+      if (!cancelledTableId) return;
+
+      setActiveOrders((prev) => {
+        const next = new Map(prev);
+        next.delete(cancelledTableId);
+        return next;
+      });
+      tableCustomersRef.current.delete(cancelledTableId);
+      updateTableStatus(cancelledTableId, 'Trống');
+
+      if (selectedTableId === cancelledTableId) {
+        clearLocalCart();
+        cancelPendingAutosave();
+        setActivePOSOrderIds([]);
+      }
+    };
+
+    window.addEventListener('pos_order_cancelled', handleOrderCancelled);
+    return () => {
+      window.removeEventListener('pos_order_cancelled', handleOrderCancelled);
+    };
+  }, [selectedTableId, clearLocalCart, cancelPendingAutosave, setActiveOrders, updateTableStatus]);
+
   // Modal state
   const [modalState, setModalState] = useState<ModalState>({
     showTableModal: false,
