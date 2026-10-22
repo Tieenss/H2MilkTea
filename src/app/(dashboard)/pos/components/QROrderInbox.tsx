@@ -120,7 +120,14 @@ export function QROrderInbox({ onSettle, onAccept }: {
         onAccept(order);
       }
       if (decision === 'cancel') {
-        window.dispatchEvent(new CustomEvent('pos_order_cancelled', { detail: { tableId: order.table_id } }));
+        window.dispatchEvent(new CustomEvent('pos_order_cancelled', {
+          detail: {
+            tableId: order.table_id,
+            tableName: order.table_name,
+            items: order.items,
+            orderId: order.id,
+          },
+        }));
       }
       // Loại bỏ đơn khỏi state local ngay tức thì
       setOrders(prev => prev.filter(o => o.id !== order.id));

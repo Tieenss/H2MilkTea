@@ -6,9 +6,10 @@ import { NextRequest } from 'next/server';
 
 vi.mock('@/lib/supabase/server', () => ({
   createAdminSupabaseClient: vi.fn(),
+  getAuthenticatedStaff: vi.fn(),
 }));
 
-import { createAdminSupabaseClient } from '@/lib/supabase/server';
+import { createAdminSupabaseClient, getAuthenticatedStaff } from '@/lib/supabase/server';
 
 function makeRequest(method: string, url: string, body?: any) {
   return new NextRequest(new URL(url, 'http://localhost:3000'), {
@@ -163,6 +164,94 @@ describe('Patch 0.2210: Order Sync, Gacha 60FPS & Cancellation Flow', () => {
       const json = await res.json();
       expect(json.success).toBe(true);
       expect(json.message).toContain('Thêm đá');
+    });
+  });
+
+  describe('5. POS Order Cancellation Cart Deduction', () => {
+    it('correctly deducts cancelled order items from existing cart draft', async () => {
+      const { POST: decisionRoute } = await import('@/app/api/pos/orders/decision/route');
+      vi.mocked(getAuthenticatedStaff).mockResolvedValue({ id: 'staff_1', email: 'cashier@h2.vn' } as any);
+
+      let draftCart = [
+        { productId: 'sp_tra_sua', productName: 'Trà sữa Oolong', quantity: 3, unitPrice: 30000 },
+        { productId: 'sp_huong_duong', productName: 'Hướng dương', quantity: 1, unitPrice: 15000 },
+      ];
+
+      const cancelledItems = [
+        { productId: 'sp_tra_sua', productName: 'Trà sữa Oolong', quantity: 2, unitPrice: 30000 },
+      ];
+
+      const mockOrderQuery = {
+        select: vi.fn(() => mockOrderQuery),
+        eq: vi.fn(() => mockOrderQuery),
+        single: vi.fn(async () => ({
+          data: {
+            id: 'ord_123',
+            source: 'QR_TABLE',
+            table_id: 'BAN04',
+            order_status: 'accepted',
+            status_version: 1,
+            rejection_reason: 'YÊU CẦU HỦY ĐƠN: Khách đổi ý',
+            items: cancelledItems,
+          },
+          error: null,
+        })),
+        maybeSingle: vi.fn(async () => ({
+          data: {
+            id: 'ord_123',
+            source: 'QR_TABLE',
+            table_id: 'BAN04',
+            order_status: 'cancelled',
+            status_version: 2,
+            rejection_reason: 'ĐÃ HỦY: Khách đổi ý',
+            items: cancelledItems,
+          },
+          error: null,
+        })),
+        update: vi.fn(() => mockOrderQuery),
+      };
+
+      const mockDraftQuery = {
+        select: vi.fn(() => mockDraftQuery),
+        eq: vi.fn(() => mockDraftQuery),
+        maybeSingle: vi.fn(async () => ({
+          data: { table_id: 'BAN04', cart: draftCart, version: 1 },
+          error: null,
+        })),
+        update: vi.fn((payload) => {
+          draftCart = payload.cart;
+          return mockDraftQuery;
+        }),
+        delete: vi.fn(() => mockDraftQuery),
+      };
+
+      (createAdminSupabaseClient as any).mockReturnValue({
+        from: vi.fn((table: string) => {
+          if (table === 'pos_orders') return mockOrderQuery;
+          if (table === 'pos_cart_drafts') return mockDraftQuery;
+          return mockOrderQuery;
+        }),
+        channel: vi.fn(() => ({
+          subscribe: vi.fn((cb) => { cb('SUBSCRIBED'); }),
+          send: vi.fn(async () => {}),
+        })),
+        removeChannel: vi.fn(async () => {}),
+      });
+
+      const res = await decisionRoute(makeRequest('POST', '/api/pos/orders/decision', {
+        id: 'ord_123',
+        decision: 'cancel',
+        reason: 'Khách đổi ý',
+      }));
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.success).toBe(true);
+      // Giỏ hàng bàn phải còn 1 Trà sữa Oolong và 1 Hướng dương
+      expect(draftCart).toEqual([
+        { productId: 'sp_tra_sua', productName: 'Trà sữa Oolong', quantity: 1, unitPrice: 30000 },
+        { productId: 'sp_huong_duong', productName: 'Hướng dương', quantity: 1, unitPrice: 15000 },
+      ]);
     });
   });
 });

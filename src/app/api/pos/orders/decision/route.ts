@@ -1,6 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminSupabaseClient, getAuthenticatedStaff } from '@/lib/supabase/server';
 
+function subtractItems(currentCart: any[], itemsToRemove: any[]): any[] {
+  if (!Array.isArray(currentCart) || currentCart.length === 0) return [];
+  if (!Array.isArray(itemsToRemove) || itemsToRemove.length === 0) return [...currentCart];
+
+  let remaining = [...currentCart];
+  for (const toRemove of itemsToRemove) {
+    const removeId = toRemove.productId || toRemove.id;
+    const removeName = toRemove.productName || toRemove.name;
+    let qtyToRemove = Number(toRemove.quantity || 1);
+
+    remaining = remaining.map((item) => {
+      if (qtyToRemove <= 0) return item;
+      const isMatch = (removeId && (item.id === removeId || item.productId === removeId)) ||
+                      (removeName && (item.name === removeName || item.productName === removeName));
+      if (isMatch) {
+        const itemQty = Number(item.quantity || 1);
+        const take = Math.min(itemQty, qtyToRemove);
+        qtyToRemove -= take;
+        const newQty = itemQty - take;
+        return newQty > 0 ? { ...item, quantity: newQty } : null;
+      }
+      return item;
+    }).filter(Boolean);
+  }
+  return remaining;
+}
+
 export async function POST(request: NextRequest) {
   const staff = await getAuthenticatedStaff(request.headers.get('cookie') || '');
   if (!staff) return NextResponse.json({ success: false, error: 'Phiên đăng nhập đã hết hạn.' }, { status: 401 });
@@ -58,11 +85,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Đơn vừa được xử lý ở thiết bị khác. Hãy làm mới danh sách.' }, { status: 409 });
     }
 
-    // Khi chấp nhận hủy đơn: Xóa giỏ hàng của bàn trong pos_cart_drafts và cập nhật bàn về Trống
+    // Khi chấp nhận hủy đơn: Trừ các món bị hủy khỏi pos_cart_drafts (hoặc xóa draft nếu rỗng)
     if (decision === 'cancel' && current.table_id) {
       try {
-        await supabase.from('pos_cart_drafts').delete().eq('table_id', current.table_id);
-        await supabase.from('DSBAN').update({ 'Trạng thái': 'Trống' }).eq('IDBAN', current.table_id);
+        const { data: existingDraft } = await supabase
+          .from('pos_cart_drafts')
+          .select('*')
+          .eq('table_id', current.table_id)
+          .maybeSingle();
+
+        if (existingDraft && Array.isArray(existingDraft.cart)) {
+          const updatedCart = subtractItems(existingDraft.cart, current.items);
+          if (updatedCart.length === 0) {
+            await supabase.from('pos_cart_drafts').delete().eq('table_id', current.table_id);
+          } else {
+            await supabase.from('pos_cart_drafts').update({
+              cart: updatedCart,
+              version: Number(existingDraft.version || 0) + 1,
+              updated_at: now,
+            }).eq('table_id', current.table_id);
+          }
+        } else {
+          await supabase.from('pos_cart_drafts').delete().eq('table_id', current.table_id);
+        }
       } catch (cleanErr) {
         console.warn('Lỗi dọn giỏ hàng bàn khi hủy đơn:', cleanErr);
       }

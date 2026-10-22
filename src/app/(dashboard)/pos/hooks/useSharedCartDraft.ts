@@ -11,6 +11,7 @@ export interface CartDraft {
   cart: CartItem[];
   selected_customer?: Customer | null;
   version: number;
+  device_id?: string;
 }
 
 export type SharedCartStatus =

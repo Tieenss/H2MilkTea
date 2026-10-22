@@ -61,6 +61,58 @@ const formatToVietnameseDateTime = (date: Date): string => {
   return `${day}/${month}/${year} ${hour}:${minute}:${second}`;
 };
 
+function getDeviceId(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    let id = window.localStorage.getItem('pos_device_id');
+    if (!id) {
+      id = 'dev_' + Math.random().toString(36).slice(2, 10);
+      window.localStorage.setItem('pos_device_id', id);
+    }
+    return id;
+  } catch {
+    return 'dev_unknown';
+  }
+}
+
+function isMatchingTable(tableA?: string | null, tableB?: string | null): boolean {
+  if (!tableA || !tableB) return false;
+  if (tableA === tableB) return true;
+  const normA = String(tableA).trim().toLowerCase();
+  const normB = String(tableB).trim().toLowerCase();
+  if (normA === normB) return true;
+  const numA = normA.replace(/\D/g, '');
+  const numB = normB.replace(/\D/g, '');
+  return Boolean(numA && numB && numA === numB);
+}
+
+function subtractItemsFromCart(currentCart: CartItem[], itemsToRemove: any[]): CartItem[] {
+  if (!Array.isArray(currentCart) || currentCart.length === 0) return [];
+  if (!Array.isArray(itemsToRemove) || itemsToRemove.length === 0) return [...currentCart];
+
+  let remaining = [...currentCart];
+  for (const toRemove of itemsToRemove) {
+    const removeId = toRemove.productId || toRemove.id;
+    const removeName = toRemove.productName || toRemove.name;
+    let qtyToRemove = Number(toRemove.quantity || 1);
+
+    remaining = remaining.map((item) => {
+      if (qtyToRemove <= 0) return item;
+      const isMatch = (removeId && (item.id === removeId || (item as any).productId === removeId)) ||
+                      (removeName && (item.name === removeName || (item as any).productName === removeName));
+      if (isMatch) {
+        const itemQty = Number(item.quantity || 1);
+        const take = Math.min(itemQty, qtyToRemove);
+        qtyToRemove -= take;
+        const newQty = itemQty - take;
+        return newQty > 0 ? { ...item, quantity: newQty } : null;
+      }
+      return item;
+    }).filter(Boolean) as CartItem[];
+  }
+  return remaining;
+}
+
 // Import customer types và utils
 export const usePOS = () => {
   // Get user data
@@ -178,24 +230,53 @@ export const usePOS = () => {
     });
   }, [cancelPendingAutosave, clearLocalCart, clearSharedCartDraft, selectedTableId, updateTableStatus, setActiveOrders]);
 
-  // Lắng nghe sự kiện hủy đơn QR từ quầy POS để làm sạch giỏ hàng bàn lập tức
+  // Lắng nghe sự kiện hủy đơn QR từ quầy POS để trừ món hoặc làm sạch giỏ hàng bàn lập tức
   useEffect(() => {
     const handleOrderCancelled = (e: any) => {
       const cancelledTableId = e.detail?.tableId;
+      const cancelledItems = e.detail?.items || [];
+      const cancelledOrderId = e.detail?.orderId;
       if (!cancelledTableId) return;
 
+      // Cập nhật activeOrders cho bàn tương ứng
       setActiveOrders((prev) => {
         const next = new Map(prev);
-        next.delete(cancelledTableId);
+        let targetKey = cancelledTableId;
+        for (const k of next.keys()) {
+          if (isMatchingTable(k, cancelledTableId)) {
+            targetKey = k;
+            break;
+          }
+        }
+        const currentTableCart = next.get(targetKey) || [];
+        const newTableCart = subtractItemsFromCart(currentTableCart, cancelledItems);
+        if (newTableCart.length === 0) {
+          next.delete(targetKey);
+          updateTableStatus(targetKey, 'Trống');
+          tableCustomersRef.current.delete(targetKey);
+        } else {
+          next.set(targetKey, newTableCart);
+        }
         return next;
       });
-      tableCustomersRef.current.delete(cancelledTableId);
-      updateTableStatus(cancelledTableId, 'Trống');
 
-      if (selectedTableId === cancelledTableId) {
-        clearLocalCart();
-        cancelPendingAutosave();
-        setActivePOSOrderIds([]);
+      // Nếu quầy POS hiện tại đang mở bàn này: Trừ trực tiếp trong giỏ hàng hiển thị
+      if (selectedTableId && isMatchingTable(selectedTableId, cancelledTableId)) {
+        setCart((currentCart) => {
+          const newCart = subtractItemsFromCart(currentCart, cancelledItems);
+          if (newCart.length === 0) {
+            clearLocalCart();
+            cancelPendingAutosave();
+            setActivePOSOrderIds([]);
+            updateTableStatus(selectedTableId, 'Trống');
+            tableCustomersRef.current.delete(selectedTableId);
+            return [];
+          }
+          if (cancelledOrderId) {
+            setActivePOSOrderIds((prev) => prev.filter((id) => id !== cancelledOrderId));
+          }
+          return newCart;
+        });
       }
     };
 
@@ -203,7 +284,7 @@ export const usePOS = () => {
     return () => {
       window.removeEventListener('pos_order_cancelled', handleOrderCancelled);
     };
-  }, [selectedTableId, clearLocalCart, cancelPendingAutosave, setActiveOrders, updateTableStatus]);
+  }, [selectedTableId, clearLocalCart, cancelPendingAutosave, setActiveOrders, updateTableStatus, setCart]);
 
   // Modal state
   const [modalState, setModalState] = useState<ModalState>({
@@ -495,7 +576,7 @@ export const usePOS = () => {
     });
 
     setCart(convertedItems);
-    tableCartsRef.current.set(order.table_id, convertedItems);
+    setActiveOrders((prev) => new Map(prev).set(order.table_id, convertedItems));
     void fetch('/api/pos/cart-draft', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -509,7 +590,7 @@ export const usePOS = () => {
     setActivePOSOrderIds((prev) => prev.includes(order.id) ? prev : [...prev, order.id]);
     updateTableStatus(order.table_id, 'Đang sử dụng');
     showNotification(`Đã nhận đơn và nạp các món vào ${order.table_name || 'bàn'}!`);
-  }, [setSelectedTableId, setCart, products, updateTableStatus, showNotification]);
+  }, [setSelectedTableId, setCart, setActiveOrders, products, updateTableStatus, showNotification]);
 
   // Fetch customers
   const fetchCustomers = useCallback(async () => {
