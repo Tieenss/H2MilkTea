@@ -139,4 +139,30 @@ describe('Patch 0.2210: Order Sync, Gacha 60FPS & Cancellation Flow', () => {
       expect(json.orderStatus).toBe('accepted');
     });
   });
+
+  describe('4. Table Service Call API (POST /api/customer-order/service-call)', () => {
+    it('successfully broadcasts service call to POS staff', async () => {
+      const { POST: serviceCallRoute } = await import('@/app/api/customer-order/service-call/route');
+      const mockChannel = {
+        subscribe: vi.fn((cb) => { cb('SUBSCRIBED'); return mockChannel; }),
+        send: vi.fn(async () => {}),
+      };
+
+      (createAdminSupabaseClient as any).mockReturnValue({
+        channel: vi.fn(() => mockChannel),
+        removeChannel: vi.fn(async () => {}),
+      });
+
+      const res = await serviceCallRoute(makeRequest('POST', '/api/customer-order/service-call', {
+        tableId: 'BAN04',
+        tableName: 'Bàn 4 (Tầng 1)',
+        requestType: 'Thêm đá',
+      }));
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.success).toBe(true);
+      expect(json.message).toContain('Thêm đá');
+    });
+  });
 });

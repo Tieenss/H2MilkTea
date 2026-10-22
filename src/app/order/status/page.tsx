@@ -170,11 +170,26 @@ function CustomerOrderStatusContent() {
   };
 
   // Khách gửi yêu cầu hỗ trợ bàn
-  const handleRequestService = (optionLabel: string) => {
+  const handleRequestService = async (optionLabel: string) => {
     setServiceFeedback(`Đã gửi yêu cầu "${optionLabel}". Nhân viên sẽ tới bàn ngay!`);
     setShowServiceModal(false);
     toast.success(`Đã thông báo: ${optionLabel}`, { icon: '🔔' });
     setTimeout(() => setServiceFeedback(null), 8000);
+
+    // Gửi yêu cầu thực tế lên quầy POS qua API & Supabase Realtime
+    try {
+      await fetch('/api/customer-order/service-call', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tableId: order?.table_id || 'Bàn',
+          tableName: order?.table_name || 'Bàn',
+          requestType: optionLabel,
+        }),
+      });
+    } catch (err) {
+      console.warn('Lỗi gửi gọi phục vụ:', err);
+    }
   };
 
   if (!token) {

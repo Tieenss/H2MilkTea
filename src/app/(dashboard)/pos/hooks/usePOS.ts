@@ -318,9 +318,29 @@ export const usePOS = () => {
       })
       .subscribe();
 
+    // Lắng nghe Realtime yêu cầu Gọi phục vụ từ khách tại bàn
+    const serviceChannel = client
+      .channel('staff-service-calls')
+      .on('broadcast', { event: 'service-call' }, ({ payload }) => {
+        if (!active) return;
+        playPosChimeSound();
+        toast(`🔔 ${payload.tableName || 'Bàn ' + payload.tableId} gọi phục vụ: ${payload.requestType}!`, {
+          duration: 9000,
+          icon: '🛎️',
+          style: {
+            background: '#fff7ed',
+            color: '#c2410c',
+            fontWeight: 'bold',
+            border: '2px solid #f97316',
+          },
+        });
+      })
+      .subscribe();
+
     return () => {
       active = false;
       void client.removeChannel(channel);
+      void client.removeChannel(serviceChannel);
     };
   }, [selectedTableId, setActiveOrders, updateTableStatus]);
 

@@ -23,16 +23,20 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const includeAccepted = searchParams.get('include_accepted') === 'true';
-  const filterStatuses = includeAccepted 
-    ? ['awaiting_confirmation', 'cancellation_pending', 'accepted'] 
-    : ['awaiting_confirmation', 'cancellation_pending'];
 
-  const { data, error } = await supabase.from('pos_orders')
+  let query = supabase.from('pos_orders')
     .select('id,table_id,table_name,items,total_amount,notes,created_at,order_status,kitchen_status,payment_status,rejection_reason')
     .eq('source', 'QR_TABLE')
-    .in('order_status', filterStatuses)
-    .eq('payment_status', 'unpaid')
-    .order('created_at', { ascending: true });
+    .eq('payment_status', 'unpaid');
+
+  if (includeAccepted) {
+    query = query.in('order_status', ['awaiting_confirmation', 'accepted']);
+  } else {
+    // Mặc định: Lấy tất cả đơn mới chờ duyệt HOẶC đơn đã nhận mà khách đang xin hủy
+    query = query.or('order_status.eq.awaiting_confirmation,rejection_reason.ilike.YÊU CẦU HỦY ĐƠN%');
+  }
+
+  const { data, error } = await query.order('created_at', { ascending: true });
 
   if (error) return NextResponse.json({ success: false, error: 'Không tải được đơn QR.' }, { status: 500 });
   return NextResponse.json({ success: true, orders: data || [] });

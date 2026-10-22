@@ -68,7 +68,13 @@ export function QROrderInbox({ onSettle, onAccept }: {
         if (order.order_status === 'awaiting_confirmation' && !knownIds.current.has(order.id)) playAlert();
         void refresh();
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pos_orders', filter: 'source=eq.QR_TABLE' }, () => void refresh())
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pos_orders', filter: 'source=eq.QR_TABLE' }, (payload) => {
+        const updatedOrder = payload.new as IncomingOrder;
+        if (updatedOrder?.rejection_reason?.includes('YÊU CẦU HỦY ĐƠN')) {
+          playAlert();
+        }
+        void refresh();
+      })
       .subscribe((status) => setIsConnected(status === 'SUBSCRIBED'));
 
     const handleSettled = (e: any) => {
@@ -182,7 +188,7 @@ export function QROrderInbox({ onSettle, onAccept }: {
         <div className="mt-3 space-y-3">
 
         {orders.map((order) => {
-          const isCancellation = order.order_status === 'cancellation_pending';
+          const isCancellation = order.order_status === 'cancellation_pending' || Boolean(order.rejection_reason?.includes('YÊU CẦU HỦY ĐƠN'));
 
           return (
             <article 
