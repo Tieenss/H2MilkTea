@@ -23,10 +23,12 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const includeAccepted = searchParams.get('include_accepted') === 'true';
-  const filterStatuses = includeAccepted ? ['awaiting_confirmation', 'accepted'] : ['awaiting_confirmation'];
+  const filterStatuses = includeAccepted 
+    ? ['awaiting_confirmation', 'cancellation_pending', 'accepted'] 
+    : ['awaiting_confirmation', 'cancellation_pending'];
 
   const { data, error } = await supabase.from('pos_orders')
-    .select('id,table_id,table_name,items,total_amount,notes,created_at,order_status,kitchen_status,payment_status')
+    .select('id,table_id,table_name,items,total_amount,notes,created_at,order_status,kitchen_status,payment_status,rejection_reason')
     .eq('source', 'QR_TABLE')
     .in('order_status', filterStatuses)
     .eq('payment_status', 'unpaid')

@@ -64,6 +64,7 @@ function CustomerOrderStatusContent() {
   const [isConnected, setIsConnected] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState('Khách muốn chọn lại món');
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [serviceFeedback, setServiceFeedback] = useState<string | null>(null);
 
@@ -115,6 +116,12 @@ function CustomerOrderStatusContent() {
             if (current.order_status === 'awaiting_confirmation' && payload.order_status === 'accepted') {
               toast.success('🎉 Quầy POS đã nhận đơn! Đang chuyển xuống quầy pha chế.', { duration: 4000 });
             }
+            if (payload.order_status === 'cancellation_pending') {
+              toast('⏳ Yêu cầu hủy đơn đã gửi tới thu ngân.', { icon: '⚠️' });
+            }
+            if (payload.order_status === 'cancelled') {
+              toast.success('Đơn hàng đã được quầy xác nhận hủy thành công.');
+            }
             return updated;
           });
         })
@@ -129,7 +136,7 @@ function CustomerOrderStatusContent() {
     };
   }, [refreshOrder, token]);
 
-  // Hủy đơn hàng khi chưa được thu ngân duyệt
+  // Hủy đơn hàng hoặc gửi yêu cầu hủy đơn
   const handleCancelOrder = async () => {
     if (!token) return;
     setIsCancelling(true);
@@ -137,14 +144,23 @@ function CustomerOrderStatusContent() {
       const res = await fetch('/api/orders/cancel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ trackingToken: token }),
+        body: JSON.stringify({
+          trackingToken: token,
+          reason: cancelReason,
+          requestCancellation: !isAwaiting,
+        }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Không thể hủy đơn hàng.');
       }
-      toast.success('Đã hủy đơn hàng thành công.');
-      setOrder((prev) => prev ? { ...prev, order_status: 'cancelled_by_customer' } : null);
+      if (data.cancellationPending) {
+        toast.success('Đã gửi yêu cầu hủy đơn đến quầy thu ngân!');
+        setOrder((prev) => prev ? { ...prev, order_status: 'cancellation_pending' } : null);
+      } else {
+        toast.success('Đã hủy đơn hàng thành công.');
+        setOrder((prev) => prev ? { ...prev, order_status: 'cancelled_by_customer' } : null);
+      }
       setShowCancelModal(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Lỗi khi hủy đơn.');
@@ -183,7 +199,8 @@ function CustomerOrderStatusContent() {
 
   // Xác định trạng thái tiến trình
   const isAwaiting = order?.order_status === 'awaiting_confirmation';
-  const isAcceptedOrServing = order && ['accepted', 'preparing', 'ready', 'served', 'completed'].includes(order.order_status);
+  const isCancellationPending = order?.order_status === 'cancellation_pending';
+  const isAcceptedOrServing = order && ['accepted', 'preparing', 'ready', 'served', 'completed', 'cancellation_pending'].includes(order.order_status);
   const isRejected = order?.order_status === 'rejected';
   const isCancelled = order && ['cancelled', 'cancelled_by_customer'].includes(order.order_status);
   const isExpired = order?.order_status === 'expired';
@@ -457,7 +474,7 @@ function CustomerOrderStatusContent() {
               {/* Nút hành động nhanh tại bàn: Gọi thêm món & Gọi phục vụ */}
               <div className="grid grid-cols-2 gap-3">
                 <button
-                  onClick={() => router.push(`/order/menu?table=${encodeURIComponent(order.table_id)}`)}
+                  onClick={() => router.push(order.table_id ? `/order/menu?table=${encodeURIComponent(order.table_id)}` : '/order/menu')}
                   className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-red-500 to-orange-500 p-3.5 font-bold text-white shadow-lg shadow-orange-500/20 active:scale-95 transition-transform"
                 >
                   <Plus className="h-4 w-4" />
@@ -472,6 +489,22 @@ function CustomerOrderStatusContent() {
                   <span>Gọi phục vụ</span>
                 </button>
               </div>
+
+              {/* Thông báo hoặc nút Hủy đơn cho khách */}
+              {isCancellationPending ? (
+                <div className="rounded-2xl border border-amber-300 bg-amber-50 p-3 text-center text-xs font-semibold text-amber-800 shadow-sm animate-pulse">
+                  ⏳ Bạn đã gửi yêu cầu hủy đơn này. Quầy thu ngân đang xác nhận...
+                </div>
+              ) : (order.kitchen_status !== 'ready' && order.kitchen_status !== 'served' && order.payment_status === 'unpaid') ? (
+                <div className="text-center pt-1">
+                  <button
+                    onClick={() => setShowCancelModal(true)}
+                    className="text-xs font-semibold text-red-600 hover:text-red-700 underline underline-offset-4 py-1"
+                  >
+                    Đổi ý? Gửi yêu cầu hủy đơn tới quầy
+                  </button>
+                </div>
+              ) : null}
             </>
           )}
 
@@ -503,14 +536,35 @@ function CustomerOrderStatusContent() {
         </div>
       )}
 
-      {/* Modal xác nhận Hủy đơn khi đang chờ duyệt */}
+      {/* Modal xác nhận Hủy đơn */}
       {showCancelModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
           <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl">
-            <h3 className="text-lg font-bold text-gray-900">Xác nhận hủy đơn hàng?</h3>
+            <h3 className="text-lg font-bold text-gray-900">
+              {isAwaiting ? 'Xác nhận hủy đơn hàng?' : 'Gửi yêu cầu hủy đơn tới quầy?'}
+            </h3>
             <p className="mt-2 text-xs text-gray-500">
-              Bạn có chắc chắn muốn hủy đơn hàng #{order?.id.slice(-8).toUpperCase()} không? Hành động này không thể hoàn tác.
+              {isAwaiting 
+                ? 'Đơn hàng chưa được quầy tiếp nhận. Bạn có thể hủy ngay lập tức.' 
+                : 'Đơn đã được tiếp nhận. Yêu cầu của bạn sẽ gửi tới quầy thu ngân để xác nhận hủy.'}
             </p>
+
+            <div className="mt-4">
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                Lý do bạn muốn hủy:
+              </label>
+              <select
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                className="w-full text-xs rounded-xl border border-gray-300 p-2.5 focus:border-red-500 focus:outline-none"
+              >
+                <option value="Đổi ý / Đặt nhầm món">Đổi ý / Đặt nhầm món</option>
+                <option value="Thời gian chờ đợi lâu">Thời gian chờ đợi lâu</option>
+                <option value="Muốn gọi món khác">Muốn gọi món khác</option>
+                <option value="Khách có việc bận gấp">Có việc bận phải rời đi</option>
+              </select>
+            </div>
+
             <div className="mt-6 flex justify-end gap-3">
               <button
                 onClick={() => setShowCancelModal(false)}
@@ -524,7 +578,7 @@ function CustomerOrderStatusContent() {
                 disabled={isCancelling}
                 className="rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-red-700"
               >
-                {isCancelling ? 'Đang hủy...' : 'Đồng ý hủy'}
+                {isCancelling ? 'Đang gửi...' : isAwaiting ? 'Đồng ý hủy' : 'Gửi yêu cầu hủy'}
               </button>
             </div>
           </div>

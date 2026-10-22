@@ -1,11 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BellRing, Check, Clock3, X, ChevronUp, ChevronDown, Trash2, CheckCircle2 } from 'lucide-react';
+import { BellRing, Check, Clock3, X, ChevronUp, ChevronDown, Trash2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
 
-interface IncomingOrder {
+export interface IncomingOrder {
   id: string;
   table_id: string;
   table_name: string;
@@ -13,8 +13,9 @@ interface IncomingOrder {
   total_amount: number;
   notes?: string;
   created_at: string;
-  order_status: 'awaiting_confirmation' | 'accepted';
+  order_status: 'awaiting_confirmation' | 'accepted' | 'cancellation_pending';
   kitchen_status: string;
+  rejection_reason?: string;
 }
 
 function playAlert() {
@@ -69,6 +70,7 @@ export function QROrderInbox({ onSettle, onAccept }: {
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pos_orders', filter: 'source=eq.QR_TABLE' }, () => void refresh())
       .subscribe((status) => setIsConnected(status === 'SUBSCRIBED'));
+
     const handleSettled = (e: any) => {
       const settledIds = e.detail?.orderIds || [];
       if (settledIds.length > 0) {
@@ -77,7 +79,7 @@ export function QROrderInbox({ onSettle, onAccept }: {
       void refresh();
     };
     window.addEventListener('pos_order_settled', handleSettled);
-    const fallback = window.setInterval(refresh, 20000);
+    const fallback = window.setInterval(refresh, 15000);
     return () => {
       window.removeEventListener('pos_order_settled', handleSettled);
       window.clearInterval(fallback);
@@ -85,14 +87,17 @@ export function QROrderInbox({ onSettle, onAccept }: {
     };
   }, [refresh]);
 
-  const decide = async (order: IncomingOrder, decision: 'accept' | 'reject' | 'cancel' | 'dismiss') => {
+  const decide = async (order: IncomingOrder, decision: 'accept' | 'reject' | 'cancel' | 'dismiss' | 'reject_cancellation') => {
     let reason = '';
-    if (decision === 'reject' || decision === 'cancel') {
-      const confirmMsg = decision === 'cancel'
-        ? `Bạn có chắc chắn muốn hủy đơn hàng của ${order.table_name}?`
-        : `Lý do từ chối đơn bàn ${order.table_name}:`;
-      reason = window.prompt(confirmMsg, 'Khách yêu cầu hủy / Đơn thử nghiệm')?.trim() || '';
-      if (!reason && decision === 'reject') return;
+    if (decision === 'reject') {
+      reason = window.prompt(`Lý do từ chối đơn bàn ${order.table_name}:`, 'Quán đang quá tải / Hết món')?.trim() || '';
+      if (!reason) return;
+    } else if (decision === 'reject_cancellation') {
+      reason = window.prompt(`Lý do từ chối yêu cầu hủy của ${order.table_name}:`, 'Đồ uống đã pha chế xong, đang chuyển ra bàn')?.trim() || '';
+      if (!reason) return;
+    } else if (decision === 'cancel' && order.order_status !== 'cancellation_pending') {
+      if (!window.confirm(`Bạn có chắc chắn muốn hủy đơn hàng của ${order.table_name}?`)) return;
+      reason = 'Nhân viên hủy tại quầy';
     }
 
     setProcessingId(order.id);
@@ -121,21 +126,19 @@ export function QROrderInbox({ onSettle, onAccept }: {
 
   // Dọn dẹp nhanh tất cả các đơn đã nhận
   const handleClearAllAccepted = async () => {
-    const acceptedOrders = orders.filter(o => o.order_status === 'accepted');
-    if (acceptedOrders.length === 0) return;
-
-    if (!window.confirm(`Bạn có muốn đánh dấu hoàn tất và xóa ${acceptedOrders.length} đơn đã nhận này khỏi màn hình không?`)) {
+    if (!window.confirm(`Bạn có muốn xóa toàn bộ các đơn đã nhận khỏi màn hình thông báo không?`)) {
       return;
     }
 
-    for (const o of acceptedOrders) {
-      void fetch('/api/pos/orders/decision', {
-        method: 'POST',
+    try {
+      await fetch('/api/pos/orders', {
+        method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: o.id, decision: 'dismiss' }),
       });
+      await refresh();
+    } catch {
+      // Bỏ qua
     }
-    setOrders(prev => prev.filter(o => o.order_status !== 'accepted'));
   };
 
   if (!orders.length && !error) return null;
@@ -178,36 +181,97 @@ export function QROrderInbox({ onSettle, onAccept }: {
       {!isCollapsed && (
         <div className="mt-3 space-y-3">
 
-        {orders.map((order) => (
-          <article key={order.id} className="rounded-lg border border-amber-200 bg-white p-3">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <p className="font-bold text-gray-900">{order.table_name} <span className="text-xs font-normal text-gray-500">· QR · #{order.id.slice(-7).toUpperCase()}</span></p>
-                <p className="mt-1 flex items-center gap-1 text-xs text-gray-500"><Clock3 className="h-3.5 w-3.5" />{new Date(order.created_at).toLocaleTimeString('vi-VN')}</p>
+        {orders.map((order) => {
+          const isCancellation = order.order_status === 'cancellation_pending';
+
+          return (
+            <article 
+              key={order.id} 
+              className={`rounded-lg border bg-white p-3 transition-colors ${
+                isCancellation 
+                  ? 'border-red-400 bg-red-50/50 ring-1 ring-red-400' 
+                  : 'border-amber-200'
+              }`}
+            >
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="font-bold text-gray-900 flex items-center gap-2">
+                    {order.table_name} 
+                    <span className="text-xs font-normal text-gray-500">· QR · #{order.id.slice(-7).toUpperCase()}</span>
+                    {isCancellation && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-extrabold bg-red-600 text-white animate-pulse">
+                        <AlertTriangle className="w-3 h-3" /> KHÁCH XIN HỦY ĐƠN
+                      </span>
+                    )}
+                  </p>
+                  <p className="mt-1 flex items-center gap-1 text-xs text-gray-500">
+                    <Clock3 className="h-3.5 w-3.5" />
+                    {new Date(order.created_at).toLocaleTimeString('vi-VN')}
+                  </p>
+                </div>
+                <p className="font-bold text-orange-700">{Number(order.total_amount).toLocaleString('vi-VN')}đ</p>
               </div>
-              <p className="font-bold text-orange-700">{Number(order.total_amount).toLocaleString('vi-VN')}đ</p>
-            </div>
-            <ul className="my-2 space-y-1 text-sm text-gray-700">
-              {order.items.map((item, index) => <li key={`${item.productName}-${index}`}>{item.quantity} × {item.productName}{item.note ? ` · ${item.note}` : ''}</li>)}
-            </ul>
-            {order.notes && <p className="mb-2 rounded bg-yellow-50 p-2 text-xs text-gray-700">Ghi chú: {order.notes}</p>}
-            {order.order_status === 'awaiting_confirmation' ? (
-              <div className="flex gap-2">
-                <Button size="sm" disabled={!!processingId} onClick={() => decide(order, 'accept')} className="bg-green-600 hover:bg-green-700">
-                  <Check className="mr-1 h-4 w-4" />{processingId === order.id ? 'Đang xử lý...' : 'Nhận đơn & gửi bếp'}
-                </Button>
-                <Button size="sm" variant="outline" disabled={!!processingId} onClick={() => decide(order, 'reject')} className="border-red-200 text-red-700 hover:bg-red-50">
-                  <X className="mr-1 h-4 w-4" />Từ chối
-                </Button>
-              </div>
-            ) : (
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-medium text-green-700">Đã nhận · {order.kitchen_status === 'preparing' ? 'Đang pha chế' : order.kitchen_status === 'ready' ? 'Đã sẵn sàng' : 'Chờ bếp'}</span>
-                <Button size="sm" disabled={!!processingId} onClick={() => onSettle(order)} className="bg-blue-600 hover:bg-blue-700">Thanh toán tại quầy</Button>
-              </div>
-            )}
-          </article>
-        ))}
+
+              {isCancellation && order.rejection_reason && (
+                <div className="my-2 p-2 rounded-lg bg-red-100 border border-red-200 text-xs text-red-800 font-semibold">
+                  ⚠️ Lý do: {order.rejection_reason}
+                </div>
+              )}
+
+              <ul className="my-2 space-y-1 text-sm text-gray-700">
+                {order.items.map((item, index) => (
+                  <li key={`${item.productName}-${index}`}>
+                    {item.quantity} × {item.productName}{item.note ? ` · ${item.note}` : ''}
+                  </li>
+                ))}
+              </ul>
+
+              {order.notes && <p className="mb-2 rounded bg-yellow-50 p-2 text-xs text-gray-700">Ghi chú: {order.notes}</p>}
+
+              {isCancellation ? (
+                <div className="flex items-center gap-2 pt-1 border-t border-red-200">
+                  <Button 
+                    size="sm" 
+                    disabled={!!processingId} 
+                    onClick={() => decide(order, 'cancel')} 
+                    className="bg-red-600 hover:bg-red-700 text-white font-bold"
+                  >
+                    <Check className="mr-1 h-4 w-4" />
+                    {processingId === order.id ? 'Đang hủy...' : 'Đồng ý hủy đơn'}
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    disabled={!!processingId} 
+                    onClick={() => decide(order, 'reject_cancellation')} 
+                    className="border-gray-300 text-gray-700 hover:bg-gray-100"
+                  >
+                    <X className="mr-1 h-4 w-4" />
+                    Từ chối (Bếp đang làm)
+                  </Button>
+                </div>
+              ) : order.order_status === 'awaiting_confirmation' ? (
+                <div className="flex gap-2">
+                  <Button size="sm" disabled={!!processingId} onClick={() => decide(order, 'accept')} className="bg-green-600 hover:bg-green-700">
+                    <Check className="mr-1 h-4 w-4" />{processingId === order.id ? 'Đang xử lý...' : 'Nhận đơn & gửi bếp'}
+                  </Button>
+                  <Button size="sm" variant="outline" disabled={!!processingId} onClick={() => decide(order, 'reject')} className="border-red-200 text-red-700 hover:bg-red-50">
+                    <X className="mr-1 h-4 w-4" />Từ chối
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-green-700">
+                    Đã nhận · {order.kitchen_status === 'preparing' ? 'Đang pha chế' : order.kitchen_status === 'ready' ? 'Đã sẵn sàng' : 'Chờ bếp'}
+                  </span>
+                  <Button size="sm" disabled={!!processingId} onClick={() => onSettle(order)} className="bg-blue-600 hover:bg-blue-700">
+                    Thanh toán tại quầy
+                  </Button>
+                </div>
+              )}
+            </article>
+          );
+        })}
       </div>
       )}
     </section>

@@ -102,6 +102,20 @@ export function getProductPrice(p: Product): number {
   return parseInt(String(raw).replace(/[^\d]/g, ''), 10) || 0;
 }
 
+// Kiểm tra sản phẩm có hỗ trợ chọn Size (M/L) hay không
+export function canProductHaveSize(p: Product): boolean {
+  if (!p) return false;
+  const cat = (p['Loại sản phẩm'] || '').toLowerCase();
+  const unit = (p['Đơn vị tính'] || '').toLowerCase();
+  const name = (p['Tên sản phẩm'] || '').toLowerCase();
+  
+  // Các món ăn vặt, snack, bánh, gói không hỗ trợ tăng size đồ uống
+  if (cat.includes('ăn') || cat.includes('snack') || cat.includes('khô') || cat.includes('bánh') || cat.includes('món ăn')) return false;
+  if (['gói', 'dĩa', 'đĩa', 'phần', 'cái', 'hũ', 'hộp', 'bịch', 'chai', 'lon'].includes(unit)) return false;
+  if (name.includes('hướng dương') || name.includes('chân gà') || name.includes('khô gà') || name.includes('bò khô') || name.includes('heo khô') || name.includes('tiramisu') || name.includes('bánh')) return false;
+  return true;
+}
+
 export function DrinkGachaCSGO({ isOpen, onClose, products }: DrinkGachaCSGOProps) {
   const { addItem } = useCart();
   const [isSpinning, setIsSpinning] = useState(false);
@@ -262,6 +276,7 @@ export function DrinkGachaCSGO({ isOpen, onClose, products }: DrinkGachaCSGOProp
     setWinner(null);
 
     const CARD_WIDTH = 140; // width (128px) + gap (12px)
+    const CARD_CONTENT_WIDTH = 128;
     const WINNING_INDEX = 38; // Ô trúng thưởng cố định ở gần cuối dải 50 ô
     const winningItem = reelItems[WINNING_INDEX];
 
@@ -273,30 +288,31 @@ export function DrinkGachaCSGO({ isOpen, onClose, products }: DrinkGachaCSGOProp
       const containerWidth = reelContainerRef.current.offsetWidth;
       // Vị trí tâm container
       const centerOffset = containerWidth / 2;
-      // Thêm chút ngẫu nhiên nhỏ (-35px đến +35px) trong ô trúng để tạo cảm giác chân thực
-      const randomJitter = (Math.random() - 0.5) * 70;
-      const targetTranslate = -(WINNING_INDEX * CARD_WIDTH + CARD_WIDTH / 2 - centerOffset + randomJitter);
+      // Tâm của card thứ WINNING_INDEX tính từ mép trái track
+      const itemCenter = WINNING_INDEX * CARD_WIDTH + CARD_CONTENT_WIDTH / 2;
+      // Random jitter an toàn (-10px đến +10px) tuyệt đối không trỏ lệch khỏi card (128px)
+      const randomJitter = (Math.random() - 0.5) * 20;
+      const targetTranslate = -(itemCenter - centerOffset + randomJitter);
 
-      // Bắt đầu trượt với hiệu ứng mượt mà (Cubic-bezier CS:GO)
-      setTimeout(() => {
+      // Bắt đầu trượt với hiệu ứng 60FPS+ mượt mà (Cubic-bezier chuẩn CS:GO)
+      requestAnimationFrame(() => {
         if (!reelTrackRef.current) return;
         reelTrackRef.current.style.transition = 'transform 4.8s cubic-bezier(0.12, 0.8, 0.33, 1)';
         reelTrackRef.current.style.transform = `translate3d(${targetTranslate}px, 0, 0)`;
 
-        // Mô phỏng âm thanh tick tick giảm tốc dần
+        // Mô phỏng âm thanh tick tick giảm tốc dần mà không chặn main thread
         let currentTick = 0;
-        const totalTicks = 36;
+        const totalTicks = 32;
         const scheduleTick = () => {
           if (currentTick >= totalTicks) return;
-          playTickSound(currentTick > 30 ? 600 : 950);
+          playTickSound(currentTick > 26 ? 600 : 950);
           currentTick++;
-          // Khoảng thời gian giữa các tick tăng dần theo hàm mũ
           const progress = currentTick / totalTicks;
-          const nextDelay = 40 + Math.pow(progress, 3) * 380;
+          const nextDelay = 50 + Math.pow(progress, 3) * 400;
           setTimeout(scheduleTick, nextDelay);
         };
         scheduleTick();
-      }, 50);
+      });
 
       // Khi vòng quay kết thúc
       setTimeout(() => {
@@ -311,15 +327,17 @@ export function DrinkGachaCSGO({ isOpen, onClose, products }: DrinkGachaCSGOProp
   const handleAddToCart = () => {
     if (!winner) return;
 
+    const hasSize = canProductHaveSize(winner.product);
     addItem(winner.product, {
-      size: selectedSize,
-      sugar: '100%',
-      ice: 'Đá chung',
+      size: hasSize ? selectedSize : undefined,
+      sugar: hasSize ? '100%' : undefined,
+      ice: hasSize ? 'Đá chung' : undefined,
       note: `[🎰 Trúng Gacha CS:GO - Độ hiếm: ${winner.rarity.label}]`,
       quantity: 1,
     });
 
-    toast.success(`Đã thêm ${winner.product['Tên sản phẩm']} (Size ${selectedSize}) vào giỏ hàng!`);
+    const sizeText = hasSize ? ` (Size ${selectedSize})` : '';
+    toast.success(`Đã thêm ${winner.product['Tên sản phẩm']}${sizeText} vào giỏ hàng!`);
     onClose();
   };
 
@@ -380,10 +398,10 @@ export function DrinkGachaCSGO({ isOpen, onClose, products }: DrinkGachaCSGOProp
             <div className="absolute top-0 bottom-0 right-0 w-16 bg-gradient-to-l from-gray-950 to-transparent z-20 pointer-events-none" />
 
             {/* Reel Container */}
-            <div ref={reelContainerRef} className="overflow-hidden py-3">
+            <div ref={reelContainerRef} className="overflow-hidden py-3 [contain:layout_paint]">
               <div
                 ref={reelTrackRef}
-                className="flex items-center gap-3 will-change-transform"
+                className="flex items-center gap-3 will-change-transform transform-gpu [transform:translate3d(0,0,0)] [backface-visibility:hidden]"
                 style={{ width: `${reelItems.length * 140}px` }}
               >
                 {reelItems.map((item) => (
@@ -469,46 +487,50 @@ export function DrinkGachaCSGO({ isOpen, onClose, products }: DrinkGachaCSGOProp
 
                 <div className="text-right shrink-0">
                   <div className="text-lg font-black text-amber-400">
-                    {(selectedSize === 'L'
+                    {(canProductHaveSize(winner.product) && selectedSize === 'L'
                       ? getProductPrice(winner.product) + 5000
                       : getProductPrice(winner.product)
                     ).toLocaleString()}
                     đ
                   </div>
-                  <div className="text-[11px] text-gray-400">
-                    {selectedSize === 'M' ? 'Size M (Chuẩn)' : 'Size L (+5.000đ)'}
-                  </div>
+                  {canProductHaveSize(winner.product) && (
+                    <div className="text-[11px] text-gray-400">
+                      {selectedSize === 'M' ? 'Size M (Chuẩn)' : 'Size L (+5.000đ)'}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Size Selector (Quy định Size M mặc định, Size L +5k - Mục #12 & #13) */}
-              <div className="flex items-center justify-between pt-2 border-t border-gray-800 text-xs">
-                <span className="text-gray-300 font-medium">Chọn kích cỡ:</span>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedSize('M')}
-                    className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
-                      selectedSize === 'M'
-                        ? 'bg-yellow-500 text-black shadow-md'
-                        : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                    }`}
-                  >
-                    Size M (0đ)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedSize('L')}
-                    className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
-                      selectedSize === 'L'
-                        ? 'bg-yellow-500 text-black shadow-md'
-                        : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-                    }`}
-                  >
-                    Size L (+5.000đ)
-                  </button>
+              {/* Size Selector: Chỉ hiển thị cho đồ uống có hỗ trợ Size */}
+              {canProductHaveSize(winner.product) && (
+                <div className="flex items-center justify-between pt-2 border-t border-gray-800 text-xs">
+                  <span className="text-gray-300 font-medium">Chọn kích cỡ:</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSize('M')}
+                      className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
+                        selectedSize === 'M'
+                          ? 'bg-yellow-500 text-black shadow-md'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      Size M (0đ)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSize('L')}
+                      className={`px-3 py-1.5 rounded-lg font-bold transition-all ${
+                        selectedSize === 'L'
+                          ? 'bg-yellow-500 text-black shadow-md'
+                          : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      }`}
+                    >
+                      Size L (+5.000đ)
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Action Button: Add to Cart */}
               <button

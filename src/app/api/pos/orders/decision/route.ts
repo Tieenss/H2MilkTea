@@ -8,8 +8,13 @@ export async function POST(request: NextRequest) {
   if (!supabase) return NextResponse.json({ success: false, error: 'Dịch vụ đơn hàng chưa sẵn sàng.' }, { status: 503 });
   try {
     const { id, decision, reason } = await request.json();
-    if (!id || !['accept', 'reject', 'cancel', 'dismiss', 'complete'].includes(decision)) return NextResponse.json({ success: false, error: 'Thao tác không hợp lệ.' }, { status: 400 });
-    if (decision === 'reject' && !String(reason || '').trim()) return NextResponse.json({ success: false, error: 'Cần nhập lý do từ chối.' }, { status: 400 });
+    const validDecisions = ['accept', 'reject', 'cancel', 'dismiss', 'complete', 'reject_cancellation'];
+    if (!id || !validDecisions.includes(decision)) {
+      return NextResponse.json({ success: false, error: 'Thao tác không hợp lệ.' }, { status: 400 });
+    }
+    if ((decision === 'reject' || decision === 'reject_cancellation') && !String(reason || '').trim()) {
+      return NextResponse.json({ success: false, error: 'Cần nhập lý do từ chối.' }, { status: 400 });
+    }
     const { data: current, error: readError } = await supabase.from('pos_orders').select('*').eq('id', id).single();
     if (readError || !current) return NextResponse.json({ success: false, error: 'Không tìm thấy đơn.' }, { status: 404 });
     if (current.source !== 'QR_TABLE') {
@@ -18,22 +23,36 @@ export async function POST(request: NextRequest) {
     if (decision === 'accept' && current.order_status !== 'awaiting_confirmation') {
       return NextResponse.json({ success: false, error: 'Đơn đã được tiếp nhận trước đó.' }, { status: 409 });
     }
+
     const now = new Date().toISOString();
+    let newOrderStatus = current.order_status;
+    let newPaymentStatus = current.payment_status;
+
+    if (decision === 'accept') {
+      newOrderStatus = 'accepted';
+    } else if (decision === 'dismiss' || decision === 'complete') {
+      newOrderStatus = 'completed';
+      newPaymentStatus = 'paid';
+    } else if (decision === 'cancel' || decision === 'reject') {
+      newOrderStatus = 'cancelled';
+    } else if (decision === 'reject_cancellation') {
+      newOrderStatus = 'accepted';
+    }
+
     const { data: updated, error } = await supabase.from('pos_orders').update({
-      order_status: decision === 'accept' 
-        ? 'accepted' 
-        : (decision === 'dismiss' || decision === 'complete')
-          ? 'completed'
-          : (decision === 'cancel' || decision === 'reject')
-            ? 'cancelled'
-            : current.order_status,
-      payment_status: (decision === 'dismiss' || decision === 'complete') ? 'paid' : current.payment_status,
-      accepted_by: decision === 'accept' ? staff.email || staff.id : null,
-      rejection_reason: decision === 'reject' ? String(reason).trim().slice(0, 300) : null,
+      order_status: newOrderStatus,
+      payment_status: newPaymentStatus,
+      accepted_by: decision === 'accept' ? staff.email || staff.id : current.accepted_by,
+      rejection_reason: (decision === 'reject' || decision === 'reject_cancellation')
+        ? String(reason).trim().slice(0, 300)
+        : current.rejection_reason,
       updated_at: now,
       status_version: Number(current.status_version || 0) + 1,
     }).eq('id', id).eq('status_version', current.status_version).select('*').maybeSingle();
-    if (error || !updated) return NextResponse.json({ success: false, error: 'Đơn vừa được xử lý ở thiết bị khác. Hãy làm mới danh sách.' }, { status: 409 });
+
+    if (error || !updated) {
+      return NextResponse.json({ success: false, error: 'Đơn vừa được xử lý ở thiết bị khác. Hãy làm mới danh sách.' }, { status: 409 });
+    }
 
     if (updated.tracking_token) {
       const channel = supabase.channel(`qr-order:${updated.tracking_token}`);

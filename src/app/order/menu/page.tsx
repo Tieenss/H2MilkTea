@@ -13,6 +13,7 @@ import { DrinkGachaCSGO } from '../components/DrinkGachaCSGO';
 import { useCart } from '../context/CartContext';
 import { useTablePresence } from '@/hooks/useTablePresence';
 import type { Product } from '../types/customer-order';
+import { toast } from 'react-hot-toast';
 
 // Import fallback menu data
 import menuData from '@/data/DMHH.json';
@@ -31,26 +32,81 @@ function MenuPageContent() {
   const [catalogProducts, setCatalogProducts] = useState<Product[]>(() =>
     (menuData as Product[]).filter(p => p['Trạng thái'] === 'Hoạt động')
   );
-  const [activeTableToken, setActiveTableToken] = useState<string | null>(null);
+  const [tableServingInfo, setTableServingInfo] = useState<{
+    token: string | null;
+    message: string;
+    itemCount: number;
+  } | null>(null);
   const [isGachaOpen, setIsGachaOpen] = useState(false);
 
   const tableParam = searchParams.get('table') || tableId;
 
   // Realtime Presence: Báo cho máy POS biết có khách đang xem menu và chọn món tại bàn này (Mục #7)
-    useTablePresence({
+  useTablePresence({
     role: 'customer_qr',
     tableId: tableParam || null,
     itemCount: totalItems,
   });
 
-  // Kiểm tra nếu bàn đang có đơn phục vụ trước đó để hiện thanh truy cập giỏ hàng bàn (Mục #13)
+  // Kiểm tra giỏ hàng phục vụ chuẩn xác của ĐÚNG BÀN này từ server (Mục #13 & Patch 0.2210)
   useEffect(() => {
-    try {
-      const savedToken = (tableParam ? localStorage.getItem(`h2_table_order_token_${tableParam}`) : null) || localStorage.getItem('h2_active_order_token');
-      if (savedToken) setActiveTableToken(savedToken);
-    } catch {
-      // Bỏ qua
+    if (!tableParam) {
+      setTableServingInfo(null);
+      return;
     }
+
+    let active = true;
+    const checkTableCart = async () => {
+      try {
+        const res = await fetch(`/api/customer-order/table-cart?tableId=${encodeURIComponent(tableParam)}`, {
+          cache: 'no-store',
+        });
+        const data = await res.json();
+        if (!active || !data.success) return;
+
+        if (data.activeOrder) {
+          setTableServingInfo({
+            token: data.activeOrder.tracking_token,
+            message: `Bàn đang có đơn phục vụ (${data.activeOrder.items?.length || 1} món)`,
+            itemCount: data.activeOrder.items?.length || 1,
+          });
+          try {
+            localStorage.setItem(`h2_table_order_token_${tableParam}`, data.activeOrder.tracking_token);
+          } catch {}
+        } else if (data.liveCart && data.liveCart.itemCount > 0) {
+          setTableServingInfo({
+            token: null,
+            message: `Quầy đang phục vụ ${data.liveCart.itemCount} món tại bàn`,
+            itemCount: data.liveCart.itemCount,
+          });
+        } else {
+          // Bàn hiện tại không có đơn -> Xóa token cũ tránh hiện nhầm
+          setTableServingInfo(null);
+          try {
+            localStorage.removeItem(`h2_table_order_token_${tableParam}`);
+          } catch {}
+        }
+      } catch {
+        // Fallback kiểm tra token cục bộ nếu mất mạng
+        try {
+          const savedToken = localStorage.getItem(`h2_table_order_token_${tableParam}`);
+          if (savedToken && active) {
+            setTableServingInfo({
+              token: savedToken,
+              message: 'Bàn đang có đơn phục vụ',
+              itemCount: 1,
+            });
+          }
+        } catch {}
+      }
+    };
+
+    checkTableCart();
+    const interval = window.setInterval(checkTableCart, 10000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
   }, [tableParam]);
 
   // Khôi phục tùy chọn chế độ xem Grid / List từ localStorage (Mục #13)
@@ -293,19 +349,25 @@ function MenuPageContent() {
         onClose={() => setIsDetailOpen(false)}
       />
 
-      {/* Thanh nổi truy cập giỏ hàng & hóa đơn của bàn (Mục #13) */}
-      {activeTableToken && (
+      {/* Thanh nổi truy cập giỏ hàng & hóa đơn của bàn (Mục #13 & Patch 0.2210) */}
+      {tableServingInfo && (
         <div className="fixed bottom-20 left-4 right-4 z-40 max-w-lg mx-auto pointer-events-auto">
           <button
-            onClick={() => router.push(`/order/status?token=${encodeURIComponent(activeTableToken)}`)}
+            onClick={() => {
+              if (tableServingInfo.token) {
+                router.push(`/order/status?token=${encodeURIComponent(tableServingInfo.token)}`);
+              } else {
+                toast.success('Bàn của bạn đang được nhân viên phục vụ tại quầy POS!', { icon: '🧋' });
+              }
+            }}
             className="w-full flex items-center justify-between px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-lg shadow-emerald-700/25 active:scale-[0.98] transition-all"
           >
             <div className="flex items-center gap-2">
               <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-300 animate-ping" />
-              <span className="text-xs font-bold tracking-wide">Bàn đang có đơn phục vụ</span>
+              <span className="text-xs font-bold tracking-wide">{tableServingInfo.message}</span>
             </div>
             <span className="text-xs font-semibold underline underline-offset-2 flex items-center gap-1">
-              Quản lý giỏ hàng bàn →
+              {tableServingInfo.token ? 'Quản lý giỏ hàng bàn →' : 'Xem chi tiết bàn →'}
             </span>
           </button>
         </div>

@@ -5,6 +5,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
     const trackingToken = String(body.trackingToken || request.nextUrl.searchParams.get('token') || '').trim();
+    const reason = String(body.reason || 'Khách đổi ý / muốn chọn lại món').trim();
 
     if (!trackingToken || trackingToken.length < 32) {
       return NextResponse.json({ success: false, error: 'Mã theo dõi không hợp lệ.' }, { status: 400 });
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest) {
 
     const { data: order, error: readError } = await supabase
       .from('pos_orders')
-      .select('id,order_status,tracking_token,status_version')
+      .select('id,order_status,kitchen_status,tracking_token,status_version,table_name')
       .eq('tracking_token', trackingToken)
       .maybeSingle();
 
@@ -25,56 +26,132 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Không tìm thấy đơn hàng để hủy.' }, { status: 404 });
     }
 
-    if (order.order_status !== 'awaiting_confirmation') {
-      return NextResponse.json({
-        success: false,
-        error: 'Đơn hàng đã được quầy tiếp nhận hoặc xử lý, không thể hủy.',
-        currentStatus: order.order_status,
-      }, { status: 400 });
+    // Đơn đã hủy hoặc đã hoàn thành
+    if (['cancelled', 'cancelled_by_customer', 'rejected', 'expired'].includes(order.order_status)) {
+      return NextResponse.json({ success: false, error: 'Đơn hàng này đã kết thúc trước đó.' }, { status: 400 });
     }
 
     const nextVersion = Number(order.status_version || 0) + 1;
-    const { data: updated, error: updateError } = await supabase
-      .from('pos_orders')
-      .update({
-        order_status: 'cancelled_by_customer',
-        status_version: nextVersion,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', order.id)
-      .eq('status_version', order.status_version)
-      .select('*')
-      .maybeSingle();
+    const now = new Date().toISOString();
 
-    if (updateError || !updated) {
+    // Trường hợp 1: Đơn chưa được thu ngân duyệt -> Khách được hủy trực tiếp
+    if (order.order_status === 'awaiting_confirmation') {
+      const { data: updated, error: updateError } = await supabase
+        .from('pos_orders')
+        .update({
+          order_status: 'cancelled_by_customer',
+          status_version: nextVersion,
+          rejection_reason: reason,
+          updated_at: now,
+        })
+        .eq('id', order.id)
+        .eq('status_version', order.status_version)
+        .select('*')
+        .maybeSingle();
+
+      if (updateError || !updated) {
+        return NextResponse.json({
+          success: false,
+          error: 'Đơn hàng vừa được quầy xử lý trên hệ thống. Không thể hủy.',
+        }, { status: 409 });
+      }
+
+      // Broadcast realtime tới khách và POS
+      try {
+        const channel = supabase.channel(`qr-order:${trackingToken}`);
+        await new Promise<void>((resolve) => channel.subscribe((status) => { if (status === 'SUBSCRIBED') resolve(); }));
+        await channel.send({
+          type: 'broadcast',
+          event: 'order-status',
+          payload: {
+            order_status: 'cancelled_by_customer',
+            updated_at: updated.updated_at,
+          }
+        });
+        await supabase.removeChannel(channel);
+      } catch (broadcastError) {
+        console.warn('Broadcast customer cancel failed:', broadcastError);
+      }
+
       return NextResponse.json({
-        success: false,
-        error: 'Đơn hàng vừa được quầy xử lý trên hệ thống. Không thể hủy.',
-      }, { status: 409 });
+        success: true,
+        message: 'Đã hủy đơn hàng thành công.',
+        orderStatus: 'cancelled_by_customer',
+      });
     }
 
-    // Broadcast cập nhật realtime tới khách và POS
-    try {
-      const channel = supabase.channel(`qr-order:${trackingToken}`);
-      await new Promise<void>((resolve) => channel.subscribe((status) => { if (status === 'SUBSCRIBED') resolve(); }));
-      await channel.send({
-        type: 'broadcast',
-        event: 'order-status',
-        payload: {
-          order_status: 'cancelled_by_customer',
-          updated_at: updated.updated_at,
-        }
+    // Trường hợp 2: Đơn đã nhận (accepted)
+    if (order.order_status === 'accepted' || order.kitchen_status === 'queued' || order.kitchen_status === 'preparing') {
+      // Nếu món đã pha chế xong hoặc đã phục vụ thì hoàn toàn không thể hủy
+      if (order.kitchen_status === 'ready' || order.kitchen_status === 'served') {
+        return NextResponse.json({
+          success: false,
+          error: 'Đồ uống của bạn đã được pha chế xong, không thể hủy đơn lúc này.',
+        }, { status: 400 });
+      }
+
+      // Nếu khách chỉ bấm hủy trực tiếp thông thường mà không qua xác nhận yêu cầu hủy
+      if (!body.requestCancellation) {
+        return NextResponse.json({
+          success: false,
+          error: 'Đơn hàng đã được quầy tiếp nhận, không thể hủy trực tiếp. Vui lòng gửi yêu cầu hủy đơn.',
+          canRequestCancellation: true,
+          currentStatus: order.order_status,
+        }, { status: 400 });
+      }
+
+      // Khách gửi yêu cầu hủy đơn (requestCancellation = true)
+      const { data: updated, error: updateError } = await supabase
+        .from('pos_orders')
+        .update({
+          order_status: 'cancellation_pending',
+          status_version: nextVersion,
+          rejection_reason: `Khách xin hủy: ${reason}`,
+          updated_at: now,
+        })
+        .eq('id', order.id)
+        .eq('status_version', order.status_version)
+        .select('*')
+        .maybeSingle();
+
+      if (updateError || !updated) {
+        return NextResponse.json({
+          success: false,
+          error: 'Đơn hàng vừa được cập nhật tại quầy. Vui lòng thử lại.',
+        }, { status: 409 });
+      }
+
+      // Broadcast realtime yêu cầu hủy tới POS & Bếp
+      try {
+        const channel = supabase.channel(`qr-order:${trackingToken}`);
+        await new Promise<void>((resolve) => channel.subscribe((status) => { if (status === 'SUBSCRIBED') resolve(); }));
+        await channel.send({
+          type: 'broadcast',
+          event: 'order-status',
+          payload: {
+            order_status: 'cancellation_pending',
+            rejection_reason: updated.rejection_reason,
+            updated_at: updated.updated_at,
+          }
+        });
+        await supabase.removeChannel(channel);
+      } catch (broadcastError) {
+        console.warn('Broadcast cancellation request failed:', broadcastError);
+      }
+
+      return NextResponse.json({
+        success: true,
+        cancellationPending: true,
+        message: 'Đã gửi yêu cầu hủy đơn đến quầy thu ngân. Nhân viên sẽ xác nhận ngay!',
+        orderStatus: 'cancellation_pending',
       });
-      await supabase.removeChannel(channel);
-    } catch (broadcastError) {
-      console.warn('Broadcast customer cancel failed:', broadcastError);
     }
 
     return NextResponse.json({
-      success: true,
-      message: 'Đã hủy đơn hàng thành công.',
-      orderStatus: 'cancelled_by_customer',
-    });
+      success: false,
+      error: 'Đơn hàng đang ở trạng thái không thể hủy.',
+      currentStatus: order.order_status,
+    }, { status: 400 });
   } catch (err: any) {
     console.error('Cancel order exception:', err);
     return NextResponse.json({ success: false, error: 'Lỗi server khi hủy đơn hàng.' }, { status: 500 });
