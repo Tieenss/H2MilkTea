@@ -10,10 +10,12 @@ import { ProductDetail } from '../components/ProductDetail';
 import { CartFloatingBar } from '../components/CartFloatingBar';
 import { CustomerChatbot } from '../components/CustomerChatbot';
 import { DrinkGachaCSGO } from '../components/DrinkGachaCSGO';
+import { LiveTableServingDrawer } from '../components/LiveTableServingDrawer';
 import { useCart } from '../context/CartContext';
 import { useTablePresence } from '@/hooks/useTablePresence';
 import type { Product } from '../types/customer-order';
 import { toast } from 'react-hot-toast';
+import { createClient } from '@/lib/supabase/client';
 
 // Import fallback menu data
 import menuData from '@/data/DMHH.json';
@@ -38,6 +40,7 @@ function MenuPageContent() {
     itemCount: number;
   } | null>(null);
   const [isGachaOpen, setIsGachaOpen] = useState(false);
+  const [isServingDrawerOpen, setIsServingDrawerOpen] = useState(false);
 
   const tableParam = searchParams.get('table') || tableId;
 
@@ -103,9 +106,24 @@ function MenuPageContent() {
 
     checkTableCart();
     const interval = window.setInterval(checkTableCart, 10000);
+
+    // Lắng nghe Realtime trực tiếp từ quầy POS khi nhân viên thêm/bớt món vào bàn
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`menu-table-sync:${tableParam}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'pos_cart_drafts', filter: `table_id=eq.${tableParam}` },
+        () => {
+          if (active) void checkTableCart();
+        }
+      )
+      .subscribe();
+
     return () => {
       active = false;
       window.clearInterval(interval);
+      void supabase.removeChannel(channel);
     };
   }, [tableParam]);
 
@@ -353,13 +371,7 @@ function MenuPageContent() {
       {tableServingInfo && (
         <div className="fixed bottom-20 left-4 right-4 z-40 max-w-lg mx-auto pointer-events-auto">
           <button
-            onClick={() => {
-              if (tableServingInfo.token) {
-                router.push(`/order/status?token=${encodeURIComponent(tableServingInfo.token)}`);
-              } else {
-                toast.success('Bàn của bạn đang được nhân viên phục vụ tại quầy POS!', { icon: '🧋' });
-              }
-            }}
+            onClick={() => setIsServingDrawerOpen(true)}
             className="w-full flex items-center justify-between px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-lg shadow-emerald-700/25 active:scale-[0.98] transition-all"
           >
             <div className="flex items-center gap-2">
@@ -367,10 +379,20 @@ function MenuPageContent() {
               <span className="text-xs font-bold tracking-wide">{tableServingInfo.message}</span>
             </div>
             <span className="text-xs font-semibold underline underline-offset-2 flex items-center gap-1">
-              {tableServingInfo.token ? 'Quản lý giỏ hàng bàn →' : 'Xem chi tiết bàn →'}
+              Xem món đang phục vụ →
             </span>
           </button>
         </div>
+      )}
+
+      {/* Drawer Giỏ Hàng Bàn Đồng Bộ Live Từ Quầy POS */}
+      {tableParam && (
+        <LiveTableServingDrawer
+          tableId={tableParam}
+          isOpen={isServingDrawerOpen}
+          onClose={() => setIsServingDrawerOpen(false)}
+          onOrderMore={() => setIsServingDrawerOpen(false)}
+        />
       )}
 
       {/* Cart Floating Bar */}

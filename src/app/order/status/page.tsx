@@ -199,7 +199,10 @@ function CustomerOrderStatusContent() {
 
   // Xác định trạng thái tiến trình
   const isAwaiting = order?.order_status === 'awaiting_confirmation';
-  const isCancellationPending = order?.order_status === 'cancellation_pending';
+  const isCancellationPending = Boolean(
+    order?.order_status === 'cancellation_pending' || 
+    order?.rejection_reason?.includes('YÊU CẦU HỦY ĐƠN')
+  );
   const isAcceptedOrServing = order && ['accepted', 'preparing', 'ready', 'served', 'completed', 'cancellation_pending'].includes(order.order_status);
   const isRejected = order?.order_status === 'rejected';
   const isCancelled = order && ['cancelled', 'cancelled_by_customer'].includes(order.order_status);
@@ -492,15 +495,17 @@ function CustomerOrderStatusContent() {
 
               {/* Thông báo hoặc nút Hủy đơn cho khách */}
               {isCancellationPending ? (
-                <div className="rounded-2xl border border-amber-300 bg-amber-50 p-3 text-center text-xs font-semibold text-amber-800 shadow-sm animate-pulse">
+                <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-3.5 text-center text-xs font-bold text-amber-900 shadow-sm animate-pulse">
                   ⏳ Bạn đã gửi yêu cầu hủy đơn này. Quầy thu ngân đang xác nhận...
                 </div>
-              ) : (order.kitchen_status !== 'ready' && order.kitchen_status !== 'served' && order.payment_status === 'unpaid') ? (
-                <div className="text-center pt-1">
+              ) : (!isCancelled && !isRejected && order.kitchen_status !== 'ready' && order.kitchen_status !== 'served' && order.order_status !== 'completed') ? (
+                <div className="pt-2">
                   <button
+                    type="button"
                     onClick={() => setShowCancelModal(true)}
-                    className="text-xs font-semibold text-red-600 hover:text-red-700 underline underline-offset-4 py-1"
+                    className="w-full flex items-center justify-center gap-1.5 py-2.5 px-4 rounded-2xl border-2 border-red-200 bg-red-50/70 text-red-600 hover:bg-red-100 font-bold text-xs transition-colors shadow-xs"
                   >
+                    <X className="w-4 h-4" />
                     Đổi ý? Gửi yêu cầu hủy đơn tới quầy
                   </button>
                 </div>

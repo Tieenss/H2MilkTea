@@ -136,7 +136,7 @@ describe('Patch 0.2210: Order Sync, Gacha 60FPS & Cancellation Flow', () => {
       const json = await res.json();
       expect(json.success).toBe(true);
       expect(json.cancellationPending).toBe(true);
-      expect(json.orderStatus).toBe('cancellation_pending');
+      expect(json.orderStatus).toBe('accepted');
     });
   });
 });

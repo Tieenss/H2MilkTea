@@ -126,6 +126,7 @@ export function DrinkGachaCSGO({ isOpen, onClose, products }: DrinkGachaCSGOProp
 
   const reelContainerRef = useRef<HTMLDivElement>(null);
   const reelTrackRef = useRef<HTMLDivElement>(null);
+  const pointerRef = useRef<HTMLDivElement>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
 
   // Khởi tạo AudioContext
@@ -275,52 +276,77 @@ export function DrinkGachaCSGO({ isOpen, onClose, products }: DrinkGachaCSGOProp
     setIsSpinning(true);
     setWinner(null);
 
-    const CARD_WIDTH = 140; // width (128px) + gap (12px)
-    const CARD_CONTENT_WIDTH = 128;
-    const WINNING_INDEX = 38; // Ô trúng thưởng cố định ở gần cuối dải 50 ô
-    const winningItem = reelItems[WINNING_INDEX];
-
-    // Reset về vị trí ban đầu
-    if (reelTrackRef.current && reelContainerRef.current) {
-      reelTrackRef.current.style.transition = 'none';
-      reelTrackRef.current.style.transform = 'translate3d(0, 0, 0)';
-
-      const containerWidth = reelContainerRef.current.offsetWidth;
-      // Vị trí tâm container
-      const centerOffset = containerWidth / 2;
-      // Tâm của card thứ WINNING_INDEX tính từ mép trái track
-      const itemCenter = WINNING_INDEX * CARD_WIDTH + CARD_CONTENT_WIDTH / 2;
-      // Random jitter an toàn (-10px đến +10px) tuyệt đối không trỏ lệch khỏi card (128px)
-      const randomJitter = (Math.random() - 0.5) * 20;
-      const targetTranslate = -(itemCenter - centerOffset + randomJitter);
-
-      // Bắt đầu trượt với hiệu ứng 60FPS+ mượt mà (Cubic-bezier chuẩn CS:GO)
-      requestAnimationFrame(() => {
-        if (!reelTrackRef.current) return;
-        reelTrackRef.current.style.transition = 'transform 4.8s cubic-bezier(0.12, 0.8, 0.33, 1)';
-        reelTrackRef.current.style.transform = `translate3d(${targetTranslate}px, 0, 0)`;
-
-        // Mô phỏng âm thanh tick tick giảm tốc dần mà không chặn main thread
-        let currentTick = 0;
-        const totalTicks = 32;
-        const scheduleTick = () => {
-          if (currentTick >= totalTicks) return;
-          playTickSound(currentTick > 26 ? 600 : 950);
-          currentTick++;
-          const progress = currentTick / totalTicks;
-          const nextDelay = 50 + Math.pow(progress, 3) * 400;
-          setTimeout(scheduleTick, nextDelay);
-        };
-        scheduleTick();
-      });
-
-      // Khi vòng quay kết thúc
-      setTimeout(() => {
-        setIsSpinning(false);
-        setWinner(winningItem);
-        playWinSound(winningItem.rarity.tier === 'covert');
-      }, 5000);
+    const track = reelTrackRef.current;
+    const pointer = pointerRef.current;
+    if (!track || !pointer) {
+      setIsSpinning(false);
+      return;
     }
+
+    const WINNING_INDEX = 38; // Ô trúng thưởng mục tiêu
+
+    // 1. Reset về vị trí ban đầu và ép trình duyệt tính lại layout
+    track.style.transition = 'none';
+    track.style.transform = 'translate3d(0, 0, 0)';
+    void track.offsetHeight; // Force reflow để đảm bảo vị trí 0 được render thực sự
+
+    // 2. Đo đạc tọa độ vật lý thực tế trên màn hình
+    const pointerRect = pointer.getBoundingClientRect();
+    const pointerCenter = pointerRect.left + pointerRect.width / 2;
+
+    const targetCard = track.children[WINNING_INDEX] as HTMLElement;
+    if (!targetCard) {
+      setIsSpinning(false);
+      return;
+    }
+    const cardRect = targetCard.getBoundingClientRect();
+    const cardCenter = cardRect.left + cardRect.width / 2;
+
+    // Khoảng cách thực tế cần trượt để tâm ô trúng thưởng nằm đúng trục giữa kim chỉ
+    const deltaX = cardCenter - pointerCenter;
+    const targetTranslate = -deltaX;
+
+    // 3. Bắt đầu trượt 60FPS+ mượt mà bằng GPU
+    requestAnimationFrame(() => {
+      track.style.transition = 'transform 4.8s cubic-bezier(0.12, 0.8, 0.33, 1)';
+      track.style.transform = `translate3d(${targetTranslate}px, 0, 0)`;
+
+      // Mô phỏng âm thanh tick tick giảm tốc dần mà không chặn main thread
+      let currentTick = 0;
+      const totalTicks = 32;
+      const scheduleTick = () => {
+        if (currentTick >= totalTicks) return;
+        playTickSound(currentTick > 26 ? 600 : 950);
+        currentTick++;
+        const progress = currentTick / totalTicks;
+        const nextDelay = 50 + Math.pow(progress, 3) * 400;
+        setTimeout(scheduleTick, nextDelay);
+      };
+      scheduleTick();
+    });
+
+    // 4. Khi vòng quay dừng lại: Lấy chính xác phần tử đang nằm dưới kim chỉ
+    setTimeout(() => {
+      setIsSpinning(false);
+
+      // Xác định thẻ đang nằm dưới kim chỉ điểm tại thời điểm dừng
+      const currentPointerRect = pointer.getBoundingClientRect();
+      const currentPointerCenter = currentPointerRect.left + currentPointerRect.width / 2;
+
+      let matchedIndex = WINNING_INDEX;
+      const children = Array.from(track.children) as HTMLElement[];
+      for (let i = 0; i < children.length; i++) {
+        const r = children[i].getBoundingClientRect();
+        if (currentPointerCenter >= r.left && currentPointerCenter <= r.right) {
+          matchedIndex = i;
+          break;
+        }
+      }
+
+      const finalWinner = reelItems[matchedIndex] || reelItems[WINNING_INDEX];
+      setWinner(finalWinner);
+      playWinSound(finalWinner.rarity.tier === 'covert');
+    }, 5000);
   };
 
   // Thêm món trúng thưởng vào giỏ hàng
@@ -387,7 +413,7 @@ export function DrinkGachaCSGO({ isOpen, onClose, products }: DrinkGachaCSGOProp
           {/* Reel Display Box (Khung CS:GO Băng Chuyền) */}
           <div className="relative rounded-2xl border-2 border-yellow-500/40 bg-gradient-to-b from-gray-950 via-slate-900 to-black p-2 shadow-inner overflow-hidden">
             {/* Center Pointer (Kim chỉ chính giữa) */}
-            <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-1 z-30 pointer-events-none flex flex-col justify-between items-center">
+            <div ref={pointerRef} className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-1 z-30 pointer-events-none flex flex-col justify-between items-center">
               <div className="w-0 h-0 border-x-8 border-x-transparent border-t-[14px] border-t-yellow-400 drop-shadow-[0_2px_8px_rgba(250,204,21,0.8)]" />
               <div className="w-0.5 h-full bg-gradient-to-b from-yellow-400 via-amber-300 to-yellow-400 shadow-[0_0_12px_rgba(250,204,21,0.8)]" />
               <div className="w-0 h-0 border-x-8 border-x-transparent border-b-[14px] border-b-yellow-400 drop-shadow-[0_-2px_8px_rgba(250,204,21,0.8)]" />
@@ -404,9 +430,10 @@ export function DrinkGachaCSGO({ isOpen, onClose, products }: DrinkGachaCSGOProp
                 className="flex items-center gap-3 will-change-transform transform-gpu [transform:translate3d(0,0,0)] [backface-visibility:hidden]"
                 style={{ width: `${reelItems.length * 140}px` }}
               >
-                {reelItems.map((item) => (
+                {reelItems.map((item, index) => (
                   <div
                     key={item.uid}
+                    data-index={index}
                     className={`w-32 h-44 shrink-0 rounded-xl border-2 ${item.rarity.borderColor} bg-gradient-to-b from-gray-900/90 via-slate-800/80 to-gray-950 p-2.5 flex flex-col justify-between shadow-md relative overflow-hidden`}
                   >
                     {/* Bottom rarity color bar */}

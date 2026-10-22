@@ -101,12 +101,14 @@ export async function POST(request: NextRequest) {
       }
 
       // Khách gửi yêu cầu hủy đơn (requestCancellation = true)
+      // Lưu ý: Để tương thích tuyệt đối với PostgreSQL CHECK constraint (không có 'cancellation_pending'),
+      // ta lưu cờ yêu cầu hủy vào rejection_reason và ghi chú notes.
+      const cancelNote = `YÊU CẦU HỦY ĐƠN: ${reason}`;
       const { data: updated, error: updateError } = await supabase
         .from('pos_orders')
         .update({
-          order_status: 'cancellation_pending',
+          rejection_reason: cancelNote,
           status_version: nextVersion,
-          rejection_reason: `Khách xin hủy: ${reason}`,
           updated_at: now,
         })
         .eq('id', order.id)
@@ -129,8 +131,9 @@ export async function POST(request: NextRequest) {
           type: 'broadcast',
           event: 'order-status',
           payload: {
-            order_status: 'cancellation_pending',
-            rejection_reason: updated.rejection_reason,
+            order_status: 'accepted',
+            cancellation_requested: true,
+            rejection_reason: cancelNote,
             updated_at: updated.updated_at,
           }
         });
@@ -143,7 +146,7 @@ export async function POST(request: NextRequest) {
         success: true,
         cancellationPending: true,
         message: 'Đã gửi yêu cầu hủy đơn đến quầy thu ngân. Nhân viên sẽ xác nhận ngay!',
-        orderStatus: 'cancellation_pending',
+        orderStatus: 'accepted',
       });
     }
 
