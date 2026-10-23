@@ -16,11 +16,19 @@ export interface KnowledgeTopic {
 
 export const POS_KNOWLEDGE_BASE: KnowledgeTopic[] = [
   {
+    id: 'introduction',
+    title: 'Tổng quan và giới thiệu hệ thống POS H2 MilkTea',
+    sectionId: 'introduction',
+    sectionTitle: 'Giới thiệu chung',
+    keywords: ['hướng dẫn sử dụng', 'cẩm nang', 'giới thiệu chung', 'tổng quan', 'hướng dẫn pos', 'cách dùng pos', 'hướng dẫn hệ thống'],
+    summary: 'Hệ thống quản lý bán hàng H2 MilkTea hỗ trợ bán hàng, quản lý bàn, in hóa đơn, tích điểm khách hàng và báo cáo doanh thu.',
+  },
+  {
     id: 'add-product',
     title: 'Cách thêm sản phẩm / món mới vào menu',
     sectionId: 'menu',
     sectionTitle: 'Menu & Sản phẩm',
-    keywords: ['thêm món', 'món mới', 'sản phẩm mới', 'thêm sản phẩm', 'tạo món', 'menu', 'thực đơn'],
+    keywords: ['thêm món', 'tạo món', 'món mới', 'sản phẩm mới', 'thêm sản phẩm', 'tạo sản phẩm', 'cài đặt menu', 'tạo menu', 'tạo thực đơn'],
     summary: 'Để thêm sản phẩm mới vào danh mục bán lẻ của quán:',
     steps: [
       'Bước 1: Vào mục "Menu & Sản phẩm" hoặc "Sản phẩm" trên thanh menu bên trái.',
@@ -160,6 +168,19 @@ export function formatCitation(sectionTitle: string, sectionId: string): string 
   return `[Nguồn: Hướng dẫn sử dụng > ${sectionTitle}](/user-guide#${sectionId})`;
 }
 
+/**
+ * Xóa trích dẫn nguồn nếu câu trả lời không phải là hỏi đáp nghiệp vụ POS
+ */
+export function removeCitation(answer: string): string {
+  return answer
+    .replace(/\n*\[Nguồn:\s*Hướng dẫn sử dụng\s*>[^\]]*\]\([^)]+\)/gi, '')
+    .trim();
+}
+
+/**
+ * Chỉ đính kèm trích dẫn khi có topic nghiệp vụ hợp lệ.
+ * Tuyệt đối không fallback ép người dùng xem trích dẫn khi chào hỏi hoặc tư vấn món.
+ */
 export function appendCitationIfMissing(answer: string, topic?: KnowledgeTopic | null): string {
   if (/\[Nguồn:\s*Hướng dẫn sử dụng\s*>/i.test(answer)) {
     return answer;
@@ -167,7 +188,7 @@ export function appendCitationIfMissing(answer: string, topic?: KnowledgeTopic |
   if (topic && topic.sectionTitle && topic.sectionId) {
     return `${answer.trim()}\n\n${formatCitation(topic.sectionTitle, topic.sectionId)}`;
   }
-  return `${answer.trim()}\n\n${formatCitation('Giới thiệu chung', 'introduction')}`;
+  return answer.trim();
 }
 
 import defaultStoreFaqs from '@/data/store_faq.json';

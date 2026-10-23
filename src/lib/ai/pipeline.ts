@@ -2,7 +2,7 @@ import { checkSecurityGuardrails } from './security';
 import { matchRuleBased } from './ruleEngine';
 import { resolveProduct } from './catalog';
 import { resolveTableFromMessage } from './table';
-import { getKnowledgeBasePrompt, appendCitationIfMissing, findRelevantKnowledge } from './knowledge';
+import { getKnowledgeBasePrompt, appendCitationIfMissing, findRelevantKnowledge, removeCitation } from './knowledge';
 import { createAuditLog } from './auditLogger';
 import { AiOutputSchema, type AiOutput, type ParsedItem } from './schema';
 import type { CatalogItem, CatalogProduct, TableInfo } from './types';
@@ -216,11 +216,13 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
     '   - Bạn là trợ lý cho toàn bộ phần mềm H2 MilkTea (POS, Bếp, Kho, Thực đơn, Khách hàng, Cài đặt).',
     '   - Nếu người dùng muốn chuyển trang, hãy giải thích và đính kèm đường link Markdown: [Đến máy POS](/pos), [Mở màn hình Bếp](/kitchen), [Quản lý Thực đơn](/menu/products), [Quản lý Kho](/inventory), [Khách hàng](/khachhang), [Cài đặt Mẫu in & VAT](/receipt-settings).',
     '',
-    '2. HỎI ĐÁP TIỆN ÍCH & HƯỚNG DẪN (action: "qa"):',
-    '   - Khi người dùng hỏi pass wifi, giờ mở cửa, menu, phím tắt, cách in bill, hướng dẫn phần mềm...',
+    '2. HỎI ĐÁP TIỆN ÍCH, TƯ VẤN & HƯỚNG DẪN (action: "qa"):',
+    '   - Khi người dùng chào hỏi, nhờ gợi ý món ("hôm nay nên uống gì", "món gì ngon"), hỏi pass wifi, giờ mở cửa, menu, phím tắt, cách in bill, hướng dẫn phần mềm...',
     '   - Đặt action = "qa", targetTable = null, items = [].',
-    '   - Trả lời bằng tiếng Việt thân thiện dựa trên CẨM NANG HƯỚNG DẪN bên dưới.',
-    '   - BẮT BUỘC: Khi trả lời câu hỏi nghiệp vụ cẩm nang, ở cuối câu trả lời luôn luôn đính kèm trích dẫn nguồn chuẩn: [Nguồn: Hướng dẫn sử dụng > {Tên mục}](/user-guide#{sectionId}).',
+    '   - Trả lời bằng tiếng Việt thân thiện, tự nhiên và nhiệt tình.',
+    '   - QUY TẮC TRÍCH DẪN NGUỒN:',
+    '     + CHỈ đính kèm nguồn trích dẫn khi trả lời các câu hỏi nghiệp vụ hướng dẫn sử dụng phần mềm POS (ví dụ: cách thêm món, sửa giá, cài máy in, đổi bàn, phím tắt, xử lý sự cố hệ thống). Định dạng: [Nguồn: Hướng dẫn sử dụng > {Tên mục}](/user-guide#{sectionId}).',
+    '     + TUYỆT ĐỐI KHÔNG đính kèm nguồn trích dẫn đối với các câu giao tiếp chào hỏi, cảm ơn, hỏi thăm, tư vấn chọn món đồ uống hoặc thông tin tiện ích quán (wifi, giờ mở cửa).',
     '',
     'VÍ DỤ MẪU:',
     '- "thêm cho tôi 3 lước ép dưa vào bàn 6" -> { "action": "add", "targetTable": { "name": "Bàn 6" }, "items": [{ "productName": "Ép dưa hấu", "quantity": 3 }], "message": "Đã nhận diện thêm 3x Ép dưa hấu cho Bàn 6." }',
@@ -367,7 +369,13 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
   let finalMessage = validatedOutput.message || '';
   if (validatedOutput.action === 'qa') {
     const matchedTopic = findRelevantKnowledge(message);
-    finalMessage = appendCitationIfMissing(finalMessage || 'Đã trả lời hướng dẫn.', matchedTopic);
+    if (matchedTopic) {
+      finalMessage = appendCitationIfMissing(finalMessage || 'Đã trả lời hướng dẫn.', matchedTopic);
+    } else {
+      // Câu hỏi thông thường, chào hỏi, gợi ý đồ uống, tiện ích quán:
+      // Tuyệt đối không gắn nguồn và chủ động xóa nguồn nếu AI vô tình sinh ra
+      finalMessage = removeCitation(finalMessage || 'Xin chào! Tôi có thể hỗ trợ gì cho bạn?');
+    }
   } else if (!finalMessage) {
     finalMessage = finalItems.length
       ? 'Đã nhận diện món. Vui lòng xác nhận.'

@@ -54,7 +54,7 @@ export const AiOutputSchema = z.object({
   isBlocked: z.boolean().optional().default(false),
   blockedReason: z.string().optional().nullable(),
 });
-export type AiOutput = z.input<typeof AiOutputSchema>;
+export type AiOutput = z.infer<typeof AiOutputSchema>;
 
 export const AuditStatusEnum = z.enum(['previewed', 'confirmed', 'rejected', 'blocked']);
 export type AuditStatus = z.infer<typeof AuditStatusEnum>;
