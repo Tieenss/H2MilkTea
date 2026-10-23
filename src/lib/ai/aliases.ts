@@ -1,7 +1,19 @@
 import { normalizeSearchText } from './catalog';
 
 export const DEFAULT_ALIASES: Record<string, string> = {
-  // Viết tắt
+  // Sửa lỗi gõ phím / ngữ âm tiếng Việt & tên món nước ép
+  'luoc ep dua': 'ep dua hau',
+  'nuoc ep dua': 'ep dua hau',
+  'ep dua': 'ep dua hau',
+  'nuoc dua': 'ep dua hau',
+  'luoc ep': 'nuoc ep',
+  'luoc': 'nuoc',
+  'ep thom': 'nuoc ep dua',
+  'ep khom': 'nuoc ep dua',
+  'nuoc thom': 'nuoc ep dua',
+  'nuoc ep thom': 'nuoc ep dua',
+
+  // Viết tắt đồ uống
   'ts': 'tra sua tran chau den',
   'tsnt': 'tra sua topping thach cu nang',
   'tstt': 'tra sua tran chau den',
@@ -19,7 +31,11 @@ export const DEFAULT_ALIASES: Record<string, string> = {
   'td': 'tra dao cam sa',
   'tv': 'tra vai',
 
-  // Cụm từ thường gặp
+  // Từ lóng vùng miền & cụm từ thường gặp
+  'nau da': 'cafe sua da',
+  'nau nong': 'cafe sua nong',
+  'den da': 'cafe den da',
+  'den nong': 'cafe den nong',
   'tra sua truyen thong': 'tra sua tran chau den',
   'tra sua nuong': 'tra sua topping thach cu nang',
   'hong tra dac biet': 'hong tra sua',
@@ -38,21 +54,27 @@ export const DEFAULT_ALIASES: Record<string, string> = {
 };
 
 /**
- * Mở rộng câu lệnh dựa trên từ điển viết tắt (thay thế một lượt từ dài đến ngắn)
+ * Mở rộng câu lệnh dựa trên từ điển viết tắt (Single-pass thay thế để chống lặp từ)
  */
 export function expandAliasesWithDict(text: string, customAliases?: Record<string, string>): string {
-  let normalized = normalizeSearchText(text);
+  const normalized = normalizeSearchText(text);
   const aliasDict = { ...DEFAULT_ALIASES, ...(customAliases || {}) };
 
   // Sắp xếp khóa từ dài đến ngắn để ưu tiên thay thế cụm từ trước
-  const sortedKeys = Object.keys(aliasDict).sort((a, b) => b.length - a.length);
-  for (const key of sortedKeys) {
-    const normKey = normalizeSearchText(key);
-    const regex = new RegExp(`(^|\\s)${normKey}(\\s|$)`, 'g');
-    if (regex.test(normalized)) {
-      normalized = normalized.replace(regex, `$1${aliasDict[key]}$2`);
-    }
-  }
+  const sortedKeys = Object.keys(aliasDict)
+    .map(k => normalizeSearchText(k))
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length);
 
-  return normalized.replace(/\s+/g, ' ').trim();
+  if (sortedKeys.length === 0) return normalized;
+
+  // Single-pass replacement bằng RegExp với boundary \b
+  const escapedKeys = sortedKeys.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const combinedRegex = new RegExp(`\\b(${escapedKeys.join('|')})\\b`, 'g');
+
+  const result = normalized.replace(combinedRegex, (matched) => {
+    return aliasDict[matched] || matched;
+  });
+
+  return result.replace(/\s+/g, ' ').trim();
 }

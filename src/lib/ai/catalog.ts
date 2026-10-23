@@ -10,7 +10,7 @@ interface RawProduct {
 }
 
 const MATCH_THRESHOLD = 0.6;
-const AMBIGUITY_MARGIN = 0.12;
+const AMBIGUITY_MARGIN = 0.10;
 
 export function normalizeSearchText(value: string): string {
   return value
@@ -76,16 +76,29 @@ function scoreProduct(query: string, product: CatalogProduct): ProductMatch {
     return { product, score: 1, exact: true };
   }
 
-  if (normalizedName.includes(normalizedQuery) || normalizedName.includes(expandedQuery)) {
-    return { product, score: 0.92, exact: false };
+  // Tên món chứa toàn bộ query HOẶC query chứa trọn vẹn tên món (ví dụ: query "nước ép dưa hấu" chứa "ép dưa hấu")
+  if (
+    normalizedName.includes(normalizedQuery) ||
+    normalizedName.includes(expandedQuery) ||
+    normalizedQuery.includes(normalizedName) ||
+    expandedQuery.includes(normalizedName)
+  ) {
+    return { product, score: 0.95, exact: false };
   }
 
   const queryTokens = new Set([...normalizedQuery.split(' '), ...expandedQuery.split(' ')].filter(Boolean));
   const nameTokens = new Set(normalizedName.split(' ').filter(Boolean));
   const matchedTokens = [...queryTokens].filter((token) => nameTokens.has(token)).length;
-  const score = queryTokens.size === 0 ? 0 : matchedTokens / queryTokens.size;
 
-  return { product, score, exact: false };
+  if (queryTokens.size === 0 || nameTokens.size === 0 || matchedTokens === 0) {
+    return { product, score: 0, exact: false };
+  }
+
+  const precision = matchedTokens / queryTokens.size;
+  const recall = matchedTokens / nameTokens.size;
+  const f1 = (2 * precision * recall) / (precision + recall);
+
+  return { product, score: Number(f1.toFixed(3)), exact: false };
 }
 
 export function resolveProduct(

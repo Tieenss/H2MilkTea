@@ -1,4 +1,4 @@
-import type { TableInfo } from './types';
+import type { TableInfo, CatalogProduct } from './types';
 import { resolveTableFromMessage } from './table';
 import { expandAliasesWithDict } from './aliases';
 import { resolveProduct, normalizeSearchText } from './catalog';
@@ -106,7 +106,7 @@ function extractNoteAndOptions(text: string): {
  */
 export function matchRuleBased(
   rawMessage: string,
-  catalog: any[],
+  catalog: CatalogProduct[],
   tables: TableInfo[],
   customAliases?: Record<string, string>
 ): RuleMatchResult {
@@ -121,6 +121,8 @@ export function matchRuleBased(
         targetTable: null,
         items: [],
         message: 'Xin chào! Tôi là Trợ lý POS H2 MilkTea. Tôi có thể giúp thêm/bớt món, chuyển bàn hoặc trả lời hướng dẫn nghiệp vụ.',
+        isBlocked: false,
+        blockedReason: null,
       },
     };
   }
@@ -136,6 +138,8 @@ export function matchRuleBased(
           targetTable: tableRes.table,
           items: [],
           message: `Chuyển sang ${tableRes.table.name}.`,
+          isBlocked: false,
+          blockedReason: null,
         },
       };
     }
@@ -155,8 +159,11 @@ export function matchRuleBased(
     workingText = workingText.replace(tablePattern, ' ');
   }
 
-  // Tách từ khóa hành động ở đầu
-  workingText = workingText.replace(/^(cho|them|lay|goi|bot|xoa|huy)\s+/i, '').trim();
+  // Tách từ khóa hành động và các cụm đại từ xưng hô tự nhiên (vd: "thêm cho tôi", "cho mình", "lấy giùm anh", "order giúp em")
+  workingText = workingText
+    .replace(/^(cho|them|lay|goi|order|len don|bot|xoa|huy|giam)(\s+(cho|gium|ho)?\s*(toi|tao|minh|em|anh|chi|khach|ban))?\s+/i, ' ')
+    .replace(/\b(cho|gium|ho)\s+(toi|tao|minh|em|anh|chi|khach)\b/gi, ' ')
+    .trim();
 
   // Tách các món: hỗ trợ dấu phẩy, "va", "voi", "kem", "+", hoặc khoảng trắng trước số lượng tiếp theo (vd: "2 bx 1 cf")
   const parts = workingText
@@ -172,10 +179,15 @@ export function matchRuleBased(
   const parsedItems: ParsedItem[] = [];
 
   for (const part of parts) {
-    // Tìm số lượng ở đầu chuỗi (ví dụ: "2 ts", "1 ly tra dao")
-    const qtyMatch = part.match(/^(\d+)\s*(ly|coc|phan|chai)?\s*(.*)$/i);
+    // Loại bỏ từ xưng hô nếu còn sót ở từng phần (vd: "cho toi 3 luoc ep dua" -> "3 luoc ep dua")
+    const cleanPart = part
+      .replace(/^(?:(?:cho|lay|them|order|goi)\s+)?(?:cho\s+|gium\s+|ho\s+)?(?:toi|tao|minh|em|anh|chi|khach|ban)\s+/i, '')
+      .trim();
+
+    // Tìm số lượng ở đầu chuỗi (ví dụ: "3 luoc ep dua", "2 ts", "1 ly tra dao")
+    const qtyMatch = cleanPart.match(/^(\d+)\s*(ly|coc|phan|chai|suat|dia|tach)?\s*(.*)$/i);
     let quantity = 1;
-    let queryPart = part;
+    let queryPart = cleanPart;
 
     if (qtyMatch) {
       quantity = parseInt(qtyMatch[1], 10);
@@ -190,6 +202,8 @@ export function matchRuleBased(
           targetTable: tableRes?.table || null,
           items: [],
           message: `Yêu cầu gọi ${quantity} ly vượt quá giới hạn an toàn (tối đa 10 ly/lần). Vui lòng nhờ quản lý xác nhận số lượng lớn.`,
+          isBlocked: false,
+          blockedReason: null,
         },
       };
     }
@@ -197,7 +211,7 @@ export function matchRuleBased(
     const { cleanText, note, size, sugar, ice, toppings } = extractNoteAndOptions(queryPart);
     if (!cleanText) continue;
 
-    // Mở rộng alias
+    // Mở rộng alias & sửa lỗi gõ phím / ngữ âm (lước -> nước, ep dua -> ep dua hau)
     const expanded = expandAliasesWithDict(cleanText, customAliases);
 
     // Tìm trong catalog món
@@ -214,8 +228,23 @@ export function matchRuleBased(
         toppings,
       });
     } else {
-      // Nếu có món không nhận diện được chắc chắn -> bàn giao cho LLM xử lý
-      return { matched: false };
+      // Thử tìm với cleanText gốc nếu alias không match
+      const fallbackResolved = resolveProduct(cleanText, catalog);
+      if (fallbackResolved.status === 'resolved' && fallbackResolved.score >= 0.7) {
+        parsedItems.push({
+          productId: fallbackResolved.product.id,
+          productName: fallbackResolved.product.name,
+          quantity,
+          note,
+          size,
+          sugar,
+          ice,
+          toppings,
+        });
+      } else {
+        // Nếu có món không nhận diện được chắc chắn -> bàn giao cho LLM xử lý
+        return { matched: false };
+      }
     }
   }
 
@@ -243,6 +272,8 @@ export function matchRuleBased(
         targetTable: tableRes?.table || null,
         items: parsedItems,
         message: msg,
+        isBlocked: false,
+        blockedReason: null,
       },
     };
   }

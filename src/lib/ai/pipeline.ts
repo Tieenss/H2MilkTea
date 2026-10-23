@@ -1,13 +1,13 @@
 import { checkSecurityGuardrails } from './security';
 import { matchRuleBased } from './ruleEngine';
-import { resolveProduct, toActiveCatalog } from './catalog';
+import { resolveProduct } from './catalog';
 import { resolveTableFromMessage } from './table';
 import { getKnowledgeBasePrompt, appendCitationIfMissing, findRelevantKnowledge } from './knowledge';
 import { createAuditLog } from './auditLogger';
 import { AiOutputSchema, type AiOutput, type ParsedItem } from './schema';
-import type { CatalogItem, TableInfo } from './types';
+import type { CatalogItem, CatalogProduct, TableInfo } from './types';
 
-export const PROMPT_VERSION = 'v1.0.0';
+export const PROMPT_VERSION = 'v1.1.0';
 export const DEFAULT_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
 // Rate limiting: Tối đa 20 yêu cầu / phút / nhân viên
@@ -28,6 +28,39 @@ export function checkStaffRateLimit(staffId: string): { allowed: boolean; remain
   return { allowed: true, remaining: MAX_REQUESTS_PER_WINDOW - timestamps.length };
 }
 
+/**
+ * Trích xuất khối JSON sạch từ phản hồi thô của LLM
+ */
+function extractLlmJson(rawText: string): Record<string, unknown> | null {
+  if (!rawText) return null;
+  const cleaned = rawText.trim();
+
+  // 1. Thử parse trực tiếp sau khi bỏ code block markdown
+  const directClean = cleaned.replace(/^```json\s*|\s*```$/g, '').trim();
+  try {
+    return JSON.parse(directClean);
+  } catch {
+    // 2. Tìm khối JSON từ dấu { đầu tiên đến dấu } cuối cùng
+    const start = cleaned.indexOf('{');
+    const end = cleaned.lastIndexOf('}');
+    if (start !== -1 && end !== -1 && end > start) {
+      const candidate = cleaned.slice(start, end + 1);
+      try {
+        return JSON.parse(candidate);
+      } catch {
+        // Fallback: sửa lỗi dấu phẩy thừa trước ngoặc đóng
+        try {
+          const relaxed = candidate.replace(/,\s*([}\]])/g, '$1');
+          return JSON.parse(relaxed);
+        } catch {
+          return null;
+        }
+      }
+    }
+    return null;
+  }
+}
+
 export interface PipelineParams {
   rawMessage: string;
   history?: Array<{ role: 'user' | 'assistant'; content: string }>;
@@ -36,9 +69,9 @@ export interface PipelineParams {
   currentRoute?: string;
   pageContext?: string;
   staff: { id: string; name?: string; role?: string; isAdmin?: boolean };
-  catalog: any[]; // active catalog products
+  catalog: CatalogProduct[]; // active catalog products
   tables: TableInfo[];
-  customFaqs?: any;
+  customFaqs?: unknown;
   customAliases?: Record<string, string>;
   apiKey?: string;
 }
@@ -154,7 +187,7 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
     price: p.price,
   }));
   const preResolvedTable = resolveTableFromMessage(message, tables);
-  const knowledgePrompt = getKnowledgeBasePrompt(customFaqs);
+  const knowledgePrompt = getKnowledgeBasePrompt(customFaqs as any);
 
   const systemPrompt = [
     'Bạn là trợ lý AI thông minh cho hệ thống POS H2 MilkTea.',
@@ -171,12 +204,13 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
     '   - Trả về JSON đúng cấu trúc: { action, targetTable, items, message }',
     '   - targetTable: { id, name } nếu có đề cập đến bàn hoặc mang về, ngược lại null.',
     '   - Mỗi item: { productId, productName, quantity, note, size, sugar, ice, toppings }.',
+    '     * quantity: Số nguyên từ 1 đến 10 (mặc định 1).',
     '     * size: "S" | "M" | "L" (mặc định "M")',
     '     * sugar: "0%" | "30%" | "50%" | "70%" | "100%" (mặc định "100%")',
     '     * ice: "không đá" | "ít đá" | "100% đá" | "nhiều đá" | "nóng" (mặc định "100% đá")',
     '     * toppings: mảng tên topping (ví dụ: ["trân châu đen"]) hoặc []',
-    '   - quantity là số nguyên từ 1 đến 10. Nếu khách gọi > 10 ly, giải thích cần quản lý duyệt.',
-    '   - Chỉ chọn productId có trong catalog. Nếu không có món trong catalog, không đưa vào items và giải thích trong message.',
+    '   - Nhận diện linh hoạt lỗi gõ phím tiếng Việt (vd: "lước" = "nước", "ép dưa" = "Ép dưa hấu", "nâu đá" = "Cafe sữa đá").',
+    '   - Luôn ưu tiên chọn đúng productName và productId từ Catalog món.',
     '',
     '3. ĐIỀU HƯỚNG & HỖ TRỢ NGỮ CẢNH CÁC TRANG TOÀN HỆ THỐNG (Mục #16):',
     '   - Bạn là trợ lý cho toàn bộ phần mềm H2 MilkTea (POS, Bếp, Kho, Thực đơn, Khách hàng, Cài đặt).',
@@ -187,6 +221,10 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
     '   - Đặt action = "qa", targetTable = null, items = [].',
     '   - Trả lời bằng tiếng Việt thân thiện dựa trên CẨM NANG HƯỚNG DẪN bên dưới.',
     '   - BẮT BUỘC: Khi trả lời câu hỏi nghiệp vụ cẩm nang, ở cuối câu trả lời luôn luôn đính kèm trích dẫn nguồn chuẩn: [Nguồn: Hướng dẫn sử dụng > {Tên mục}](/user-guide#{sectionId}).',
+    '',
+    'VÍ DỤ MẪU:',
+    '- "thêm cho tôi 3 lước ép dưa vào bàn 6" -> { "action": "add", "targetTable": { "name": "Bàn 6" }, "items": [{ "productName": "Ép dưa hấu", "quantity": 3 }], "message": "Đã nhận diện thêm 3x Ép dưa hấu cho Bàn 6." }',
+    '- "cho 2 ts tc đen 50 đường mang về" -> { "action": "add", "targetTable": { "name": "Mang về" }, "items": [{ "productName": "Trà sữa trân châu đen", "quantity": 2, "sugar": "50%" }] }',
     '',
     `Danh sách Bàn hợp lệ: ${JSON.stringify(tables.map((t) => ({ id: t.id, name: t.name })))}`,
     `Catalog món hợp lệ: ${JSON.stringify(catalogItems)}`,
@@ -241,23 +279,43 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
     };
   }
 
-  // 5. Kiểm tra và Ép schema đầu ra bằng Zod (Step 3)
-  let parsedJson: any = {};
-  try {
-    parsedJson = JSON.parse(responseText.replace(/^```json\s*|\s*```$/g, ''));
-  } catch {
-    parsedJson = { action: 'none', message: 'Không thể giải mã phản hồi từ AI.' };
-  }
-
+  // 5. Kiểm tra và Ép schema đầu ra bằng Zod (Khoan dung & Tự phục hồi dữ liệu)
+  const parsedJson = extractLlmJson(responseText) || {};
   const zodValidation = AiOutputSchema.safeParse(parsedJson);
-  const validatedOutput: AiOutput = zodValidation.success
-    ? zodValidation.data
-    : {
-        action: 'none',
-        targetTable: null,
-        items: [],
-        message: 'Định dạng câu trả lời của AI chưa chuẩn xác. Vui lòng thử lại.',
-      };
+
+  let validatedOutput: AiOutput;
+  if (zodValidation.success) {
+    validatedOutput = zodValidation.data;
+  } else {
+    // Tự động phục hồi dữ liệu từ parsedJson nếu Zod có cảnh báo nhỏ
+    console.warn('Zod parse cảnh báo định dạng AI, đang phục hồi:', zodValidation.error?.format());
+    const rawItems = Array.isArray(parsedJson?.items) ? (parsedJson.items as unknown[]) : [];
+    const recoveredItems: ParsedItem[] = rawItems
+      .map((itemVal: unknown) => {
+        if (!itemVal || typeof itemVal !== 'object') return null;
+        const it = itemVal as Record<string, unknown>;
+        return {
+          productId: String(it.productId || ''),
+          productName: String(it.productName || it.name || ''),
+          quantity: Math.max(1, Math.min(Number(it.quantity) || 1, 10)),
+          note: String(it.note || ''),
+          size: String(it.size || 'M'),
+          sugar: String(it.sugar || '100%'),
+          ice: String(it.ice || '100% đá'),
+          toppings: Array.isArray(it.toppings) ? it.toppings.map(String) : [],
+        };
+      })
+      .filter((it): it is ParsedItem => Boolean(it && it.productName));
+
+    validatedOutput = {
+      action: recoveredItems.length > 0 ? 'add' : parsedJson?.message ? 'qa' : 'none',
+      targetTable: (parsedJson?.targetTable as TableInfo) || null,
+      items: recoveredItems,
+      message: String(parsedJson?.message || (recoveredItems.length ? 'Đã nhận diện món từ yêu cầu.' : 'Chưa rõ yêu cầu, vui lòng thử lại.')),
+      isBlocked: false,
+      blockedReason: null,
+    };
+  }
 
   // 6. Server-Side Validation: Món phải có trong catalog và Trạng thái Hoạt động
   const validProductsMap = new Map(catalog.map((p) => [p.id, p]));
@@ -288,13 +346,21 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
     }
   }
 
-  // Nhận diện bàn
-  let finalTargetTable: TableInfo | null = validatedOutput.targetTable?.id
-    ? validatedOutput.targetTable
-    : (preResolvedTable ? preResolvedTable.table : null);
+  // Nhận diện bàn chuẩn hóa
+  let finalTargetTable: TableInfo | null = null;
+  if (validatedOutput.targetTable) {
+    const rawTableId = validatedOutput.targetTable.id;
+    const rawTableName = validatedOutput.targetTable.name;
+    const found = tables.find(
+      (t) => t.id === rawTableId || t.name.toLowerCase() === rawTableName?.toLowerCase() || t.id === rawTableName
+    );
+    if (found) {
+      finalTargetTable = found;
+    }
+  }
 
-  if (finalTargetTable && !tables.some((t) => t.id === finalTargetTable?.id)) {
-    finalTargetTable = null;
+  if (!finalTargetTable && preResolvedTable) {
+    finalTargetTable = preResolvedTable.table;
   }
 
   // Xử lý thông điệp và đính kèm trích dẫn nguồn nếu là action QA
@@ -325,7 +391,6 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
     source: 'llm',
     status: 'previewed',
     latencyMs,
-    modelName: modelToUse,
     promptVersion: PROMPT_VERSION,
   });
 
@@ -337,5 +402,7 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
     message: finalMessage,
     logId,
     source: 'llm',
+    isBlocked: false,
+    blockedReason: null,
   };
 }
