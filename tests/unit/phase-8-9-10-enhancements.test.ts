@@ -73,7 +73,7 @@ import {
   COLOR_MODE_OPTIONS,
 } from '@/utils/appearanceSettings';
 import { navigation, getNavigationByGroup } from '@/lib/navigation';
-import { RARITY_CONFIGS, getProductPrice } from '@/app/order/components/DrinkGachaGacha';
+import { RARITY_CONFIGS, getProductPrice } from '@/app/order/components/DrinkGacha';
 import { GOOGLE_DRIVE_CONFIG } from '@/config/googleDrive';
 import GoogleDriveUtils from '@/utils/googleDriveUtils';
 

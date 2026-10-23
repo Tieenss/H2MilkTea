@@ -9,7 +9,7 @@ import { ProductCard } from '../components/ProductCard';
 import { ProductDetail } from '../components/ProductDetail';
 import { CartFloatingBar } from '../components/CartFloatingBar';
 import { CustomerChatbot } from '../components/CustomerChatbot';
-import { DrinkGachaGacha } from '../components/DrinkGachaGacha';
+import { DrinkGacha } from '../components/DrinkGacha';
 import { LiveTableServingDrawer } from '../components/LiveTableServingDrawer';
 import { useCart } from '../context/CartContext';
 import { useTablePresence } from '@/hooks/useTablePresence';
@@ -260,14 +260,14 @@ function MenuPageContent() {
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="text-xs font-black uppercase tracking-wider text-yellow-300">
-                  Gacha Drink Gacha
+                  Vòng Quay May Mắn
                 </span>
                 <span className="px-1.5 py-0.2 bg-red-600 text-white text-[9px] font-extrabold rounded-full uppercase">
                   Hot
                 </span>
               </div>
               <p className="text-[11px] text-gray-300 mt-0.5">
-                Không biết hôm nay uống gì? Thử vận may mở hòm nhận món ngay!
+                Không biết hôm nay uống gì? Thử vận may trúng đồ uống cực đỉnh ngay!
               </p>
             </div>
           </div>
@@ -354,7 +354,7 @@ function MenuPageContent() {
       />
 
             {/* Modal Gacha Gacha Quay Thưởng (Mục #1) */}
-      <DrinkGachaGacha
+      <DrinkGacha
         isOpen={isGachaOpen}
         onClose={() => setIsGachaOpen(false)}
         products={catalogProducts}
