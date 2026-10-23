@@ -73,7 +73,7 @@ import {
   COLOR_MODE_OPTIONS,
 } from '@/utils/appearanceSettings';
 import { navigation, getNavigationByGroup } from '@/lib/navigation';
-import { RARITY_CONFIGS, getProductPrice } from '@/app/order/components/DrinkGachaCSGO';
+import { RARITY_CONFIGS, getProductPrice } from '@/app/order/components/DrinkGachaGacha';
 import { GOOGLE_DRIVE_CONFIG } from '@/config/googleDrive';
 import GoogleDriveUtils from '@/utils/googleDriveUtils';
 
@@ -189,8 +189,8 @@ describe('Phase 8, 9, 10 Enhancements Verification', () => {
     });
   });
 
-  describe('Item #1: CS:GO Drink Gacha System', () => {
-    it('defines 4 tiers of CS:GO rarity with distinctive colors and styles', () => {
+  describe('Item #1: Gacha Drink Gacha System', () => {
+    it('defines 4 tiers of Gacha rarity with distinctive colors and styles', () => {
       expect(RARITY_CONFIGS.covert.label).toContain('Covert');
       expect(RARITY_CONFIGS.covert.borderColor).toBe('border-yellow-400');
 

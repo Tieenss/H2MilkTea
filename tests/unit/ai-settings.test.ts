@@ -60,8 +60,8 @@ describe('AI Settings & Admin Role Resolution', () => {
       expect(res2.role).toBe('Admin');
     });
 
-    it('identifies admin via DSNV.json fallback for phuocnv', async () => {
-      const res = await getStaffRole(null, { id: 'u3', email: 'phuocnv@h2.com' });
+    it('identifies admin via DSNV.json fallback for maillo', async () => {
+      const res = await getStaffRole(null, { id: 'u3', email: 'maillo@h2.com' });
       expect(res.isAdmin).toBe(true);
       expect(res.role).toBe('Admin');
     });

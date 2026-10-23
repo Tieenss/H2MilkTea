@@ -78,7 +78,7 @@ interface GachaItem {
   rarity: RarityConfig;
 }
 
-interface DrinkGachaCSGOProps {
+interface DrinkGachaGachaProps {
   isOpen: boolean;
   onClose: () => void;
   products: Product[];
@@ -116,7 +116,7 @@ export function canProductHaveSize(p: Product): boolean {
   return true;
 }
 
-export function DrinkGachaCSGO({ isOpen, onClose, products }: DrinkGachaCSGOProps) {
+export function DrinkGachaGacha({ isOpen, onClose, products }: DrinkGachaGachaProps) {
   const { addItem } = useCart();
   const [isSpinning, setIsSpinning] = useState(false);
   const [winner, setWinner] = useState<GachaItem | null>(null);
@@ -144,7 +144,7 @@ export function DrinkGachaCSGO({ isOpen, onClose, products }: DrinkGachaCSGOProp
     return audioCtxRef.current;
   };
 
-  // Phát âm thanh tick CS:GO khi ô chạy qua vạch giữa
+  // Phát âm thanh tick Gacha khi ô chạy qua vạch giữa
   const playTickSound = (frequency = 900) => {
     if (!soundEnabled) return;
     try {
@@ -268,7 +268,7 @@ export function DrinkGachaCSGO({ isOpen, onClose, products }: DrinkGachaCSGOProp
     }
   }, [isOpen]);
 
-  // Thực hiện vòng quay kiểu CS:GO Case Opening
+  // Thực hiện vòng quay kiểu Gacha Case Opening
   const handleStartSpin = () => {
     if (isSpinning || reelItems.length < 40) return;
 
@@ -358,7 +358,7 @@ export function DrinkGachaCSGO({ isOpen, onClose, products }: DrinkGachaCSGOProp
       size: hasSize ? selectedSize : undefined,
       sugar: hasSize ? '100%' : undefined,
       ice: hasSize ? 'Đá chung' : undefined,
-      note: `[🎰 Trúng Gacha CS:GO - Độ hiếm: ${winner.rarity.label}]`,
+      note: `[🎰 Trúng Gacha Gacha - Độ hiếm: ${winner.rarity.label}]`,
       quantity: 1,
     });
 
@@ -380,7 +380,7 @@ export function DrinkGachaCSGO({ isOpen, onClose, products }: DrinkGachaCSGOProp
             </span>
             <div>
               <h2 className="text-base sm:text-lg font-black tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-amber-200 to-white uppercase">
-                H2 CS:GO Drink Gacha
+                H2 Gacha Drink Gacha
               </h2>
               <p className="text-[11px] text-gray-400">
                 Không biết hôm nay uống gì? Hãy để định mệnh chọn giúp bạn!
@@ -410,7 +410,7 @@ export function DrinkGachaCSGO({ isOpen, onClose, products }: DrinkGachaCSGOProp
 
         {/* Content Body */}
         <div className="p-4 sm:p-6 space-y-6 overflow-y-auto">
-          {/* Reel Display Box (Khung CS:GO Băng Chuyền) */}
+          {/* Reel Display Box (Khung Gacha Băng Chuyền) */}
           <div className="relative rounded-2xl border-2 border-yellow-500/40 bg-gradient-to-b from-gray-950 via-slate-900 to-black p-2 shadow-inner overflow-hidden">
             {/* Center Pointer (Kim chỉ chính giữa) */}
             <div ref={pointerRef} className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-1 z-30 pointer-events-none flex flex-col justify-between items-center">

@@ -9,7 +9,7 @@ import { ProductCard } from '../components/ProductCard';
 import { ProductDetail } from '../components/ProductDetail';
 import { CartFloatingBar } from '../components/CartFloatingBar';
 import { CustomerChatbot } from '../components/CustomerChatbot';
-import { DrinkGachaCSGO } from '../components/DrinkGachaCSGO';
+import { DrinkGachaGacha } from '../components/DrinkGachaGacha';
 import { LiveTableServingDrawer } from '../components/LiveTableServingDrawer';
 import { useCart } from '../context/CartContext';
 import { useTablePresence } from '@/hooks/useTablePresence';
@@ -246,7 +246,7 @@ function MenuPageContent() {
         categoryCounts={categoryCounts}
       />
 
-      {/* Banner Gacha CS:GO Mở Hòm Đồ Uống (Mục #1) */}
+      {/* Banner Gacha Gacha Mở Hòm Đồ Uống (Mục #1) */}
       <div className="px-4 pt-3">
         <button
           type="button"
@@ -260,7 +260,7 @@ function MenuPageContent() {
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="text-xs font-black uppercase tracking-wider text-yellow-300">
-                  CS:GO Drink Gacha
+                  Gacha Drink Gacha
                 </span>
                 <span className="px-1.5 py-0.2 bg-red-600 text-white text-[9px] font-extrabold rounded-full uppercase">
                   Hot
@@ -353,8 +353,8 @@ function MenuPageContent() {
         catalogProducts={catalogProducts}
       />
 
-            {/* Modal CS:GO Gacha Quay Thưởng (Mục #1) */}
-      <DrinkGachaCSGO
+            {/* Modal Gacha Gacha Quay Thưởng (Mục #1) */}
+      <DrinkGachaGacha
         isOpen={isGachaOpen}
         onClose={() => setIsGachaOpen(false)}
         products={catalogProducts}

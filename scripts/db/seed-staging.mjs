@@ -59,10 +59,10 @@ async function runSeed() {
       position: 'Quản lý'
     },
     {
-      username: 'phuocnv',
-      email: 'ninhphuoc@phuocnv.io.vn',
+      username: 'maillo',
+      email: 'tiengame2k5@maillo.io.vn',
       password: 'Password123!',
-      fullName: 'Ninh Phước',
+      fullName: 'Trần Tiến',
       role: 'Admin',
       position: 'RND'
     },
@@ -220,7 +220,7 @@ async function runSeed() {
   console.log('--------------------------------------------------');
   console.log('Tài khoản test đăng nhập hệ thống:');
   console.log('  1. Admin:    admin / Password123! (hoặc admin@gmail.com)');
-  console.log('  2. Admin:    phuocnv / Password123! (hoặc ninhphuoc@phuocnv.io.vn)');
+  console.log('  2. Admin:    maillo / Password123! (hoặc tiengame2k5@maillo.io.vn)');
   console.log('  3. Thu ngân: thungan / Password123! (hoặc thungan@h2.com)');
   console.log('  4. Bếp:      bep / Password123! (hoặc bep@h2.com)');
   console.log('--------------------------------------------------\n');

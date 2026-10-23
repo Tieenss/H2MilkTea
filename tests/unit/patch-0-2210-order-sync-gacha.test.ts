@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { canProductHaveSize } from '@/app/order/components/DrinkGachaCSGO';
+import { canProductHaveSize } from '@/app/order/components/DrinkGachaGacha';
 import { GET as getTableCartRoute } from '@/app/api/customer-order/table-cart/route';
 import { POST as cancelOrderRoute } from '@/app/api/orders/cancel/route';
 import { NextRequest } from 'next/server';

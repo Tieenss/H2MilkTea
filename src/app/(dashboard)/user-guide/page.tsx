@@ -961,7 +961,7 @@ export default function UserGuidePage() {
                     </div>
                     <div>
                       <h4 className="font-medium">Email</h4>
-                      <p className="text-blue-600 font-semibold">ninhphuoc@phuocnv.io.vn</p>
+                      <p className="text-blue-600 font-semibold">tiengame2k5@maillo.io.vn</p>
                     </div>
                   </div>
                 </CardContent>
