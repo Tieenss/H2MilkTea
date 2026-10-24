@@ -77,7 +77,7 @@ export async function PUT(request: NextRequest) {
       // Kiểm tra lý do: Bàn đã bị xóa (thanh toán/chuyển bàn) hay do lệch version
       const { data: current } = await supabase
         .from('pos_cart_drafts')
-        .select('version')
+        .select('*')
         .eq('table_id', tableId)
         .maybeSingle();
 
@@ -93,6 +93,7 @@ export async function PUT(request: NextRequest) {
         success: false,
         conflict: true,
         error: 'Giỏ hàng đã được cập nhật trên thiết bị khác.',
+        draft: current,
       }, { status: 409 });
     }
 
@@ -102,7 +103,7 @@ export async function PUT(request: NextRequest) {
   // 2. Nếu expectedVersion === 0 hoặc null: Khởi tạo draft mới (INSERT, không dùng upsert để tránh ghi đè)
   const { data: existingDraft } = await supabase
     .from('pos_cart_drafts')
-    .select('version')
+    .select('*')
     .eq('table_id', tableId)
     .maybeSingle();
 
@@ -111,6 +112,7 @@ export async function PUT(request: NextRequest) {
       success: false,
       conflict: true,
       error: 'Bàn đã có giỏ hàng được mở từ thiết bị khác.',
+      draft: existingDraft,
     }, { status: 409 });
   }
 

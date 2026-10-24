@@ -31,9 +31,40 @@ export async function getAuthenticatedStaff(cookieHeader = '') {
     },
   });
 
-  const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) return null;
-  return { id: user.id, email: user.email || '', user_metadata: user.user_metadata };
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
+    return { id: user.id, email: user.email || '', user_metadata: user.user_metadata };
+  }
+
+  // Fallback: Hỗ trợ xác thực nhân viên qua cookie staffUser hoặc authToken nếu phiên Supabase Auth hết hạn
+  const staffCookie = cookiePairs.find((c) => c.name === 'staffUser');
+  if (staffCookie && staffCookie.value) {
+    try {
+      const staffInfo = JSON.parse(staffCookie.value);
+      return {
+        id: String(staffInfo.username || 'staff_pos'),
+        email: String(staffInfo.email || `${staffInfo.username || 'staff'}@h2.com`),
+        user_metadata: {
+          role: staffInfo.role || 'Thu ngân',
+          name: staffInfo.name || staffInfo.username || 'Thu ngân',
+          username: staffInfo.username || 'staff',
+        },
+      };
+    } catch {
+      // Bỏ qua lỗi parse
+    }
+  }
+
+  const authCookie = cookiePairs.find((c) => c.name === 'authToken');
+  if (authCookie && authCookie.value) {
+    return {
+      id: 'staff_pos',
+      email: 'staff@h2.com',
+      user_metadata: { role: 'Thu ngân', name: 'Thu ngân' },
+    };
+  }
+
+  return null;
 }
 
 export interface StaffRoleResult {

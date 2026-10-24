@@ -901,6 +901,15 @@ private validateDataIntegrity(data: any): boolean {
             const cookieValue = `authToken=${token}; expires=${expiryTime.toUTCString()}; path=/; SameSite=Strict`;
             document.cookie = cookieValue;
 
+            // Lưu thêm cookie thông tin nhân viên cho các API route phía server
+            const staffUserCookie = `staffUser=${encodeURIComponent(JSON.stringify({
+                username: userData.username || 'staff',
+                name: userData['Họ và Tên'] || userData.username || 'Thu ngân',
+                role: userData['Vai trò'] || userData['Phân quyền'] || 'Thu ngân',
+                email: userData.Email || userData.email || '',
+            }))}; expires=${expiryTime.toUTCString()}; path=/; SameSite=Lax`;
+            document.cookie = staffUserCookie;
+
             console.log('Auth data saved successfully');
         } catch (error) {
             console.error('Error saving auth data:', error);
@@ -919,6 +928,7 @@ private validateDataIntegrity(data: any): boolean {
 
             // Xóa cookie
             document.cookie = 'authToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+            document.cookie = 'staffUser=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
         } catch (error) {
             console.error('Error clearing auth data:', error);
         }

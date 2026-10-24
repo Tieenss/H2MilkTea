@@ -378,7 +378,46 @@ export const usePOS = () => {
 
     let active = true;
     const channel = client
-      .channel('pos-all-cart-drafts-global')
+      .channel('pos-all-cart-drafts-global', {
+        config: { broadcast: { self: false } },
+      })
+      .on('broadcast', { event: 'table_status_sync' }, (payload) => {
+        if (!active) return;
+        const data = payload.payload;
+        if (!data || !data.tableId) return;
+        const myDeviceId = getDeviceId();
+        if (data.deviceId && data.deviceId === myDeviceId) return;
+
+        setActiveOrders((current) => {
+          const next = new Map(current);
+          if (Array.isArray(data.cart) && data.cart.length > 0) {
+            next.set(data.tableId, data.cart);
+            updateTableStatus(data.tableId, 'Đang sử dụng');
+          } else {
+            next.delete(data.tableId);
+            updateTableStatus(data.tableId, 'Trống');
+          }
+          return next;
+        });
+
+        if (Array.isArray(data.cart) && data.cart.length > 0) {
+          playPosChimeSound();
+        }
+      })
+      .on('broadcast', { event: 'table_cleared' }, (payload) => {
+        if (!active) return;
+        const tblId = payload.payload?.tableId;
+        const myDeviceId = getDeviceId();
+        if (tblId && payload.payload?.deviceId !== myDeviceId) {
+          setActiveOrders((current) => {
+            const next = new Map(current);
+            next.delete(tblId);
+            return next;
+          });
+          tableCustomersRef.current.delete(tblId);
+          updateTableStatus(tblId, 'Trống');
+        }
+      })
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
