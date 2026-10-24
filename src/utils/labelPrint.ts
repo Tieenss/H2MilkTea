@@ -387,7 +387,7 @@ export const printOrderLabels = async (
     const normCategory = normalizeText(rawCategory);
     const normName = normalizeText(item.name);
 
-    // Kiểm tra món cà phê qua từ khóa nếu trong cài đặt đã bật danh mục Cà phê (Mục #6)
+    // Kiểm tra món cà phê qua từ khóa nếu trong cài đặt đã bật danh mục Cà phê
     const isCoffeeItem = COFFEE_KEYWORDS.some(kw => normCategory.includes(kw) || normName.includes(kw));
 
     // Nếu thu ngân bấm in riêng lẻ món này (cartItems.length === 1) hoặc có flag forceAll: Luôn cho phép in

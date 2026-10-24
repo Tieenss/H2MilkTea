@@ -1,6 +1,5 @@
 import config from '../config/config';
 import { createClient } from '../lib/supabase/client';
-import * as XLSX from 'xlsx';
 import GoogleDriveUtils from './googleDriveUtils';
 // Import dữ liệu demo
 import DSNV_DATA from '../data/DSNV.json';
@@ -106,8 +105,9 @@ class AuthUtils {
         return { success: false, message: 'Lỗi khi xóa dữ liệu' };
     }
 }
-    exportToExcel() {
+    async exportToExcel() {
         try {
+            const XLSX = await import('xlsx');
             const workbook = XLSX.utils.book_new();
 
             // Add each table as a worksheet
@@ -196,6 +196,7 @@ async deleteKhachHang(idKhachHang: string) {
     // Import Excel
     async importFromExcel(file: File) {
         try {
+            const XLSX = await import('xlsx');
             const arrayBuffer = await file.arrayBuffer();
             const workbook = XLSX.read(arrayBuffer, { type: 'array' });
 

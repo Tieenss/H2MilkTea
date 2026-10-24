@@ -49,3 +49,11 @@ supabase/.temp/
 
 # local runtime data & logs
 /data/
+
+# Cleanup & Archive
+archive/
+*.txt
+*.bak
+*.backup
+*.tmp
+

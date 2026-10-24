@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminSupabaseClient, getAuthenticatedStaff } from '@/lib/supabase/server';
+import { tinhTienDonHang } from '@/lib/cart/pricing';
 
 interface CheckoutBody {
   tableId: string;
@@ -60,27 +61,31 @@ export async function POST(request: NextRequest) {
     const note = paymentForm?.note || '';
     const paymentType = paymentForm?.paymentType || 'Tiền mặt';
 
-    const total = cart.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity)), 0);
-    const vat = total * 0.1;
-    const finalAmount = total + vat - discount;
+    const pricing = tinhTienDonHang({
+      cart,
+      discount,
+      vatPercent: 10,
+      paidAmount,
+    });
 
-    if (paidAmount < finalAmount) {
-      return NextResponse.json({ success: false, error: 'Số tiền khách trả không đủ.' }, { status: 400 });
+    if (!pricing.isValid) {
+      return NextResponse.json({ success: false, error: pricing.errorMessage || 'Dữ liệu tính tiền không hợp lệ.' }, { status: 400 });
     }
+
+    const { subtotal: total, vatAmount: vat, finalAmount, change } = pricing;
 
     const supabase = createAdminSupabaseClient();
     if (!supabase) {
       return NextResponse.json({ success: false, error: 'Dịch vụ dữ liệu chưa sẵn sàng.' }, { status: 503 });
     }
 
-    const change = paidAmount - finalAmount;
 
     // Chuẩn bị payload chuẩn cho RPC và DB
     const invoiceRecord = {
       IDHOADON: invoiceId,
       IDBAN: tableId || '',
       "Ngày": formatDate(new Date()),
-      "Nhân viên": staff.fullName || staff.username,
+      "Nhân viên": (staff as any).fullName || (staff as any).username || staff.user_metadata?.full_name || staff.email || 'Nhân viên',
       "Khách hàng": customer,
       "Tổng tiền": total,
       "VAT": vat,

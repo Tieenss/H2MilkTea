@@ -26,6 +26,10 @@ const isMissingExpiresAtError = (err: { code?: string; message?: string } | null
   return err.code === 'PGRST204' || msg.includes('expires_at');
 };
 
+// Bộ nhớ đệm danh mục món và danh sách bàn (giúp giảm tải truy vấn DB lặp đi lặp lại)
+let catalogCache: { timestamp: number; tables: any[]; products: any[] } | null = null;
+const CATALOG_CACHE_TTL_MS = 60_000; // 60 giây
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -43,12 +47,24 @@ export async function POST(request: NextRequest) {
     if (!supabase) {
       return NextResponse.json({ success: false, error: 'Máy chủ chưa cấu hình lưu đơn hàng. Vui lòng báo nhân viên.' }, { status: 503 });
     }
-    const [{ data: liveTables }, { data: liveProducts }] = await Promise.all([
-      supabase.from('DSBAN').select('*'),
-      supabase.from('DMHH').select('*'),
-    ]);
-    const tables = liveTables?.length ? liveTables : tableData;
-    const products = liveProducts?.length ? liveProducts : menuData;
+    const isTestEnv = process.env.NODE_ENV === 'test';
+    let tables: any[];
+    let products: any[];
+
+    if (!isTestEnv && catalogCache && (Date.now() - catalogCache.timestamp < CATALOG_CACHE_TTL_MS)) {
+      tables = catalogCache.tables;
+      products = catalogCache.products;
+    } else {
+      const [{ data: liveTables }, { data: liveProducts }] = await Promise.all([
+        supabase.from('DSBAN').select('*'),
+        supabase.from('DMHH').select('*'),
+      ]);
+      tables = liveTables?.length ? liveTables : tableData;
+      products = liveProducts?.length ? liveProducts : menuData;
+      if (!isTestEnv) {
+        catalogCache = { timestamp: Date.now(), tables, products };
+      }
+    }
 
     const requestedTableId = String(body.tableId || '').trim();
     const normalizedTableId = requestedTableId.toLocaleLowerCase('vi');

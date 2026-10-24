@@ -56,7 +56,7 @@ interface PageContextInfo {
   suggestedChips: string[];
 }
 
-// Bảng ánh xạ ngữ cảnh các trang trong hệ thống (Mục #16)
+// Bảng ánh xạ ngữ cảnh các trang trong hệ thống
 const PAGE_CONTEXT_MAP: Record<string, PageContextInfo> = {
   '/pos': {
     name: 'Máy Bán Hàng POS',
@@ -225,7 +225,7 @@ export function GlobalAssistant() {
     }
   }, [messages]);
 
-  // 2. TỰ ĐỘNG CUỘN XUỐNG TIN NHẮN MỚI NHẤT (Mục #3)
+  // 2. TỰ ĐỘNG CUỘN XUỐNG TIN NHẮN MỚI NHẤT
   const scrollToBottom = useCallback((smooth = true) => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
@@ -238,7 +238,7 @@ export function GlobalAssistant() {
     }
   }, [messages, isLoading, isOpen, scrollToBottom]);
 
-  // 3. XỬ LÝ KÉO MỞ RỘNG / THU HẸP KHUNG CHAT 60FPS SMOOTH (Mục #10)
+  // 3. XỬ LÝ KÉO MỞ RỘNG / THU HẸP KHUNG CHAT 60FPS SMOOTH
   const handleMouseDownResize = (e: React.MouseEvent) => {
     e.preventDefault();
     isResizingRef.current = true;
@@ -292,7 +292,7 @@ export function GlobalAssistant() {
     setIsMaximized((prev) => !prev);
   };
 
-  // 4. MỞ KHÓA BÔI ĐEN & NÚT SAO CHÉP TIN NHẮN (Mục #3)
+  // 4. MỞ KHÓA BÔI ĐEN & NÚT SAO CHÉP TIN NHẮN
   const handleCopyMessage = (text: string, index: number) => {
     try {
       navigator.clipboard.writeText(text);
@@ -304,7 +304,7 @@ export function GlobalAssistant() {
     }
   };
 
-  // 5. GỬI TIN NHẮN & XỬ LÝ NGỮ CẢNH (Mục #16)
+  // 5. GỬI TIN NHẮN & XỬ LÝ NGỮ CẢNH
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend || inputValue).trim();
     if (!text || isLoading) return;

@@ -19,17 +19,15 @@ import { TransferModal } from './components/TransferModal';
 import { NoteModal } from './components/NoteModal';
 import { ReceiptSettings } from './components/ReceiptSettings';
 import { TableQRModal } from './components/TableQRModal';
-import authUtils from '@/utils/authUtils';
+import { getCurrentUser } from '@/lib/auth/session';
 import './styles/pos.css';
 import { CustomerSelectModal } from '@/app/(dashboard)/pos/components/CustomerSelectModal';
 import { QROrderInbox } from './components/QROrderInbox';
 import type { Customer } from '@/app/(dashboard)/khachhang/types/customer';
-// POSAssistant moved to GlobalAssistant across all dashboard pages (Mục #16)
 import { CartConflictModal } from './components/CartConflictModal';
 
 export default function POSPage() {
   const {
-    // ... existing props
     filteredProducts,
     products,
     tables,
@@ -93,7 +91,7 @@ export default function POSPage() {
     presenceByTable,
   } = usePOS();
 
-  const userData = authUtils.getUserData();
+  const userData = getCurrentUser();
   const nhanvien = userData?.['Họ và Tên'] || userData?.username;
   // Mobile state for showing/hiding cart
   const [showMobileCart, setShowMobileCart] = React.useState(false);
