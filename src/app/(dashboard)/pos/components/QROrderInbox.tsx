@@ -62,20 +62,38 @@ export function QROrderInbox({ onSettle, onAccept }: {
   useEffect(() => {
     refresh();
     const supabase = createClient();
-    const channel = supabase.channel('staff-pos-qr-orders')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pos_orders', filter: 'source=eq.QR_TABLE' }, (payload) => {
-        const order = payload.new as IncomingOrder & { order_status?: string };
-        if (order.order_status === 'awaiting_confirmation' && !knownIds.current.has(order.id)) playAlert();
-        void refresh();
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pos_orders', filter: 'source=eq.QR_TABLE' }, (payload) => {
-        const updatedOrder = payload.new as IncomingOrder;
-        if (updatedOrder?.rejection_reason?.includes('YÊU CẦU HỦY ĐƠN')) {
-          playAlert();
-        }
-        void refresh();
-      })
-      .subscribe((status) => setIsConnected(status === 'SUBSCRIBED'));
+    const topic = 'staff-pos-qr-orders';
+
+    try {
+      const existing = supabase.getChannels().find(
+        (ch) => ch.topic === `realtime:${topic}` || ch.topic === topic
+      );
+      if (existing) {
+        void supabase.removeChannel(existing);
+      }
+    } catch {
+      // Bỏ qua lỗi dọn channel
+    }
+
+    let channel: any = null;
+    try {
+      channel = supabase.channel(topic)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pos_orders', filter: 'source=eq.QR_TABLE' }, (payload) => {
+          const order = payload.new as IncomingOrder & { order_status?: string };
+          if (order.order_status === 'awaiting_confirmation' && !knownIds.current.has(order.id)) playAlert();
+          void refresh();
+        })
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pos_orders', filter: 'source=eq.QR_TABLE' }, (payload) => {
+          const updatedOrder = payload.new as IncomingOrder;
+          if (updatedOrder?.rejection_reason?.includes('YÊU CẦU HỦY ĐƠN')) {
+            playAlert();
+          }
+          void refresh();
+        })
+        .subscribe((status) => setIsConnected(status === 'SUBSCRIBED'));
+    } catch (e) {
+      console.warn('Lỗi kết nối Realtime đơn QR:', e);
+    }
 
     const handleSettled = (e: any) => {
       const settledIds = e.detail?.orderIds || [];

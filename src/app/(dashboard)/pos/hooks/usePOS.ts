@@ -125,6 +125,39 @@ export const usePOS = () => {
   const [showTableQRModal, setShowTableQRModal] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const tableCustomersRef = useRef<Map<string, Customer | null>>(new Map());
+  const globalChannelRef = useRef<any>(null);
+
+  const broadcastTableStatus = useCallback((tblId: string, tblCart: CartItem[], tblVersion: number) => {
+    try {
+      void globalChannelRef.current?.send({
+        type: 'broadcast',
+        event: 'table_status_sync',
+        payload: {
+          tableId: tblId,
+          cart: tblCart,
+          version: tblVersion,
+          deviceId: getDeviceId(),
+        },
+      });
+    } catch {
+      // Bỏ qua lỗi gửi broadcast
+    }
+  }, []);
+
+  const broadcastTableCleared = useCallback((tblId: string) => {
+    try {
+      void globalChannelRef.current?.send({
+        type: 'broadcast',
+        event: 'table_cleared',
+        payload: {
+          tableId: tblId,
+          deviceId: getDeviceId(),
+        },
+      });
+    } catch {
+      // Bỏ qua lỗi gửi broadcast
+    }
+  }, []);
 
   // Custom hooks
   const {
@@ -202,6 +235,8 @@ export const usePOS = () => {
     selectedCustomer,
     onRemoteCart: applyRemoteCart,
     onRemoteCustomer: handleRemoteCustomer,
+    onBroadcastTableStatus: broadcastTableStatus,
+    onBroadcastTableCleared: broadcastTableCleared,
   });
 
   // Realtime Presence: Theo dõi ai đang xem/chọn món ở từng bàn
@@ -377,56 +412,53 @@ export const usePOS = () => {
     }
 
     let active = true;
-    const channel = client
-      .channel('pos-all-cart-drafts-global', {
-        config: { broadcast: { self: false } },
-      })
-      .on('broadcast', { event: 'table_status_sync' }, (payload) => {
-        if (!active) return;
-        const data = payload.payload;
-        if (!data || !data.tableId) return;
-        const myDeviceId = getDeviceId();
-        if (data.deviceId && data.deviceId === myDeviceId) return;
+    let channel: any = null;
+    let serviceChannel: any = null;
 
-        setActiveOrders((current) => {
-          const next = new Map(current);
-          if (Array.isArray(data.cart) && data.cart.length > 0) {
-            next.set(data.tableId, data.cart);
-            updateTableStatus(data.tableId, 'Đang sử dụng');
-          } else {
-            next.delete(data.tableId);
-            updateTableStatus(data.tableId, 'Trống');
-          }
-          return next;
-        });
-
-        if (Array.isArray(data.cart) && data.cart.length > 0) {
-          playPosChimeSound();
+    try {
+      // Dọn dẹp an toàn channel cũ nếu có trước khi đăng ký
+      const existingChannels = client.getChannels();
+      for (const ch of existingChannels) {
+        if (ch.topic === 'realtime:pos-all-cart-drafts-global' || ch.topic === 'pos-all-cart-drafts-global') {
+          void client.removeChannel(ch);
         }
-      })
-      .on('broadcast', { event: 'table_cleared' }, (payload) => {
-        if (!active) return;
-        const tblId = payload.payload?.tableId;
-        const myDeviceId = getDeviceId();
-        if (tblId && payload.payload?.deviceId !== myDeviceId) {
+        if (ch.topic === 'realtime:staff-service-calls' || ch.topic === 'staff-service-calls') {
+          void client.removeChannel(ch);
+        }
+      }
+
+      channel = client
+        .channel('pos-all-cart-drafts-global', {
+          config: { broadcast: { self: false } },
+        })
+        .on('broadcast', { event: 'table_status_sync' }, (payload) => {
+          if (!active) return;
+          const data = payload.payload;
+          if (!data || !data.tableId) return;
+          const myDeviceId = getDeviceId();
+          if (data.deviceId && data.deviceId === myDeviceId) return;
+
           setActiveOrders((current) => {
             const next = new Map(current);
-            next.delete(tblId);
+            if (Array.isArray(data.cart) && data.cart.length > 0) {
+              next.set(data.tableId, data.cart);
+              updateTableStatus(data.tableId, 'Đang sử dụng');
+            } else {
+              next.delete(data.tableId);
+              updateTableStatus(data.tableId, 'Trống');
+            }
             return next;
           });
-          tableCustomersRef.current.delete(tblId);
-          updateTableStatus(tblId, 'Trống');
-        }
-      })
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'pos_cart_drafts',
-      }, (payload) => {
-        if (!active) return;
-        if (payload.eventType === 'DELETE') {
-          const tblId = (payload.old as { table_id?: string })?.table_id;
-          if (tblId) {
+
+          if (Array.isArray(data.cart) && data.cart.length > 0) {
+            playPosChimeSound();
+          }
+        })
+        .on('broadcast', { event: 'table_cleared' }, (payload) => {
+          if (!active) return;
+          const tblId = payload.payload?.tableId;
+          const myDeviceId = getDeviceId();
+          if (tblId && payload.payload?.deviceId !== myDeviceId) {
             setActiveOrders((current) => {
               const next = new Map(current);
               next.delete(tblId);
@@ -435,61 +467,40 @@ export const usePOS = () => {
             tableCustomersRef.current.delete(tblId);
             updateTableStatus(tblId, 'Trống');
           }
-        } else {
-          const draft = payload.new as CartDraft;
-          if (draft && draft.table_id) {
-            // Nếu có món và khác máy hiện tại -> phát âm thanh chuông tinh tinh
-            const myDeviceId = getDeviceId();
-            if (draft.device_id && draft.device_id !== myDeviceId && Array.isArray(draft.cart) && draft.cart.length > 0) {
-              playPosChimeSound();
-            }
-            setActiveOrders((current) => {
-              const next = new Map(current);
-              if (Array.isArray(draft.cart) && draft.cart.length > 0) {
-                next.set(draft.table_id, draft.cart);
-                updateTableStatus(draft.table_id, 'Đang sử dụng');
-              } else {
-                next.delete(draft.table_id);
-                updateTableStatus(draft.table_id, 'Trống');
-              }
-              return next;
-            });
-            if (draft.selected_customer !== undefined) {
-              tableCustomersRef.current.set(draft.table_id, draft.selected_customer);
-              if (draft.table_id === selectedTableId) {
-                setSelectedCustomer(draft.selected_customer);
-              }
-            }
-          }
-        }
-      })
-      .subscribe();
+        })
+        .subscribe();
 
-    // Lắng nghe Realtime yêu cầu Gọi phục vụ từ khách tại bàn
-    const serviceChannel = client
-      .channel('staff-service-calls')
-      .on('broadcast', { event: 'service-call' }, ({ payload }) => {
-        if (!active) return;
-        playPosChimeSound();
-        toast(`🔔 ${payload.tableName || 'Bàn ' + payload.tableId} gọi phục vụ: ${payload.requestType}!`, {
-          duration: 9000,
-          icon: '🛎️',
-          style: {
-            background: '#fff7ed',
-            color: '#c2410c',
-            fontWeight: 'bold',
-            border: '2px solid #f97316',
-          },
-        });
-      })
-      .subscribe();
+      globalChannelRef.current = channel;
+
+      // Lắng nghe Realtime yêu cầu Gọi phục vụ từ khách tại bàn
+      serviceChannel = client
+        .channel('staff-service-calls')
+        .on('broadcast', { event: 'service-call' }, ({ payload }) => {
+          if (!active) return;
+          playPosChimeSound();
+          toast(`🔔 ${payload.tableName || 'Bàn ' + payload.tableId} gọi phục vụ: ${payload.requestType}!`, {
+            duration: 9000,
+            icon: '🛎️',
+            style: {
+              background: '#fff7ed',
+              color: '#c2410c',
+              fontWeight: 'bold',
+              border: '2px solid #f97316',
+            },
+          });
+        })
+        .subscribe();
+    } catch (err) {
+      console.error('Lỗi khởi tạo Realtime POS global:', err);
+    }
 
     return () => {
       active = false;
-      void client.removeChannel(channel);
-      void client.removeChannel(serviceChannel);
+      globalChannelRef.current = null;
+      if (channel) void client.removeChannel(channel);
+      if (serviceChannel) void client.removeChannel(serviceChannel);
     };
-  }, [selectedTableId, setActiveOrders, updateTableStatus]);
+  }, [setActiveOrders, updateTableStatus]);
 
   const sendToKitchen = useCallback(async (orderData: {
     tableId: string;

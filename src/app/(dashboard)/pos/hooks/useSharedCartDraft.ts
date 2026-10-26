@@ -41,6 +41,8 @@ interface UseSharedCartDraftOptions {
   selectedCustomer?: Customer | null;
   onRemoteCart?: (tableId: string, cart: CartItem[]) => void;
   onRemoteCustomer?: (tableId: string, customer: Customer | null) => void;
+  onBroadcastTableStatus?: (tableId: string, cart: CartItem[], version: number) => void;
+  onBroadcastTableCleared?: (tableId: string) => void;
 }
 
 function getDeviceId(): string {
@@ -64,6 +66,8 @@ export function useSharedCartDraft({
   selectedCustomer,
   onRemoteCart,
   onRemoteCustomer,
+  onBroadcastTableStatus,
+  onBroadcastTableCleared,
 }: UseSharedCartDraftOptions) {
   const [status, setStatus] = useState<SharedCartStatus>('disabled');
   const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>('CLOSED');
@@ -82,15 +86,19 @@ export function useSharedCartDraft({
   const debounceTimerRef = useRef<number | null>(null);
   const fetchRequestIdRef = useRef(0);
 
-  // Kênh Realtime channel Ref để gửi broadcast tức thời
+  // Kênh Realtime channel Ref để gửi broadcast tức thời của riêng bàn này
   const channelRef = useRef<any>(null);
-  const globalChannelRef = useRef<any>(null);
 
   // Lưu trữ callback dạng Ref để tránh thay đổi tham chiếu làm trigger lại useEffect kết nối
   const onRemoteCartRef = useRef(onRemoteCart);
   const onRemoteCustomerRef = useRef(onRemoteCustomer);
+  const onBroadcastTableStatusRef = useRef(onBroadcastTableStatus);
+  const onBroadcastTableClearedRef = useRef(onBroadcastTableCleared);
+
   onRemoteCartRef.current = onRemoteCart;
   onRemoteCustomerRef.current = onRemoteCustomer;
+  onBroadcastTableStatusRef.current = onBroadcastTableStatus;
+  onBroadcastTableClearedRef.current = onBroadcastTableCleared;
 
   cartRef.current = cart;
   customerRef.current = selectedCustomer;
@@ -120,17 +128,22 @@ export function useSharedCartDraft({
       if (response.ok && result.success) {
         versionRef.current = result.draft.version;
         setLastSyncAt(new Date());
-        void channelRef.current?.send({
-          type: 'broadcast',
-          event: 'cart_sync',
-          payload: {
-            table_id: tableId,
-            cart: result.draft.cart,
-            selected_customer: result.draft.selected_customer,
-            version: result.draft.version,
-            device_id: getDeviceId(),
-          },
-        });
+        try {
+          void channelRef.current?.send({
+            type: 'broadcast',
+            event: 'cart_sync',
+            payload: {
+              table_id: tableId,
+              cart: result.draft.cart,
+              selected_customer: result.draft.selected_customer,
+              version: result.draft.version,
+              device_id: getDeviceId(),
+            },
+          });
+        } catch {
+          // Bỏ qua lỗi gửi broadcast
+        }
+        onBroadcastTableStatusRef.current?.(tableId, result.draft.cart, result.draft.version);
       }
     } catch (e) {
       console.warn('Lỗi lưu bản gộp giỏ hàng:', e);
@@ -264,56 +277,54 @@ export function useSharedCartDraft({
     versionRef.current = 0;
     const client = createClient();
     const myDevId = getDeviceId();
+    const topicName = `pos-cart-draft:${tableId}`;
 
-    // Khởi tạo global channel để gửi broadcast trạng thái bàn
-    const globalChannel = client.channel('pos-all-cart-drafts-global', {
-      config: { broadcast: { self: false } },
-    });
-    globalChannelRef.current = globalChannel;
-    globalChannel.subscribe();
+    // Dọn dẹp bất kỳ channel nào đang kẹt trước khi tạo mới để tránh lỗi `cannot add callbacks after subscribe()`
+    try {
+      const existing = client.getChannels().find(
+        (ch) => ch.topic === `realtime:${topicName}` || ch.topic === topicName
+      );
+      if (existing) {
+        void client.removeChannel(existing);
+      }
+    } catch (e) {
+      console.warn('Lỗi dọn channel cũ:', e);
+    }
 
-    // Khởi tạo table channel hỗ trợ cả Broadcast thời gian thực lẫn postgres_changes
-    const channel = client
-      .channel(`pos-cart-draft:${tableId}`, {
-        config: { broadcast: { self: false } },
-      })
-      // 1. Lắng nghe Broadcast trực tiếp từ thiết bị khác (< 50ms)
-      .on('broadcast', { event: 'cart_sync' }, (payload) => {
-        if (!active) return;
-        const remote = payload.payload as (CartDraft & { device_id?: string });
-        if (!remote || remote.table_id !== tableId) return;
-        if (remote.device_id && remote.device_id === myDevId) return;
-        applyDraft(remote, false);
-      })
-      .on('broadcast', { event: 'cart_cleared' }, (payload) => {
-        if (!active) return;
-        if (payload.payload?.device_id && payload.payload.device_id === myDevId) return;
-        applyDraft(null, true);
-      })
-      // 2. Lắng nghe postgres_changes dự phòng
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'pos_cart_drafts',
-        filter: `table_id=eq.${tableId}`,
-      }, (payload) => {
-        if (!active || payload.eventType === 'DELETE') {
-          if (payload.eventType === 'DELETE') applyDraft(null, true);
-          return;
-        }
-        applyDraft(payload.new as CartDraft);
-      })
-      .subscribe((connectionStatus) => {
-        if (!active) return;
-        setRealtimeStatus(connectionStatus as RealtimeStatus);
-        if (connectionStatus === 'SUBSCRIBED') {
-          setStatus((prev) => (prev === 'conflict' ? 'conflict' : 'connected'));
-        } else if (connectionStatus === 'CHANNEL_ERROR' || connectionStatus === 'TIMED_OUT') {
-          setStatus('offline');
-        }
-      });
+    let channel: any = null;
+    try {
+      channel = client
+        .channel(topicName, {
+          config: { broadcast: { self: false } },
+        })
+        // Lắng nghe Broadcast thời gian thực giữa các thiết bị (< 50ms)
+        .on('broadcast', { event: 'cart_sync' }, (payload) => {
+          if (!active) return;
+          const remote = payload.payload as (CartDraft & { device_id?: string });
+          if (!remote || remote.table_id !== tableId) return;
+          if (remote.device_id && remote.device_id === myDevId) return;
+          applyDraft(remote, false);
+        })
+        .on('broadcast', { event: 'cart_cleared' }, (payload) => {
+          if (!active) return;
+          if (payload.payload?.device_id && payload.payload.device_id === myDevId) return;
+          applyDraft(null, true);
+        })
+        .subscribe((connectionStatus) => {
+          if (!active) return;
+          setRealtimeStatus(connectionStatus as RealtimeStatus);
+          if (connectionStatus === 'SUBSCRIBED') {
+            setStatus((prev) => (prev === 'conflict' ? 'conflict' : 'connected'));
+          } else if (connectionStatus === 'CHANNEL_ERROR' || connectionStatus === 'TIMED_OUT') {
+            setStatus('offline');
+          }
+        });
 
-    channelRef.current = channel;
+      channelRef.current = channel;
+    } catch (channelErr) {
+      console.error('Lỗi khởi tạo Realtime channel bàn:', channelErr);
+      setStatus('connected');
+    }
 
     setStatus('loading');
     void fetchDraft(tableId, true);
@@ -348,12 +359,12 @@ export function useSharedCartDraft({
     return () => {
       active = false;
       channelRef.current = null;
-      globalChannelRef.current = null;
       window.clearTimeout(loadingWatchdog);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (pollIntervalRef.current) window.clearTimeout(pollIntervalRef.current);
-      void client.removeChannel(channel);
-      void client.removeChannel(globalChannel);
+      if (channel) {
+        void client.removeChannel(channel);
+      }
     };
   }, [applyDraft, fetchDraft, tableId]);
 
@@ -404,30 +415,26 @@ export function useSharedCartDraft({
         setLastSyncAt(new Date());
         setStatus('connected');
 
-        // Bắn broadcast tức thời cho các máy khác (< 50ms)
+        // Bắn broadcast tức thời cho các máy cùng bàn (< 50ms)
         const myDevId = getDeviceId();
-        void channelRef.current?.send({
-          type: 'broadcast',
-          event: 'cart_sync',
-          payload: {
-            table_id: tableId,
-            cart: result.draft.cart,
-            selected_customer: result.draft.selected_customer,
-            version: result.draft.version,
-            device_id: myDevId,
-          },
-        });
+        try {
+          void channelRef.current?.send({
+            type: 'broadcast',
+            event: 'cart_sync',
+            payload: {
+              table_id: tableId,
+              cart: result.draft.cart,
+              selected_customer: result.draft.selected_customer,
+              version: result.draft.version,
+              device_id: myDevId,
+            },
+          });
+        } catch {
+          // Bỏ qua lỗi gửi
+        }
 
-        void globalChannelRef.current?.send({
-          type: 'broadcast',
-          event: 'table_status_sync',
-          payload: {
-            tableId,
-            cart: result.draft.cart,
-            version: result.draft.version,
-            deviceId: myDevId,
-          },
-        });
+        // Báo cho usePOS phát broadcast toàn hệ thống
+        onBroadcastTableStatusRef.current?.(tableId, result.draft.cart, result.draft.version);
       } catch (error) {
         console.error('Save shared cart draft failed:', error);
         setStatus('offline');
@@ -475,17 +482,22 @@ export function useSharedCartDraft({
         setStatus('connected');
 
         const myDevId = getDeviceId();
-        void channelRef.current?.send({
-          type: 'broadcast',
-          event: 'cart_sync',
-          payload: {
-            table_id: tableId,
-            cart: result.draft.cart,
-            selected_customer: result.draft.selected_customer,
-            version: result.draft.version,
-            device_id: myDevId,
-          },
-        });
+        try {
+          void channelRef.current?.send({
+            type: 'broadcast',
+            event: 'cart_sync',
+            payload: {
+              table_id: tableId,
+              cart: result.draft.cart,
+              selected_customer: result.draft.selected_customer,
+              version: result.draft.version,
+              device_id: myDevId,
+            },
+          });
+        } catch {
+          // Bỏ qua lỗi gửi
+        }
+        onBroadcastTableStatusRef.current?.(tableId, result.draft.cart, result.draft.version);
       } else {
         await fetchDraft(tableId);
       }
@@ -508,16 +520,16 @@ export function useSharedCartDraft({
       setStatus('connected');
 
       const myDevId = getDeviceId();
-      void channelRef.current?.send({
-        type: 'broadcast',
-        event: 'cart_cleared',
-        payload: { tableId, device_id: myDevId },
-      });
-      void globalChannelRef.current?.send({
-        type: 'broadcast',
-        event: 'table_cleared',
-        payload: { tableId, deviceId: myDevId },
-      });
+      try {
+        void channelRef.current?.send({
+          type: 'broadcast',
+          event: 'cart_cleared',
+          payload: { tableId, device_id: myDevId },
+        });
+      } catch {
+        // Bỏ qua lỗi gửi
+      }
+      onBroadcastTableClearedRef.current?.(tableId);
     } catch (err) {
       console.error('Error clearing shared cart draft:', err);
     }
