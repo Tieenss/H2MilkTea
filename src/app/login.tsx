@@ -48,6 +48,10 @@ const LoginPage = () => {
             return;
         }
 
+        if (searchParams?.get('kicked') === 'true') {
+            toast.error('Tài khoản đã được đăng nhập từ một thiết bị khác. Phiên trên thiết bị này đã kết thúc!', { duration: 6000, id: 'kicked-toast' });
+        }
+
         // Lưu returnUrl từ URL params
         const returnUrl = searchParams?.get('returnUrl');
         if (returnUrl && typeof window !== 'undefined') {

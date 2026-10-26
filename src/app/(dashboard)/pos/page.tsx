@@ -457,6 +457,8 @@ export default function POSPage() {
             employee={nhanvien}
             showClearConfirmation={showClearConfirmation}
             onOpenClearConfirmation={setShowClearConfirmation}
+            activeCashiersOnTable={selectedTableId ? presenceByTable.get(selectedTableId)?.cashiers : undefined}
+            posViewersCount={selectedTableId ? presenceByTable.get(selectedTableId)?.posCount : undefined}
             onRemoveFromCart={removeFromCart}
             onAdjustQuantity={adjustQuantity}
             onClearCart={clearCart}
@@ -509,6 +511,8 @@ export default function POSPage() {
                 selectedCustomer={selectedCustomer}
                 showClearConfirmation={showClearConfirmation}
                 onOpenClearConfirmation={setShowClearConfirmation}
+                activeCashiersOnTable={selectedTableId ? presenceByTable.get(selectedTableId)?.cashiers : undefined}
+                posViewersCount={selectedTableId ? presenceByTable.get(selectedTableId)?.posCount : undefined}
                 onRemoveFromCart={removeFromCart}
                 onAdjustQuantity={adjustQuantity}
                 onClearCart={() => {

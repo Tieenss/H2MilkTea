@@ -396,9 +396,12 @@ export const usePOS = () => {
           });
           return next;
         });
+        return result.drafts;
       }
+      return [];
     } catch (err) {
       console.error('Lỗi tải toàn bộ giỏ hàng nháp các bàn:', err);
+      return [];
     }
   }, [setActiveOrders, updateTableStatus]);
 
@@ -1047,22 +1050,32 @@ export const usePOS = () => {
     }
   }, [cart, selectedTableId, selectedTableName, nhanvien, selectedCustomer, activePOSOrderIds, saveInvoice, updateCustomerAfterPurchase, clearSharedCartDraft, activeOrders, setActiveOrders, updateTableStatus, clearLocalCart, showNotification, showLoading, cancelPendingAutosave]);
 
-  // Data synchronization (Mục #18: Đồng bộ cả giỏ hàng nháp các bàn)
+  // Data synchronization (Mục #18 & Tối ưu thông báo số lượng chi tiết)
   const syncData = useCallback(async () => {
+    const startTime = performance.now();
     try {
-      showLoading('Đang đồng bộ...');
-      await Promise.all([
+      showLoading('Đang đồng bộ dữ liệu...');
+      const [prods, tbls, custs, drafts] = await Promise.all([
         fetchProducts(),
         fetchTables(),
         fetchCustomers(),
         fetchAllCartDrafts(),
       ]);
-      showNotification('Đồng bộ dữ liệu thành công!');
+      const elapsed = Math.round(performance.now() - startTime);
+
+      const prodCount = Array.isArray(prods) ? prods.length : (products?.length || 0);
+      const tblCount = Array.isArray(tbls) ? tbls.length : (tables?.length || 0);
+      const custCount = Array.isArray(custs) ? custs.length : (customers?.length || 0);
+      const draftList = Array.isArray(drafts) ? drafts : [];
+      const draftCount = draftList.filter((d: any) => Array.isArray(d?.cart) && d.cart.length > 0).length;
+
+      const summaryMsg = `Đã đồng bộ (${elapsed}ms): ${prodCount} món · ${tblCount} bàn · ${draftCount} bàn có giỏ · ${custCount} khách hàng`;
+      showNotification(summaryMsg);
     } catch (error) {
       console.error('Lỗi đồng bộ:', error);
       showNotification('Lỗi đồng bộ dữ liệu. Vui lòng thử lại!', 'error');
     }
-  }, [fetchProducts, fetchTables, fetchCustomers, fetchAllCartDrafts, showLoading, showNotification]);
+  }, [fetchProducts, fetchTables, fetchCustomers, fetchAllCartDrafts, products, tables, customers, showLoading, showNotification]);
 
   // Keyboard shortcuts
   const handleKeyboardShortcuts = useCallback((e: KeyboardEvent) => {

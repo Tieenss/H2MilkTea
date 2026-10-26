@@ -10,6 +10,7 @@ import { RouteProgress } from '@/components/ui/route-progress';
 import { cn } from '@/lib/utils';
 import { TodayOrdersProvider } from '@/context/TodayOrdersContext';
 import { GlobalAssistant } from '@/components/GlobalAssistant';
+import { useSingleActiveSession } from '@/hooks/useSingleActiveSession';
 
 export default function DashboardLayout({
   children,
@@ -22,6 +23,7 @@ export default function DashboardLayout({
   const [isLoading, setIsLoading] = useState(true);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  useSingleActiveSession();
 
   useEffect(() => {
     // Khôi phục trạng thái sidebar từ localStorage đã lưu trên máy (Mục #17)

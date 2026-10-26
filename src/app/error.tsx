@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { RotateCcw, Home, Trash2, AlertTriangle } from 'lucide-react';
+import { ClearCacheProgressModal } from '@/components/ClearCacheProgressModal';
 
 export default function GlobalError({
   error,
@@ -10,16 +11,14 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const [showClearCacheModal, setShowClearCacheModal] = useState(false);
+
   useEffect(() => {
     console.error('Captured by Next.js Error Boundary:', error);
   }, [error]);
 
   const handleClearCacheAndReload = () => {
-    try {
-      localStorage.removeItem('userData');
-      sessionStorage.clear();
-    } catch {}
-    window.location.href = '/';
+    setShowClearCacheModal(true);
   };
 
   return (
@@ -72,6 +71,11 @@ export default function GlobalError({
           </button>
         </div>
       </div>
+
+      <ClearCacheProgressModal
+        isOpen={showClearCacheModal}
+        redirectTo="/login"
+      />
     </div>
   );
 }

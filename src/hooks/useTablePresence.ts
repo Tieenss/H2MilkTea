@@ -8,11 +8,13 @@ export interface ParticipantPresence {
   tableId: string | null;
   actorName?: string;
   itemCount?: number;
+  clientId?: string;
   updatedAt: number;
 }
 
 export interface TablePresenceSummary {
   cashiers: string[];
+  posCount: number;
   customerCount: number;
   customerItemCount: number;
 }
@@ -22,6 +24,20 @@ interface UseTablePresenceOptions {
   tableId: string | null;
   actorName?: string;
   itemCount?: number;
+}
+
+function getPresenceClientId(): string {
+  if (typeof window === 'undefined') return 'server';
+  try {
+    let id = window.sessionStorage.getItem('h2_presence_client_id');
+    if (!id) {
+      id = 'cli_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now().toString(36);
+      window.sessionStorage.setItem('h2_presence_client_id', id);
+    }
+    return id;
+  } catch {
+    return 'cli_' + Math.random().toString(36).substring(2, 9);
+  }
 }
 
 export function useTablePresence({
@@ -39,33 +55,48 @@ export function useTablePresence({
 
   const computeSummary = useCallback((state: Record<string, unknown[]>) => {
     const summaryMap = new Map<string, TablePresenceSummary>();
+    const seenCustomerClientsByTable = new Map<string, Set<string>>();
+    const seenPosClientsByTable = new Map<string, Set<string>>();
 
-    Object.values(state).forEach((presences) => {
-      if (!Array.isArray(presences)) return;
-      presences.forEach((p) => {
-        const item = p as Partial<ParticipantPresence>;
-        const tId = item.tableId;
-        if (!tId) return;
+    Object.entries(state).forEach(([key, presences]) => {
+      if (!Array.isArray(presences) || presences.length === 0) return;
+      // Lấy bản ghi presence mới nhất của client key này
+      const item = presences[presences.length - 1] as Partial<ParticipantPresence>;
+      const tId = item.tableId;
+      if (!tId) return;
 
-        if (!summaryMap.has(tId)) {
-          summaryMap.set(tId, {
-            cashiers: [],
-            customerCount: 0,
-            customerItemCount: 0,
-          });
+      if (!summaryMap.has(tId)) {
+        summaryMap.set(tId, {
+          cashiers: [],
+          posCount: 0,
+          customerCount: 0,
+          customerItemCount: 0,
+        });
+        seenCustomerClientsByTable.set(tId, new Set<string>());
+        seenPosClientsByTable.set(tId, new Set<string>());
+      }
+
+      const current = summaryMap.get(tId)!;
+      const seenCustClients = seenCustomerClientsByTable.get(tId)!;
+      const seenPosClients = seenPosClientsByTable.get(tId)!;
+      const cId = item.clientId || key;
+
+      if (item.role === 'pos') {
+        const name = item.actorName || 'Thu ngân';
+        if (!current.cashiers.includes(name)) {
+          current.cashiers.push(name);
         }
-
-        const current = summaryMap.get(tId)!;
-        if (item.role === 'pos') {
-          const name = item.actorName || 'Thu ngân';
-          if (!current.cashiers.includes(name)) {
-            current.cashiers.push(name);
-          }
-        } else if (item.role === 'customer_qr') {
+        if (!seenPosClients.has(cId)) {
+          seenPosClients.add(cId);
+          current.posCount += 1;
+        }
+      } else if (item.role === 'customer_qr') {
+        if (!seenCustClients.has(cId)) {
+          seenCustClients.add(cId);
           current.customerCount += 1;
           current.customerItemCount += Number(item.itemCount) || 0;
         }
-      });
+      }
     });
 
     setPresenceByTable(summaryMap);
@@ -76,20 +107,23 @@ export function useTablePresence({
     try {
       client = createClient();
     } catch {
-      // Supabase chưa cấu hình hoặc trong môi trường test
       return;
     }
 
     let active = true;
+    const clientId = getPresenceClientId();
     const channelName = 'pos-table-presence';
-    const channel = client.channel(channelName);
+    const channel = client.channel(channelName, {
+      config: {
+        presence: { key: clientId },
+      },
+    });
     channelRef.current = channel;
 
     channel
       .on('presence', { event: 'sync' }, () => {
         if (!active) return;
-        const state = channel.presenceState();
-        computeSummary(state);
+        computeSummary(channel.presenceState());
       })
       .on('presence', { event: 'join' }, () => {
         if (!active) return;
@@ -109,6 +143,7 @@ export function useTablePresence({
               tableId: optionsRef.current.tableId,
               actorName: optionsRef.current.actorName,
               itemCount: optionsRef.current.itemCount,
+              clientId,
               updatedAt: Date.now(),
             });
           } catch {
@@ -130,11 +165,13 @@ export function useTablePresence({
   useEffect(() => {
     if (!channelRef.current || !isConnected) return;
     try {
+      const clientId = getPresenceClientId();
       void channelRef.current.track({
         role,
         tableId,
         actorName,
         itemCount,
+        clientId,
         updatedAt: Date.now(),
       });
     } catch {

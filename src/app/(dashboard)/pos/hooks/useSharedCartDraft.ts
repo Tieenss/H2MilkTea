@@ -275,6 +275,31 @@ export function useSharedCartDraft({
 
     let active = true;
     versionRef.current = 0;
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        bc = new BroadcastChannel('h2_shared_cart_channel');
+        bc.onmessage = (event) => {
+          if (!active) return;
+          if (event.data?.type === 'FORCE_CLEAR' && event.data?.tableId === tableId) {
+            cancelPendingAutosave();
+            versionRef.current = 0;
+            pendingRemoteCartRef.current = '[]';
+            setCart([]);
+            if (tableId) {
+              onRemoteCartRef.current?.(tableId, []);
+              onRemoteCustomerRef.current?.(tableId, null);
+            }
+            setConflictData(null);
+            setStatus('connected');
+          }
+        };
+      }
+    } catch (bcError) {
+      console.warn('BroadcastChannel not supported:', bcError);
+    }
+
     const client = createClient();
     const myDevId = getDeviceId();
     const topicName = `pos-cart-draft:${tableId}`;
@@ -308,7 +333,38 @@ export function useSharedCartDraft({
         .on('broadcast', { event: 'cart_cleared' }, (payload) => {
           if (!active) return;
           if (payload.payload?.device_id && payload.payload.device_id === myDevId) return;
-          applyDraft(null, true);
+          cancelPendingAutosave();
+          versionRef.current = 0;
+          pendingRemoteCartRef.current = '[]';
+          setCart([]);
+          if (tableId) {
+            onRemoteCartRef.current?.(tableId, []);
+            onRemoteCustomerRef.current?.(tableId, null);
+          }
+          setConflictData(null);
+          setStatus('connected');
+        })
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'pos_cart_drafts',
+          filter: `table_id=eq.${tableId}`,
+        }, (payload) => {
+          if (!active) return;
+          if (payload.eventType === 'DELETE') {
+            cancelPendingAutosave();
+            versionRef.current = 0;
+            pendingRemoteCartRef.current = '[]';
+            setCart([]);
+            if (tableId) {
+              onRemoteCartRef.current?.(tableId, []);
+              onRemoteCustomerRef.current?.(tableId, null);
+            }
+            setConflictData(null);
+            setStatus('connected');
+            return;
+          }
+          applyDraft(payload.new as CartDraft);
         })
         .subscribe((connectionStatus) => {
           if (!active) return;
@@ -358,6 +414,7 @@ export function useSharedCartDraft({
 
     return () => {
       active = false;
+      bc?.close();
       channelRef.current = null;
       window.clearTimeout(loadingWatchdog);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -514,6 +571,16 @@ export function useSharedCartDraft({
     pendingRemoteCartRef.current = '[]';
     versionRef.current = 0;
     setConflictData(null);
+
+    // Bắn broadcast tức thì cho các tab cùng trình duyệt
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        const localBc = new BroadcastChannel('h2_shared_cart_channel');
+        localBc.postMessage({ type: 'FORCE_CLEAR', tableId });
+        localBc.close();
+      }
+    } catch {}
+
     try {
       const response = await fetch(`/api/pos/cart-draft?tableId=${encodeURIComponent(tableId)}`, { method: 'DELETE' });
       if (!response.ok) throw new Error('Không xóa được giỏ hàng dùng chung.');

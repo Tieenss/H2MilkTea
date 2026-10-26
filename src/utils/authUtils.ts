@@ -925,6 +925,7 @@ private validateDataIntegrity(data: any): boolean {
             localStorage.removeItem(config.AUTH.USER_DATA_KEY);
             localStorage.removeItem(config.AUTH.TOKEN_EXPIRY_KEY);
             localStorage.removeItem('returnUrl');
+            localStorage.removeItem('h2_session_id');
 
             // Xóa cookie
             document.cookie = 'authToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
@@ -1006,6 +1007,31 @@ private validateDataIntegrity(data: any): boolean {
             if (dsnvData) userData = dsnvData;
         } catch (e) {
             console.error("Could not fetch DSNV data", e);
+        }
+
+                // Tạo sessionId duy nhất cho phiên đăng nhập này
+        const sessionId = 'sess_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now();
+        (userData as any).auth_session_id = sessionId;
+        if (data.user?.id) (userData as any).id = data.user.id;
+        if (this.isClient()) {
+            localStorage.setItem('h2_session_id', sessionId);
+        }
+
+        // Đăng ký phiên duy nhất với máy chủ để đá các thiết bị trước đó
+        try {
+            if (data.user?.id) {
+                await fetch('/api/auth/session', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: data.user.id,
+                        sessionId,
+                        deviceInfo: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+                    }),
+                });
+            }
+        } catch (sessionErr) {
+            console.warn('Lỗi đăng ký session duy nhất:', sessionErr);
         }
 
         this.saveAuthData(userData);

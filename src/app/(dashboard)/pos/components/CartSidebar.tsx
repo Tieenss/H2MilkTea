@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Trash, User, Gift, Plus, Minus, ChefHat, Tag, QrCode } from 'lucide-react';
+import { Trash, User, Gift, Plus, Minus, ChefHat, Tag, QrCode, AlertTriangle } from 'lucide-react';
 import { formatCurrency, formatPoints } from '../utils/formatters';
 import type { CartItem } from '../types/pos';
 import { Customer } from '@/app/(dashboard)/khachhang/types/customer';
@@ -37,6 +37,8 @@ interface CartSidebarProps {
   sharedCartStatus?: string;
   canCheckout?: boolean;
   showClearConfirmation?: boolean;
+  activeCashiersOnTable?: string[];
+  posViewersCount?: number;
   onOpenClearConfirmation?: (show: boolean) => void;
   onRemoveFromCart: (productId: string) => void;
   onAdjustQuantity: (productId: string, amount: number) => void;
@@ -63,6 +65,8 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
   sharedCartStatus = 'connected',
   canCheckout = true,
   showClearConfirmation: controlledShowClearConfirmation,
+  activeCashiersOnTable = [],
+  posViewersCount = 0,
   onOpenClearConfirmation,
   onRemoveFromCart,
   onAdjustQuantity,
@@ -378,25 +382,54 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
 
       <AlertDialog open={isClearConfirmationOpen} onOpenChange={setClearConfirmationOpen}>
         <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Xóa toàn bộ giỏ hàng?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Bạn có chắc chắn muốn xóa {cart.reduce((sum, item) => sum + item.quantity, 0)} món
-              {selectedTableName ? ` của ${selectedTableName}` : ''}? Thao tác này sẽ cập nhật các thiết bị đang mở bàn.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Hủy</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700"
-              onClick={() => {
-                onClearCart();
-                setClearConfirmationOpen(false);
-              }}
-            >
-              Xóa tất cả
-            </AlertDialogAction>
-          </AlertDialogFooter>
+          {(() => {
+            const otherCashiers = activeCashiersOnTable.filter((name) => !employee || name !== employee);
+            const hasOtherViewers = otherCashiers.length > 0 || posViewersCount > 1;
+
+            return (
+              <>
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="flex items-center gap-2">
+                    <Trash className="w-5 h-5 text-red-600" />
+                    <span>Xóa toàn bộ giỏ hàng?</span>
+                  </AlertDialogTitle>
+                  <AlertDialogDescription className="space-y-3">
+                    <p>
+                      Bạn có chắc chắn muốn xóa {cart.reduce((sum, item) => sum + item.quantity, 0)} món
+                      {selectedTableName ? ` của ${selectedTableName}` : ''}? Thao tác này sẽ đồng bộ và cập nhật tất cả thiết bị đang mở bàn.
+                    </p>
+                    {hasOtherViewers && (
+                      <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-amber-900 text-xs flex items-start gap-2.5 text-left">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-semibold text-amber-950">Cảnh báo: Có thiết bị khác đang cùng mở bàn này!</p>
+                          <p className="mt-1 text-amber-800">
+                            {otherCashiers.length > 0
+                              ? `Thu ngân đang cùng mở: ${otherCashiers.join(', ')}.`
+                              : `Có ${posViewersCount} thiết bị POS đang cùng kết nối vào bàn này.`}
+                            <br />
+                            Nếu bạn xác nhận xóa, giỏ hàng của thiết bị còn lại cũng sẽ lập tức được dọn sạch về 0.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Hủy</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-red-600 hover:bg-red-700"
+                    onClick={() => {
+                      onClearCart();
+                      setClearConfirmationOpen(false);
+                    }}
+                  >
+                    Xóa tất cả
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </>
+            );
+          })()}
         </AlertDialogContent>
       </AlertDialog>
 

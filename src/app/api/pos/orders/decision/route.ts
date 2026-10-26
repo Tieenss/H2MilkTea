@@ -85,6 +85,60 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Đơn vừa được xử lý ở thiết bị khác. Hãy làm mới danh sách.' }, { status: 409 });
     }
 
+    // Khi chấp nhận đơn QR: Tự động lưu/gộp các món vào pos_cart_drafts để tất cả máy POS và khách đều thấy giỏ thật
+    if (decision === 'accept' && current.table_id && Array.isArray(current.items)) {
+      try {
+        const { data: existingDraft } = await supabase
+          .from('pos_cart_drafts')
+          .select('*')
+          .eq('table_id', current.table_id)
+          .maybeSingle();
+
+        const formattedOrderItems = current.items.map((it: any) => ({
+          id: it.productId || it.id,
+          name: it.productName || it.name,
+          price: Number(it.unitPrice || it.price || 0),
+          quantity: Number(it.quantity || 1),
+          unit: it.unit || 'Ly',
+          image: it.image,
+          note: [it.size && `Size ${it.size}`, it.sugar && `Đường ${it.sugar}`, it.ice && `Đá ${it.ice}`, it.note].filter(Boolean).join(' · '),
+        }));
+
+        if (existingDraft && Array.isArray(existingDraft.cart)) {
+          // Gộp món vào giỏ hàng bàn hiện có
+          const mergedCart = [...existingDraft.cart];
+          for (const newItem of formattedOrderItems) {
+            const foundIdx = mergedCart.findIndex((m: any) => (m.id && m.id === newItem.id) || m.name === newItem.name);
+            if (foundIdx >= 0) {
+              mergedCart[foundIdx] = {
+                ...mergedCart[foundIdx],
+                quantity: Number(mergedCart[foundIdx].quantity || 1) + newItem.quantity,
+              };
+            } else {
+              mergedCart.push(newItem);
+            }
+          }
+
+          await supabase.from('pos_cart_drafts').update({
+            cart: mergedCart,
+            version: Number(existingDraft.version || 0) + 1,
+            updated_at: now,
+          }).eq('table_id', current.table_id);
+        } else {
+          // Khởi tạo giỏ hàng bàn mới trên DB
+          await supabase.from('pos_cart_drafts').insert({
+            table_id: current.table_id,
+            cart: formattedOrderItems,
+            version: 1,
+            updated_by: staff.id,
+            updated_at: now,
+          });
+        }
+      } catch (acceptCartErr) {
+        console.warn('Lỗi tự động nạp giỏ hàng bàn khi nhận đơn QR:', acceptCartErr);
+      }
+    }
+
     // Khi chấp nhận hủy đơn: Trừ các món bị hủy khỏi pos_cart_drafts (hoặc xóa draft nếu rỗng)
     if (decision === 'cancel' && current.table_id) {
       try {
