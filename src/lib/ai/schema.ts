@@ -6,7 +6,7 @@ export type AiAction = z.infer<typeof AiActionEnum>;
 export const ParsedItemSchema = z.object({
   productId: z.string().optional().default(''),
   productName: z.string().min(1, 'productName không được rỗng'),
-  quantity: z.coerce.number().int().min(1, 'Số lượng tối thiểu là 1').max(10, 'Số lượng tối đa là 10').catch(1),
+  quantity: z.coerce.number().int().min(1, 'Số lượng tối thiểu là 1').max(10, 'Số lượng tối đa là 10'),
   note: z.string().optional().default(''),
   size: z.string().optional().default('M'),
   sugar: z.string().optional().default('100%'),
@@ -40,9 +40,11 @@ export type TargetTable = z.infer<typeof TargetTableSchema>;
 
 export const AiOutputSchema = z.object({
   action: z.preprocess((val) => {
-    const str = String(val || '').toLowerCase().trim();
-    if (['add', 'remove', 'select_table', 'qa', 'none'].includes(str)) return str;
-    return 'none';
+    if (typeof val === 'string') {
+      const lower = val.toLowerCase().trim();
+      if (['add', 'remove', 'select_table', 'qa', 'none'].includes(lower)) return lower;
+    }
+    return val;
   }, AiActionEnum),
   targetTable: TargetTableSchema.default(null),
   items: z.preprocess((val) => {
