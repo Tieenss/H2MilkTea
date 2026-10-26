@@ -86,5 +86,11 @@
     "tw-animate-css": "^1.3.4",
     "typescript": "^5",
     "vitest": "^3.2.7"
+  },
+  "allowScripts": {
+    "@tailwindcss/oxide": true,
+    "esbuild": true,
+    "sharp": true,
+    "unrs-resolver": true
   }
 }
