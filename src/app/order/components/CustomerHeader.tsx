@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShoppingBag, MapPin, Sparkles } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { StoreFAQModal } from './StoreFAQModal';
+import { getAppearanceSettings, saveAppearanceSettings } from '@/utils/appearanceSettings';
 
 interface CustomerHeaderProps {
   onCartClick?: () => void;
@@ -12,6 +13,23 @@ interface CustomerHeaderProps {
 export function CustomerHeader({ onCartClick }: CustomerHeaderProps) {
   const { totalItems, tableName } = useCart();
   const [showFaqModal, setShowFaqModal] = useState(false);
+  const [elderlyMode, setElderlyMode] = useState<boolean>(false);
+
+  useEffect(() => {
+    setElderlyMode(getAppearanceSettings().elderlyMode);
+    const handleUpdate = () => {
+      setElderlyMode(getAppearanceSettings().elderlyMode);
+    };
+    window.addEventListener('h2_appearance_settings_updated', handleUpdate);
+    return () => window.removeEventListener('h2_appearance_settings_updated', handleUpdate);
+  }, []);
+
+  const toggleElderlyMode = () => {
+    const current = getAppearanceSettings();
+    const next = !current.elderlyMode;
+    saveAppearanceSettings({ ...current, elderlyMode: next });
+    setElderlyMode(next);
+  };
 
   return (
     <>
@@ -42,6 +60,20 @@ export function CustomerHeader({ onCartClick }: CustomerHeaderProps) {
             >
               <Sparkles className="w-4 h-4 text-orange-500" />
               <span className="hidden xs:inline">Tiện ích</span>
+            </button>
+
+            {/* Quick Elderly / Large Font Mode Button for Table Customers */}
+            <button
+              onClick={toggleElderlyMode}
+              className={`p-2 sm:px-2.5 sm:py-2 rounded-xl text-xs font-bold border transition-all active:scale-95 flex items-center gap-1 cursor-pointer ${
+                elderlyMode
+                  ? 'bg-amber-100 border-amber-400 text-amber-900 ring-2 ring-amber-300'
+                  : 'bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200'
+              }`}
+              title={elderlyMode ? 'Tắt Chế độ Chữ lớn' : 'Bật Chế độ Chữ lớn & Dễ nhìn cho người lớn tuổi'}
+            >
+              <span className="text-sm">👓</span>
+              <span className="hidden xs:inline">{elderlyMode ? 'Chữ lớn: Bật' : 'Chữ lớn'}</span>
             </button>
 
             {/* Cart Button */}

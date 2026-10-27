@@ -69,14 +69,18 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
         needsSync: false
     });
 
-    // Dark Mode Toggle Logic
+    // Dark Mode & Elderly Accessibility Mode Toggle Logic
     const [colorMode, setColorMode] = useState<'light' | 'dark' | 'system'>('light');
+    const [elderlyMode, setElderlyMode] = useState<boolean>(false);
 
     useEffect(() => {
         const initial = getAppearanceSettings();
         setColorMode(initial.colorMode);
+        setElderlyMode(Boolean(initial.elderlyMode));
         const handleThemeUpdate = () => {
-            setColorMode(getAppearanceSettings().colorMode);
+            const current = getAppearanceSettings();
+            setColorMode(current.colorMode);
+            setElderlyMode(Boolean(current.elderlyMode));
         };
         window.addEventListener('h2_appearance_settings_updated', handleThemeUpdate);
         return () => window.removeEventListener('h2_appearance_settings_updated', handleThemeUpdate);
@@ -89,6 +93,19 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
         saveAppearanceSettings(updated);
         setColorMode(nextMode);
         toast.success(nextMode === 'dark' ? '🌙 Đã kích hoạt Giao diện Tối' : '☀️ Đã kích hoạt Giao diện Sáng');
+    };
+
+    const toggleElderlyMode = () => {
+        const current = getAppearanceSettings();
+        const next = !current.elderlyMode;
+        const updated = { ...current, elderlyMode: next, lastUpdated: new Date().toISOString() };
+        saveAppearanceSettings(updated);
+        setElderlyMode(next);
+        if (next) {
+            toast.success('👓 Đã bật Chế độ Dễ nhìn: Chữ siêu to, nút lớn, độ tương phản cao!');
+        } else {
+            toast('Đã chuyển về giao diện tiêu chuẩn', { icon: 'ℹ️' });
+        }
     };
 
     // Khởi tạo an toàn sau khi mount ở Client để tránh Hydration Mismatch
@@ -317,6 +334,26 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
                             <span className="font-mono font-semibold">{formatTime(currentTime)}</span>
                         </div>
                     )}
+
+                    {/* Quick Senior / Elderly Accessibility Mode Toggle */}
+                    <button
+                        type="button"
+                        onClick={toggleElderlyMode}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs sm:text-sm font-bold transition-all shadow-xs cursor-pointer ${
+                            elderlyMode
+                                ? 'bg-amber-100 text-amber-900 border-2 border-amber-500 dark:bg-amber-950 dark:text-amber-200 ring-2 ring-amber-400/40'
+                                : 'bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-700'
+                        }`}
+                        title={elderlyMode ? 'Đang bật Chế độ Người cao tuổi (Click để tắt)' : 'Bật Chế độ Người cao tuổi / Dễ nhìn (Chữ to, nút lớn, độ tương phản cao)'}
+                    >
+                        <span className="text-base sm:text-lg leading-none">👓</span>
+                        <span className="hidden sm:inline">
+                            {elderlyMode ? 'Chế độ Dễ nhìn: Bật' : 'Chế độ Dễ nhìn'}
+                        </span>
+                        <span className="sm:hidden font-extrabold">
+                            {elderlyMode ? 'Dễ nhìn: Bật' : 'Dễ nhìn'}
+                        </span>
+                    </button>
 
                     {/* Quick Dark Mode Toggle */}
                     <Button

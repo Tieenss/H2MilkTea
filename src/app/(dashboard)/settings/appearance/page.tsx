@@ -14,6 +14,7 @@ import {
   Sun,
   Moon,
   Laptop,
+  CheckCircle2,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import {
@@ -155,6 +156,109 @@ export default function AppearanceSettingsPage() {
               <span>Cỡ chữ: <strong>{WEB_FONT_SIZE_MAP[settings.fontSize]?.label}</strong></span>
               <span>•</span>
               <span>Theme: <strong>{currentTheme.name}</strong></span>
+            </div>
+          </div>
+        </div>
+
+        {/* Chế độ Người cao tuổi & Dễ thao tác (Senior / Accessibility Mode) */}
+        <div className={`rounded-2xl border-2 p-6 shadow-sm transition-all duration-300 ${
+          settings.elderlyMode
+            ? 'bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/30 border-amber-400 dark:border-amber-600 shadow-md ring-4 ring-amber-400/20'
+            : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800'
+        }`}>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-gray-200/80 dark:border-gray-800">
+            <div className="flex items-start sm:items-center gap-3">
+              <span className={`p-3 rounded-2xl text-2xl shadow-inner ${
+                settings.elderlyMode
+                  ? 'bg-amber-500 text-white shadow-amber-600/50 ring-4 ring-amber-300 dark:ring-amber-800'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
+              }`}>
+                👓
+              </span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
+                    Chế độ Người cao tuổi & Dễ nhìn (Senior Accessibility)
+                  </h2>
+                  {settings.elderlyMode && (
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white uppercase tracking-wider animate-pulse">
+                      Đang Bật
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 mt-1">
+                  Tự động phóng to chữ toàn hệ thống, tăng diện tích nút bấm chống bấm trượt, tương phản sắc nét dành cho người lớn tuổi hoặc người ít rành công nghệ.
+                </p>
+              </div>
+            </div>
+
+            {/* Toggle Switch */}
+            <div className="flex items-center gap-3 self-end sm:self-center">
+              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                {settings.elderlyMode ? 'Đang kích hoạt' : 'Đang tắt'}
+              </span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={settings.elderlyMode}
+                onClick={() => {
+                  const next = !settings.elderlyMode;
+                  handleUpdate('elderlyMode', next);
+                  if (next) {
+                    toast.success('👓 Đã kích hoạt Chế độ Người cao tuổi: Chữ to, nút bấm lớn, dễ thao tác!');
+                  } else {
+                    toast('Đã chuyển về giao diện tiêu chuẩn', { icon: 'ℹ️' });
+                  }
+                }}
+                className={`relative inline-flex h-8 w-16 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 ${
+                  settings.elderlyMode ? 'bg-amber-500' : 'bg-gray-300 dark:bg-gray-700'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-7 w-7 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                    settings.elderlyMode ? 'translate-x-8' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          {/* 4 Feature Pillars Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-5">
+            <div className="p-4 rounded-xl bg-white/80 dark:bg-gray-900/80 border border-gray-200 dark:border-gray-800 space-y-1.5 shadow-xs">
+              <div className="text-amber-600 dark:text-amber-400 font-bold text-sm flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4" /> 1. Chữ Siêu To & Rõ
+              </div>
+              <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+                Tự động phóng to chữ lên 18px - 19px, giãn dòng thoáng mắt, đọc giá tiền và tên món không bị nheo mắt.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-white/80 dark:bg-gray-900/80 border border-gray-200 dark:border-gray-800 space-y-1.5 shadow-xs">
+              <div className="text-amber-600 dark:text-amber-400 font-bold text-sm flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4" /> 2. Nút Bấm Khổ Lớn
+              </div>
+              <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+                Mọi nút bấm và ô nhập có chiều cao $\ge$ 48px, chạm ngón tay cực nhạy và chống bấm nhầm trên màn hình cảm ứng.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-white/80 dark:bg-gray-900/80 border border-gray-200 dark:border-gray-800 space-y-1.5 shadow-xs">
+              <div className="text-amber-600 dark:text-amber-400 font-bold text-sm flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4" /> 3. Tương Phản Đậm Nét
+              </div>
+              <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+                Xóa bỏ các dòng chữ mờ xám khó đọc, viền dày 2px rõ nét giúp người già phân biệt các khu vực thao tác dễ dàng.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-white/80 dark:bg-gray-900/80 border border-gray-200 dark:border-gray-800 space-y-1.5 shadow-xs">
+              <div className="text-amber-600 dark:text-amber-400 font-bold text-sm flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4" /> 4. Đa Thiết Bị Linh Hoạt
+              </div>
+              <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+                Tự động tối ưu trên PC thu ngân, Laptop, iPad/Tablet để bàn và Điện thoại cá nhân với độ mượt mà cao.
+              </p>
             </div>
           </div>
         </div>

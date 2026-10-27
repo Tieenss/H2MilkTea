@@ -12,6 +12,7 @@ export interface AppearanceSettings {
   chatbotFontSize: ChatbotFontSizeOption;
   themeColor: ThemeColorOption;
   colorMode: ColorModeOption;
+  elderlyMode: boolean; // Chế độ Người cao tuổi / Dễ nhìn & Chữ lớn cho người ít hiểu biết công nghệ
   lastUpdated: string;
 }
 
@@ -21,6 +22,7 @@ export const DEFAULT_APPEARANCE_SETTINGS: AppearanceSettings = {
   chatbotFontSize: 'base',
   themeColor: 'indigo',
   colorMode: 'light',
+  elderlyMode: false,
   lastUpdated: new Date().toISOString(),
 };
 
@@ -142,6 +144,7 @@ export function getAppearanceSettings(): AppearanceSettings {
       chatbotFontSize: parsed.chatbotFontSize || DEFAULT_APPEARANCE_SETTINGS.chatbotFontSize,
       themeColor: parsed.themeColor || DEFAULT_APPEARANCE_SETTINGS.themeColor,
       colorMode: parsed.colorMode || DEFAULT_APPEARANCE_SETTINGS.colorMode,
+      elderlyMode: Boolean(parsed.elderlyMode),
       lastUpdated: parsed.lastUpdated || new Date().toISOString(),
     };
   } catch {
@@ -154,7 +157,9 @@ export function saveAppearanceSettings(settings: AppearanceSettings): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
     applyAppearanceSettings(settings);
-    window.dispatchEvent(new CustomEvent('h2_appearance_settings_updated', { detail: settings }));
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new CustomEvent('h2_appearance_settings_updated', { detail: settings }));
+    }
   } catch (err) {
     console.error('Failed to save appearance settings', err);
   }
@@ -186,7 +191,7 @@ export function applyAppearanceSettings(settings: AppearanceSettings): void {
   // 2. ÁP DỤNG FONT FAMILY & FONT SIZE
   const fontConfig = FONT_FAMILY_MAP[settings.fontFamily] || FONT_FAMILY_MAP['be-vietnam-pro'];
   root.style.setProperty('--h2-app-font', fontConfig.cssFont);
-  if (body) {
+  if (body?.style) {
     body.style.fontFamily = `var(--h2-app-font, ${fontConfig.cssFont})`;
   }
 
@@ -204,4 +209,19 @@ export function applyAppearanceSettings(settings: AppearanceSettings): void {
   root.style.setProperty('--ring', themeConfig.ringHsl);
   root.setAttribute('data-h2-theme', settings.themeColor);
   root.setAttribute('data-theme-mode', settings.colorMode);
+
+  // 4. ÁP DỤNG CHẾ ĐỘ NGƯỜI CAO TUỔI / DỄ THAO TÁC (ELDERLY ACCESSIBILITY MODE)
+  if (settings.elderlyMode) {
+    root.classList?.add('h2-elderly-mode');
+    body?.classList?.add('h2-elderly-mode');
+    root.setAttribute?.('data-elderly-mode', 'true');
+    if (root.style) {
+      root.style.fontSize = '19px';
+      root.style.setProperty('--h2-app-font-size', '19px');
+    }
+  } else {
+    root.classList?.remove('h2-elderly-mode');
+    body?.classList?.remove('h2-elderly-mode');
+    root.removeAttribute?.('data-elderly-mode');
+  }
 }

@@ -550,3 +550,111 @@ html.dark .border {
   border-color: #26354d !important;
 }
 
+/* ==========================================================================
+   CHẾ ĐỘ NGƯỜI CAO TUỔI / DỄ NHÌN & CHỮ LỚN (SENIOR & ACCESSIBILITY MODE)
+   Tối ưu hiển thị cho PC, Laptop, iPad, Máy tính bảng POS và Điện thoại
+   ========================================================================== */
+html.h2-elderly-mode {
+  font-size: 19px !important;
+}
+
+@media (max-width: 1024px) {
+  /* iPad / Tablet */
+  html.h2-elderly-mode {
+    font-size: 18px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Điện thoại thông minh */
+  html.h2-elderly-mode {
+    font-size: 17px !important;
+  }
+}
+
+/* 1. Tăng độ đậm nét, giãn dòng và độ dễ đọc cho mắt kém */
+body.h2-elderly-mode,
+.h2-elderly-mode body {
+  line-height: 1.65 !important;
+  letter-spacing: 0.015em !important;
+  font-weight: 500 !important;
+}
+
+/* 2. Nâng độ tương phản cao cho chữ mờ / xám (Chống mỏi mắt, nhìn rõ chữ) */
+.h2-elderly-mode .text-muted-foreground,
+.h2-elderly-mode .text-gray-500,
+.h2-elderly-mode .text-gray-400 {
+  color: #0f172a !important;
+  font-weight: 600 !important;
+}
+
+html.dark.h2-elderly-mode .text-muted-foreground,
+html.dark.h2-elderly-mode .text-gray-500,
+html.dark.h2-elderly-mode .text-gray-400 {
+  color: #f8fafc !important;
+  font-weight: 600 !important;
+}
+
+/* 3. Phóng to diện tích bấm (Touch targets) tối thiểu 48-52px chống chạm nhầm */
+.h2-elderly-mode button:not(.btn-compact):not([role="tab"]):not(.h2-no-scale),
+.h2-elderly-mode a.btn,
+.h2-elderly-mode input[type="text"],
+.h2-elderly-mode input[type="number"],
+.h2-elderly-mode input[type="search"],
+.h2-elderly-mode input[type="password"],
+.h2-elderly-mode input[type="email"],
+.h2-elderly-mode select {
+  min-height: 48px !important;
+  font-size: 1.05rem !important;
+  font-weight: 600 !important;
+  border-width: 2px !important;
+}
+
+/* 4. Viền đậm rõ nét để người cao tuổi dễ phân biệt các khối giao diện */
+.h2-elderly-mode .border,
+.h2-elderly-mode [class*="border-"] {
+  border-width: 2px !important;
+}
+
+/* 5. Tăng kích cỡ chữ và khoảng đệm trong bảng dữ liệu */
+.h2-elderly-mode table th {
+  font-size: 1.05rem !important;
+  font-weight: 700 !important;
+  padding: 12px 14px !important;
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+html.dark.h2-elderly-mode table th {
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+}
+
+.h2-elderly-mode table td {
+  font-size: 1rem !important;
+  font-weight: 500 !important;
+  padding: 12px 14px !important;
+}
+
+/* 6. Thẻ trạng thái và huy hiệu to rõ, tương phản sắc nét */
+.h2-elderly-mode [class*="badge"],
+.h2-elderly-mode .badge {
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+  padding: 6px 14px !important;
+  border-width: 2px !important;
+}
+
+/* 7. Tối ưu thẻ món POS & Giỏ hàng cảm ứng */
+.h2-elderly-mode .pos-item-card,
+.h2-elderly-mode [data-pos-card] {
+  padding: 1rem !important;
+  border-width: 2px !important;
+}
+
+/* 8. Tăng kích thước các icon điều hướng và nút đóng */
+.h2-elderly-mode svg.lucide {
+  stroke-width: 2.25px !important;
+}
+
+

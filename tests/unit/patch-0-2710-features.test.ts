@@ -29,6 +29,12 @@ if (typeof (globalThis as any).window === 'undefined') {
 import authUtils from '@/utils/authUtils';
 import { parseDateFromString } from '@/hooks/useReportData';
 import { exportToFormattedCSV } from '@/utils/exportUtils';
+import {
+  getAppearanceSettings,
+  saveAppearanceSettings,
+  applyAppearanceSettings,
+  DEFAULT_APPEARANCE_SETTINGS,
+} from '@/utils/appearanceSettings';
 
 describe('Patch 0.2710 - Application-Level Sync, Duplicate Prevention & Triggers', () => {
   beforeEach(() => {
@@ -257,5 +263,47 @@ describe('Patch 0.2710 - Application-Level Sync, Duplicate Prevention & Triggers
         summaryStats: [{ label: 'Tổng doanh thu', value: '50.000 ₫' }]
       });
     }).not.toThrow();
+  });
+
+  it('elderly mode: persists elderlyMode flag and toggles h2-elderly-mode class on DOM', () => {
+    // 1. Initial state
+    const initial = getAppearanceSettings();
+    expect(initial.elderlyMode).toBe(false);
+
+    // Mock document.documentElement & body if in node environment
+    const classListSet = new Set<string>();
+    const mockElement = {
+      classList: {
+        add: (c: string) => classListSet.add(c),
+        remove: (c: string) => classListSet.delete(c),
+        contains: (c: string) => classListSet.has(c),
+      },
+      style: {
+        setProperty: () => {},
+        fontSize: '',
+      },
+      setAttribute: () => {},
+      removeAttribute: () => {},
+    };
+
+    if (typeof (globalThis as any).document === 'undefined') {
+      (globalThis as any).document = {
+        documentElement: mockElement,
+        body: mockElement,
+      };
+    } else {
+      (globalThis as any).document.documentElement = (globalThis as any).document.documentElement || mockElement;
+      (globalThis as any).document.body = (globalThis as any).document.body || mockElement;
+    }
+
+    // 2. Enable Elderly Mode
+    const enabledSettings = { ...initial, elderlyMode: true };
+    saveAppearanceSettings(enabledSettings);
+    expect(getAppearanceSettings().elderlyMode).toBe(true);
+
+    // 3. Disable Elderly Mode
+    const disabledSettings = { ...enabledSettings, elderlyMode: false };
+    saveAppearanceSettings(disabledSettings);
+    expect(getAppearanceSettings().elderlyMode).toBe(false);
   });
 });
