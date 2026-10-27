@@ -197,7 +197,7 @@ export function useForecast() {
         if (item.IDDuBao === forecastId) {
           const chenhLech = actualValue - item.SoLuongDuBao;
           const tyLeChinhXac = Math.max(0, 100 - Math.abs(chenhLech / actualValue) * 100);
-          const trangThai = tyLeChinhXac >= 85 ? 'Hoàn thành' : 'Cần điều chỉnh';
+          const trangThai: ForecastData['TrangThai'] = tyLeChinhXac >= 85 ? 'Hoàn thành' : 'Cần điều chỉnh';
           
           return {
             ...item,

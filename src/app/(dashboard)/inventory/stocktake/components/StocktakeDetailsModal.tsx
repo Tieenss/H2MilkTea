@@ -14,7 +14,7 @@ interface StocktakeDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onEdit: () => void;
-  canEdit: boolean;
+  canEdit?: boolean;
 }
 
 export function StocktakeDetailsModal({

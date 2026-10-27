@@ -27,8 +27,8 @@ export interface ForecastStats {
 export interface ForecastFilter {
   period: number;
   method: string;
-  materialId: string;
-  dateRange: {
+  materialId?: string;
+  dateRange?: {
     from: Date;
     to: Date;
   };

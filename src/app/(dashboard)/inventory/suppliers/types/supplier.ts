@@ -9,7 +9,7 @@ export interface Supplier {
   SoDienThoaiLienHe: string;
   EmailLienHe: string;
   NgayHopTac: string;
-  TrangThai: 'Đang hợp tác' | 'Tạm ngưng' | 'Ngừng hợp tác';
+  TrangThai: 'Đang hợp tác' | 'Tạm ngưng' | 'Ngừng hợp tác' | string;
   GhiChu: string;
   DanhGia: number;
   ThoiGianGiaoHang: string;

@@ -98,7 +98,7 @@ describe('Phase 7: POS Sync Stability, Print Modal & Route Access (Items #5, #11
   describe('Item #12 & #13: Table Selection & Cart Clearing Protection', () => {
     it('does not mark an empty table as "Đang sử dụng" upon simply viewing it', () => {
       const emptyTableCart: CartItem[] = [];
-      const tableStatus = 'Trống';
+      const tableStatus: string = 'Trống';
       
       // Simulate condition in updated usePOS
       const shouldMarkOccupied = emptyTableCart.length > 0 && tableStatus !== 'Đang sử dụng';
@@ -109,7 +109,7 @@ describe('Phase 7: POS Sync Stability, Print Modal & Route Access (Items #5, #11
       const occupiedTableCart: CartItem[] = [
         { id: 'SP001', name: 'Trà đào', price: 30000, quantity: 1, printStatus: 'new' }
       ];
-      const tableStatus = 'Trống';
+      const tableStatus: string = 'Trống';
       
       const shouldMarkOccupied = occupiedTableCart.length > 0 && tableStatus !== 'Đang sử dụng';
       expect(shouldMarkOccupied).toBe(true);

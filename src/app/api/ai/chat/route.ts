@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
       ? await supabase.from('DMHH').select('IDSP, Tên sản phẩm, Đơn giá, Trạng thái, Loại sản phẩm, Đơn vị tính')
       : { data: null };
     const rawProducts = liveProducts?.length ? liveProducts : menuData;
-    const activeCatalogProducts = toActiveCatalog(rawProducts);
+    const activeCatalogProducts = toActiveCatalog(rawProducts as any);
 
     if (activeCatalogProducts.length === 0) {
       return NextResponse.json({ success: false, error: 'Chưa tải được danh sách món đang bán.' }, { status: 503 });
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
       pageContext: typeof body.pageContext === 'string' ? body.pageContext : undefined,
       staff: {
         id: staff.id,
-        name: staff.name,
+        name: (staff as any).fullName || (staff as any).name || staff.email,
         role: staffRole,
         isAdmin,
       },

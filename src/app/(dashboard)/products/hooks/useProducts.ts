@@ -18,7 +18,7 @@ export const useProducts = () => {
     try {
       setLoading(true);
       const response = await authUtils.apiRequest('SanPham', 'Find', {});
-      setProducts(response || []);
+      setProducts(Array.isArray(response) ? response : (response && (response as any).data) || []);
       toast.success("Đã tải dữ liệu sản phẩm thành công");
     } catch (error) {
       console.error('Error fetching product list:', error);

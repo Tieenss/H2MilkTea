@@ -247,7 +247,7 @@ const SettingDataPage = () => {
   const handleExportExcel = async () => {
     try {
       setLoading(true);
-      const result = AuthUtils.exportToExcel();
+      const result = await AuthUtils.exportToExcel();
       if (result.success) {
         setMessage({ type: 'success', text: result.message });
       } else {

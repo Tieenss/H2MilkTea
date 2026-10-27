@@ -102,16 +102,16 @@ describe('AI Safe Pipeline & Guardrails (Phase 3)', () => {
       expect(res.matched).toBe(true);
       expect(res.output?.action).toBe('add');
       expect(res.output?.targetTable?.id).toBe('B3');
-      expect(res.output?.items[0].productName).toBe('Trà sữa trân châu đen');
-      expect(res.output?.items[0].quantity).toBe(2);
+      expect(res.output?.items?.[0]?.productName).toBe('Trà sữa trân châu đen');
+      expect(res.output?.items?.[0]?.quantity).toBe(2);
     });
 
     it('extracts multi-item commands cleanly', () => {
       const res = matchRuleBased('1 dcs và 2 bx', mockCatalog, mockTables);
       expect(res.matched).toBe(true);
       expect(res.output?.items).toHaveLength(2);
-      expect(res.output?.items[0].productName).toBe('Trà đào cam sả');
-      expect(res.output?.items[1].productName).toBe('Bạc xỉu');
+      expect(res.output?.items?.[0]?.productName).toBe('Trà đào cam sả');
+      expect(res.output?.items?.[1]?.productName).toBe('Bạc xỉu');
     });
 
     it('caps orders exceeding 10 cups threshold with a security warning', () => {

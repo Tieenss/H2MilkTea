@@ -92,7 +92,7 @@ export default function POSPage() {
   } = usePOS();
 
   const userData = getCurrentUser();
-  const nhanvien = userData?.['Họ và Tên'] || userData?.username;
+  const nhanvien = String(userData?.['Họ và Tên'] || userData?.username || 'Thu ngân');
   // Mobile state for showing/hiding cart
   const [showMobileCart, setShowMobileCart] = React.useState(false);
   const [isSearchExpanded, setIsSearchExpanded] = React.useState(false);

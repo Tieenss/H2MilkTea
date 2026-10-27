@@ -19,7 +19,7 @@ interface StocktakeFormModalProps {
   onSubmit: (data: StocktakeFormData) => void;
   stocktake?: any;
   isEditing: boolean;
-  loading: boolean;
+  loading?: boolean;
 }
 
 export function StocktakeFormModal({

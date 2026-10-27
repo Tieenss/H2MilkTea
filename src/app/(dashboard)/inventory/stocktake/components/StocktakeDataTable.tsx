@@ -10,10 +10,14 @@ import type { Stocktake } from '../types/stocktake';
 interface StocktakeDataTableProps {
   stocktakes: Stocktake[];
   onViewDetails: (stocktake: Stocktake) => void;
-  onEdit: (stocktake: Stocktake) => void;
-  onDelete: (stocktakeId: string) => void;
-  canEdit: boolean;
-  canDelete: boolean;
+  onEdit?: (stocktake: Stocktake) => void;
+  onDelete?: (stocktakeId: string) => void;
+  onEditStocktake?: (stocktake: Stocktake) => void;
+  onDeleteStocktake?: (stocktakeId: string) => void;
+  canEdit?: boolean;
+  canDelete?: boolean;
+  isAdmin?: boolean;
+  isManager?: boolean;
 }
 
 export function StocktakeDataTable({
@@ -21,6 +25,8 @@ export function StocktakeDataTable({
   onViewDetails,
   onEdit,
   onDelete,
+  onEditStocktake,
+  onDeleteStocktake,
   canEdit,
   canDelete
 }: StocktakeDataTableProps) {
@@ -134,7 +140,7 @@ export function StocktakeDataTable({
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => onEdit(stocktake)}
+                        onClick={() => (onEdit || onEditStocktake)?.(stocktake)}
                         className="h-8 w-8 p-0"
                       >
                         <Edit className="h-4 w-4" />
@@ -144,7 +150,7 @@ export function StocktakeDataTable({
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => onDelete(stocktake.IDKiemKe)}
+                        onClick={() => (onDelete || onDeleteStocktake)?.(stocktake.IDKiemKe)}
                         className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
                       >
                         <Trash2 className="h-4 w-4" />

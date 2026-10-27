@@ -80,7 +80,7 @@ export function diffCartItems(localCart: CartItem[], remoteCart: CartItem[]): Ca
         id: localItem.id,
         name: localItem.name,
         price: localItem.price,
-        unit: localItem.unit,
+        unit: localItem.unit || "Ly",
         note: localItem.note,
         localQuantity: localItem.quantity,
         remoteQuantity: remoteItem.quantity,

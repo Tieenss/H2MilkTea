@@ -280,9 +280,9 @@ const SalesReport = () => {
                           callbacks: {
                             label: function(context) {
                               if (context.dataset.label === 'Doanh thu (VNĐ)') {
-                                return 'Doanh thu: ' + context.parsed.y.toLocaleString('vi-VN') + ' ₫';
+                                return 'Doanh thu: ' + (context.parsed.y ?? 0).toLocaleString('vi-VN') + ' ₫';
                               }
-                              return context.dataset.label + ': ' + context.parsed.y;
+                              return context.dataset.label + ': ' + (context.parsed.y ?? 0);
                             }
                           }
                         }
@@ -402,7 +402,7 @@ const SalesReport = () => {
                         tooltip: {
                           callbacks: {
                             label: function(context) {
-                              return 'Doanh thu: ' + context.parsed.y.toLocaleString('vi-VN') + ' ₫';
+                              return 'Doanh thu: ' + (context.parsed.y ?? 0).toLocaleString('vi-VN') + ' ₫';
                             }
                           }
                         }

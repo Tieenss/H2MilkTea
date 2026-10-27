@@ -593,7 +593,7 @@ const StaffReport = () => {
                      tooltip: {
                        callbacks: {
                          label: function(context) {
-                           return context.dataset.label + ': ' + context.parsed.y.toLocaleString('vi-VN') + ' ₫';
+                           return context.dataset.label + ': ' + (context.parsed.y ?? 0).toLocaleString('vi-VN') + ' ₫';
                          }
                        }
                      }

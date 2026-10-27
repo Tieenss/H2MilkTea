@@ -58,11 +58,11 @@ export const ReportFilters: React.FC<ReportFiltersProps> = ({
       const hoaDons = Array.isArray(hoaDonRes) ? hoaDonRes : hoaDonRes.data;
 
       // Extract unique categories
-      const categories = [...new Set(sanPhams.map(sp => sp['Loại sản phẩm']).filter(Boolean))];
+      const categories = [...new Set((sanPhams || []).map((sp: any) => sp['Loại sản phẩm']).filter(Boolean))] as string[];
       setAvailableCategories(categories);
 
       // Extract unique payment methods
-      const paymentMethods = [...new Set(hoaDons.map(hd => hd['Loại thanh toán']).filter(Boolean))];
+      const paymentMethods = [...new Set((hoaDons || []).map((hd: any) => hd['Loại thanh toán']).filter(Boolean))] as string[];
       setAvailablePaymentMethods(paymentMethods);
     } catch (error) {
       console.error('Error loading filter options:', error);

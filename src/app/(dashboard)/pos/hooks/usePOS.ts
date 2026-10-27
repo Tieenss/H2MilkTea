@@ -907,26 +907,39 @@ export const usePOS = () => {
         'Ghi chú': item.note || ''
       }));
 
-      // Chuyển toàn bộ đơn POS/QR liên quan sang đã thanh toán
+      // Gọi Server API /api/pos/checkout với payload chuẩn xác
       const checkoutRes = await fetch('/api/pos/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          orderIds: activePOSOrderIds,
-          linkedOrderIds: activePOSOrderIds,
           tableId: selectedTableId,
           tableName: selectedTableName,
-          items: cart,
-          totalAmount: paymentData.total,
-          employee: nhanvien,
+          invoiceId,
+          paymentForm: {
+            customer: selectedCustomer ? selectedCustomer['Tên khách hàng'] : 'Khách lẻ',
+            discount: paymentData.discount || 0,
+            paidAmount: paymentData.paidAmount || paymentData.total,
+            note: paymentData.note || '',
+            paymentType: paymentData.paymentType || 'Tiền mặt',
+          },
+          cart,
+          linkedOrderIds: activePOSOrderIds,
+          idempotencyKey: invoiceId,
         }),
       });
 
       if (!checkoutRes.ok) {
-        console.warn('Lỗi ghi nhận checkout trạng thái pos_orders');
+        const errData = await checkoutRes.json().catch(() => ({}));
+        console.error('Lỗi thanh toán từ server:', errData);
+        throw new Error(errData.error || 'Thanh toán thất bại từ máy chủ.');
       }
 
-      await saveInvoice(invoice, details);
+      // Đồng bộ thêm vào demoData client nếu có
+      try {
+        await saveInvoice(invoice, details);
+      } catch (clientSyncErr) {
+        console.warn('Cảnh báo đồng bộ client storage:', clientSyncErr);
+      }
 
       if (selectedCustomer) {
         await updateCustomerAfterPurchase(selectedCustomer, paymentData.total, invoiceId);

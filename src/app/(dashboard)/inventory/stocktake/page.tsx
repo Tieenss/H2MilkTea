@@ -146,7 +146,7 @@ export default function StocktakePage() {
   const handleExportData = () => {
     try {
       const exportData = exportStocktakeData(filteredStocktakes);
-      const csvContent = generateCSVContent(exportData);
+      const csvContent = typeof exportData === "string" ? exportData : generateCSVContent(exportData as any);
       const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
       const url = URL.createObjectURL(blob);

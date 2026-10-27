@@ -85,9 +85,9 @@ describe('Phase 4: Item Options & User Guide Citations', () => {
       expect(result.matched).toBe(true);
       expect(result.output?.action).toBe('add');
       expect(result.output?.targetTable?.name).toBe('Bàn 1');
-      expect(result.output?.items.length).toBe(1);
+      expect(result.output?.items?.length).toBe(1);
 
-      const parsed = result.output?.items[0];
+      const parsed = result.output?.items?.[0];
       expect(parsed?.productId).toBe('SP001');
       expect(parsed?.quantity).toBe(2);
       expect(parsed?.size).toBe('L');
@@ -98,7 +98,7 @@ describe('Phase 4: Item Options & User Guide Citations', () => {
     it('extracts toppings when mentioned', () => {
       const result = matchRuleBased('1 trà sữa nướng thêm trân châu đen', mockCatalog, mockTables);
       expect(result.matched).toBe(true);
-      const parsed = result.output?.items[0];
+      const parsed = result.output?.items?.[0];
       expect(parsed?.toppings).toBeDefined();
       expect(parsed?.toppings?.some((t) => t.includes('tran chau'))).toBe(true);
     });

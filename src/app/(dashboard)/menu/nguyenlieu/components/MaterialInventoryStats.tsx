@@ -2,11 +2,11 @@ import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Package, TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react';
-import { MaterialInventoryStats } from '../hooks/useMaterialInventory';
+import type { MaterialInventoryStats as MaterialInventoryStatsData } from '../hooks/useMaterialInventory';
 import { formatNumber } from '../utils/formatters';
 
 interface MaterialInventoryStatsProps {
-  stats: MaterialInventoryStats[];
+  stats: MaterialInventoryStatsData[];
   loading: boolean;
 }
 

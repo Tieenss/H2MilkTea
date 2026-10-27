@@ -16,9 +16,11 @@ import {
 } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-interface DateRangePickerProps {
+export interface DateRangePickerProps {
   date?: DateRange;
   onDateChange?: (date: DateRange | undefined) => void;
+  value?: DateRange;
+  onChange?: (date: any) => void;
   className?: string;
   placeholder?: string;
   showPresets?: boolean;
@@ -142,6 +144,8 @@ const presets = [
 ];
 
 export function DateRangePicker({
+  value,
+  onChange,
   date,
   onDateChange,
   className,

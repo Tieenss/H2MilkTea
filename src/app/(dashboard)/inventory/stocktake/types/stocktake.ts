@@ -52,9 +52,16 @@ export interface StocktakeFilter {
 }
 
 export interface StocktakeAlert {
-  id: string;
-  type: 'warning' | 'error' | 'info';
-  message: string;
-  date: string;
-  isRead: boolean;
+  id?: string;
+  type?: 'warning' | 'error' | 'info' | string;
+  message?: string;
+  date?: string;
+  isRead?: boolean;
+  IDCanhBao?: string;
+  LoaiCanhBao?: string;
+  TieuDe?: string;
+  NoiDung?: string;
+  NgayTao?: string;
+  NgayHetHan?: string;
+  DaDoc?: boolean;
 } 

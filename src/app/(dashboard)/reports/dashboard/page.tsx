@@ -285,7 +285,7 @@ const ReportsDashboard = () => {
                         tooltip: {
                           callbacks: {
                             label: function(context) {
-                              return 'Doanh thu: ' + context.parsed.y.toLocaleString('vi-VN') + ' ₫';
+                              return 'Doanh thu: ' + (context.parsed.y ?? 0).toLocaleString('vi-VN') + ' ₫';
                             }
                           }
                         }

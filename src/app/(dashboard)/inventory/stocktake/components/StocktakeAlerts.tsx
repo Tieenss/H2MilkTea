@@ -10,7 +10,7 @@ import type { StocktakeAlert } from '../types/stocktake';
 interface StocktakeAlertsProps {
   alerts: StocktakeAlert[];
   onMarkAsRead: (alertId: string) => void;
-  onDismiss: (alertId: string) => void;
+  onDismiss?: (alertId: string) => void;
 }
 
 export function StocktakeAlerts({ alerts, onMarkAsRead, onDismiss }: StocktakeAlertsProps) {
@@ -99,34 +99,34 @@ export function StocktakeAlerts({ alerts, onMarkAsRead, onDismiss }: StocktakeAl
       <CardContent className="space-y-3">
         {alerts.map((alert) => (
           <div
-            key={alert.IDCanhBao}
-            className={`p-4 rounded-lg border ${getAlertColor(alert.LoaiCanhBao)} ${
-              alert.DaDoc ? 'opacity-60' : ''
+            key={(alert.IDCanhBao || alert.id || '')}
+            className={`p-4 rounded-lg border ${getAlertColor((alert.LoaiCanhBao || alert.type || 'info'))} ${
+              Boolean(alert.DaDoc ?? alert.isRead) ? 'opacity-60' : ''
             }`}
           >
             <div className="flex items-start justify-between">
               <div className="flex items-start gap-3 flex-1">
-                {getAlertIcon(alert.LoaiCanhBao)}
+                {getAlertIcon((alert.LoaiCanhBao || alert.type || 'info'))}
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <h4 className="font-medium text-sm">
-                      {alert.TieuDe}
+                      {(alert.TieuDe || alert.message || '')}
                     </h4>
-                    <Badge className={`text-xs ${getAlertBadgeColor(alert.LoaiCanhBao)}`}>
-                      {getAlertTypeText(alert.LoaiCanhBao)}
+                    <Badge className={`text-xs ${getAlertBadgeColor((alert.LoaiCanhBao || alert.type || 'info'))}`}>
+                      {getAlertTypeText((alert.LoaiCanhBao || alert.type || 'info'))}
                     </Badge>
-                    {alert.DaDoc && (
+                    {Boolean(alert.DaDoc ?? alert.isRead) && (
                       <Badge variant="outline" className="text-xs">
                         Đã đọc
                       </Badge>
                     )}
                   </div>
                   <p className="text-sm text-gray-600 mb-2">
-                    {alert.NoiDung}
+                    {(alert.NoiDung || alert.message || '')}
                   </p>
                   <div className="flex items-center gap-4 text-xs text-gray-500">
                     <span>
-                      Ngày tạo: {new Date(alert.NgayTao).toLocaleDateString('vi-VN')}
+                      Ngày tạo: {new Date((alert.NgayTao || alert.date || '')).toLocaleDateString('vi-VN')}
                     </span>
                     {alert.NgayHetHan && (
                       <span>
@@ -137,11 +137,11 @@ export function StocktakeAlerts({ alerts, onMarkAsRead, onDismiss }: StocktakeAl
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {!alert.DaDoc && (
+                {!Boolean(alert.DaDoc ?? alert.isRead) && (
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => onMarkAsRead(alert.IDCanhBao)}
+                    onClick={() => onMarkAsRead((alert.IDCanhBao || alert.id || ''))}
                     className="h-8 px-2"
                   >
                     <CheckCircle className="h-3 w-3 mr-1" />
@@ -151,7 +151,7 @@ export function StocktakeAlerts({ alerts, onMarkAsRead, onDismiss }: StocktakeAl
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={() => onDismiss(alert.IDCanhBao)}
+                  onClick={() => onDismiss?.((alert.IDCanhBao || alert.id || ''))}
                   className="h-8 w-8 p-0"
                 >
                   <X className="h-3 w-3" />

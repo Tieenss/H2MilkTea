@@ -16,13 +16,13 @@ export interface Table {
 }
 
 export interface CartItem {
-  image: string | Blob | undefined;
+  image?: string | Blob | undefined;
   id: string;
   name: string;
   price: number;
   quantity: number;
   note?: string;
-  unit: string;
+  unit?: string;
   category?: string;
   size?: 'S' | 'M' | 'L' | string;
   sugar?: '0%' | '30%' | '50%' | '70%' | '100%' | string;

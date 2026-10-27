@@ -343,9 +343,9 @@ export function DrinkGacha({ isOpen, onClose, products }: DrinkGachaProps) {
     const hasSize = canProductHaveSize(winner.product);
 
     addItem(winner.product, {
-      size: hasSize ? selectedSize : undefined,
-      sugar: hasSize ? '100%' : undefined,
-      ice: hasSize ? 'Đá chung' : undefined,
+      size: (hasSize ? selectedSize : 'M') as 'S' | 'M' | 'L',
+      sugar: hasSize ? '100%' : '',
+      ice: hasSize ? 'Đá chung' : '',
       note: `[🎰 Trúng Vòng Quay May Mắn - Độ hiếm: ${winner.rarity.label}]`,
       quantity: 1,
     });

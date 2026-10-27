@@ -126,12 +126,12 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
       success: true,
       action: ruleResult.output.action,
       targetTable: ruleResult.output.targetTable || null,
-      items: ruleResult.output.items || [],
-      message: ruleResult.output.message,
+      items: (ruleResult.output.items || []) as any,
+      message: ruleResult.output.message || "",
       logId,
       source: 'rule',
-      isBlocked: ruleResult.output.isBlocked,
-      blockedReason: ruleResult.output.blockedReason,
+      isBlocked: ruleResult.output.isBlocked || false,
+      blockedReason: ruleResult.output.blockedReason || null,
     };
   }
 
@@ -264,7 +264,7 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
   const finalItems: ParsedItem[] = [];
 
   if (validatedOutput.action === 'add' || validatedOutput.action === 'remove') {
-    for (const item of validatedOutput.items) {
+    for (const item of (validatedOutput.items || [])) {
       let matched = validProductsMap.get(item.productId);
       if (!matched && item.productName) {
         const resolved = resolveProduct(item.productName, catalog);
