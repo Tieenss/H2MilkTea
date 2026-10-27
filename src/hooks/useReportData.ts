@@ -1,16 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { DateRange } from 'react-day-picker';
 import { 
   startOfDay, 
   endOfDay, 
-  startOfWeek, 
-  endOfWeek, 
   startOfMonth, 
   endOfMonth, 
-  startOfQuarter, 
-  endOfQuarter, 
-  startOfYear, 
-  endOfYear,
   subDays,
   subWeeks,
   subMonths,
@@ -18,12 +12,7 @@ import {
   subYears,
   isWithinInterval,
   format,
-  parse,
   differenceInDays,
-  differenceInWeeks,
-  differenceInMonths,
-  differenceInQuarters,
-  differenceInYears,
   Interval
 } from 'date-fns';
 import { vi } from 'date-fns/locale';
@@ -123,26 +112,8 @@ export interface ReportFilters {
   maxAmount?: number;
 }
 
-// Hàm parse ngày từ định dạng "MM/DD/YYYY HH:mm:ss"
-const parseDateFromString = (dateString: string): Date => {
-  try {
-    // Định dạng: "06/23/2025 14:37:29"
-    const [datePart, timePart] = dateString.split(' ');
-    const [month, day, year] = datePart.split('/');
-    const [hour, minute, second] = timePart ? timePart.split(':') : ['0', '0', '0'];
-    
-    return new Date(
-      parseInt(year),
-      parseInt(month) - 1, // Month is 0-indexed
-      parseInt(day),
-      parseInt(hour),
-      parseInt(minute),
-      parseInt(second)
-    );
-  } catch (error) {
-    console.error('Error parsing date:', dateString, error);
-    return new Date();
-  }
+export const parseDateFromString = (dateString: string): Date => {
+  return AuthUtils.parseFlexibleDate(dateString);
 };
 
 const getTimeRangeType = (from: Date, to: Date): 'day' | 'week' | 'month' | 'quarter' | 'year' | 'custom' => {
@@ -157,7 +128,7 @@ const getTimeRangeType = (from: Date, to: Date): 'day' | 'week' | 'month' | 'qua
 };
 
 const getPreviousTimeRange = (from: Date, to: Date, type: string) => {
-  const duration = differenceInDays(to, from);
+  const duration = Math.max(1, differenceInDays(to, from));
   
   switch (type) {
     case 'day':
@@ -193,6 +164,11 @@ const getPreviousTimeRange = (from: Date, to: Date, type: string) => {
   }
 };
 
+const isPaidStatus = (statusRaw: any): boolean => {
+  const s = String(statusRaw || '').trim();
+  return s === 'Đã thanh toán' || s === 'Đã hoàn thành' || s === 'Hoàn thành';
+};
+
 export const useReportData = (filters: ReportFilters) => {
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -200,7 +176,6 @@ export const useReportData = (filters: ReportFilters) => {
 
   const timeRange = useMemo(() => {
     if (!filters.dateRange?.from || !filters.dateRange?.to) {
-      // Default to current month
       const now = new Date();
       const from = startOfMonth(now);
       const to = endOfMonth(now);
@@ -226,215 +201,228 @@ export const useReportData = (filters: ReportFilters) => {
     };
   }, [filters.dateRange]);
 
-  const processData = useMemo(() => {
-    return async () => {
-      try {
-        setLoading(true);
-        setError(null);
+  const processData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-        const [hoaDonRes, hoaDonDetailRes, sanPhamRes] = await Promise.all([
-          AuthUtils.getAllHoaDon(),
-          AuthUtils.getAllHoaDonDetail(),
-          AuthUtils.getAllSanPham()
-        ]);
+      const [hoaDonRes, hoaDonDetailRes, sanPhamRes] = await Promise.all([
+        AuthUtils.getAllHoaDon(),
+        AuthUtils.getAllHoaDonDetail(),
+        AuthUtils.getAllSanPham()
+      ]);
 
-        const hoaDons: HoaDon[] = Array.isArray(hoaDonRes) ? hoaDonRes : hoaDonRes.data;
-        const details: HoaDonDetail[] = Array.isArray(hoaDonDetailRes) ? hoaDonDetailRes : hoaDonDetailRes.data;
-        const sanPhams: SanPham[] = Array.isArray(sanPhamRes) ? sanPhamRes : sanPhamRes.data;
+      const hoaDons: HoaDon[] = Array.isArray(hoaDonRes) ? hoaDonRes : (hoaDonRes?.data || []);
+      const details: HoaDonDetail[] = Array.isArray(hoaDonDetailRes) ? hoaDonDetailRes : (hoaDonDetailRes?.data || []);
+      const sanPhams: SanPham[] = Array.isArray(sanPhamRes) ? sanPhamRes : (sanPhamRes?.data || []);
 
-        // Filter current period data
-        const currentHoaDons = hoaDons.filter((hd: HoaDon) => {
-          const hoaDonDate = parseDateFromString(hd['Ngày']);
-          const interval: Interval = { start: timeRange.current.from, end: timeRange.current.to };
-          return isWithinInterval(hoaDonDate, interval) && 
-                 hd['Trạng thái'] === 'Đã thanh toán' &&
-                 (!filters.minAmount || parseInt(hd['Tổng tiền']) >= filters.minAmount) &&
-                 (!filters.maxAmount || parseInt(hd['Tổng tiền']) <= filters.maxAmount) &&
-                 (!filters.paymentMethods?.length || filters.paymentMethods.includes(hd['Loại thanh toán']));
-        });
+      const productMap = new Map<string, SanPham>();
+      sanPhams.forEach((sp) => {
+        if (sp?.IDSP) productMap.set(String(sp.IDSP), sp);
+      });
 
-        // Filter previous period data
-        const previousHoaDons = hoaDons.filter((hd: HoaDon) => {
-          const hoaDonDate = parseDateFromString(hd['Ngày']);
-          const interval: Interval = { start: timeRange.previous.from, end: timeRange.previous.to };
-          return isWithinInterval(hoaDonDate, interval) && 
-                 hd['Trạng thái'] === 'Đã thanh toán';
-        });
+      // Filter current period data
+      const currentHoaDons = hoaDons.filter((hd: HoaDon) => {
+        const rawDate = hd['Ngày'] || hd['Thời gian'];
+        if (!rawDate) return false;
+        const hoaDonDate = parseDateFromString(String(rawDate));
+        const interval: Interval = { start: timeRange.current.from, end: timeRange.current.to };
+        const totalAmount = Number(hd['Tổng tiền']) || 0;
+        const payMethod = String(hd['Loại thanh toán'] || hd['Hình thức thanh toán'] || 'Tiền mặt');
 
-        // Process current period data
-        const currentRevenue = currentHoaDons.reduce((sum: number, hd: HoaDon) => sum + parseInt(hd['Tổng tiền']), 0);
-        const currentOrders = currentHoaDons.length;
-        const currentAverageOrderValue = currentOrders > 0 ? currentRevenue / currentOrders : 0;
+        return isWithinInterval(hoaDonDate, interval) && 
+               isPaidStatus(hd['Trạng thái']) &&
+               (!filters.minAmount || totalAmount >= filters.minAmount) &&
+               (!filters.maxAmount || totalAmount <= filters.maxAmount) &&
+               (!filters.paymentMethods?.length || filters.paymentMethods.includes(payMethod));
+      });
 
-        // Process previous period data
-        const previousRevenue = previousHoaDons.reduce((sum: number, hd: HoaDon) => sum + parseInt(hd['Tổng tiền']), 0);
-        const previousOrders = previousHoaDons.length;
-        const previousAverageOrderValue = previousOrders > 0 ? previousRevenue / previousOrders : 0;
+      // Filter previous period data
+      const previousHoaDons = hoaDons.filter((hd: HoaDon) => {
+        const rawDate = hd['Ngày'] || hd['Thời gian'];
+        if (!rawDate) return false;
+        const hoaDonDate = parseDateFromString(String(rawDate));
+        const interval: Interval = { start: timeRange.previous.from, end: timeRange.previous.to };
+        return isWithinInterval(hoaDonDate, interval) && 
+               isPaidStatus(hd['Trạng thái']);
+      });
 
-        // Calculate growth rates
-        const revenueGrowth = previousRevenue > 0 ? ((currentRevenue - previousRevenue) / previousRevenue) * 100 : 0;
-        const ordersGrowth = previousOrders > 0 ? ((currentOrders - previousOrders) / previousOrders) * 100 : 0;
-        const averageOrderValueGrowth = previousAverageOrderValue > 0 ? 
-          ((currentAverageOrderValue - previousAverageOrderValue) / previousAverageOrderValue) * 100 : 0;
+      // Process current period data
+      const currentRevenue = currentHoaDons.reduce((sum: number, hd: HoaDon) => sum + (Number(hd['Tổng tiền']) || 0), 0);
+      const currentOrders = currentHoaDons.length;
+      const currentAverageOrderValue = currentOrders > 0 ? currentRevenue / currentOrders : 0;
 
-        // Process products data
-        const productStats = new Map();
-        details.forEach((detail: HoaDonDetail) => {
-          const hoaDon = currentHoaDons.find(hd => hd.IDHOADON === detail.IDHOADON);
-          if (hoaDon) {
-            const productId = detail.IDSP;
-            const product = sanPhams.find(sp => sp.IDSP === productId);
-            
-            if (product && (!filters.categories?.length || filters.categories.includes(product['Loại sản phẩm']))) {
-              const quantity = parseInt(detail['Số lượng']);
-              const revenue = parseInt(detail['Thành tiền']);
-              
-              if (productStats.has(productId)) {
-                const existing = productStats.get(productId);
-                existing.quantity += quantity;
-                existing.revenue += revenue;
-              } else {
-                productStats.set(productId, {
-                  id: productId,
-                  name: product['Tên sản phẩm'],
-                  quantity,
-                  revenue,
-                  category: product['Loại sản phẩm']
-                });
-              }
-            }
-          }
-        });
+      // Process previous period data
+      const previousRevenue = previousHoaDons.reduce((sum: number, hd: HoaDon) => sum + (Number(hd['Tổng tiền']) || 0), 0);
+      const previousOrders = previousHoaDons.length;
+      const previousAverageOrderValue = previousOrders > 0 ? previousRevenue / previousOrders : 0;
 
-        // Process categories data
-        const categoryStats = new Map();
-        details.forEach((detail: HoaDonDetail) => {
-          const hoaDon = currentHoaDons.find(hd => hd.IDHOADON === detail.IDHOADON);
-          if (hoaDon) {
-            const product = sanPhams.find(sp => sp.IDSP === detail.IDSP);
-            if (product && (!filters.categories?.length || filters.categories.includes(product['Loại sản phẩm']))) {
-              const category = product['Loại sản phẩm'];
-              const revenue = parseInt(detail['Thành tiền']);
-              
-              if (categoryStats.has(category)) {
-                const existing = categoryStats.get(category);
-                existing.revenue += revenue;
-                existing.orders += 1;
-              } else {
-                categoryStats.set(category, {
-                  name: category,
-                  revenue,
-                  orders: 1,
-                  percentage: 0
-                });
-              }
-            }
-          }
-        });
+      // Calculate growth rates
+      const revenueGrowth = previousRevenue > 0 ? ((currentRevenue - previousRevenue) / previousRevenue) * 100 : (currentRevenue > 0 ? 100 : 0);
+      const ordersGrowth = previousOrders > 0 ? ((currentOrders - previousOrders) / previousOrders) * 100 : (currentOrders > 0 ? 100 : 0);
+      const averageOrderValueGrowth = previousAverageOrderValue > 0 ? 
+        ((currentAverageOrderValue - previousAverageOrderValue) / previousAverageOrderValue) * 100 : 0;
 
-        // Calculate category percentages
-        categoryStats.forEach(category => {
-          category.percentage = currentRevenue > 0 ? (category.revenue / currentRevenue) * 100 : 0;
-        });
+      const currentInvoiceIds = new Set(
+        currentHoaDons.map((hd) => String(hd.IDHOADON || hd.IDHD || ''))
+      );
 
-        // Process payment methods
-        const paymentStats = new Map();
-        currentHoaDons.forEach((hd: HoaDon) => {
-          const method = hd['Loại thanh toán'];
-          const revenue = parseInt(hd['Tổng tiền']);
-          
-          if (paymentStats.has(method)) {
-            const existing = paymentStats.get(method);
-            existing.count += 1;
-            existing.revenue += revenue;
-          } else {
-            paymentStats.set(method, {
-              method,
-              count: 1,
-              revenue,
-              percentage: 0
-            });
-          }
-        });
+      // Process products & categories data
+      const productStats = new Map<string, { id: string; name: string; quantity: number; revenue: number; category: string }>();
+      const categoryStats = new Map<string, { name: string; revenue: number; orders: number; percentage: number }>();
 
-        // Calculate payment method percentages
-        paymentStats.forEach(payment => {
-          payment.percentage = currentOrders > 0 ? (payment.count / currentOrders) * 100 : 0;
-        });
+      details.forEach((detail: HoaDonDetail) => {
+        const invoiceId = String(detail.IDHOADON || detail.IDHD || '');
+        if (!currentInvoiceIds.has(invoiceId)) return;
 
-        // Process daily data
-        const dailyStats = new Map();
-        const daysDiff = differenceInDays(timeRange.current.to, timeRange.current.from);
+        const productId = String(detail.IDSP || '');
+        const product = productMap.get(productId);
+        const category = String(product?.['Loại sản phẩm'] || detail['Loại sản phẩm'] || 'Đồ uống');
+        const productName = String(product?.['Tên sản phẩm'] || detail['Tên sản phẩm'] || `Sản phẩm ${productId}`);
+
+        if (filters.categories?.length && !filters.categories.includes(category)) {
+          return;
+        }
+
+        const quantity = Math.max(1, Number(detail['Số lượng']) || 1);
+        const unitPrice = Number(detail['Đơn giá']) || Number(product?.['Đơn giá']) || 25000;
+        const revenue = Number(detail['Thành tiền']) || quantity * unitPrice;
+
+        if (productStats.has(productId)) {
+          const existing = productStats.get(productId)!;
+          existing.quantity += quantity;
+          existing.revenue += revenue;
+        } else {
+          productStats.set(productId, {
+            id: productId,
+            name: productName,
+            quantity,
+            revenue,
+            category
+          });
+        }
+
+        if (categoryStats.has(category)) {
+          const existingCat = categoryStats.get(category)!;
+          existingCat.revenue += revenue;
+          existingCat.orders += 1;
+        } else {
+          categoryStats.set(category, {
+            name: category,
+            revenue,
+            orders: 1,
+            percentage: 0
+          });
+        }
+      });
+
+      const totalCategoryRevenue = Array.from(categoryStats.values()).reduce((s, c) => s + c.revenue, 0) || currentRevenue;
+      categoryStats.forEach(category => {
+        category.percentage = totalCategoryRevenue > 0 ? (category.revenue / totalCategoryRevenue) * 100 : 0;
+      });
+
+      // Process payment methods
+      const paymentStats = new Map<string, { method: string; count: number; revenue: number; percentage: number }>();
+      currentHoaDons.forEach((hd: HoaDon) => {
+        const method = String(hd['Loại thanh toán'] || hd['Hình thức thanh toán'] || 'Tiền mặt');
+        const revenue = Number(hd['Tổng tiền']) || 0;
         
-        for (let i = 0; i <= daysDiff; i++) {
-          const date = new Date(timeRange.current.from);
-          date.setDate(date.getDate() + i);
-          const dateKey = format(date, 'dd/MM/yyyy', { locale: vi });
-          dailyStats.set(dateKey, { date: dateKey, revenue: 0, orders: 0 });
+        if (paymentStats.has(method)) {
+          const existing = paymentStats.get(method)!;
+          existing.count += 1;
+          existing.revenue += revenue;
+        } else {
+          paymentStats.set(method, {
+            method,
+            count: 1,
+            revenue,
+            percentage: 0
+          });
         }
+      });
 
-        currentHoaDons.forEach((hd: HoaDon) => {
-          const hoaDonDate = parseDateFromString(hd['Ngày']);
-          const date = format(hoaDonDate, 'dd/MM/yyyy', { locale: vi });
-          if (dailyStats.has(date)) {
-            const existing = dailyStats.get(date);
-            existing.revenue += parseInt(hd['Tổng tiền']);
-            existing.orders += 1;
-          }
-        });
+      paymentStats.forEach(payment => {
+        payment.percentage = currentOrders > 0 ? (payment.count / currentOrders) * 100 : 0;
+      });
 
-        // Process hourly data
-        const hourlyStats = new Map();
-        for (let i = 0; i < 24; i++) {
-          hourlyStats.set(i, { hour: i, orders: 0, revenue: 0 });
-        }
-
-        currentHoaDons.forEach((hd: HoaDon) => {
-          const hoaDonDate = parseDateFromString(hd['Ngày']);
-          const hour = hoaDonDate.getHours();
-          const existing = hourlyStats.get(hour);
-          if (existing) {
-            existing.orders += 1;
-            existing.revenue += parseInt(hd['Tổng tiền']);
-          }
-        });
-
-        const reportData: ReportData = {
-          current: {
-            revenue: currentRevenue,
-            orders: currentOrders,
-            averageOrderValue: currentAverageOrderValue,
-            products: Array.from(productStats.values()).sort((a, b) => b.quantity - a.quantity),
-            categories: Array.from(categoryStats.values()).sort((a, b) => b.revenue - a.revenue),
-            paymentMethods: Array.from(paymentStats.values()).sort((a, b) => b.count - a.count),
-            dailyData: Array.from(dailyStats.values()),
-            hourlyData: Array.from(hourlyStats.values())
-          },
-          previous: {
-            revenue: previousRevenue,
-            orders: previousOrders,
-            averageOrderValue: previousAverageOrderValue
-          },
-          comparison: {
-            revenueGrowth,
-            ordersGrowth,
-            averageOrderValueGrowth,
-            isRevenuePositive: revenueGrowth >= 0,
-            isOrdersPositive: ordersGrowth >= 0,
-            isAverageOrderValuePositive: averageOrderValueGrowth >= 0
-          },
-          timeRange
-        };
-
-        setData(reportData);
-      } catch (err) {
-        console.error('Error processing report data:', err);
-        setError('Có lỗi xảy ra khi xử lý dữ liệu báo cáo');
-      } finally {
-        setLoading(false);
+      // Process daily data
+      const dailyStats = new Map<string, { date: string; revenue: number; orders: number }>();
+      const daysDiff = Math.min(366, Math.max(0, differenceInDays(timeRange.current.to, timeRange.current.from)));
+      
+      for (let i = 0; i <= daysDiff; i++) {
+        const date = new Date(timeRange.current.from);
+        date.setDate(date.getDate() + i);
+        const dateKey = format(date, 'dd/MM/yyyy', { locale: vi });
+        dailyStats.set(dateKey, { date: dateKey, revenue: 0, orders: 0 });
       }
-    };
+
+      currentHoaDons.forEach((hd: HoaDon) => {
+        const hoaDonDate = parseDateFromString(String(hd['Ngày'] || hd['Thời gian']));
+        const date = format(hoaDonDate, 'dd/MM/yyyy', { locale: vi });
+        if (dailyStats.has(date)) {
+          const existing = dailyStats.get(date)!;
+          existing.revenue += Number(hd['Tổng tiền']) || 0;
+          existing.orders += 1;
+        }
+      });
+
+      // Process hourly data
+      const hourlyStats = new Map<number, { hour: number; orders: number; revenue: number }>();
+      for (let i = 0; i < 24; i++) {
+        hourlyStats.set(i, { hour: i, orders: 0, revenue: 0 });
+      }
+
+      currentHoaDons.forEach((hd: HoaDon) => {
+        const hoaDonDate = parseDateFromString(String(hd['Ngày'] || hd['Thời gian']));
+        const hour = hoaDonDate.getHours();
+        const existing = hourlyStats.get(hour);
+        if (existing) {
+          existing.orders += 1;
+          existing.revenue += Number(hd['Tổng tiền']) || 0;
+        }
+      });
+
+      const reportData: ReportData = {
+        current: {
+          revenue: currentRevenue,
+          orders: currentOrders,
+          averageOrderValue: currentAverageOrderValue,
+          products: Array.from(productStats.values()).sort((a, b) => b.quantity - a.quantity),
+          categories: Array.from(categoryStats.values()).sort((a, b) => b.revenue - a.revenue),
+          paymentMethods: Array.from(paymentStats.values()).sort((a, b) => b.count - a.count),
+          dailyData: Array.from(dailyStats.values()),
+          hourlyData: Array.from(hourlyStats.values())
+        },
+        previous: {
+          revenue: previousRevenue,
+          orders: previousOrders,
+          averageOrderValue: previousAverageOrderValue
+        },
+        comparison: {
+          revenueGrowth,
+          ordersGrowth,
+          averageOrderValueGrowth,
+          isRevenuePositive: revenueGrowth >= 0,
+          isOrdersPositive: ordersGrowth >= 0,
+          isAverageOrderValuePositive: averageOrderValueGrowth >= 0
+        },
+        timeRange
+      };
+
+      setData(reportData);
+    } catch (err) {
+      console.error('Error processing report data:', err);
+      setError('Có lỗi xảy ra khi xử lý dữ liệu báo cáo');
+    } finally {
+      setLoading(false);
+    }
   }, [filters, timeRange]);
+
+  const reseedTestDatabase = useCallback(async () => {
+    const result = await AuthUtils.seedSynchronizedTestDatabase();
+    await processData();
+    return result;
+  }, [processData]);
 
   useEffect(() => {
     processData();
@@ -445,6 +433,7 @@ export const useReportData = (filters: ReportFilters) => {
     loading,
     error,
     timeRange,
-    refresh: processData
+    refresh: processData,
+    reseedTestDatabase
   };
-}; 
+};

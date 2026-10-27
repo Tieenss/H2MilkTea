@@ -42,8 +42,8 @@ export interface NavigationItem {
     group?: string;
     children?: NavigationItem[];
     isGroup?: boolean;
-    badge?: string; // Thêm badge để hiển thị số thông báo
-    description?: string; // Mô tả cho từng item
+    badge?: string;
+    description?: string;
 }
 
 export const navigation: NavigationItem[] = [
@@ -53,7 +53,7 @@ export const navigation: NavigationItem[] = [
         icon: Home,
         dashboard: true,
         sidebar: true,
-        color: '#0065F8', // brown
+        color: '#0065F8',
         description: 'Tổng quan quán cafe'
     },
 
@@ -65,7 +65,7 @@ export const navigation: NavigationItem[] = [
         dashboard: true,
         sidebar: true,
         isGroup: true,
-        description: 'Trung tâm bán hàng, sơ đồ bàn và đơn gọi món',
+        description: 'Trung tâm bán hàng, màn hình bếp KDS, sơ đồ bàn và đơn gọi món',
         children: [
             {
                 name: 'POS Bán hàng',
@@ -73,9 +73,19 @@ export const navigation: NavigationItem[] = [
                 icon: Monitor,
                 dashboard: true,
                 sidebar: true,
-                color: '#0ABAB5', // chocolate
+                color: '#0ABAB5',
                 badge: 'Hot',
                 description: 'Màn hình bán hàng chính'
+            },
+            {
+                name: 'Màn hình Bếp / Pha chế',
+                href: '/kitchen',
+                icon: UtensilsCrossed,
+                dashboard: true,
+                sidebar: true,
+                color: '#EA580C',
+                badge: 'KDS',
+                description: 'Màn hình điều phối chế biến & trả món thời gian thực'
             },
             {
                 name: 'Đơn hàng',
@@ -83,8 +93,8 @@ export const navigation: NavigationItem[] = [
                 icon: ShoppingCart,
                 dashboard: true,
                 sidebar: true,
-                color: '#578FCA', // saddle brown
-                description: 'Quản lý đơn hàng'
+                color: '#578FCA',
+                description: 'Quản lý đơn hàng & hóa đơn'
             },
             {
                 name: 'Khách hàng',
@@ -92,21 +102,18 @@ export const navigation: NavigationItem[] = [
                 icon: Users,
                 dashboard: true,
                 sidebar: true,
-                color: '#FF6347', // tomato
-                description: 'Quản lý khách hàng'
+                color: '#FF6347',
+                description: 'Quản lý khách hàng thân thiết'
             },
-          
-           
             {
                 name: 'Bàn ',
                 href: '/tables',
                 icon: Store,
                 dashboard: true,
                 sidebar: true,
-                color: '#CD853F', // peru
-                description: 'Sơ đồ bàn và khu vực'
+                color: '#CD853F',
+                description: 'Sơ đồ bàn, mã QR và khu vực'
             },
-
         ]
     },
 
@@ -126,18 +133,17 @@ export const navigation: NavigationItem[] = [
                 icon: Coffee,
                 dashboard: true,
                 sidebar: true,
-                color: '#8B4513', // saddle brown
-                description: 'Quản lý menu đồ uống'
+                color: '#8B4513',
+                description: 'Quản lý menu đồ uống & món ăn'
             },
-
             {
                 name: 'Cấu hình nguyên liệu',
                 href: '/menu/cauhinhnguyenlieu',
                 icon: Gift,
                 dashboard: true,
                 sidebar: true,
-                color: '#CD853F', // peru
-                description: 'Combo và set meal'
+                color: '#CD853F',
+                description: 'Định mức công thức pha chế'
             },
             {
                 name: 'Nguyên liệu',
@@ -145,11 +151,9 @@ export const navigation: NavigationItem[] = [
                 icon: Package,
                 dashboard: true,
                 sidebar: true,
-                color: '#D2691E', // chocolate
-                description: 'Quản lý nguyên liệu'
+                color: '#D2691E',
+                description: 'Quản lý nguyên vật liệu'
             },
-
-
         ]
     },
 
@@ -169,7 +173,7 @@ export const navigation: NavigationItem[] = [
                 icon: Truck,
                 dashboard: true,
                 sidebar: true,
-                color: '#2E8B57', // sea green
+                color: '#2E8B57',
                 description: 'Theo dõi hàng nhập/xuất'
             },
             {
@@ -178,7 +182,7 @@ export const navigation: NavigationItem[] = [
                 icon: ClipboardList,
                 dashboard: true,
                 sidebar: true,
-                color: '#FF8C00', // dark orange
+                color: '#FF8C00',
                 description: 'Kiểm kê định kỳ và cảnh báo'
             },
             {
@@ -187,7 +191,7 @@ export const navigation: NavigationItem[] = [
                 icon: Users,
                 dashboard: true,
                 sidebar: true,
-                color: '#4169E1', // royal blue
+                color: '#4169E1',
                 description: 'Quản lý nhà cung cấp'
             },
             {
@@ -196,7 +200,7 @@ export const navigation: NavigationItem[] = [
                 icon: TrendingUp,
                 dashboard: true,
                 sidebar: true,
-                color: '#8A2BE2', // blue violet
+                color: '#8A2BE2',
                 description: 'AI dự đoán lượng hàng cần nhập'
             },
         ]
@@ -218,7 +222,7 @@ export const navigation: NavigationItem[] = [
                 icon: LayoutDashboard,
                 dashboard: true,
                 sidebar: true,
-                color: '#800080', // purple
+                color: '#800080',
                 description: 'Tổng quan kinh doanh'
             },
             {
@@ -227,8 +231,8 @@ export const navigation: NavigationItem[] = [
                 icon: BarChart3,
                 dashboard: true,
                 sidebar: true,
-                color: '#9932CC', // dark orchid
-                description: 'Thống kê bán hàng'
+                color: '#9932CC',
+                description: 'Thống kê doanh thu bán hàng'
             },
             {
                 name: 'Báo cáo món bán chạy',
@@ -236,8 +240,17 @@ export const navigation: NavigationItem[] = [
                 icon: TrendingUp,
                 dashboard: true,
                 sidebar: true,
-                color: '#BA55D3', // medium orchid
+                color: '#BA55D3',
                 description: 'Top món bán chạy'
+            },
+            {
+                name: 'Báo cáo sản phẩm',
+                href: '/reports/products',
+                icon: Package,
+                dashboard: true,
+                sidebar: true,
+                color: '#9333EA',
+                description: 'Phân tích lợi nhuận & hiệu quả sản phẩm'
             },
             {
                 name: 'Báo cáo nhân viên',
@@ -245,13 +258,29 @@ export const navigation: NavigationItem[] = [
                 icon: Users,
                 dashboard: true,
                 sidebar: true,
-                color: '#DA70D6', // orchid
+                color: '#DA70D6',
                 description: 'Hiệu suất nhân viên'
             },
-
+            {
+                name: 'Báo cáo khách hàng',
+                href: '/reports/customers',
+                icon: Heart,
+                dashboard: true,
+                sidebar: true,
+                color: '#EC4899',
+                description: 'Phân tích tần suất & chi tiêu khách hàng'
+            },
+            {
+                name: 'Báo cáo tổng hợp',
+                href: '/reports/comprehensive',
+                icon: BarChart,
+                dashboard: true,
+                sidebar: true,
+                color: '#6366F1',
+                description: 'Báo cáo tài chính & vận hành toàn diện'
+            },
         ]
     },
-
 
     // Group: Cài đặt hệ thống
     {
@@ -263,7 +292,6 @@ export const navigation: NavigationItem[] = [
         isGroup: true,
         description: 'Cài đặt giao diện, font chữ, mẫu in, chatbot và dữ liệu',
         children: [
-
             {
                 name: 'Giao diện & Font chữ',
                 href: '/settings/appearance',
@@ -280,7 +308,7 @@ export const navigation: NavigationItem[] = [
                 icon: Users,
                 dashboard: true,
                 sidebar: true,
-                color: '#4169E1', // royal blue
+                color: '#4169E1',
                 description: 'Danh sách nhân viên'
             },
             {
@@ -289,7 +317,7 @@ export const navigation: NavigationItem[] = [
                 icon: Settings,
                 dashboard: true,
                 sidebar: true,
-                color: '#4682B4', // steel blue
+                color: '#4682B4',
                 description: 'Cấu hình data hệ thống'
             },
             {
@@ -307,7 +335,7 @@ export const navigation: NavigationItem[] = [
                 icon: Printer,
                 dashboard: true,
                 sidebar: true,
-                color: '#FF6347', // tomato
+                color: '#FF6347',
                 description: 'Cấu hình mẫu in cho POS, bếp và báo cáo'
             },
             {
@@ -316,7 +344,7 @@ export const navigation: NavigationItem[] = [
                 icon: BookOpen,
                 dashboard: true,
                 sidebar: true,
-                color: '#32CD32', // lime green
+                color: '#32CD32',
                 description: 'Tài liệu hướng dẫn chi tiết'
             },
             {
@@ -328,14 +356,10 @@ export const navigation: NavigationItem[] = [
                 color: '#10B981',
                 description: 'Quản lý cảnh báo và thông báo toàn hệ thống'
             },
-
-         
-
         ]
     }
 ];
 
-// Helper functions để làm việc với navigation
 export const getNavigationByGroup = (groupName: string): NavigationItem[] => {
     const group = navigation.find(item => item.name === groupName && item.isGroup);
     return group?.children || [];
@@ -381,7 +405,6 @@ export const getItemsByColor = (color: string): NavigationItem[] => {
     return items;
 };
 
-// Helper function để lấy menu theo loại
 export const getMenuByType = (type: 'beverages' | 'food' | 'dessert'): NavigationItem[] => {
     const menuGroup = navigation.find(item => item.name === 'Menu & Sản phẩm');
     if (!menuGroup?.children) return [];
@@ -404,17 +427,16 @@ export const getMenuByType = (type: 'beverages' | 'food' | 'dessert'): Navigatio
     }
 };
 
-// Helper function để lấy các chức năng POS
 export const getPOSFeatures = (): NavigationItem[] => {
     const posGroup = navigation.find(item => item.name === 'POS & Bán hàng');
     return posGroup?.children?.filter(item =>
         item.name.includes('POS') ||
+        item.name.includes('Bếp') ||
         item.name.includes('Đơn hàng') ||
         item.name.includes('Bàn')
     ) || [];
 };
 
-// Helper function để lấy các chức năng quản lý hệ thống
 export const getSystemManagementFeatures = (): NavigationItem[] => {
     const systemGroup = navigation.find(item => item.name === 'Cài đặt');
     return systemGroup?.children?.filter(item =>

@@ -2,12 +2,11 @@
 
 import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Package, Plus, X, Upload, Copy, Eye, Sparkles } from 'lucide-react';
+import { Package, Plus, Upload, Copy, Eye, Sparkles, CopyCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -24,6 +23,8 @@ import authUtils from '@/utils/authUtils';
 import toast from 'react-hot-toast';
 import { ImportModal } from './components/ImportModal';
 import { AIProductCreatorModal } from './components/AIProductCreatorModal';
+import { DuplicateProductCheckerModal } from './components/DuplicateProductCheckerModal';
+import { ExportDropdownButton } from '@/components/ExportDropdownButton';
 
 export default function ProductPage() {
   const router = useRouter();
@@ -33,10 +34,10 @@ export default function ProductPage() {
     updateProduct,
     copyProduct,
     deleteProduct,
-    importFromExcel,
+    removeDuplicateIndices,
     addMultipleProducts,
     generateProductId,
-    loading
+    loading,
   } = useProducts();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -48,8 +49,27 @@ export default function ProductPage() {
   const [isManager, setIsManager] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+  const [isDuplicateCheckerOpen, setIsDuplicateCheckerOpen] = useState(false);
 
-  // Check user permissions
+  // Đếm nhanh số lượng sản phẩm bị trùng mã hoặc trùng tên để hiển thị badge
+  const duplicateCountBadge = useMemo(() => {
+    const seenIds = new Set<string>();
+    const seenNames = new Set<string>();
+    let count = 0;
+
+    products.forEach((p) => {
+      const id = String(p.IDSP || '').trim().toUpperCase();
+      const name = String(p['Tên sản phẩm'] || '').trim().toLowerCase();
+      if ((id && seenIds.has(id)) || (name && seenNames.has(name))) {
+        count++;
+      }
+      if (id) seenIds.add(id);
+      if (name) seenNames.add(name);
+    });
+
+    return count;
+  }, [products]);
+
   React.useEffect(() => {
     const userData = authUtils.getUserData();
     if (!userData) {
@@ -77,26 +97,27 @@ export default function ProductPage() {
     setEditingProduct(null);
     const newFormData = {
       ...INITIAL_PRODUCT_FORM_DATA,
-      IDSP: generateProductId()
+      IDSP: generateProductId(),
     };
     setFormData(newFormData);
     setIsDialogOpen(true);
   };
 
- const handleSubmit = async (data: ProductFormData) => {
-  try {
-    if (editingProduct) {
-      await updateProduct(editingProduct.IDSP, data);
-    } else {
-      await addProduct(data);
+  const handleSubmit = async (data: ProductFormData) => {
+    try {
+      if (editingProduct) {
+        await updateProduct(editingProduct.IDSP, data);
+        resetForm();
+      } else {
+        const added = await addProduct(data);
+        if (added !== false) {
+          resetForm();
+        }
+      }
+    } catch (error) {
+      console.error('Submit error:', error);
     }
-    // Chỉ reset form sau khi thành công
-    resetForm();
-  } catch (error) {
-    // Error đã được handle trong hook, không cần làm gì thêm
-    console.error('Submit error:', error);
-  }
-};
+  };
 
   const handleEdit = (product: Product) => {
     if (!isAdmin && !isManager) {
@@ -114,7 +135,7 @@ export default function ProductPage() {
       'Giá vốn': product['Giá vốn'] || 0,
       'Đơn giá': product['Đơn giá'] || 0,
       'Mô tả': product['Mô tả'] || '',
-      'Trạng thái': product['Trạng thái'] || 'Hoạt động'
+      'Trạng thái': product['Trạng thái'] || 'Hoạt động',
     });
     setIsDialogOpen(true);
   };
@@ -125,16 +146,15 @@ export default function ProductPage() {
   };
 
   const handleCopy = (product: Product) => {
-    // Tạo dữ liệu mới từ sản phẩm cũ, nhưng tạo ID mới
     const newFormData = {
       ...product,
       IDSP: generateProductId(),
-      'Tên sản phẩm': product['Tên sản phẩm'] + ' (Copy)'
+      'Tên sản phẩm': product['Tên sản phẩm'] + ' (Copy)',
     };
-    setEditingProduct(null); // Đảm bảo là thêm mới, không phải sửa
+    setEditingProduct(null);
     setFormData(newFormData);
     setIsDialogOpen(true);
-    setIsViewDialogOpen(false); // Đóng dialog xem chi tiết
+    setIsViewDialogOpen(false);
   };
 
   const handleDelete = (product: Product) => {
@@ -142,7 +162,6 @@ export default function ProductPage() {
       toast.error('Bạn không có quyền xóa sản phẩm!');
       return;
     }
-
     deleteProduct(product.IDSP);
   };
 
@@ -151,52 +170,72 @@ export default function ProductPage() {
       toast.error('Bạn không có quyền import dữ liệu!');
       return;
     }
-
     setIsImportModalOpen(true);
   };
 
-  // Thêm hàm xử lý import
-  // Cập nhật handleImportConfirm trong ProductPage
   const handleImportConfirm = async (data: any[]) => {
-    // Chuyển đổi dữ liệu import thành ProductFormData
-    const productsData: ProductFormData[] = data.map(row => ({
-      IDSP: '', // Sẽ được tự động tạo
+    const productsData: ProductFormData[] = data.map((row) => ({
+      IDSP: '',
       'Tên sản phẩm': row['Tên sản phẩm'],
       'Loại sản phẩm': row['Loại sản phẩm'],
       'Đơn vị tính': row['Đơn vị tính'],
-      'Giá vốn': Number(row['Giá vốn']),
-      'Đơn giá': Number(row['Đơn giá']),
+      'Giá vốn': Number(row['Giá vốn']) || 0,
+      'Đơn giá': Number(row['Đơn giá']) || 0,
       'Mô tả': row['Mô tả'] || '',
       'Trạng thái': row['Trạng thái'] || 'Hoạt động',
-      'Hình ảnh': row['Hình ảnh'] || ''
+      'Hình ảnh': row['Hình ảnh'] || '',
     }));
 
-    // Sử dụng addMultipleProducts thay vì forEach
     const success = await addMultipleProducts(productsData);
     if (success) {
       setIsImportModalOpen(false);
     }
   };
+
   const columns = useMemo(
-    () => getColumns({
-      onEdit: handleEdit,
-      onDelete: handleDelete,
-      onCopy: handleCopy,
-      onView: handleView,
-      isAdmin,
-      isManager
-    }),
+    () =>
+      getColumns({
+        onEdit: handleEdit,
+        onDelete: handleDelete,
+        onCopy: handleCopy,
+        onView: handleView,
+        isAdmin,
+        isManager,
+      }),
     [handleEdit, handleDelete, handleCopy, handleView, isAdmin, isManager]
   );
 
-  const categoriesList = useMemo(() =>
-    Array.from(new Set(products.map(p => p['Loại sản phẩm']).filter(Boolean))),
+  const categoriesList = useMemo(
+    () => Array.from(new Set(products.map((p) => p['Loại sản phẩm']).filter(Boolean))),
     [products]
   );
 
-  const unitsList = useMemo(() =>
-    Array.from(new Set(products.map(p => p['Đơn vị tính']).filter(Boolean))),
+  const unitsList = useMemo(
+    () => Array.from(new Set(products.map((p) => p['Đơn vị tính']).filter(Boolean))),
     [products]
+  );
+
+  const exportColumns = useMemo(
+    () => [
+      { key: 'IDSP', label: 'Mã SP', align: 'center' as const },
+      { key: 'Tên sản phẩm', label: 'Tên sản phẩm', align: 'left' as const },
+      { key: 'Loại sản phẩm', label: 'Phân loại', align: 'left' as const },
+      { key: 'Đơn vị tính', label: 'ĐVT', align: 'center' as const },
+      {
+        key: 'Giá vốn',
+        label: 'Giá vốn (VNĐ)',
+        align: 'right' as const,
+        format: (v: any) => Number(v || 0),
+      },
+      {
+        key: 'Đơn giá',
+        label: 'Đơn giá bán (VNĐ)',
+        align: 'right' as const,
+        format: (v: any) => Number(v || 0),
+      },
+      { key: 'Trạng thái', label: 'Trạng thái', align: 'center' as const },
+    ],
+    []
   );
 
   if (loading) {
@@ -214,12 +253,43 @@ export default function ProductPage() {
   return (
     <div className="h-full flex flex-col space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-3">
         <h3 className="text-3xl font-bold text-gray-800 flex items-center">
           <Package className="mr-2 h-6 w-6 text-blue-600" />
           Quản lý sản phẩm
         </h3>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <ExportDropdownButton
+            label="Xuất thực đơn / In"
+            title="DANH MỤC SẢN PHẨM & THỰC ĐƠN QUÁN"
+            subtitle={`Tổng cộng: ${products.length} sản phẩm`}
+            filename="Danh_Muc_San_Pham_H2MilkTea"
+            columns={exportColumns}
+            data={products}
+            summaryRows={[
+              { label: 'Tổng số sản phẩm', value: `${products.length} món` },
+              {
+                label: 'Số nhóm danh mục',
+                value: `${categoriesList.length} danh mục`,
+              },
+            ]}
+          />
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setIsDuplicateCheckerOpen(true)}
+            className="flex items-center gap-1.5 border-amber-300 text-amber-800 hover:bg-amber-50 font-semibold relative"
+          >
+            <CopyCheck className="h-4 w-4 text-amber-600" />
+            <span>Kiểm tra trùng lặp</span>
+            {duplicateCountBadge > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 text-[10px] font-black rounded-full bg-red-600 text-white">
+                {duplicateCountBadge}
+              </span>
+            )}
+          </Button>
+
           <Button
             onClick={() => {
               if (!isAdmin && !isManager) {
@@ -272,7 +342,6 @@ export default function ProductPage() {
                   onSubmit={handleSubmit}
                   onCancel={resetForm}
                   isAdmin={isAdmin}
-
                   isManager={isManager}
                   categories={categoriesList}
                   generateProductId={generateProductId}
@@ -290,9 +359,7 @@ export default function ProductPage() {
       <Card>
         <CardHeader>
           <CardTitle>Danh sách sản phẩm</CardTitle>
-          <CardDescription>
-            Quản lý tất cả sản phẩm trong hệ thống của bạn.
-          </CardDescription>
+          <CardDescription>Quản lý tất cả sản phẩm trong hệ thống của bạn.</CardDescription>
         </CardHeader>
         <CardContent>
           <DataTable
@@ -307,11 +374,13 @@ export default function ProductPage() {
           />
         </CardContent>
       </Card>
+
       <ImportModal
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
         onConfirm={handleImportConfirm}
       />
+
       {/* View Product Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
         <DialogContent className="max-w-2xl">
@@ -343,10 +412,15 @@ export default function ProductPage() {
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Trạng thái</label>
-                    <p className={`inline-block px-2 py-1 rounded text-xs font-medium ${viewingProduct['Trạng thái'] === 'Hoạt động' ? 'bg-green-100 text-green-800' :
-                      viewingProduct['Trạng thái'] === 'Hết hàng' ? 'bg-red-100 text-red-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
+                    <p
+                      className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                        viewingProduct['Trạng thái'] === 'Hoạt động'
+                          ? 'bg-green-100 text-green-800'
+                          : viewingProduct['Trạng thái'] === 'Hết hàng'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}
+                    >
                       {viewingProduct['Trạng thái']}
                     </p>
                   </div>
@@ -369,21 +443,28 @@ export default function ProductPage() {
                   <div>
                     <label className="text-sm font-medium text-gray-500">Giá vốn</label>
                     <p className="font-medium text-orange-600">
-                      {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(viewingProduct['Giá vốn'])}
+                      {new Intl.NumberFormat('vi-VN', {
+                        style: 'currency',
+                        currency: 'VND',
+                      }).format(viewingProduct['Giá vốn'])}
                     </p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Đơn giá</label>
                     <p className="font-semibold text-green-600">
-                      {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(viewingProduct['Đơn giá'])}
+                      {new Intl.NumberFormat('vi-VN', {
+                        style: 'currency',
+                        currency: 'VND',
+                      }).format(viewingProduct['Đơn giá'])}
                     </p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Lợi nhuận</label>
                     <p className="font-medium text-blue-600">
-                      {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
-                        viewingProduct['Đơn giá'] - viewingProduct['Giá vốn']
-                      )}
+                      {new Intl.NumberFormat('vi-VN', {
+                        style: 'currency',
+                        currency: 'VND',
+                      }).format(viewingProduct['Đơn giá'] - viewingProduct['Giá vốn'])}
                     </p>
                   </div>
                 </div>
@@ -395,21 +476,12 @@ export default function ProductPage() {
                 </div>
               )}
               <div className="flex justify-end gap-2 pt-4 border-t">
-                <Button
-                  variant="outline"
-                  onClick={() => setIsViewDialogOpen(false)}
-                >
+                <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>
                   Đóng
                 </Button>
                 {(isAdmin || isManager) && (
                   <>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        handleCopy(viewingProduct);
-                        // Không cần setIsViewDialogOpen(false) nữa vì đã làm trong handleCopy
-                      }}
-                    >
+                    <Button variant="outline" onClick={() => handleCopy(viewingProduct)}>
                       <Copy className="h-4 w-4 mr-2" />
                       Sao chép
                     </Button>
@@ -428,6 +500,7 @@ export default function ProductPage() {
           )}
         </DialogContent>
       </Dialog>
+
       <AIProductCreatorModal
         isOpen={isAIModalOpen}
         onClose={() => setIsAIModalOpen(false)}
@@ -435,6 +508,13 @@ export default function ProductPage() {
         onAddProduct={addProduct}
         onAddMultipleProducts={addMultipleProducts}
         generateProductId={generateProductId}
+      />
+
+      <DuplicateProductCheckerModal
+        isOpen={isDuplicateCheckerOpen}
+        onClose={() => setIsDuplicateCheckerOpen(false)}
+        products={products}
+        onRemoveDuplicateIndices={removeDuplicateIndices}
       />
     </div>
   );

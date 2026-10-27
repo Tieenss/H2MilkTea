@@ -53,8 +53,16 @@ export interface StocktakeFilter {
 
 export interface StocktakeAlert {
   id: string;
-  type: 'warning' | 'error' | 'info';
+  IDCanhBao: string;
+  type: 'warning' | 'error' | 'info' | 'overdue' | 'low_stock' | 'discrepancy';
+  LoaiCanhBao: string;
+  title: string;
+  TieuDe: string;
   message: string;
+  NoiDung: string;
   date: string;
+  NgayTao: string;
+  NgayHetHan?: string;
   isRead: boolean;
-} 
+  DaDoc: boolean;
+}

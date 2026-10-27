@@ -7,16 +7,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { 
-  BarChart3, 
-  DollarSign, 
-  ShoppingCart, 
-  TrendingUp, 
-  Calendar,
-  FileText,
-  Download,
   RefreshCw,
   AlertCircle,
-  TrendingDown
+  Database
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -34,6 +27,9 @@ import { DateRange } from 'react-day-picker';
 import { useReportData, ReportFilters } from '@/hooks/useReportData';
 import { ReportFilters as ReportFiltersComponent } from '@/components/ReportFilters';
 import { ReportKPICards } from '@/components/ReportKPICards';
+import { ExportDropdownButton } from '@/components/ExportDropdownButton';
+import { ExportColumn } from '@/utils/exportUtils';
+import toast from 'react-hot-toast';
 
 ChartJS.register(
   CategoryScale,
@@ -47,14 +43,12 @@ ChartJS.register(
 );
 
 const SalesReport = () => {
-  // Filter states
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [categories, setCategories] = useState<string[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<string[]>([]);
   const [minAmount, setMinAmount] = useState<number | undefined>(undefined);
   const [maxAmount, setMaxAmount] = useState<number | undefined>(undefined);
 
-  // Create filters object
   const filters: ReportFilters = useMemo(() => ({
     dateRange,
     categories: categories.length > 0 ? categories : undefined,
@@ -63,10 +57,8 @@ const SalesReport = () => {
     maxAmount
   }), [dateRange, categories, paymentMethods, minAmount, maxAmount]);
 
-  // Use the report data hook
-  const { data, loading, error, refresh } = useReportData(filters);
+  const { data, loading, error, refresh, reseedTestDatabase } = useReportData(filters);
 
-  // Chart data
   const chartData = useMemo(() => {
     if (!data) return null;
 
@@ -147,10 +139,27 @@ const SalesReport = () => {
     setMaxAmount(undefined);
   };
 
-  const handleExport = () => {
-    // TODO: Implement export functionality
-    console.log('Export sales data:', data);
+  const handleSeedDemo = async () => {
+    const res = await reseedTestDatabase();
+    toast.success(`Đã đồng bộ ${res.invoices} hóa đơn mẫu thành công!`);
   };
+
+  const exportColumns: ExportColumn[] = [
+    { key: 'date', label: 'Ngày', align: 'center' },
+    { key: 'orders', label: 'Số đơn hàng', align: 'right' },
+    { key: 'revenue', label: 'Doanh thu (VNĐ)', align: 'right', format: (v) => `${Number(v || 0).toLocaleString('vi-VN')} ₫` },
+    { key: 'avgOrder', label: 'Trung bình/đơn (VNĐ)', align: 'right', format: (v) => `${Number(v || 0).toLocaleString('vi-VN')} ₫` },
+  ];
+
+  const exportRows = useMemo(() => {
+    if (!data) return [];
+    return data.current.dailyData.map((d) => ({
+      date: d.date,
+      orders: d.orders,
+      revenue: d.revenue,
+      avgOrder: d.orders > 0 ? Math.round(d.revenue / d.orders) : 0,
+    }));
+  }, [data]);
 
   if (loading) {
     return (
@@ -177,33 +186,38 @@ const SalesReport = () => {
   }
 
   if (!data) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-purple-600" />
-          <p className="text-gray-600">Đang xử lý dữ liệu...</p>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-purple-900">Báo Cáo Bán Hàng</h1>
           <p className="text-gray-600">Phân tích chi tiết doanh số và xu hướng bán hàng</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={handleSeedDemo} className="border-indigo-200 text-indigo-700 hover:bg-indigo-50">
+            <Database className="h-4 w-4 mr-2" />
+            Đồng bộ DB Mẫu (Test)
+          </Button>
           <Button variant="outline" size="sm" onClick={refresh}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Làm mới
           </Button>
-          <Button variant="outline" size="sm" onClick={handleExport}>
-            <Download className="h-4 w-4 mr-2" />
-            Xuất Excel
-          </Button>
+          <ExportDropdownButton
+            data={exportRows}
+            columns={exportColumns}
+            filename="Bao_Cao_Doanh_So_Ban_Hang"
+            title="BÁO CÁO DOANH SỐ BÁN HÀNG THEO NGÀY"
+            subtitle={`Tổng doanh thu: ${data.current.revenue.toLocaleString('vi-VN')} ₫ | Tổng đơn: ${data.current.orders}`}
+            summaryStats={[
+              { label: 'Doanh thu kỳ này', value: `${data.current.revenue.toLocaleString('vi-VN')} ₫` },
+              { label: 'Doanh thu kỳ trước', value: `${data.previous.revenue.toLocaleString('vi-VN')} ₫` },
+              { label: 'Tăng trưởng doanh thu', value: `${data.comparison.revenueGrowth >= 0 ? '+' : ''}${data.comparison.revenueGrowth.toFixed(1)}%` },
+            ]}
+          />
         </div>
       </div>
 
@@ -274,18 +288,6 @@ const SalesReport = () => {
                             drawOnChartArea: false,
                           },
                         },
-                      },
-                      plugins: {
-                        tooltip: {
-                          callbacks: {
-                            label: function(context) {
-                              if (context.dataset.label === 'Doanh thu (VNĐ)') {
-                                return 'Doanh thu: ' + context.parsed.y.toLocaleString('vi-VN') + ' ₫';
-                              }
-                              return context.dataset.label + ': ' + context.parsed.y;
-                            }
-                          }
-                        }
                       }
                     }} 
                   />
@@ -300,14 +302,10 @@ const SalesReport = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-6">
-                  {/* Revenue Comparison */}
                   <div className="p-4 rounded-lg bg-gradient-to-r from-purple-50 to-purple-100">
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="font-semibold text-purple-900">Doanh Thu</h4>
-                      <Badge 
-                        variant={data.comparison.isRevenuePositive ? "default" : "destructive"}
-                        className="text-xs"
-                      >
+                      <Badge variant={data.comparison.isRevenuePositive ? "default" : "destructive"} className="text-xs">
                         {data.comparison.revenueGrowth >= 0 ? '+' : ''}{data.comparison.revenueGrowth.toFixed(1)}%
                       </Badge>
                     </div>
@@ -323,14 +321,10 @@ const SalesReport = () => {
                     </div>
                   </div>
 
-                  {/* Orders Comparison */}
                   <div className="p-4 rounded-lg bg-gradient-to-r from-green-50 to-green-100">
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="font-semibold text-green-900">Đơn Hàng</h4>
-                      <Badge 
-                        variant={data.comparison.isOrdersPositive ? "default" : "destructive"}
-                        className="text-xs"
-                      >
+                      <Badge variant={data.comparison.isOrdersPositive ? "default" : "destructive"} className="text-xs">
                         {data.comparison.ordersGrowth >= 0 ? '+' : ''}{data.comparison.ordersGrowth.toFixed(1)}%
                       </Badge>
                     </div>
@@ -346,25 +340,21 @@ const SalesReport = () => {
                     </div>
                   </div>
 
-                  {/* Average Order Value Comparison */}
                   <div className="p-4 rounded-lg bg-gradient-to-r from-blue-50 to-blue-100">
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="font-semibold text-blue-900">Giá Trị TB/Đơn</h4>
-                      <Badge 
-                        variant={data.comparison.isAverageOrderValuePositive ? "default" : "destructive"}
-                        className="text-xs"
-                      >
+                      <Badge variant={data.comparison.isAverageOrderValuePositive ? "default" : "destructive"} className="text-xs">
                         {data.comparison.averageOrderValueGrowth >= 0 ? '+' : ''}{data.comparison.averageOrderValueGrowth.toFixed(1)}%
                       </Badge>
                     </div>
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
                         <p className="text-gray-600">Kỳ này</p>
-                        <p className="font-bold text-lg">{data.current.averageOrderValue.toLocaleString('vi-VN')} ₫</p>
+                        <p className="font-bold text-lg">{Math.round(data.current.averageOrderValue).toLocaleString('vi-VN')} ₫</p>
                       </div>
                       <div>
                         <p className="text-gray-600">Kỳ trước</p>
-                        <p className="font-bold text-lg">{data.previous.averageOrderValue.toLocaleString('vi-VN')} ₫</p>
+                        <p className="font-bold text-lg">{Math.round(data.previous.averageOrderValue).toLocaleString('vi-VN')} ₫</p>
                       </div>
                     </div>
                   </div>
@@ -390,21 +380,7 @@ const SalesReport = () => {
                       maintainAspectRatio: false,
                       scales: {
                         y: {
-                          beginAtZero: true,
-                          ticks: {
-                            callback: function(value) {
-                              return value.toLocaleString('vi-VN') + ' ₫';
-                            }
-                          }
-                        }
-                      },
-                      plugins: {
-                        tooltip: {
-                          callbacks: {
-                            label: function(context) {
-                              return 'Doanh thu: ' + context.parsed.y.toLocaleString('vi-VN') + ' ₫';
-                            }
-                          }
+                          beginAtZero: true
                         }
                       }
                     }} 
@@ -429,15 +405,6 @@ const SalesReport = () => {
                         y: {
                           beginAtZero: true
                         }
-                      },
-                      plugins: {
-                        tooltip: {
-                          callbacks: {
-                            label: function(context) {
-                              return 'Số đơn hàng: ' + context.parsed.y;
-                            }
-                          }
-                        }
                       }
                     }} 
                   />
@@ -446,7 +413,6 @@ const SalesReport = () => {
             </Card>
           </div>
 
-          {/* Daily Data Table */}
           <Card className="transform transition-all duration-200 hover:shadow-lg">
             <CardHeader>
               <CardTitle className="text-purple-900">Chi Tiết Theo Ngày</CardTitle>
@@ -472,7 +438,7 @@ const SalesReport = () => {
                         </td>
                         <td className="p-2 text-right">{day.orders}</td>
                         <td className="p-2 text-right text-gray-600">
-                          {day.orders > 0 ? (day.revenue / day.orders).toLocaleString('vi-VN') : 0} ₫
+                          {day.orders > 0 ? Math.round(day.revenue / day.orders).toLocaleString('vi-VN') : 0} ₫
                         </td>
                       </tr>
                     ))}
@@ -506,27 +472,6 @@ const SalesReport = () => {
               </div>
             </CardContent>
           </Card>
-
-          {/* Hourly Data Table */}
-          <Card className="transform transition-all duration-200 hover:shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-purple-900">Chi Tiết Theo Giờ</CardTitle>
-              <CardDescription>Bảng dữ liệu chi tiết từng giờ</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                {data.current.hourlyData.map((hour, index) => (
-                  <div key={index} className="text-center p-3 bg-purple-50 rounded-lg">
-                    <p className="font-bold text-purple-900">{hour.hour}:00</p>
-                    <p className="text-sm text-gray-600">{hour.orders} đơn</p>
-                    <p className="text-xs text-purple-600">
-                      {hour.revenue.toLocaleString('vi-VN')} ₫
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
         </TabsContent>
 
         <TabsContent value="categories" className="space-y-4">
@@ -543,16 +488,6 @@ const SalesReport = () => {
                     options={{
                       responsive: true,
                       maintainAspectRatio: false,
-                      scales: {
-                        y: {
-                          beginAtZero: true,
-                          ticks: {
-                            callback: function(value) {
-                              return value.toLocaleString('vi-VN') + ' ₫';
-                            }
-                          }
-                        }
-                      }
                     }}
                   />
                 </div>
@@ -573,13 +508,13 @@ const SalesReport = () => {
                         <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
                           <div 
                             className="bg-purple-600 h-2 rounded-full transition-all duration-500 ease-out" 
-                            style={{ width: `${category.percentage}%` }}
+                            style={{ width: `${Math.min(100, category.percentage)}%` }}
                           ></div>
                         </div>
                       </div>
                       <div className="text-right ml-4">
                         <p className="font-bold text-purple-900">{category.revenue.toLocaleString('vi-VN')} ₫</p>
-                        <p className="text-sm text-gray-600">{category.orders} đơn hàng</p>
+                        <p className="text-sm text-gray-600">{category.orders} lượt món</p>
                         <Badge variant="outline" className="border-purple-300 text-purple-700">
                           {category.percentage.toFixed(1)}%
                         </Badge>
@@ -645,7 +580,7 @@ const SalesReport = () => {
                         </div>
                         <div>
                           <p className="text-gray-600">Trung bình/đơn</p>
-                          <p className="font-bold">{(method.revenue / method.count).toLocaleString('vi-VN')} ₫</p>
+                          <p className="font-bold">{Math.round(method.revenue / Math.max(1, method.count)).toLocaleString('vi-VN')} ₫</p>
                         </div>
                       </div>
                     </div>

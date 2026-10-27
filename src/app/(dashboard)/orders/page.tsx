@@ -1,9 +1,8 @@
-// page.tsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { FileText, Plus, Filter, Download, Settings } from 'lucide-react';
+import { FileText, Filter, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -18,6 +17,7 @@ import { INVOICE_STATUS, PAYMENT_METHODS } from './utils/invoiceConstants';
 import type { Invoice } from './types/invoice';
 import authUtils from '@/utils/authUtils';
 import toast from 'react-hot-toast';
+import { ExportDropdownButton } from '@/components/ExportDropdownButton';
 
 export default function InvoiceManagementPage() {
   const router = useRouter();
@@ -29,47 +29,51 @@ export default function InvoiceManagementPage() {
     fetchInvoices,
     fetchInvoiceDetails,
     updateInvoiceStatus,
-    deleteInvoice
+    deleteInvoice,
   } = useInvoices();
 
-  // User permissions
   const [isAdmin, setIsAdmin] = useState(false);
   const [isManager, setIsManager] = useState(false);
 
-  // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [paymentFilter, setPaymentFilter] = useState('all');
   const [dateRange, setDateRange] = useState<any>(null);
 
-  // Modal state
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
 
-  // Filtered invoices
-  const filteredInvoices = React.useMemo(() => {
-    return invoices.filter(invoice => {
-      const matchesSearch = !searchTerm || 
-        invoice.IDHOADON.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        invoice['Khách hàng'].toLowerCase().includes(searchTerm.toLowerCase()) ||
-        invoice['Nhân viên'].toLowerCase().includes(searchTerm.toLowerCase()) ||
-        invoice.IDBAN.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredInvoices = useMemo(() => {
+    return invoices.filter((invoice) => {
+      const id = String(invoice.IDHOADON || (invoice as any).IDHD || '').toLowerCase();
+      const customer = String(invoice['Khách hàng'] || '').toLowerCase();
+      const staff = String(invoice['Nhân viên'] || (invoice as any)['Thu ngân'] || '').toLowerCase();
+      const table = String(invoice.IDBAN || (invoice as any)['Bàn'] || '').toLowerCase();
+      const q = searchTerm.toLowerCase();
 
-      const matchesStatus = statusFilter === 'all' || 
-        invoice['Trạng thái'] === statusFilter;
+      const matchesSearch =
+        !searchTerm ||
+        id.includes(q) ||
+        customer.includes(q) ||
+        staff.includes(q) ||
+        table.includes(q);
 
-      const matchesPayment = paymentFilter === 'all' || 
-        invoice['Loại thanh toán'] === paymentFilter;
+      const matchesStatus = statusFilter === 'all' || invoice['Trạng thái'] === statusFilter;
+      const matchesPayment =
+        paymentFilter === 'all' || invoice['Loại thanh toán'] === paymentFilter;
 
-      const matchesDate = !dateRange || 
-        (new Date(invoice['Ngày']) >= dateRange.from && 
-         new Date(invoice['Ngày']) <= dateRange.to);
+      const matchesDate =
+        !dateRange ||
+        (() => {
+          const d = authUtils.parseFlexibleDate(invoice['Ngày'] || (invoice as any)['Thời gian']);
+          if (!d) return true;
+          return d >= dateRange.from && d <= dateRange.to;
+        })();
 
       return matchesSearch && matchesStatus && matchesPayment && matchesDate;
     });
   }, [invoices, searchTerm, statusFilter, paymentFilter, dateRange]);
 
-  // Check user permissions
   useEffect(() => {
     const userData = authUtils.getUserData();
     if (!userData) {
@@ -83,10 +87,9 @@ export default function InvoiceManagementPage() {
     setIsManager(isManagerUser);
   }, [router]);
 
-  // Handle view details
   const handleViewDetails = async (invoice: Invoice) => {
     try {
-      const details = await fetchInvoiceDetails(invoice.IDHOADON);
+      await fetchInvoiceDetails(invoice.IDHOADON);
       setSelectedInvoice(invoice);
       setShowDetailsModal(true);
     } catch (error) {
@@ -94,7 +97,6 @@ export default function InvoiceManagementPage() {
     }
   };
 
-  // Handle print invoice
   const handlePrintInvoice = async (invoice: Invoice) => {
     try {
       const details = await fetchInvoiceDetails(invoice.IDHOADON);
@@ -106,7 +108,6 @@ export default function InvoiceManagementPage() {
     }
   };
 
-  // Handle confirm payment
   const handleConfirmPayment = async (invoiceId: string) => {
     try {
       await updateInvoiceStatus(invoiceId, 'Đã thanh toán');
@@ -115,7 +116,6 @@ export default function InvoiceManagementPage() {
     }
   };
 
-  // Handle cancel invoice
   const handleCancelInvoice = async (invoiceId: string) => {
     if (!isAdmin && !isManager) {
       toast.error('Bạn không có quyền hủy hóa đơn!');
@@ -129,7 +129,6 @@ export default function InvoiceManagementPage() {
     }
   };
 
-  // Handle delete invoice
   const handleDeleteInvoice = async (invoiceId: string) => {
     if (!isAdmin && !isManager) {
       toast.error('Bạn không có quyền xóa hóa đơn!');
@@ -143,51 +142,48 @@ export default function InvoiceManagementPage() {
     }
   };
 
-  // Handle export data
-  const handleExportData = () => {
-    try {
-      const csvContent = generateCSVContent(filteredInvoices);
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', `hoa-don-${new Date().toISOString().split('T')[0]}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast.success('Xuất dữ liệu thành công!');
-    } catch (error) {
-      console.error('Error exporting data:', error);
-      toast.error('Có lỗi xảy ra khi xuất dữ liệu');
-    }
-  };
+  const exportRows = useMemo(() => {
+    return filteredInvoices.map((inv) => {
+      const total = Number(inv['Tổng tiền']) || 0;
+      const vat = Number(inv['VAT']) || 0;
+      const discount = Number(inv['Giảm giá']) || 0;
+      const net = Math.max(0, total + vat - discount);
+      const parsedDate = authUtils.parseFlexibleDate(inv['Ngày']);
+      return {
+        IDHOADON: inv.IDHOADON,
+        Ngay: parsedDate ? parsedDate.toLocaleString('vi-VN') : inv['Ngày'],
+        IDBAN: inv.IDBAN || 'Khách mua về',
+        KhachHang: inv['Khách hàng'] || 'Khách lẻ',
+        NhanVien: inv['Nhân viên'] || 'Thu ngân',
+        TongTien: total,
+        GiamGia: discount,
+        ThanhTien: net,
+        LoaiThanhToan: inv['Loại thanh toán'] || 'Tiền mặt',
+        TrangThai: inv['Trạng thái'] || 'Đã thanh toán',
+      };
+    });
+  }, [filteredInvoices]);
 
-  const generateCSVContent = (data: Invoice[]): string => {
-    const headers = [
-      'Mã hóa đơn', 'Ngày', 'Bàn', 'Khách hàng', 'Nhân viên',
-      'Tổng tiền', 'VAT', 'Giảm giá', 'Thành tiền', 
-      'Khách trả', 'Tiền thừa', 'Loại thanh toán', 'Trạng thái'
-    ];
+  const exportColumns = useMemo(
+    () => [
+      { key: 'IDHOADON', label: 'Mã hóa đơn', align: 'center' as const },
+      { key: 'Ngay', label: 'Ngày giờ', align: 'center' as const },
+      { key: 'IDBAN', label: 'Bàn', align: 'center' as const },
+      { key: 'KhachHang', label: 'Khách hàng', align: 'left' as const },
+      { key: 'NhanVien', label: 'Nhân viên', align: 'left' as const },
+      { key: 'TongTien', label: 'Tổng tiền (VNĐ)', align: 'right' as const },
+      { key: 'GiamGia', label: 'Giảm giá (VNĐ)', align: 'right' as const },
+      { key: 'ThanhTien', label: 'Thực thu (VNĐ)', align: 'right' as const },
+      { key: 'LoaiThanhToan', label: 'Thanh toán', align: 'center' as const },
+      { key: 'TrangThai', label: 'Trạng thái', align: 'center' as const },
+    ],
+    []
+  );
 
-    const rows = data.map(invoice => [
-      invoice.IDHOADON,
-      new Date(invoice['Ngày']).toLocaleString('vi-VN'),
-      invoice.IDBAN,
-      invoice['Khách hàng'],
-      invoice['Nhân viên'],
-      invoice['Tổng tiền'],
-      invoice['VAT'],
-      invoice['Giảm giá'],
-      invoice['Tổng tiền'] + invoice['VAT'] - invoice['Giảm giá'],
-      invoice['Khách trả'],
-      invoice['Tiền thừa'],
-      invoice['Loại thanh toán'],
-      invoice['Trạng thái']
-    ]);
-
-    return [headers, ...rows].map(row => row.join(',')).join('\n');
-  };
+  const totalNetRevenue = useMemo(
+    () => exportRows.reduce((sum, r) => sum + r.ThanhTien, 0),
+    [exportRows]
+  );
 
   if (loading) {
     return (
@@ -204,25 +200,39 @@ export default function InvoiceManagementPage() {
   return (
     <div className="h-full flex flex-col space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-3">
         <h1 className="text-3xl font-bold text-gray-800 flex items-center">
           <FileText className="mr-2 h-6 w-6 text-blue-600" />
           Quản lý hóa đơn
         </h1>
-        <div className="flex gap-2">
-          <Button 
-            onClick={() => router.push('/receipt-settings')} 
+        <div className="flex flex-wrap gap-2">
+          <Button
+            onClick={() => router.push('/receipt-settings')}
             variant="outline"
+            size="sm"
             className="border-orange-200 text-orange-700 hover:bg-orange-50"
           >
             <Settings className="w-4 h-4 mr-2" />
             Cài đặt mẫu in
           </Button>
-          <Button onClick={handleExportData} variant="outline">
-            <Download className="w-4 h-4 mr-2" />
-            Xuất dữ liệu
-          </Button>
-          <Button onClick={fetchInvoices} variant="outline">
+
+          <ExportDropdownButton
+            label="Xuất hóa đơn / In"
+            title="BẢNG KÊ CHI TIẾT HÓA ĐƠN BÁN HÀNG"
+            subtitle={`Tổng số hóa đơn: ${filteredInvoices.length}`}
+            filename="Bang_Ke_Hoa_Don_H2MilkTea"
+            columns={exportColumns}
+            data={exportRows}
+            summaryRows={[
+              { label: 'Tổng số hóa đơn', value: `${filteredInvoices.length} đơn` },
+              {
+                label: 'Tổng doanh thu thực thu',
+                value: `${totalNetRevenue.toLocaleString('vi-VN')} ₫`,
+              },
+            ]}
+          />
+
+          <Button onClick={fetchInvoices} variant="outline" size="sm">
             <Filter className="w-4 h-4 mr-2" />
             Làm mới
           </Button>
@@ -236,9 +246,7 @@ export default function InvoiceManagementPage() {
       <Card>
         <CardHeader>
           <CardTitle>Bộ lọc</CardTitle>
-          <CardDescription>
-            Tìm kiếm và lọc hóa đơn theo các tiêu chí
-          </CardDescription>
+          <CardDescription>Tìm kiếm và lọc hóa đơn theo các tiêu chí</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -247,14 +255,14 @@ export default function InvoiceManagementPage() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
-            
+
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger>
                 <SelectValue placeholder="Trạng thái" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tất cả trạng thái</SelectItem>
-                {INVOICE_STATUS.map(status => (
+                {INVOICE_STATUS.map((status) => (
                   <SelectItem key={status.value} value={status.value}>
                     {status.label}
                   </SelectItem>
@@ -268,7 +276,7 @@ export default function InvoiceManagementPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tất cả loại thanh toán</SelectItem>
-                {PAYMENT_METHODS.map(method => (
+                {PAYMENT_METHODS.map((method) => (
                   <SelectItem key={method.value} value={method.value}>
                     {method.label}
                   </SelectItem>

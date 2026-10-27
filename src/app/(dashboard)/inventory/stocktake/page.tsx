@@ -1,14 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { ClipboardList, Plus, Filter, Download, AlertTriangle, Calendar } from 'lucide-react';
+import { ClipboardList, Plus, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
-import { Badge } from '@/components/ui/badge';
 import { useStocktake } from './hooks/useStocktake';
 import { StocktakeStatsComponent } from './components/StocktakeStats';
 import { StocktakeDataTable } from './components/StocktakeDataTable';
@@ -16,10 +15,10 @@ import { StocktakeFormModal } from './components/StocktakeFormModal';
 import { StocktakeDetailsModal } from './components/StocktakeDetailsModal';
 import { StocktakeAlerts } from './components/StocktakeAlerts';
 import { STOCKTAKE_TYPES, STOCKTAKE_STATUS } from './utils/constants';
-import { exportStocktakeData } from './utils/formatters';
 import type { Stocktake, StocktakeFormData } from './types/stocktake';
 import authUtils from '@/utils/authUtils';
 import toast from 'react-hot-toast';
+import { ExportDropdownButton } from '@/components/ExportDropdownButton';
 
 export default function StocktakePage() {
   const router = useRouter();
@@ -32,49 +31,47 @@ export default function StocktakePage() {
     addStocktake,
     updateStocktake,
     deleteStocktake,
-    markAlertAsRead
+    markAlertAsRead,
+    dismissAlert,
+    dismissAllAlerts,
   } = useStocktake();
 
-  // User permissions
   const [isAdmin, setIsAdmin] = useState(false);
   const [isManager, setIsManager] = useState(false);
 
-  // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateRange, setDateRange] = useState<any>(null);
 
-  // Modal states
   const [selectedStocktake, setSelectedStocktake] = useState<Stocktake | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showFormModal, setShowFormModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
-  // Filtered stocktakes
-  const filteredStocktakes = React.useMemo(() => {
-    return stocktakes.filter(stocktake => {
-      const matchesSearch = !searchTerm || 
+  const filteredStocktakes = useMemo(() => {
+    return stocktakes.filter((stocktake) => {
+      const matchesSearch =
+        !searchTerm ||
         stocktake.IDKiemKe.toLowerCase().includes(searchTerm.toLowerCase()) ||
         stocktake.NhanVienThucHien.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        stocktake.GhiChu.toLowerCase().includes(searchTerm.toLowerCase());
+        (stocktake.GhiChu || '').toLowerCase().includes(searchTerm.toLowerCase());
 
-      const matchesType = typeFilter === 'all' || 
-        stocktake.LoaiKiemKe === typeFilter;
+      const matchesType = typeFilter === 'all' || stocktake.LoaiKiemKe === typeFilter;
+      const matchesStatus = statusFilter === 'all' || stocktake.TrangThai === statusFilter;
 
-      const matchesStatus = statusFilter === 'all' || 
-        stocktake.TrangThai === statusFilter;
-
-      const matchesDate = !dateRange || (() => {
-        const stocktakeDate = new Date(stocktake.NgayKiemKe);
-        return stocktakeDate >= dateRange.from && stocktakeDate <= dateRange.to;
-      })();
+      const matchesDate =
+        !dateRange ||
+        (() => {
+          const stocktakeDate = authUtils.parseFlexibleDate(stocktake.NgayKiemKe);
+          if (!stocktakeDate) return true;
+          return stocktakeDate >= dateRange.from && stocktakeDate <= dateRange.to;
+        })();
 
       return matchesSearch && matchesType && matchesStatus && matchesDate;
     });
   }, [stocktakes, searchTerm, typeFilter, statusFilter, dateRange]);
 
-  // Check user permissions
   useEffect(() => {
     const userData = authUtils.getUserData();
     if (!userData) {
@@ -88,27 +85,23 @@ export default function StocktakePage() {
     setIsManager(isManagerUser);
   }, [router]);
 
-  // Handle view stocktake details
   const handleViewDetails = (stocktake: Stocktake) => {
     setSelectedStocktake(stocktake);
     setShowDetailsModal(true);
   };
 
-  // Handle edit stocktake
   const handleEditStocktake = (stocktake: Stocktake) => {
     setSelectedStocktake(stocktake);
     setIsEditing(true);
     setShowFormModal(true);
   };
 
-  // Handle add new stocktake
   const handleAddStocktake = () => {
     setSelectedStocktake(null);
     setIsEditing(false);
     setShowFormModal(true);
   };
 
-  // Handle delete stocktake
   const handleDeleteStocktake = async (stocktakeId: string) => {
     if (!isAdmin && !isManager) {
       toast.error('Bạn không có quyền xóa kiểm kê!');
@@ -124,7 +117,6 @@ export default function StocktakePage() {
     }
   };
 
-  // Handle form submit
   const handleFormSubmit = async (formData: StocktakeFormData) => {
     try {
       if (isEditing && selectedStocktake) {
@@ -134,7 +126,7 @@ export default function StocktakePage() {
         await addStocktake(formData);
         toast.success('Thêm kiểm kê thành công!');
       }
-      fetchStocktakes(); // Refresh data
+      fetchStocktakes();
     } catch (error) {
       console.error('Error submitting stocktake form:', error);
       toast.error('Có lỗi xảy ra khi lưu kiểm kê');
@@ -142,47 +134,37 @@ export default function StocktakePage() {
     }
   };
 
-  // Handle export data
-  const handleExportData = () => {
-    try {
-      const exportData = exportStocktakeData(filteredStocktakes);
-      const csvContent = generateCSVContent(exportData);
-      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', `kiem-ke-kho-${new Date().toISOString().split('T')[0]}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      toast.success('Xuất dữ liệu thành công!');
-    } catch (error) {
-      console.error('Error exporting data:', error);
-      toast.error('Có lỗi xảy ra khi xuất dữ liệu');
-    }
-  };
+  const exportRows = useMemo(() => {
+    return filteredStocktakes.map((st) => ({
+      IDKiemKe: st.IDKiemKe,
+      NgayKiemKe: st.NgayKiemKe,
+      LoaiKiemKe: st.LoaiKiemKe,
+      NhanVienThucHien: st.NhanVienThucHien,
+      TongMatHang: st.TongMatHang,
+      TongGiaTri: Number(st.TongGiaTri) || 0,
+      ChenhLech: (st.ChiTiet || []).reduce(
+        (sum, c) => sum + (Number(c.GiaTriChenhLech) || 0),
+        0
+      ),
+      TrangThai: st.TrangThai,
+      GhiChu: st.GhiChu || '',
+    }));
+  }, [filteredStocktakes]);
 
-  const generateCSVContent = (data: any[]): string => {
-    if (!data || data.length === 0) return '';
-
-    const headers = Object.keys(data[0]);
-    const csvHeaders = headers.join(',');
-
-    const rows = data.map(row => {
-      return headers.map(header => {
-        let value = row[header];
-        if (value === null || value === undefined) value = '';
-        if (typeof value === 'string' && (value.includes(',') || value.includes('"') || value.includes('\n'))) {
-          value = '"' + value.replace(/"/g, '""') + '"';
-        }
-        return value;
-      }).join(',');
-    });
-
-    return [csvHeaders, ...rows].join('\n');
-  };
+  const exportColumns = useMemo(
+    () => [
+      { key: 'IDKiemKe', label: 'Mã phiếu KK', align: 'center' as const },
+      { key: 'NgayKiemKe', label: 'Ngày kiểm kê', align: 'center' as const },
+      { key: 'LoaiKiemKe', label: 'Loại kiểm kê', align: 'center' as const },
+      { key: 'NhanVienThucHien', label: 'Nhân viên thực hiện', align: 'left' as const },
+      { key: 'TongMatHang', label: 'Số mặt hàng', align: 'center' as const },
+      { key: 'TongGiaTri', label: 'Tổng giá trị (VNĐ)', align: 'right' as const },
+      { key: 'ChenhLech', label: 'Giá trị chênh lệch (VNĐ)', align: 'right' as const },
+      { key: 'TrangThai', label: 'Trạng thái', align: 'center' as const },
+      { key: 'GhiChu', label: 'Ghi chú', align: 'left' as const },
+    ],
+    []
+  );
 
   if (loading) {
     return (
@@ -199,17 +181,30 @@ export default function StocktakePage() {
   return (
     <div className="h-full flex flex-col space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-3">
         <h1 className="text-3xl font-bold text-gray-800 flex items-center">
           <ClipboardList className="mr-2 h-6 w-6 text-orange-600" />
           Quản lý kiểm kê kho
         </h1>
-        <div className="flex gap-2">
-          <Button onClick={handleExportData} variant="outline">
-            <Download className="w-4 h-4 mr-2" />
-            Xuất dữ liệu
-          </Button>
-          <Button onClick={fetchStocktakes} variant="outline">
+        <div className="flex flex-wrap gap-2">
+          <ExportDropdownButton
+            label="Xuất phiếu kiểm kê / In"
+            title="BIÊN BẢN TỔNG HỢP KIỂM KÊ KHO NGUYÊN VẬT LIỆU"
+            subtitle={`Tổng số đợt kiểm kê: ${filteredStocktakes.length}`}
+            filename="Bien_Ban_Kiem_Ke_Kho_H2MilkTea"
+            columns={exportColumns}
+            data={exportRows}
+            summaryRows={[
+              { label: 'Tổng đợt kiểm kê', value: `${stats.TongKiemKe} đợt` },
+              { label: 'Tỷ lệ chính xác kho', value: `${stats.TyLeChinhXac}%` },
+              {
+                label: 'Tổng giá trị tồn kho kiểm kê',
+                value: `${stats.GiaTriTonKho.toLocaleString('vi-VN')} ₫`,
+              },
+            ]}
+          />
+
+          <Button onClick={fetchStocktakes} variant="outline" size="sm">
             <Filter className="w-4 h-4 mr-2" />
             Làm mới
           </Button>
@@ -220,9 +215,14 @@ export default function StocktakePage() {
         </div>
       </div>
 
-      {/* Alerts */}
+      {/* Alerts (Fixed 1.g) */}
       {alerts.length > 0 && (
-        <StocktakeAlerts alerts={alerts} onMarkAsRead={markAlertAsRead} />
+        <StocktakeAlerts
+          alerts={alerts}
+          onMarkAsRead={markAlertAsRead}
+          onDismiss={dismissAlert}
+          onDismissAll={dismissAllAlerts}
+        />
       )}
 
       {/* Statistics */}
@@ -232,9 +232,7 @@ export default function StocktakePage() {
       <Card>
         <CardHeader>
           <CardTitle>Bộ lọc</CardTitle>
-          <CardDescription>
-            Tìm kiếm và lọc kiểm kê kho theo các tiêu chí
-          </CardDescription>
+          <CardDescription>Tìm kiếm và lọc kiểm kê kho theo các tiêu chí</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -243,14 +241,14 @@ export default function StocktakePage() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
-            
+
             <Select value={typeFilter} onValueChange={setTypeFilter}>
               <SelectTrigger>
                 <SelectValue placeholder="Loại kiểm kê" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tất cả loại</SelectItem>
-                {STOCKTAKE_TYPES.map(type => (
+                {STOCKTAKE_TYPES.map((type) => (
                   <SelectItem key={type.value} value={type.value}>
                     {type.label}
                   </SelectItem>
@@ -264,7 +262,7 @@ export default function StocktakePage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tất cả trạng thái</SelectItem>
-                {STOCKTAKE_STATUS.map(status => (
+                {STOCKTAKE_STATUS.map((status) => (
                   <SelectItem key={status.value} value={status.value}>
                     {status.label}
                   </SelectItem>
@@ -285,9 +283,7 @@ export default function StocktakePage() {
       <Card>
         <CardHeader>
           <CardTitle>Danh sách kiểm kê kho ({filteredStocktakes.length})</CardTitle>
-          <CardDescription>
-            Quản lý tất cả đợt kiểm kê kho trong hệ thống.
-          </CardDescription>
+          <CardDescription>Quản lý tất cả đợt kiểm kê kho trong hệ thống.</CardDescription>
         </CardHeader>
         <CardContent>
           <StocktakeDataTable
@@ -301,7 +297,6 @@ export default function StocktakePage() {
         </CardContent>
       </Card>
 
-      {/* Details Modal */}
       <StocktakeDetailsModal
         stocktake={selectedStocktake}
         isOpen={showDetailsModal}
@@ -316,7 +311,6 @@ export default function StocktakePage() {
         }}
       />
 
-      {/* Form Modal */}
       <StocktakeFormModal
         stocktake={selectedStocktake}
         isOpen={showFormModal}
@@ -330,4 +324,4 @@ export default function StocktakePage() {
       />
     </div>
   );
-} 
+}

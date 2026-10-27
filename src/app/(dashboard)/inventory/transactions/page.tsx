@@ -1,14 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Truck, Plus, Filter, Download, Search, Calendar } from 'lucide-react';
+import { Truck, Plus, Filter, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
-import { Badge } from '@/components/ui/badge';
 import { useInventoryTransactions } from './hooks/useInventoryTransactions';
 import { InventoryStatsComponent } from '@/app/(dashboard)/inventory/transactions/components/InventoryStats';
 import { InventoryOverviewStats } from '@/app/(dashboard)/inventory/transactions/components/InventoryOverviewStats';
@@ -16,10 +15,11 @@ import { InventoryDataTable } from '@/app/(dashboard)/inventory/transactions/com
 import { InventoryFormModal } from '@/app/(dashboard)/inventory/transactions/components/InventoryFormModal';
 import { InventoryDetailsModal } from '@/app/(dashboard)/inventory/transactions/components/InventoryDetailsModal';
 import { INVENTORY_TYPES, INVENTORY_STATUS } from '@/app/(dashboard)/inventory/transactions/utils/constants';
-import { exportInventoryData } from '@/app/(dashboard)/inventory/transactions/utils/formatters';
 import type { InventoryTransaction, InventoryTransactionFormData } from './types/inventory';
 import authUtils from '@/utils/authUtils';
 import toast from 'react-hot-toast';
+import { AIInventoryQuickModal } from '@/app/(dashboard)/menu/nguyenlieu/components/AIInventoryQuickModal';
+import { ExportDropdownButton } from '@/components/ExportDropdownButton';
 
 export default function InventoryTransactionsPage() {
   const router = useRouter();
@@ -30,54 +30,56 @@ export default function InventoryTransactionsPage() {
     fetchTransactions,
     addTransaction,
     updateTransaction,
-    deleteTransaction
+    deleteTransaction,
   } = useInventoryTransactions();
 
-  // User permissions
   const [isAdmin, setIsAdmin] = useState(false);
   const [isManager, setIsManager] = useState(false);
 
-  // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [supplierFilter, setSupplierFilter] = useState('all');
   const [dateRange, setDateRange] = useState<any>(null);
 
-  // Modal states
   const [selectedTransaction, setSelectedTransaction] = useState<InventoryTransaction | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showFormModal, setShowFormModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isAIQuickModalOpen, setIsAIQuickModalOpen] = useState(false);
+  const [currentMaterials, setCurrentMaterials] = useState<any[]>([]);
 
-  // Filtered transactions
-  const filteredTransactions = React.useMemo(() => {
-    return transactions.filter(transaction => {
-      const matchesSearch = !searchTerm || 
+  useEffect(() => {
+    authUtils.getAllNguyenLieu().then((res) => {
+      if (Array.isArray(res)) setCurrentMaterials(res);
+    });
+  }, []);
+
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter((transaction) => {
+      const matchesSearch =
+        !searchTerm ||
         transaction.IDGiaoDich.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        transaction.NhaCungCap.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        transaction.NhanVienThucHien.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        transaction.GhiChu.toLowerCase().includes(searchTerm.toLowerCase());
+        (transaction.NhaCungCap || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (transaction.NhanVienThucHien || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (transaction.GhiChu || '').toLowerCase().includes(searchTerm.toLowerCase());
 
-      const matchesType = typeFilter === 'all' || 
-        transaction.LoaiGiaoDich === typeFilter;
+      const matchesType = typeFilter === 'all' || transaction.LoaiGiaoDich === typeFilter;
+      const matchesStatus = statusFilter === 'all' || transaction.TrangThai === statusFilter;
+      const matchesSupplier = supplierFilter === 'all' || transaction.NhaCungCap === supplierFilter;
 
-      const matchesStatus = statusFilter === 'all' || 
-        transaction.TrangThai === statusFilter;
-
-      const matchesSupplier = supplierFilter === 'all' || 
-        transaction.NhaCungCap === supplierFilter;
-
-      const matchesDate = !dateRange || (() => {
-        const transactionDate = new Date(transaction.NgayGiaoDich);
-        return transactionDate >= dateRange.from && transactionDate <= dateRange.to;
-      })();
+      const matchesDate =
+        !dateRange ||
+        (() => {
+          const transactionDate = authUtils.parseFlexibleDate(transaction.NgayGiaoDich);
+          if (!transactionDate) return true;
+          return transactionDate >= dateRange.from && transactionDate <= dateRange.to;
+        })();
 
       return matchesSearch && matchesType && matchesStatus && matchesSupplier && matchesDate;
     });
   }, [transactions, searchTerm, typeFilter, statusFilter, supplierFilter, dateRange]);
 
-  // Check user permissions
   useEffect(() => {
     const userData = authUtils.getUserData();
     if (!userData) {
@@ -91,27 +93,23 @@ export default function InventoryTransactionsPage() {
     setIsManager(isManagerUser);
   }, [router]);
 
-  // Handle view transaction details
   const handleViewDetails = (transaction: InventoryTransaction) => {
     setSelectedTransaction(transaction);
     setShowDetailsModal(true);
   };
 
-  // Handle edit transaction
   const handleEditTransaction = (transaction: InventoryTransaction) => {
     setSelectedTransaction(transaction);
     setIsEditing(true);
     setShowFormModal(true);
   };
 
-  // Handle add new transaction
   const handleAddTransaction = () => {
     setSelectedTransaction(null);
     setIsEditing(false);
     setShowFormModal(true);
   };
 
-  // Handle delete transaction
   const handleDeleteTransaction = async (transactionId: string) => {
     if (!isAdmin && !isManager) {
       toast.error('Bạn không có quyền xóa giao dịch kho!');
@@ -127,7 +125,6 @@ export default function InventoryTransactionsPage() {
     }
   };
 
-  // Handle form submit
   const handleFormSubmit = async (formData: InventoryTransactionFormData) => {
     try {
       if (isEditing && selectedTransaction) {
@@ -137,7 +134,7 @@ export default function InventoryTransactionsPage() {
         await addTransaction(formData);
         toast.success('Thêm giao dịch thành công!');
       }
-      fetchTransactions(); // Refresh data
+      fetchTransactions();
     } catch (error) {
       console.error('Error submitting transaction form:', error);
       toast.error('Có lỗi xảy ra khi lưu giao dịch');
@@ -145,47 +142,35 @@ export default function InventoryTransactionsPage() {
     }
   };
 
-  // Handle export data
-  const handleExportData = () => {
-    try {
-      const exportData = exportInventoryData(filteredTransactions);
-      const csvContent = generateCSVContent(exportData);
-      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', `nhap-xuat-kho-${new Date().toISOString().split('T')[0]}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      toast.success('Xuất dữ liệu thành công!');
-    } catch (error) {
-      console.error('Error exporting data:', error);
-      toast.error('Có lỗi xảy ra khi xuất dữ liệu');
-    }
-  };
+  const exportRows = useMemo(() => {
+    return filteredTransactions.map((tx) => ({
+      IDGiaoDich: tx.IDGiaoDich,
+      LoaiGiaoDich: tx.LoaiGiaoDich,
+      NgayGiaoDich: tx.NgayGiaoDich,
+      NhaCungCap: tx.NhaCungCap || 'Nội bộ',
+      NhanVienThucHien: tx.NhanVienThucHien,
+      SoMatHang: Array.isArray(tx.ChiTiet) ? tx.ChiTiet.length : 0,
+      ChiTietHang: Array.isArray(tx.ChiTiet)
+        ? tx.ChiTiet.map((c) => `${c.TenNguyenLieu} (${c.SoLuong} ${c.DonViTinh})`).join(', ')
+        : '',
+      TongTien: Number(tx.TongTien) || 0,
+      TrangThai: tx.TrangThai,
+    }));
+  }, [filteredTransactions]);
 
-  const generateCSVContent = (data: any[]): string => {
-    if (!data || data.length === 0) return '';
-
-    const headers = Object.keys(data[0]);
-    const csvHeaders = headers.join(',');
-
-    const rows = data.map(row => {
-      return headers.map(header => {
-        let value = row[header];
-        if (value === null || value === undefined) value = '';
-        if (typeof value === 'string' && (value.includes(',') || value.includes('"') || value.includes('\n'))) {
-          value = '"' + value.replace(/"/g, '""') + '"';
-        }
-        return value;
-      }).join(',');
-    });
-
-    return [csvHeaders, ...rows].join('\n');
-  };
+  const exportColumns = useMemo(
+    () => [
+      { key: 'IDGiaoDich', label: 'Mã phiếu', align: 'center' as const },
+      { key: 'LoaiGiaoDich', label: 'Loại phiếu', align: 'center' as const },
+      { key: 'NgayGiaoDich', label: 'Ngày giao dịch', align: 'center' as const },
+      { key: 'NhaCungCap', label: 'Nhà cung cấp', align: 'left' as const },
+      { key: 'NhanVienThucHien', label: 'Người thực hiện', align: 'left' as const },
+      { key: 'ChiTietHang', label: 'Chi tiết mặt hàng', align: 'left' as const },
+      { key: 'TongTien', label: 'Tổng tiền (VNĐ)', align: 'right' as const },
+      { key: 'TrangThai', label: 'Trạng thái', align: 'center' as const },
+    ],
+    []
+  );
 
   if (loading) {
     return (
@@ -202,20 +187,39 @@ export default function InventoryTransactionsPage() {
   return (
     <div className="h-full flex flex-col space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-3">
         <h1 className="text-3xl font-bold text-gray-800 flex items-center">
           <Truck className="mr-2 h-6 w-6 text-green-600" />
           Quản lý nhập/xuất kho
         </h1>
-        <div className="flex gap-2">
-          <Button onClick={handleExportData} variant="outline">
-            <Download className="w-4 h-4 mr-2" />
-            Xuất dữ liệu
-          </Button>
-          <Button onClick={fetchTransactions} variant="outline">
+        <div className="flex flex-wrap gap-2">
+          <ExportDropdownButton
+            label="Xuất phiếu kho / In"
+            title="BÁO CÁO GIAO DỊCH NHẬP - XUẤT KHO"
+            subtitle={`Tổng số giao dịch: ${filteredTransactions.length} phiếu`}
+            filename="Bao_Cao_Nhap_Xuat_Kho_H2MilkTea"
+            columns={exportColumns}
+            data={exportRows}
+            summaryRows={[
+              { label: 'Tổng giá trị nhập kho', value: `${stats.tongNhap.toLocaleString('vi-VN')} ₫` },
+              { label: 'Tổng giá trị xuất kho', value: `${stats.tongXuat.toLocaleString('vi-VN')} ₫` },
+            ]}
+          />
+
+          <Button onClick={fetchTransactions} variant="outline" size="sm">
             <Filter className="w-4 h-4 mr-2" />
             Làm mới
           </Button>
+
+          <Button
+            type="button"
+            onClick={() => setIsAIQuickModalOpen(true)}
+            className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 hover:from-emerald-700 hover:to-cyan-700 text-white font-semibold"
+          >
+            <Sparkles className="w-4 h-4 mr-1.5 text-yellow-300 animate-pulse" />
+            Nhập/Xuất nhanh bằng AI ✨
+          </Button>
+
           <Button onClick={handleAddTransaction} className="bg-green-600 hover:bg-green-700">
             <Plus className="w-4 h-4 mr-2" />
             Thêm giao dịch
@@ -233,9 +237,7 @@ export default function InventoryTransactionsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Bộ lọc</CardTitle>
-          <CardDescription>
-            Tìm kiếm và lọc giao dịch kho theo các tiêu chí
-          </CardDescription>
+          <CardDescription>Tìm kiếm và lọc giao dịch kho theo các tiêu chí</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -244,14 +246,14 @@ export default function InventoryTransactionsPage() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
-            
+
             <Select value={typeFilter} onValueChange={setTypeFilter}>
               <SelectTrigger>
                 <SelectValue placeholder="Loại giao dịch" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tất cả loại</SelectItem>
-                {INVENTORY_TYPES.map(type => (
+                {INVENTORY_TYPES.map((type) => (
                   <SelectItem key={type.value} value={type.value}>
                     {type.label}
                   </SelectItem>
@@ -265,7 +267,7 @@ export default function InventoryTransactionsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tất cả trạng thái</SelectItem>
-                {INVENTORY_STATUS.map(status => (
+                {INVENTORY_STATUS.map((status) => (
                   <SelectItem key={status.value} value={status.value}>
                     {status.label}
                   </SelectItem>
@@ -279,7 +281,6 @@ export default function InventoryTransactionsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tất cả nhà cung cấp</SelectItem>
-                {/* Add supplier options here */}
               </SelectContent>
             </Select>
 
@@ -312,7 +313,6 @@ export default function InventoryTransactionsPage() {
         </CardContent>
       </Card>
 
-      {/* Details Modal */}
       <InventoryDetailsModal
         transaction={selectedTransaction}
         isOpen={showDetailsModal}
@@ -327,7 +327,6 @@ export default function InventoryTransactionsPage() {
         }}
       />
 
-      {/* Form Modal */}
       <InventoryFormModal
         transaction={selectedTransaction}
         isOpen={showFormModal}
@@ -339,6 +338,15 @@ export default function InventoryTransactionsPage() {
         onSubmit={handleFormSubmit}
         isEditing={isEditing}
       />
+
+      <AIInventoryQuickModal
+        isOpen={isAIQuickModalOpen}
+        onClose={() => setIsAIQuickModalOpen(false)}
+        currentMaterials={currentMaterials}
+        onSuccess={() => {
+          fetchTransactions();
+        }}
+      />
     </div>
   );
-} 
+}

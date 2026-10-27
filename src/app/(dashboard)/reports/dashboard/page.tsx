@@ -7,15 +7,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { 
-  BarChart3, 
   DollarSign, 
-  ShoppingCart, 
-  TrendingUp, 
-  Calendar,
-  FileText,
-  Download,
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  Database
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -34,6 +29,9 @@ import { DateRange } from 'react-day-picker';
 import { useReportData, ReportFilters } from '@/hooks/useReportData';
 import { ReportFilters as ReportFiltersComponent } from '@/components/ReportFilters';
 import { ReportKPICards } from '@/components/ReportKPICards';
+import { ExportDropdownButton } from '@/components/ExportDropdownButton';
+import { ExportColumn } from '@/utils/exportUtils';
+import toast from 'react-hot-toast';
 
 ChartJS.register(
   CategoryScale,
@@ -48,8 +46,7 @@ ChartJS.register(
 );
 
 const LoadingSkeleton = () => (
-  <div className="space-y-6">
-    {/* Header Skeleton */}
+  <div className="space-y-6 p-6">
     <div className="flex justify-between items-center">
       <div>
         <div className="h-8 bg-gray-200 rounded w-64 mb-2 animate-pulse"></div>
@@ -61,8 +58,6 @@ const LoadingSkeleton = () => (
         ))}
       </div>
     </div>
-
-    {/* KPI Cards Skeleton */}
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
       {[1, 2, 3, 4].map(i => (
         <div key={i} className="border rounded-lg p-6">
@@ -72,29 +67,16 @@ const LoadingSkeleton = () => (
         </div>
       ))}
     </div>
-
-    {/* Charts Skeleton */}
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {[1, 2].map(i => (
-        <div key={i} className="border rounded-lg p-6">
-          <div className="h-6 bg-gray-200 rounded w-48 mb-2 animate-pulse"></div>
-          <div className="h-4 bg-gray-200 rounded w-32 mb-4 animate-pulse"></div>
-          <div className="h-80 bg-gray-100 rounded animate-pulse"></div>
-        </div>
-      ))}
-    </div>
   </div>
 );
 
 const ReportsDashboard = () => {
-  // Filter states
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [categories, setCategories] = useState<string[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<string[]>([]);
   const [minAmount, setMinAmount] = useState<number | undefined>(undefined);
   const [maxAmount, setMaxAmount] = useState<number | undefined>(undefined);
 
-  // Create filters object
   const filters: ReportFilters = useMemo(() => ({
     dateRange,
     categories: categories.length > 0 ? categories : undefined,
@@ -103,10 +85,8 @@ const ReportsDashboard = () => {
     maxAmount
   }), [dateRange, categories, paymentMethods, minAmount, maxAmount]);
 
-  // Use the report data hook
-  const { data, loading, error, refresh } = useReportData(filters);
+  const { data, loading, error, refresh, reseedTestDatabase } = useReportData(filters);
 
-  // Chart data
   const chartData = useMemo(() => {
     if (!data) return null;
 
@@ -167,17 +147,36 @@ const ReportsDashboard = () => {
     setMaxAmount(undefined);
   };
 
-  const handleExport = () => {
-    // TODO: Implement export functionality
-    console.log('Export data:', data);
+  const handleSeedDemo = async () => {
+    const res = await reseedTestDatabase();
+    toast.success(`Đã đồng bộ ${res.invoices} hóa đơn & ${res.details} chi tiết món trong 60 ngày gần nhất!`);
   };
 
-  // Loading states
+  const exportColumns: ExportColumn[] = [
+    { key: 'rank', label: 'Hạng', align: 'center' },
+    { key: 'id', label: 'Mã SP', align: 'left' },
+    { key: 'name', label: 'Tên sản phẩm', align: 'left' },
+    { key: 'category', label: 'Danh mục', align: 'left' },
+    { key: 'quantity', label: 'Số lượng bán', align: 'right' },
+    { key: 'revenue', label: 'Doanh thu (VNĐ)', align: 'right', format: (v) => `${Number(v || 0).toLocaleString('vi-VN')} ₫` },
+  ];
+
+  const exportRows = useMemo(() => {
+    if (!data) return [];
+    return data.current.products.map((p, idx) => ({
+      rank: idx + 1,
+      id: p.id,
+      name: p.name,
+      category: p.category,
+      quantity: p.quantity,
+      revenue: p.revenue,
+    }));
+  }, [data]);
+
   if (loading) {
     return <LoadingSkeleton />;
   }
 
-  // Error state
   if (error) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -195,33 +194,38 @@ const ReportsDashboard = () => {
   }
 
   if (!data) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-purple-600" />
-          <p className="text-gray-600">Đang xử lý dữ liệu...</p>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-purple-900">Dashboard Tổng Quan</h1>
           <p className="text-gray-600">Tổng quan kinh doanh và các chỉ số quan trọng</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={handleSeedDemo} className="border-indigo-200 text-indigo-700 hover:bg-indigo-50">
+            <Database className="h-4 w-4 mr-2" />
+            Đồng bộ DB Mẫu (Test)
+          </Button>
           <Button variant="outline" size="sm" onClick={refresh}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Làm mới
           </Button>
-          <Button variant="outline" size="sm" onClick={handleExport}>
-            <Download className="h-4 w-4 mr-2" />
-            Xuất Excel
-          </Button>
+          <ExportDropdownButton
+            data={exportRows}
+            columns={exportColumns}
+            filename="Bao_Cao_Dashboard_Tong_Quan"
+            title="BÁO CÁO TỔNG QUAN DOANH THU & SẢN PHẨM"
+            subtitle={`Tổng doanh thu: ${data.current.revenue.toLocaleString('vi-VN')} ₫ | Tổng số đơn: ${data.current.orders} đơn`}
+            summaryStats={[
+              { label: 'Tổng doanh thu kỳ này', value: `${data.current.revenue.toLocaleString('vi-VN')} ₫` },
+              { label: 'Tổng đơn hàng', value: `${data.current.orders} đơn` },
+              { label: 'Giá trị TB/đơn', value: `${Math.round(data.current.averageOrderValue).toLocaleString('vi-VN')} ₫` },
+            ]}
+          />
         </div>
       </div>
 
@@ -312,7 +316,7 @@ const ReportsDashboard = () => {
                         tooltip: {
                           callbacks: {
                             label: function(context) {
-                              const percentage = ((context.parsed / data.current.revenue) * 100).toFixed(1);
+                              const percentage = data.current.revenue > 0 ? ((context.parsed / data.current.revenue) * 100).toFixed(1) : '0';
                               return context.label + ': ' + context.parsed.toLocaleString('vi-VN') + ' ₫ (' + percentage + '%)';
                             }
                           }
@@ -372,7 +376,7 @@ const ReportsDashboard = () => {
                       <div className="text-right">
                         <p className="font-bold text-purple-900">{product.revenue.toLocaleString('vi-VN')} ₫</p>
                         <p className="text-sm text-gray-600">
-                          {(product.revenue / product.quantity).toLocaleString('vi-VN')} ₫/ly
+                          {Math.round(product.revenue / Math.max(1, product.quantity)).toLocaleString('vi-VN')} ₫/ly
                         </p>
                         <Badge variant="outline" className="mt-1 text-xs">
                           {product.category}
@@ -400,16 +404,6 @@ const ReportsDashboard = () => {
                     options={{
                       responsive: true,
                       maintainAspectRatio: false,
-                      plugins: {
-                        tooltip: {
-                          callbacks: {
-                            label: function(context) {
-                              const percentage = ((context.parsed / data.current.revenue) * 100).toFixed(1);
-                              return context.label + ': ' + context.parsed.toLocaleString('vi-VN') + ' ₫ (' + percentage + '%)';
-                            }
-                          }
-                        }
-                      }
                     }}
                   />
                 </div>
@@ -430,13 +424,13 @@ const ReportsDashboard = () => {
                         <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
                           <div 
                             className="bg-purple-600 h-2 rounded-full transition-all duration-500 ease-out" 
-                            style={{ width: `${category.percentage}%` }}
+                            style={{ width: `${Math.min(100, category.percentage)}%` }}
                           ></div>
                         </div>
                       </div>
                       <div className="text-right ml-4">
                         <p className="font-bold text-purple-900">{category.revenue.toLocaleString('vi-VN')} ₫</p>
-                        <p className="text-sm text-gray-600">{category.orders} đơn hàng</p>
+                        <p className="text-sm text-gray-600">{category.orders} lượt món</p>
                         <Badge variant="outline" className="border-purple-300 text-purple-700">
                           {category.percentage.toFixed(1)}%
                         </Badge>

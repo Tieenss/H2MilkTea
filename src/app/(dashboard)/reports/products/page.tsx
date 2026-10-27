@@ -8,14 +8,11 @@ import { Button } from '@/components/ui/button';
 import { 
   Package, 
   TrendingUp, 
-  TrendingDown,
-  DollarSign,
-  ShoppingCart,
-  Target,
   RefreshCw,
   AlertCircle,
   BarChart3,
-  PieChart
+  PieChart,
+  Database
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -29,10 +26,13 @@ import {
   PointElement,
   LineElement,
 } from 'chart.js';
-import { Bar, Doughnut, Line } from 'react-chartjs-2';
+import { Bar, Doughnut } from 'react-chartjs-2';
 import { DateRange } from 'react-day-picker';
 import { useReportData, ReportFilters } from '@/hooks/useReportData';
 import { ReportFilters as ReportFiltersComponent } from '@/components/ReportFilters';
+import { ExportDropdownButton } from '@/components/ExportDropdownButton';
+import { ExportColumn } from '@/utils/exportUtils';
+import toast from 'react-hot-toast';
 
 ChartJS.register(
   CategoryScale,
@@ -47,14 +47,12 @@ ChartJS.register(
 );
 
 const ProductsReport = () => {
-  // Filter states
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [categories, setCategories] = useState<string[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<string[]>([]);
   const [minAmount, setMinAmount] = useState<number | undefined>(undefined);
   const [maxAmount, setMaxAmount] = useState<number | undefined>(undefined);
 
-  // Create filters object
   const filters: ReportFilters = useMemo(() => ({
     dateRange,
     categories: categories.length > 0 ? categories : undefined,
@@ -63,10 +61,8 @@ const ProductsReport = () => {
     maxAmount
   }), [dateRange, categories, paymentMethods, minAmount, maxAmount]);
 
-  // Use the report data hook
-  const { data, loading, error, refresh } = useReportData(filters);
+  const { data, loading, error, refresh, reseedTestDatabase } = useReportData(filters);
 
-  // Chart data
   const chartData = useMemo(() => {
     if (!data) return null;
 
@@ -109,7 +105,7 @@ const ProductsReport = () => {
         labels: topCategories.map(c => c.name),
         datasets: [
           {
-            label: 'Số đơn hàng',
+            label: 'Số lượt món',
             data: topCategories.map(c => c.orders),
             backgroundColor: '#DA70D6',
           },
@@ -126,10 +122,33 @@ const ProductsReport = () => {
     setMaxAmount(undefined);
   };
 
-  const handleExport = () => {
-    // TODO: Implement export functionality
-    console.log('Export products data:', data);
+  const handleSeedDemo = async () => {
+    const res = await reseedTestDatabase();
+    toast.success(`Đã đồng bộ ${res.invoices} hóa đơn & ${res.details} chi tiết sản phẩm!`);
   };
+
+  const exportColumns: ExportColumn[] = [
+    { key: 'stt', label: 'STT', align: 'center' },
+    { key: 'id', label: 'Mã SP', align: 'left' },
+    { key: 'name', label: 'Tên sản phẩm', align: 'left' },
+    { key: 'category', label: 'Danh mục', align: 'left' },
+    { key: 'quantity', label: 'Số lượng bán', align: 'right' },
+    { key: 'avgPrice', label: 'Đơn giá TB', align: 'right', format: (v) => `${Number(v || 0).toLocaleString('vi-VN')} ₫` },
+    { key: 'revenue', label: 'Doanh thu (VNĐ)', align: 'right', format: (v) => `${Number(v || 0).toLocaleString('vi-VN')} ₫` },
+  ];
+
+  const exportRows = useMemo(() => {
+    if (!data) return [];
+    return data.current.products.map((p, idx) => ({
+      stt: idx + 1,
+      id: p.id,
+      name: p.name,
+      category: p.category,
+      quantity: p.quantity,
+      avgPrice: Math.round(p.revenue / Math.max(1, p.quantity)),
+      revenue: p.revenue,
+    }));
+  }, [data]);
 
   if (loading) {
     return (
@@ -156,33 +175,37 @@ const ProductsReport = () => {
   }
 
   if (!data) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-purple-600" />
-          <p className="text-gray-600">Đang xử lý dữ liệu...</p>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-purple-900">Báo Cáo Sản Phẩm</h1>
           <p className="text-gray-600">Phân tích hiệu suất sản phẩm và danh mục</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={handleSeedDemo} className="border-indigo-200 text-indigo-700 hover:bg-indigo-50">
+            <Database className="h-4 w-4 mr-2" />
+            Đồng bộ DB Mẫu (Test)
+          </Button>
           <Button variant="outline" size="sm" onClick={refresh}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Làm mới
           </Button>
-          <Button variant="outline" size="sm" onClick={handleExport}>
-            <Package className="h-4 w-4 mr-2" />
-            Xuất Excel
-          </Button>
+          <ExportDropdownButton
+            data={exportRows}
+            columns={exportColumns}
+            filename="Bao_Cao_Hieu_Suat_San_Pham"
+            title="BÁO CÁO PHÂN TÍCH DOANH THU THEO SẢN PHẨM & DANH MỤC"
+            subtitle={`Số sản phẩm phát sinh doanh thu: ${data.current.products.length} món`}
+            summaryStats={[
+              { label: 'Tổng sản phẩm bán ra', value: `${data.current.products.length} món` },
+              { label: 'Tổng doanh thu món', value: `${data.current.revenue.toLocaleString('vi-VN')} ₫` },
+            ]}
+          />
         </div>
       </div>
 
@@ -203,7 +226,7 @@ const ProductsReport = () => {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="border-l-4 border-l-purple-600 transform transition-all duration-200 hover:scale-105">
+        <Card className="border-l-4 border-l-purple-600">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Tổng Sản Phẩm</CardTitle>
             <Package className="h-4 w-4 text-purple-600" />
@@ -216,7 +239,7 @@ const ProductsReport = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-purple-500 transform transition-all duration-200 hover:scale-105">
+        <Card className="border-l-4 border-l-purple-500">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Tổng Danh Mục</CardTitle>
             <BarChart3 className="h-4 w-4 text-purple-500" />
@@ -229,13 +252,13 @@ const ProductsReport = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-purple-400 transform transition-all duration-200 hover:scale-105">
+        <Card className="border-l-4 border-l-purple-400">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Sản Phẩm Bán Chạy</CardTitle>
             <TrendingUp className="h-4 w-4 text-purple-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-900">
+            <div className="text-lg font-bold text-purple-900">
               {data.current.products.length > 0 ? data.current.products[0].name : 'N/A'}
             </div>
             <p className="text-xs text-muted-foreground">
@@ -244,13 +267,13 @@ const ProductsReport = () => {
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-purple-300 transform transition-all duration-200 hover:scale-105">
+        <Card className="border-l-4 border-l-purple-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Danh Mục Tốt Nhất</CardTitle>
             <PieChart className="h-4 w-4 text-purple-300" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-900">
+            <div className="text-lg font-bold text-purple-900">
               {data.current.categories.length > 0 ? data.current.categories[0].name : 'N/A'}
             </div>
             <p className="text-xs text-muted-foreground">
@@ -271,7 +294,7 @@ const ProductsReport = () => {
 
         <TabsContent value="overview" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="transform transition-all duration-200 hover:shadow-lg">
+            <Card>
               <CardHeader>
                 <CardTitle className="text-purple-900">Top 10 Sản Phẩm Bán Chạy</CardTitle>
                 <CardDescription>Theo số lượng bán</CardDescription>
@@ -283,18 +306,14 @@ const ProductsReport = () => {
                     options={{
                       responsive: true,
                       maintainAspectRatio: false,
-                      scales: {
-                        y: {
-                          beginAtZero: true
-                        }
-                      }
+                      scales: { y: { beginAtZero: true } }
                     }}
                   />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="transform transition-all duration-200 hover:shadow-lg">
+            <Card>
               <CardHeader>
                 <CardTitle className="text-purple-900">Phân Bố Theo Danh Mục</CardTitle>
                 <CardDescription>Theo doanh thu</CardDescription>
@@ -306,16 +325,6 @@ const ProductsReport = () => {
                     options={{
                       responsive: true,
                       maintainAspectRatio: false,
-                      plugins: {
-                        tooltip: {
-                          callbacks: {
-                            label: function(context) {
-                              const percentage = ((context.parsed / data.current.revenue) * 100).toFixed(1);
-                              return context.label + ': ' + context.parsed.toLocaleString('vi-VN') + ' ₫ (' + percentage + '%)';
-                            }
-                          }
-                        }
-                      }
                     }}
                   />
                 </div>
@@ -326,10 +335,9 @@ const ProductsReport = () => {
 
         <TabsContent value="products" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="transform transition-all duration-200 hover:shadow-lg">
+            <Card>
               <CardHeader>
                 <CardTitle className="text-purple-900">Top 10 Sản Phẩm Theo Doanh Thu</CardTitle>
-                <CardDescription>Sản phẩm có doanh thu cao nhất</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-80">
@@ -338,31 +346,21 @@ const ProductsReport = () => {
                     options={{
                       responsive: true,
                       maintainAspectRatio: false,
-                      scales: {
-                        y: {
-                          beginAtZero: true,
-                          ticks: {
-                            callback: function(value) {
-                              return value.toLocaleString('vi-VN') + ' ₫';
-                            }
-                          }
-                        }
-                      }
+                      scales: { y: { beginAtZero: true } }
                     }}
                   />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="transform transition-all duration-200 hover:shadow-lg">
+            <Card>
               <CardHeader>
                 <CardTitle className="text-purple-900">Chi Tiết Sản Phẩm Bán Chạy</CardTitle>
-                <CardDescription>Thông tin chi tiết từng sản phẩm</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4 max-h-80 overflow-y-auto">
                   {data.current.products.slice(0, 10).map((product, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-purple-50 transform transition-all duration-200 hover:bg-purple-100">
+                    <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-purple-50">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center font-bold text-white text-sm">
                           {index + 1}
@@ -375,9 +373,6 @@ const ProductsReport = () => {
                       <div className="text-right">
                         <p className="font-bold text-purple-900">{product.quantity} ly</p>
                         <p className="text-sm text-gray-600">{product.revenue.toLocaleString('vi-VN')} ₫</p>
-                        <p className="text-xs text-purple-600">
-                          {(product.revenue / product.quantity).toLocaleString('vi-VN')} ₫/ly
-                        </p>
                       </div>
                     </div>
                   ))}
@@ -389,10 +384,9 @@ const ProductsReport = () => {
 
         <TabsContent value="categories" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="transform transition-all duration-200 hover:shadow-lg">
+            <Card>
               <CardHeader>
-                <CardTitle className="text-purple-900">Số Đơn Hàng Theo Danh Mục</CardTitle>
-                <CardDescription>Phân tích số lượng đơn hàng</CardDescription>
+                <CardTitle className="text-purple-900">Số Lượt Bán Theo Danh Mục</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="h-80">
@@ -401,38 +395,32 @@ const ProductsReport = () => {
                     options={{
                       responsive: true,
                       maintainAspectRatio: false,
-                      scales: {
-                        y: {
-                          beginAtZero: true
-                        }
-                      }
+                      scales: { y: { beginAtZero: true } }
                     }}
                   />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="transform transition-all duration-200 hover:shadow-lg">
+            <Card>
               <CardHeader>
                 <CardTitle className="text-purple-900">Chi Tiết Theo Danh Mục</CardTitle>
-                <CardDescription>Thông tin chi tiết từng danh mục</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4 max-h-80 overflow-y-auto">
                   {data.current.categories.map((category, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-purple-50 transform transition-all duration-200 hover:bg-purple-100">
+                    <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-purple-50">
                       <div className="flex-1">
                         <p className="font-medium">{category.name}</p>
                         <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
                           <div 
-                            className="bg-purple-600 h-2 rounded-full transition-all duration-500 ease-out" 
-                            style={{ width: `${category.percentage}%` }}
+                            className="bg-purple-600 h-2 rounded-full" 
+                            style={{ width: `${Math.min(100, category.percentage)}%` }}
                           ></div>
                         </div>
                       </div>
                       <div className="text-right ml-4">
                         <p className="font-bold text-purple-900">{category.revenue.toLocaleString('vi-VN')} ₫</p>
-                        <p className="text-sm text-gray-600">{category.orders} đơn hàng</p>
                         <Badge variant="outline" className="border-purple-300 text-purple-700">
                           {category.percentage.toFixed(1)}%
                         </Badge>
@@ -446,11 +434,9 @@ const ProductsReport = () => {
         </TabsContent>
 
         <TabsContent value="details" className="space-y-4">
-          {/* Products Table */}
-          <Card className="transform transition-all duration-200 hover:shadow-lg">
+          <Card>
             <CardHeader>
               <CardTitle className="text-purple-900">Bảng Dữ Liệu Sản Phẩm</CardTitle>
-              <CardDescription>Thông tin chi tiết tất cả sản phẩm</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -463,7 +449,6 @@ const ProductsReport = () => {
                       <th className="text-right p-2">Số Lượng</th>
                       <th className="text-right p-2">Doanh Thu</th>
                       <th className="text-right p-2">Giá TB/Ly</th>
-                      <th className="text-right p-2">Tỷ Lệ</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -472,65 +457,14 @@ const ProductsReport = () => {
                         <td className="p-2 font-medium">{index + 1}</td>
                         <td className="p-2 font-medium">{product.name}</td>
                         <td className="p-2">
-                          <Badge variant="outline" className="text-xs">
-                            {product.category}
-                          </Badge>
+                          <Badge variant="outline" className="text-xs">{product.category}</Badge>
                         </td>
                         <td className="p-2 text-right font-bold">{product.quantity}</td>
                         <td className="p-2 text-right font-bold text-purple-900">
                           {product.revenue.toLocaleString('vi-VN')} ₫
                         </td>
                         <td className="p-2 text-right text-gray-600">
-                          {(product.revenue / product.quantity).toLocaleString('vi-VN')} ₫
-                        </td>
-                        <td className="p-2 text-right">
-                          <Badge variant="outline" className="text-xs">
-                            {((product.revenue / data.current.revenue) * 100).toFixed(1)}%
-                          </Badge>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Categories Table */}
-          <Card className="transform transition-all duration-200 hover:shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-purple-900">Bảng Dữ Liệu Danh Mục</CardTitle>
-              <CardDescription>Thông tin chi tiết tất cả danh mục</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left p-2">STT</th>
-                      <th className="text-left p-2">Tên Danh Mục</th>
-                      <th className="text-right p-2">Số Đơn Hàng</th>
-                      <th className="text-right p-2">Doanh Thu</th>
-                      <th className="text-right p-2">Tỷ Lệ</th>
-                      <th className="text-right p-2">Hiệu Suất</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.current.categories.map((category, index) => (
-                      <tr key={index} className="border-b hover:bg-gray-50">
-                        <td className="p-2 font-medium">{index + 1}</td>
-                        <td className="p-2 font-medium">{category.name}</td>
-                        <td className="p-2 text-right font-bold">{category.orders}</td>
-                        <td className="p-2 text-right font-bold text-purple-900">
-                          {category.revenue.toLocaleString('vi-VN')} ₫
-                        </td>
-                        <td className="p-2 text-right">
-                          <Badge variant="outline" className="text-xs">
-                            {category.percentage.toFixed(1)}%
-                          </Badge>
-                        </td>
-                        <td className="p-2 text-right text-gray-600">
-                          {(category.revenue / category.orders).toLocaleString('vi-VN')} ₫/đơn
+                          {Math.round(product.revenue / Math.max(1, product.quantity)).toLocaleString('vi-VN')} ₫
                         </td>
                       </tr>
                     ))}
@@ -545,4 +479,4 @@ const ProductsReport = () => {
   );
 };
 
-export default ProductsReport; 
+export default ProductsReport;

@@ -9,11 +9,9 @@ import {
   Check,
   Loader2,
   X,
-  Plus,
-  RefreshCw,
-  Layers,
-  ArrowRight,
-  HelpCircle,
+  AlertTriangle,
+  Wand2,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -34,6 +32,77 @@ interface AIProductCreatorModalProps {
   generateProductId: () => string;
 }
 
+interface ScannedMenuItem {
+  name: string;
+  category: string;
+  price: number;
+  hasPrice?: boolean;
+  costPrice: number;
+  unit: string;
+  image: string;
+  isNew: boolean;
+  selected: boolean;
+}
+
+const CATEGORIES = [
+  'Trà sữa',
+  'Trà trái cây',
+  'Cà phê',
+  'Đá xay',
+  'Nước ép',
+  'Bánh ngọt',
+  'Ăn vặt',
+];
+
+const QUICK_PRICE_PRESETS = [20000, 25000, 28000, 30000, 35000, 40000];
+
+// Nén & chuẩn hóa ảnh sang JPEG kích thước tối ưu <= 1600px để Gemini Vision đọc nhanh và không bị lỗi MIME/payload
+async function normalizeAndCompressImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Không thể đọc file ảnh'));
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      const img = new Image();
+      img.onerror = () => resolve(dataUrl);
+      img.onload = () => {
+        try {
+          const maxDim = 1600;
+          let width = img.width;
+          let height = img.height;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(dataUrl);
+            return;
+          }
+          // Nền trắng cho ảnh PNG trong suốt
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, width, height);
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL('image/jpeg', 0.88);
+          resolve(compressed);
+        } catch {
+          resolve(dataUrl);
+        }
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 export function AIProductCreatorModal({
   isOpen,
   onClose,
@@ -51,36 +120,33 @@ export function AIProductCreatorModal({
     name: string;
     category: string;
     price: number;
+    hasPrice?: boolean;
     costPrice: number;
     unit: string;
     description: string;
     image: string;
     recipeHint?: string;
+    isDuplicateName?: boolean;
+    existingProductId?: string | null;
   } | null>(null);
 
   // Result from Scan Menu
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [scanResults, setScanResults] = useState<{
+  const [scanItems, setScanItems] = useState<ScannedMenuItem[]>([]);
+  const [scanSummary, setScanSummary] = useState<{
     totalDetected: number;
-    newProducts: Array<{
-      name: string;
-      category: string;
-      price: number;
-      costPrice: number;
-      unit: string;
-      image: string;
-      selected?: boolean;
-    }>;
     existingCount: number;
   } | null>(null);
+  const [viewFilter, setViewFilter] = useState<'new' | 'all'>('all');
+  const [batchPriceInput, setBatchPriceInput] = useState<string>('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const priceInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
 
-  // Prompt templates gợi ý nhanh
   const PROMPT_SUGGESTIONS = [
     'Thêm món Trà xoài macchiato giá 35k size M, topping thạch dừa thanh mát',
     'Thêm Cà phê muối kem béo chuẩn vị Huế giá 28k',
-    'Thêm Trà sữa nướng trân châu hoàng kim 32.000đ béo ngậy đậm vị trà',
+    'Thêm Bún bò Huế đặc biệt (chưa có giá, để trống giá)',
     'Thêm Bánh sừng bò phô mai trứng muối giá 25k loại Bánh ngọt',
   ];
 
@@ -99,6 +165,7 @@ export function AIProductCreatorModal({
         body: JSON.stringify({
           mode: 'prompt',
           prompt: promptText,
+          currentProducts,
         }),
       });
 
@@ -108,7 +175,13 @@ export function AIProductCreatorModal({
       }
 
       setGeneratedProduct(data.product);
-      toast.success('AI đã trích xuất thông tin món thành công!');
+      if (data.product?.isDuplicateName) {
+        toast(`⚠️ Món "${data.product.name}" đã có trong menu (${data.product.existingProductId})!`, {
+          icon: '⚠️',
+        });
+      } else {
+        toast.success('AI đã trích xuất thông tin món thành công!');
+      }
     } catch (err: any) {
       toast.error(err.message || 'Không thể tạo món lúc này');
     } finally {
@@ -119,27 +192,32 @@ export function AIProductCreatorModal({
   // Lưu món từ Prompt vào Menu
   const handleSavePromptProduct = async () => {
     if (!generatedProduct) return;
+    if (!generatedProduct.name.trim()) {
+      toast.error('Tên sản phẩm không được để trống!');
+      return;
+    }
 
     const newId = generateProductId();
     const payload: ProductFormData = {
       IDSP: newId,
-      'Tên sản phẩm': generatedProduct.name,
-      'Loại sản phẩm': generatedProduct.category,
-      'Đơn giá': generatedProduct.price,
-      'Giá vốn': generatedProduct.costPrice,
-      'Đơn vị tính': generatedProduct.unit,
-      'Mô tả': generatedProduct.description,
+      'Tên sản phẩm': generatedProduct.name.trim(),
+      'Loại sản phẩm': generatedProduct.category || 'Trà sữa',
+      'Đơn giá': Number(generatedProduct.price) || 0,
+      'Giá vốn': Number(generatedProduct.costPrice) || 0,
+      'Đơn vị tính': generatedProduct.unit || 'Ly',
+      'Mô tả': generatedProduct.description || '',
       'Hình ảnh': generatedProduct.image,
       'Trạng thái': 'Hoạt động',
     };
 
     setIsLoading(true);
     try {
-      await onAddProduct(payload);
-      toast.success(`Đã thêm món "${generatedProduct.name}" vào menu thành công!`);
-      setGeneratedProduct(null);
-      setPromptText('');
-      onClose();
+      const added = await onAddProduct(payload);
+      if (added !== false) {
+        setGeneratedProduct(null);
+        setPromptText('');
+        onClose();
+      }
     } catch {
       toast.error('Lỗi khi lưu sản phẩm');
     } finally {
@@ -147,21 +225,28 @@ export function AIProductCreatorModal({
     }
   };
 
-  // Chọn ảnh để scan menu
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Chọn ảnh để scan menu (tự động nén & chuẩn hóa JPEG)
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      toast.error('Vui lòng chọn file hình ảnh');
+      toast.error('Vui lòng chọn file hình ảnh (JPG, PNG, WEBP)');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setSelectedImage(event.target?.result as string);
-    };
-    reader.readAsDataURL(file);
+    try {
+      const compressedDataUrl = await normalizeAndCompressImage(file);
+      setSelectedImage(compressedDataUrl);
+      setScanItems([]);
+      setScanSummary(null);
+    } catch {
+      toast.error('Không thể xử lý file ảnh đã chọn');
+    } finally {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
   };
 
   // Xử lý Scan Menu từ ảnh
@@ -188,12 +273,27 @@ export function AIProductCreatorModal({
         throw new Error(data.error || 'Lỗi khi scan menu');
       }
 
-      setScanResults({
-        totalDetected: data.totalDetected,
-        existingCount: data.existingCount,
-        newProducts: (data.newProducts || []).map((p: any) => ({ ...p, selected: true })),
+      const allList: ScannedMenuItem[] = Array.isArray(data.allProducts)
+        ? data.allProducts
+        : (data.newProducts || []).map((p: any) => ({ ...p, isNew: true, selected: true }));
+
+      setScanItems(allList);
+      setScanSummary({
+        totalDetected: data.totalDetected || allList.length,
+        existingCount: data.existingCount || 0,
       });
-      toast.success(`Đã quét thấy ${data.totalDetected} món (${data.newProducts?.length || 0} món mới chưa có trong quán)!`);
+
+      const newCount = allList.filter((i) => i.isNew).length;
+      setViewFilter(newCount > 0 ? 'new' : 'all');
+
+      const missingPriceCount = allList.filter((i) => !i.price || i.price <= 0).length;
+      if (missingPriceCount > 0) {
+        toast.success(
+          `Đã quét ${allList.length} món! Có ${missingPriceCount} món chưa có giá trên ảnh, bạn có thể nhập nhanh vào bảng hoặc để trống.`
+        );
+      } else {
+        toast.success(`Đã quét thấy ${allList.length} món (${newCount} món mới chưa có trong quán)!`);
+      }
     } catch (err: any) {
       toast.error(err.message || 'Không thể quét menu lúc này');
     } finally {
@@ -201,35 +301,77 @@ export function AIProductCreatorModal({
     }
   };
 
-  // Toggle chọn món trong danh sách scan
-  const handleToggleSelectNewProduct = (index: number) => {
-    if (!scanResults) return;
-    const updated = [...scanResults.newProducts];
-    updated[index].selected = !updated[index].selected;
-    setScanResults({ ...scanResults, newProducts: updated });
+  // Cập nhật từng trường của món trong bảng Scan
+  const handleUpdateScanItem = (index: number, field: keyof ScannedMenuItem, value: any) => {
+    setScanItems((prev) => {
+      const next = [...prev];
+      const current = { ...next[index], [field]: value };
+      if (field === 'price') {
+        const numericPrice = Math.max(0, Number(value) || 0);
+        current.price = numericPrice;
+        current.hasPrice = numericPrice > 0;
+        current.costPrice = numericPrice > 0 ? Math.round(numericPrice * 0.4) : 0;
+      }
+      next[index] = current;
+      return next;
+    });
   };
 
-  // Lưu hàng loạt món mới từ scan menu
+  const handleRemoveScanItem = (index: number) => {
+    setScanItems((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Áp dụng giá hàng loạt
+  const handleApplyBatchPrice = (onlyBlankPrices: boolean, customPrice?: number) => {
+    const targetPrice = customPrice !== undefined ? customPrice : Number(batchPriceInput);
+    if (isNaN(targetPrice) || targetPrice < 0) {
+      toast.error('Vui lòng nhập mức giá hợp lệ!');
+      return;
+    }
+
+    let updatedCount = 0;
+    setScanItems((prev) =>
+      prev.map((item) => {
+        if (!item.selected) return item;
+        if (onlyBlankPrices && item.price > 0) return item;
+        updatedCount++;
+        return {
+          ...item,
+          price: targetPrice,
+          hasPrice: targetPrice > 0,
+          costPrice: targetPrice > 0 ? Math.round(targetPrice * 0.4) : 0,
+        };
+      })
+    );
+
+    if (updatedCount > 0) {
+      toast.success(`Đã áp dụng giá ${targetPrice.toLocaleString('vi-VN')}đ cho ${updatedCount} món!`);
+    } else {
+      toast('Không có món nào cần cập nhật giá theo điều kiện này.');
+    }
+  };
+
+  // Lưu hàng loạt món đã chọn từ bảng Scan Menu
   const handleSaveScannedProducts = async () => {
-    if (!scanResults) return;
-    const toAdd = scanResults.newProducts.filter((p) => p.selected);
+    const toAdd = scanItems.filter((p) => p.selected && p.name.trim());
 
     if (toAdd.length === 0) {
-      toast.error('Vui lòng chọn ít nhất 1 món mới để thêm!');
+      toast.error('Vui lòng tích chọn ít nhất 1 món để thêm vào menu!');
       return;
     }
 
     setIsLoading(true);
     try {
-      const payloads: ProductFormData[] = toAdd.map((item, idx) => ({
-        IDSP: `SP${Date.now().toString().slice(-4)}${idx}`,
-        'Tên sản phẩm': item.name,
-        'Loại sản phẩm': item.category,
-        'Đơn giá': item.price,
-        'Giá vốn': item.costPrice,
-        'Đơn vị tính': item.unit,
+      // Để trống IDSP để hook useProducts.addMultipleProducts tự sinh mã tuần tự SP001, SP002... không trùng lặp
+      const payloads: ProductFormData[] = toAdd.map((item) => ({
+        IDSP: '',
+        'Tên sản phẩm': item.name.trim(),
+        'Loại sản phẩm': item.category || 'Trà sữa',
+        'Đơn giá': Math.max(0, Number(item.price) || 0),
+        'Giá vốn': Math.max(0, Number(item.costPrice) || 0),
+        'Đơn vị tính': item.unit || 'Ly',
         'Hình ảnh': item.image,
-        'Mô tả': 'Món mới được trích xuất tự động bằng AI từ menu quán.',
+        'Mô tả': 'Món được trích xuất tự động bằng AI từ bảng thực đơn.',
         'Trạng thái': 'Hoạt động',
       }));
 
@@ -237,24 +379,31 @@ export function AIProductCreatorModal({
         await onAddMultipleProducts(payloads);
       } else {
         for (const p of payloads) {
-          await onAddProduct(p);
+          await onAddProduct({ ...p, IDSP: generateProductId() });
         }
       }
 
-      toast.success(`Đã thêm thành công ${payloads.length} món mới vào menu quán!`);
       setSelectedImage(null);
-      setScanResults(null);
+      setScanItems([]);
+      setScanSummary(null);
       onClose();
     } catch {
-      toast.error('Lỗi khi thêm danh sách món mới');
+      toast.error('Lỗi khi lưu danh sách món vào thực đơn');
     } finally {
       setIsLoading(false);
     }
   };
 
+  const visibleScanItems = scanItems
+    .map((item, originalIndex) => ({ item, originalIndex }))
+    .filter(({ item }) => (viewFilter === 'new' ? item.isNew : true));
+
+  const selectedCount = scanItems.filter((i) => i.selected).length;
+  const blankPriceSelectedCount = scanItems.filter((i) => i.selected && (!i.price || i.price <= 0)).length;
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto p-0 rounded-2xl border-0 shadow-2xl">
+      <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto p-0 rounded-2xl border-0 shadow-2xl">
         {/* Header */}
         <DialogHeader className="p-5 bg-gradient-to-r from-purple-700 via-indigo-600 to-blue-600 text-white shrink-0">
           <div className="flex items-center justify-between">
@@ -264,10 +413,10 @@ export function AIProductCreatorModal({
               </span>
               <div>
                 <DialogTitle className="text-lg font-black tracking-wide text-white flex items-center gap-2">
-                  Trợ Lý AI Thêm Sản Phẩm Thông Minh
+                  Trợ Lý AI Thêm Sản Phẩm & Quét Thực Đơn Thông Minh
                 </DialogTitle>
                 <p className="text-xs text-purple-100 font-normal mt-0.5">
-                  Tạo món nhanh bằng Prompt hoặc Scan ảnh Menu giấy tự đối chiếu
+                  Tạo món bằng mô tả hoặc quét ảnh Menu kèm bảng nhập giá nhanh (hỗ trợ để trống giá)
                 </p>
               </div>
             </div>
@@ -278,26 +427,26 @@ export function AIProductCreatorModal({
             <button
               type="button"
               onClick={() => setActiveTab('prompt')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                 activeTab === 'prompt'
                   ? 'bg-white text-indigo-700 shadow-sm'
                   : 'bg-white/10 hover:bg-white/20 text-white'
               }`}
             >
               <FileText className="w-3.5 h-3.5" />
-              1. Nhập Prompt mô tả
+              1. Nhập Prompt mô tả món
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('scan')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
                 activeTab === 'scan'
                   ? 'bg-white text-indigo-700 shadow-sm'
                   : 'bg-white/10 hover:bg-white/20 text-white'
               }`}
             >
               <Camera className="w-3.5 h-3.5" />
-              2. Scan ảnh Menu quán
+              2. Quét ảnh Menu & Nhập giá nhanh
             </button>
           </div>
         </DialogHeader>
@@ -307,12 +456,12 @@ export function AIProductCreatorModal({
           <div className="p-5 space-y-4">
             <div>
               <label className="block text-xs font-bold text-gray-700 dark:text-gray-200 mb-1.5">
-                Mô tả món bạn muốn thêm (Tên, giá, loại, topping, hương vị):
+                Mô tả món bạn muốn thêm (Tên món, loại, giá bán nếu có, hương vị):
               </label>
               <textarea
                 value={promptText}
                 onChange={(e) => setPromptText(e.target.value)}
-                placeholder="vd: Thêm món Trà dâu tây kem sữa tuyết giá 34k size M, loại Trà trái cây, topping thạch củ năng giòn ngon..."
+                placeholder="vd: Thêm món Bún bò Huế (không ghi giá sẽ để trống để nhập sau) hoặc Trà dâu tây kem sữa giá 34k..."
                 rows={3}
                 className="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none leading-relaxed"
               />
@@ -320,8 +469,8 @@ export function AIProductCreatorModal({
 
             {/* Suggestions */}
             <div>
-              <div className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1.5 flex items-center gap-1">
-                <span>Gợi ý mẫu:</span>
+              <div className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
+                Gợi ý mẫu:
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {PROMPT_SUGGESTIONS.map((s, idx) => (
@@ -329,7 +478,7 @@ export function AIProductCreatorModal({
                     key={idx}
                     type="button"
                     onClick={() => setPromptText(s)}
-                    className="text-[10.5px] px-2.5 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60 hover:bg-indigo-100 transition-colors text-left"
+                    className="text-[11px] px-2.5 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60 hover:bg-indigo-100 transition-colors text-left"
                   >
                     + {s}
                   </button>
@@ -345,45 +494,159 @@ export function AIProductCreatorModal({
               {isLoading ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  AI đang trích xuất & tìm ảnh phù hợp...
+                  AI đang phân tích & kiểm tra trùng lặp...
                 </>
               ) : (
                 <>
                   <Sparkles className="w-4 h-4 mr-2 text-yellow-300" />
-                  Trích xuất thông tin món với AI
+                  Phân tích món bằng AI
                 </>
               )}
             </Button>
 
-            {/* Preview Generated Product Card */}
+            {/* Preview & Inline Edit Card */}
             {generatedProduct && (
-              <div className="mt-4 p-4 rounded-xl border-2 border-indigo-500/40 bg-gradient-to-br from-indigo-50/50 to-purple-50/30 dark:from-indigo-950/40 dark:to-purple-950/20 space-y-3 animate-in fade-in">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={generatedProduct.image}
-                      alt={generatedProduct.name}
-                      className="w-16 h-16 rounded-xl object-cover border border-indigo-200 dark:border-indigo-800 shrink-0 shadow-sm"
-                    />
-                    <div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-600 text-white">
-                        {generatedProduct.category}
-                      </span>
-                      <h4 className="text-base font-extrabold text-gray-900 dark:text-white mt-1">
-                        {generatedProduct.name}
-                      </h4>
-                      <p className="text-xs text-gray-600 dark:text-gray-300 line-clamp-1">
-                        {generatedProduct.description}
-                      </p>
-                    </div>
+              <div className="mt-4 p-4 rounded-xl border-2 border-indigo-500/40 bg-gradient-to-br from-indigo-50/50 to-purple-50/30 dark:from-indigo-950/40 dark:to-purple-950/20 space-y-3">
+                {generatedProduct.isDuplicateName && (
+                  <div className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700 flex items-center gap-2 text-xs text-amber-800 dark:text-amber-200">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>
+                      Cảnh báo: Sản phẩm <strong>&ldquo;{generatedProduct.name}&rdquo;</strong> đã tồn tại trên hệ thống (Mã:{' '}
+                      <strong>{generatedProduct.existingProductId}</strong>). Vui lòng đổi tên khác hoặc kiểm tra lại tránh trùng lặp!
+                    </span>
                   </div>
+                )}
 
-                  <div className="text-right shrink-0">
-                    <div className="text-base font-black text-indigo-600 dark:text-indigo-400">
-                      {generatedProduct.price.toLocaleString('vi-VN')}đ
+                <div className="flex flex-col md:flex-row gap-4 items-start">
+                  <img
+                    src={generatedProduct.image}
+                    alt={generatedProduct.name}
+                    className="w-20 h-20 rounded-xl object-cover border border-indigo-200 dark:border-indigo-800 shrink-0 shadow-sm"
+                  />
+
+                  <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
+                    <div>
+                      <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-300 mb-1">
+                        Tên sản phẩm
+                      </label>
+                      <input
+                        type="text"
+                        value={generatedProduct.name}
+                        onChange={(e) => {
+                          const newName = e.target.value;
+                          const dup = currentProducts.find(
+                            (p) => p['Tên sản phẩm']?.trim().toLowerCase() === newName.trim().toLowerCase()
+                          );
+                          setGeneratedProduct({
+                            ...generatedProduct,
+                            name: newName,
+                            isDuplicateName: Boolean(dup),
+                            existingProductId: dup?.IDSP || null,
+                          });
+                        }}
+                        className="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900"
+                      />
                     </div>
-                    <div className="text-[11px] text-gray-400">
-                      Vốn ước tính: {generatedProduct.costPrice.toLocaleString('vi-VN')}đ
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-300 mb-1">
+                          Phân loại
+                        </label>
+                        <select
+                          value={generatedProduct.category}
+                          onChange={(e) =>
+                            setGeneratedProduct({ ...generatedProduct, category: e.target.value })
+                          }
+                          className="w-full px-2 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900"
+                        >
+                          {CATEGORIES.map((c) => (
+                            <option key={c} value={c}>
+                              {c}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-300 mb-1">
+                          Đơn vị tính
+                        </label>
+                        <input
+                          type="text"
+                          value={generatedProduct.unit}
+                          onChange={(e) =>
+                            setGeneratedProduct({ ...generatedProduct, unit: e.target.value })
+                          }
+                          className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-300 mb-1">
+                        Đơn giá bán (VNĐ){' '}
+                        {(!generatedProduct.price || generatedProduct.price <= 0) && (
+                          <span className="text-amber-600 font-semibold">(Đang để trống = 0đ)</span>
+                        )}
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        step={1000}
+                        value={generatedProduct.price > 0 ? generatedProduct.price : ''}
+                        placeholder="Để trống (0đ) hoặc nhập giá..."
+                        onChange={(e) => {
+                          const val = Math.max(0, Number(e.target.value) || 0);
+                          setGeneratedProduct({
+                            ...generatedProduct,
+                            price: val,
+                            costPrice: val > 0 ? Math.round(val * 0.4) : 0,
+                          });
+                        }}
+                        className={`w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border ${
+                          !generatedProduct.price || generatedProduct.price <= 0
+                            ? 'border-amber-400 bg-amber-50/40 dark:bg-amber-950/30'
+                            : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900'
+                        }`}
+                      />
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {QUICK_PRICE_PRESETS.map((preset) => (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() =>
+                              setGeneratedProduct({
+                                ...generatedProduct,
+                                price: preset,
+                                costPrice: Math.round(preset * 0.4),
+                              })
+                            }
+                            className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 font-semibold"
+                          >
+                            {preset / 1000}k
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-gray-600 dark:text-gray-300 mb-1">
+                        Giá vốn ước tính (VNĐ)
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        step={1000}
+                        value={generatedProduct.costPrice > 0 ? generatedProduct.costPrice : ''}
+                        placeholder="0"
+                        onChange={(e) =>
+                          setGeneratedProduct({
+                            ...generatedProduct,
+                            costPrice: Math.max(0, Number(e.target.value) || 0),
+                          })
+                        }
+                        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900"
+                      />
                     </div>
                   </div>
                 </div>
@@ -397,7 +660,7 @@ export function AIProductCreatorModal({
                 <Button
                   onClick={handleSavePromptProduct}
                   disabled={isLoading}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2 rounded-lg shadow-sm flex items-center justify-center gap-1.5"
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 rounded-lg shadow-sm flex items-center justify-center gap-1.5"
                 >
                   <Check className="w-4 h-4" />
                   Xác nhận & Lưu vào Menu quán
@@ -407,7 +670,7 @@ export function AIProductCreatorModal({
           </div>
         )}
 
-        {/* Tab 2: Scan Menu từ ảnh */}
+        {/* Tab 2: Scan Menu từ ảnh & Bảng nhập giá nhanh */}
         {activeTab === 'scan' && (
           <div className="p-5 space-y-4">
             <input
@@ -430,114 +693,360 @@ export function AIProductCreatorModal({
                   Nhấp để tải lên ảnh thực đơn của quán
                 </h4>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Chụp ảnh bảng menu hoặc tải file ảnh JPG, PNG để AI tự đối chiếu món
+                  Hỗ trợ mọi định dạng JPG, PNG, WEBP. Ảnh sẽ được tự động tối ưu độ nét để AI đọc chính xác 100%.
                 </p>
               </div>
             ) : (
-              <div className="space-y-3">
-                <div className="relative rounded-xl overflow-hidden border max-h-52 bg-black/5 flex items-center justify-center">
-                  <img src={selectedImage} alt="Menu Preview" className="max-h-52 object-contain" />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedImage(null);
-                      setScanResults(null);
-                    }}
-                    className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white hover:bg-black/80"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+              <div className="flex flex-col sm:flex-row items-center gap-3 bg-gray-50 dark:bg-gray-900 p-3 rounded-xl border">
+                <div className="relative rounded-lg overflow-hidden border h-24 w-36 bg-black/5 flex items-center justify-center shrink-0">
+                  <img src={selectedImage} alt="Menu Preview" className="max-h-24 object-contain" />
                 </div>
-
-                <Button
-                  onClick={handleStartScanMenu}
-                  disabled={isLoading}
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2.5 rounded-xl shadow-md"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      AI đang phân tích ảnh menu & đối chiếu...
-                    </>
-                  ) : (
-                    <>
-                      <Camera className="w-4 h-4 mr-2" />
-                      Bắt đầu Quét & Đối chiếu Menu
-                    </>
-                  )}
-                </Button>
+                <div className="flex-1 space-y-2 w-full">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-gray-700 dark:text-gray-200">
+                      Ảnh thực đơn đã sẵn sàng quét
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="h-7 text-xs px-2.5"
+                      >
+                        Đổi ảnh khác
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedImage(null);
+                          setScanItems([]);
+                          setScanSummary(null);
+                        }}
+                        className="h-7 text-xs px-2 text-red-600"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={handleStartScanMenu}
+                    disabled={isLoading}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 rounded-lg shadow-sm"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        AI đang đọc chữ trên Menu & lập bảng sản phẩm...
+                      </>
+                    ) : (
+                      <>
+                        <Camera className="w-4 h-4 mr-2" />
+                        {scanItems.length > 0 ? 'Quét lại ảnh Menu này' : 'Bắt đầu Quét & Tạo bảng nhập giá nhanh'}
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             )}
 
-            {/* Scan Results View */}
-            {scanResults && (
-              <div className="space-y-3 animate-in fade-in">
-                <div className="flex items-center justify-between text-xs bg-gray-100 dark:bg-gray-800 p-2.5 rounded-xl font-medium">
-                  <span>
-                    Tổng phát hiện: <strong>{scanResults.totalDetected} món</strong>
-                  </span>
-                  <span className="text-gray-500 dark:text-gray-400">
-                    Đã có: {scanResults.existingCount} món
-                  </span>
-                  <span className="text-emerald-600 dark:text-emerald-400 font-bold">
-                    Mới chưa có: {scanResults.newProducts.length} món
-                  </span>
+            {/* BẢNG NHẬP GIÁ NHANH SẢN PHẨM QUÉT ĐƯỢC (1.b) */}
+            {scanSummary && (
+              <div className="space-y-3">
+                {/* Thanh thống kê & bộ lọc */}
+                <div className="flex flex-wrap items-center justify-between gap-2 bg-gray-100 dark:bg-gray-800 p-2.5 rounded-xl text-xs">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setViewFilter('new')}
+                      className={`px-2.5 py-1 rounded-lg font-bold transition-colors ${
+                        viewFilter === 'new'
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300'
+                      }`}
+                    >
+                      Món mới chưa có ({scanItems.filter((i) => i.isNew).length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViewFilter('all')}
+                      className={`px-2.5 py-1 rounded-lg font-bold transition-colors ${
+                        viewFilter === 'all'
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300'
+                      }`}
+                    >
+                      Tất cả món quét được ({scanItems.length})
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-[11px]">
+                    <span className="text-gray-600 dark:text-gray-300">
+                      Đang chọn: <strong>{selectedCount} món</strong>
+                    </span>
+                    {blankPriceSelectedCount > 0 && (
+                      <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 font-semibold">
+                        {blankPriceSelectedCount} món để trống giá (0đ)
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                {scanResults.newProducts.length > 0 ? (
-                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                    {scanResults.newProducts.map((p, idx) => (
-                      <div
-                        key={idx}
-                        onClick={() => handleToggleSelectNewProduct(idx)}
-                        className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition-colors ${
-                          p.selected
-                            ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30'
-                            : 'border-gray-200 dark:border-gray-800 opacity-60'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                          <input
-                            type="checkbox"
-                            checked={p.selected}
-                            onChange={() => {}}
-                            className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
-                          />
-                          <img
-                            src={p.image}
-                            alt={p.name}
-                            className="w-9 h-9 rounded-lg object-cover shrink-0"
-                          />
-                          <div className="truncate">
-                            <h5 className="text-xs font-bold text-gray-900 dark:text-white truncate">
-                              {p.name}
-                            </h5>
-                            <span className="text-[10.5px] text-gray-500">{p.category}</span>
-                          </div>
-                        </div>
+                {/* Thanh công cụ điền giá hàng loạt siêu tốc */}
+                {scanItems.length > 0 && (
+                  <div className="p-2.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/60 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-900 dark:text-indigo-200">
+                      <Wand2 className="w-4 h-4 text-indigo-600" />
+                      <span>Nhập giá hàng loạt:</span>
+                    </div>
 
-                        <div className="text-right shrink-0">
-                          <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                            {p.price.toLocaleString('vi-VN')}đ
-                          </span>
-                        </div>
-                      </div>
-                    ))}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <input
+                        type="number"
+                        min={0}
+                        step={1000}
+                        value={batchPriceInput}
+                        onChange={(e) => setBatchPriceInput(e.target.value)}
+                        placeholder="Nhập giá chung (vd: 30000)"
+                        className="w-40 px-2.5 py-1 text-xs rounded-lg border border-indigo-300 dark:border-indigo-700 bg-white dark:bg-gray-900 font-semibold"
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleApplyBatchPrice(true)}
+                        className="h-7 text-[11px] px-2.5 border-indigo-300 text-indigo-700 hover:bg-indigo-100"
+                      >
+                        Điền cho món trống giá
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleApplyBatchPrice(false)}
+                        className="h-7 text-[11px] px-2.5 border-indigo-300 text-indigo-700 hover:bg-indigo-100"
+                      >
+                        Áp dụng tất cả món chọn
+                      </Button>
+                    </div>
+
+                    <div className="flex items-center gap-1 w-full sm:w-auto justify-end">
+                      <span className="text-[10.5px] text-gray-500 mr-1">Điền nhanh cho mục trống:</span>
+                      {QUICK_PRICE_PRESETS.map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => handleApplyBatchPrice(true, preset)}
+                          className="text-[10.5px] px-2 py-0.5 rounded bg-white dark:bg-gray-800 border border-indigo-200 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-600 hover:text-white font-bold transition-colors"
+                        >
+                          {preset / 1000}k
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                ) : (
-                  <p className="text-xs text-center text-gray-500 py-3">
-                    Tất cả các món trong ảnh menu đã có sẵn trên hệ thống quán của bạn!
-                  </p>
                 )}
 
-                {scanResults.newProducts.length > 0 && (
-                  <Button
-                    onClick={handleSaveScannedProducts}
-                    disabled={isLoading}
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2.5 rounded-xl shadow-md"
-                  >
-                    Thêm các món đã chọn vào Menu quán
-                  </Button>
+                {/* Bảng chỉnh sửa trực tiếp từng sản phẩm */}
+                {visibleScanItems.length > 0 ? (
+                  <div className="border rounded-xl overflow-hidden max-h-80 overflow-y-auto">
+                    <table className="w-full text-xs border-collapse">
+                      <thead className="bg-gray-100 dark:bg-gray-800 sticky top-0 z-10 text-gray-700 dark:text-gray-200">
+                        <tr>
+                          <th className="p-2 text-center w-8">
+                            <input
+                              type="checkbox"
+                              checked={
+                                visibleScanItems.length > 0 &&
+                                visibleScanItems.every(({ item }) => item.selected)
+                              }
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setScanItems((prev) =>
+                                  prev.map((it) =>
+                                    viewFilter === 'new' && !it.isNew ? it : { ...it, selected: checked }
+                                  )
+                                );
+                              }}
+                              className="w-3.5 h-3.5 rounded text-emerald-600"
+                            />
+                          </th>
+                          <th className="p-2 text-left">Tên sản phẩm (Có thể sửa)</th>
+                          <th className="p-2 text-left w-32">Phân loại</th>
+                          <th className="p-2 text-left w-16">ĐVT</th>
+                          <th className="p-2 text-left w-44">Đơn giá bán (VNĐ)</th>
+                          <th className="p-2 text-left w-28">Giá vốn</th>
+                          <th className="p-2 text-center w-10">Xóa</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200 dark:divide-gray-800 bg-white dark:bg-gray-950">
+                        {visibleScanItems.map(({ item, originalIndex }, rowIdx) => {
+                          const isBlankPrice = !item.price || item.price <= 0;
+                          return (
+                            <tr
+                              key={originalIndex}
+                              className={`transition-colors ${
+                                item.selected
+                                  ? 'bg-emerald-50/20 dark:bg-emerald-950/10'
+                                  : 'opacity-55 bg-gray-50/50 dark:bg-gray-900/40'
+                              }`}
+                            >
+                              <td className="p-2 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={item.selected}
+                                  onChange={(e) =>
+                                    handleUpdateScanItem(originalIndex, 'selected', e.target.checked)
+                                  }
+                                  className="w-3.5 h-3.5 rounded text-emerald-600"
+                                />
+                              </td>
+                              <td className="p-1.5">
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    type="text"
+                                    value={item.name}
+                                    onChange={(e) =>
+                                      handleUpdateScanItem(originalIndex, 'name', e.target.value)
+                                    }
+                                    className="w-full px-2 py-1 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 font-semibold"
+                                  />
+                                  <span
+                                    className={`text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 ${
+                                      item.isNew
+                                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                                        : 'bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-400'
+                                    }`}
+                                  >
+                                    {item.isNew ? 'Mới' : 'Đã có'}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="p-1.5">
+                                <select
+                                  value={item.category}
+                                  onChange={(e) =>
+                                    handleUpdateScanItem(originalIndex, 'category', e.target.value)
+                                  }
+                                  className="w-full px-1.5 py-1 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
+                                >
+                                  {CATEGORIES.map((c) => (
+                                    <option key={c} value={c}>
+                                      {c}
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="p-1.5">
+                                <input
+                                  type="text"
+                                  value={item.unit}
+                                  onChange={(e) =>
+                                    handleUpdateScanItem(originalIndex, 'unit', e.target.value)
+                                  }
+                                  className="w-full px-1.5 py-1 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-center"
+                                />
+                              </td>
+                              <td className="p-1.5">
+                                <div className="relative">
+                                  <input
+                                    ref={(el) => {
+                                      priceInputRefs.current[rowIdx] = el;
+                                    }}
+                                    type="number"
+                                    min={0}
+                                    step={1000}
+                                    value={item.price > 0 ? item.price : ''}
+                                    placeholder="Để trống hoặc nhập giá..."
+                                    onChange={(e) =>
+                                      handleUpdateScanItem(
+                                        originalIndex,
+                                        'price',
+                                        e.target.value === '' ? 0 : Number(e.target.value)
+                                      )
+                                    }
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        const nextInput = priceInputRefs.current[rowIdx + 1];
+                                        if (nextInput) {
+                                          nextInput.focus();
+                                          nextInput.select();
+                                        }
+                                      }
+                                    }}
+                                    className={`w-full px-2 py-1 rounded border font-bold ${
+                                      isBlankPrice
+                                        ? 'border-amber-400 bg-amber-50/60 dark:bg-amber-950/30 placeholder:text-amber-600/80 placeholder:font-normal'
+                                        : 'border-emerald-400 bg-white dark:bg-gray-900 text-emerald-700 dark:text-emerald-400'
+                                    }`}
+                                  />
+                                </div>
+                              </td>
+                              <td className="p-1.5">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step={1000}
+                                  value={item.costPrice > 0 ? item.costPrice : ''}
+                                  placeholder="0"
+                                  onChange={(e) =>
+                                    handleUpdateScanItem(
+                                      originalIndex,
+                                      'costPrice',
+                                      e.target.value === '' ? 0 : Number(e.target.value)
+                                    )
+                                  }
+                                  className="w-full px-2 py-1 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300"
+                                />
+                              </td>
+                              <td className="p-1.5 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveScanItem(originalIndex)}
+                                  className="p-1 text-gray-400 hover:text-red-600 rounded"
+                                  title="Bỏ dòng này"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-center py-6 bg-gray-50 dark:bg-gray-900 rounded-xl border">
+                    <p className="text-xs text-gray-600 dark:text-gray-400">
+                      Tất cả các món trong ảnh đều đã có trên hệ thống! Nhấn vào tab{' '}
+                      <button
+                        type="button"
+                        onClick={() => setViewFilter('all')}
+                        className="text-indigo-600 font-bold underline"
+                      >
+                        Tất cả món quét được ({scanItems.length})
+                      </button>{' '}
+                      nếu bạn vẫn muốn xem và chỉnh sửa.
+                    </p>
+                  </div>
+                )}
+
+                {scanItems.length > 0 && (
+                  <div className="flex items-center justify-between gap-3 pt-1">
+                    <span className="text-[11px] text-gray-500">
+                      💡 Mẹo: Nhấn phím <strong>Enter</strong> ở ô Đơn giá để nhảy nhanh xuống dòng tiếp theo. Món để trống giá sẽ lưu với giá 0đ để cập nhật sau.
+                    </span>
+                    <Button
+                      onClick={handleSaveScannedProducts}
+                      disabled={isLoading || selectedCount === 0}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md shrink-0"
+                    >
+                      <Check className="w-4 h-4 mr-1.5" />
+                      Lưu {selectedCount} món đã chọn vào Menu
+                    </Button>
+                  </div>
                 )}
               </div>
             )}

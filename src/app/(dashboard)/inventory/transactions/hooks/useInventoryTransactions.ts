@@ -1,5 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { InventoryTransaction, InventoryTransactionFormData, InventoryStats } from '../types/inventory';
+import {
+  InventoryTransaction,
+  InventoryTransactionFormData,
+  InventoryStats,
+} from '../types/inventory';
 import { generateTransactionId, calculateTotalAmount } from '../utils/formatters';
 import authUtils from '@/utils/authUtils';
 import { JsonFileManager } from '@/utils/jsonFileManager';
@@ -13,10 +17,52 @@ export const useInventoryTransactions = () => {
     tonKho: 0,
     giaTriTonKho: 0,
     soGiaoDichThang: 0,
-    soGiaoDichNgay: 0
+    soGiaoDichNgay: 0,
   });
 
-  // Fetch transactions from JSON file
+  const calculateStats = useCallback((data: InventoryTransaction[]) => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    const currentDay = now.getDate();
+
+    const monthlyTransactions = data.filter((t) => {
+      const transactionDate = authUtils.parseFlexibleDate(t.NgayGiaoDich);
+      return (
+        transactionDate &&
+        transactionDate.getMonth() === currentMonth &&
+        transactionDate.getFullYear() === currentYear
+      );
+    });
+
+    const dailyTransactions = data.filter((t) => {
+      const transactionDate = authUtils.parseFlexibleDate(t.NgayGiaoDich);
+      return (
+        transactionDate &&
+        transactionDate.getDate() === currentDay &&
+        transactionDate.getMonth() === currentMonth &&
+        transactionDate.getFullYear() === currentYear
+      );
+    });
+
+    const tongNhap = data
+      .filter((t) => t.LoaiGiaoDich === 'Nhập kho')
+      .reduce((sum, t) => sum + (Number(t.TongTien) || 0), 0);
+
+    const tongXuat = data
+      .filter((t) => t.LoaiGiaoDich === 'Xuất kho')
+      .reduce((sum, t) => sum + (Number(t.TongTien) || 0), 0);
+
+    setStats({
+      tongNhap,
+      tongXuat,
+      tonKho: Math.max(0, tongNhap - tongXuat),
+      giaTriTonKho: Math.max(0, tongNhap - tongXuat),
+      soGiaoDichThang: monthlyTransactions.length,
+      soGiaoDichNgay: dailyTransactions.length,
+    });
+  }, []);
+
   const fetchTransactions = useCallback(async () => {
     try {
       setLoading(true);
@@ -29,127 +75,95 @@ export const useInventoryTransactions = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [calculateStats]);
 
-  // Calculate statistics
-  const calculateStats = useCallback((data: InventoryTransaction[]) => {
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-    const currentDay = now.getDate();
+  const addTransaction = useCallback(
+    async (formData: InventoryTransactionFormData) => {
+      try {
+        const userData = authUtils.getUserData();
+        const staffName = userData?.['Họ và Tên'] || userData?.username || 'Quản lý kho';
 
-    const monthlyTransactions = data.filter(t => {
-      const transactionDate = new Date(t.NgayGiaoDich);
-      return transactionDate.getMonth() === currentMonth && 
-             transactionDate.getFullYear() === currentYear;
-    });
+        const newTransaction: InventoryTransaction = {
+          IDGiaoDich: generateTransactionId(),
+          LoaiGiaoDich: formData.LoaiGiaoDich,
+          NgayGiaoDich: authUtils.formatVNDateTime(new Date()),
+          NhaCungCap: formData.NhaCungCap,
+          NhanVienThucHien: staffName,
+          GhiChu: formData.GhiChu,
+          TongTien: calculateTotalAmount(formData.ChiTiet),
+          TrangThai: 'Hoàn thành',
+          ChiTiet: formData.ChiTiet.map((detail) => ({
+            ...detail,
+            ThanhTien: detail.SoLuong * detail.DonGia,
+          })),
+        };
 
-    const dailyTransactions = data.filter(t => {
-      const transactionDate = new Date(t.NgayGiaoDich);
-      return transactionDate.getDate() === currentDay &&
-             transactionDate.getMonth() === currentMonth && 
-             transactionDate.getFullYear() === currentYear;
-    });
+        await authUtils.addNhapXuatKho(newTransaction);
 
-    const tongNhap = data
-      .filter(t => t.LoaiGiaoDich === 'Nhập kho')
-      .reduce((sum, t) => sum + t.TongTien, 0);
+        setTransactions((prev) => {
+          const updated = [newTransaction, ...prev];
+          calculateStats(updated);
+          return updated;
+        });
 
-    const tongXuat = data
-      .filter(t => t.LoaiGiaoDich === 'Xuất kho')
-      .reduce((sum, t) => sum + t.TongTien, 0);
-
-    setStats({
-      tongNhap,
-      tongXuat,
-      tonKho: tongNhap - tongXuat,
-      giaTriTonKho: tongNhap - tongXuat,
-      soGiaoDichThang: monthlyTransactions.length,
-      soGiaoDichNgay: dailyTransactions.length
-    });
-  }, []);
-
-  // Add new transaction
-  const addTransaction = useCallback(async (formData: InventoryTransactionFormData) => {
-    try {
-      const userData = authUtils.getUserData();
-      if (!userData) {
-        throw new Error('User not authenticated');
+        return newTransaction;
+      } catch (error) {
+        console.error('Error adding transaction:', error);
+        throw error;
       }
+    },
+    [calculateStats]
+  );
 
-      const newTransaction: InventoryTransaction = {
-        IDGiaoDich: generateTransactionId(),
-        LoaiGiaoDich: formData.LoaiGiaoDich,
-        NgayGiaoDich: new Date().toLocaleString('vi-VN'),
-        NhaCungCap: formData.NhaCungCap,
-        NhanVienThucHien: userData['Họ và Tên'] || userData.username,
-        GhiChu: formData.GhiChu,
-        TongTien: calculateTotalAmount(formData.ChiTiet),
-        TrangThai: 'Hoàn thành',
-        ChiTiet: formData.ChiTiet.map(detail => ({
-          ...detail,
-          ThanhTien: detail.SoLuong * detail.DonGia
-        }))
-      };
+  const updateTransaction = useCallback(
+    async (transactionId: string, formData: InventoryTransactionFormData) => {
+      try {
+        const updatedFields = {
+          LoaiGiaoDich: formData.LoaiGiaoDich,
+          NhaCungCap: formData.NhaCungCap,
+          GhiChu: formData.GhiChu,
+          TongTien: calculateTotalAmount(formData.ChiTiet),
+          ChiTiet: formData.ChiTiet.map((detail) => ({
+            ...detail,
+            ThanhTien: detail.SoLuong * detail.DonGia,
+          })),
+        };
 
-      // In a real app, you would save to backend here
-      // For now, we'll just add to local state
-      setTransactions(prev => {
-        const updated = [newTransaction, ...prev];
-        calculateStats(updated);
-        return updated;
-      });
+        await authUtils.updateNhapXuatKho(transactionId, updatedFields);
 
-      return newTransaction;
-    } catch (error) {
-      console.error('Error adding transaction:', error);
-      throw error;
-    }
-  }, []);
+        setTransactions((prev) => {
+          const updated = prev.map((t) =>
+            t.IDGiaoDich === transactionId ? { ...t, ...updatedFields } : t
+          );
+          calculateStats(updated);
+          return updated;
+        });
+      } catch (error) {
+        console.error('Error updating transaction:', error);
+        throw error;
+      }
+    },
+    [calculateStats]
+  );
 
-  // Update transaction
-  const updateTransaction = useCallback(async (transactionId: string, formData: InventoryTransactionFormData) => {
-    try {
-      setTransactions(prev => {
-        const updated = prev.map(t => 
-          t.IDGiaoDich === transactionId 
-            ? {
-                ...t,
-                LoaiGiaoDich: formData.LoaiGiaoDich,
-                NhaCungCap: formData.NhaCungCap,
-                GhiChu: formData.GhiChu,
-                TongTien: calculateTotalAmount(formData.ChiTiet),
-                ChiTiet: formData.ChiTiet.map(detail => ({
-                  ...detail,
-                  ThanhTien: detail.SoLuong * detail.DonGia
-                }))
-              }
-            : t
-        );
-        calculateStats(updated);
-        return updated;
-      });
-    } catch (error) {
-      console.error('Error updating transaction:', error);
-      throw error;
-    }
-  }, []);
+  const deleteTransaction = useCallback(
+    async (transactionId: string) => {
+      try {
+        await authUtils.deleteNhapXuatKho(transactionId);
 
-  // Delete transaction
-  const deleteTransaction = useCallback(async (transactionId: string) => {
-    try {
-      setTransactions(prev => {
-        const updated = prev.filter(t => t.IDGiaoDich !== transactionId);
-        calculateStats(updated);
-        return updated;
-      });
-    } catch (error) {
-      console.error('Error deleting transaction:', error);
-      throw error;
-    }
-  }, []);
+        setTransactions((prev) => {
+          const updated = prev.filter((t) => t.IDGiaoDich !== transactionId);
+          calculateStats(updated);
+          return updated;
+        });
+      } catch (error) {
+        console.error('Error deleting transaction:', error);
+        throw error;
+      }
+    },
+    [calculateStats]
+  );
 
-  // Load initial data
   useEffect(() => {
     fetchTransactions();
   }, [fetchTransactions]);
@@ -161,6 +175,6 @@ export const useInventoryTransactions = () => {
     fetchTransactions,
     addTransaction,
     updateTransaction,
-    deleteTransaction
+    deleteTransaction,
   };
-}; 
+};

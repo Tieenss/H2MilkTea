@@ -6,21 +6,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { 
-  BarChart3, 
   DollarSign, 
-  ShoppingCart, 
-  TrendingUp, 
-  Calendar,
-  FileText,
-  Download,
   RefreshCw,
   AlertCircle,
-  Users,
-  Package,
-  Target,
-  PieChart,
-  LineChart,
-  Activity
+  Activity,
+  Database
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -39,6 +29,9 @@ import { DateRange } from 'react-day-picker';
 import { useReportData, ReportFilters } from '@/hooks/useReportData';
 import { ReportFilters as ReportFiltersComponent } from '@/components/ReportFilters';
 import { ReportKPICards } from '@/components/ReportKPICards';
+import { ExportDropdownButton } from '@/components/ExportDropdownButton';
+import { ExportColumn } from '@/utils/exportUtils';
+import toast from 'react-hot-toast';
 
 ChartJS.register(
   CategoryScale,
@@ -53,14 +46,12 @@ ChartJS.register(
 );
 
 const ComprehensiveReport = () => {
-  // Filter states
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [categories, setCategories] = useState<string[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<string[]>([]);
   const [minAmount, setMinAmount] = useState<number | undefined>(undefined);
   const [maxAmount, setMaxAmount] = useState<number | undefined>(undefined);
 
-  // Create filters object
   const filters: ReportFilters = useMemo(() => ({
     dateRange,
     categories: categories.length > 0 ? categories : undefined,
@@ -69,10 +60,8 @@ const ComprehensiveReport = () => {
     maxAmount
   }), [dateRange, categories, paymentMethods, minAmount, maxAmount]);
 
-  // Use the report data hook
-  const { data, loading, error, refresh } = useReportData(filters);
+  const { data, loading, error, refresh, reseedTestDatabase } = useReportData(filters);
 
-  // Chart data
   const chartData = useMemo(() => {
     if (!data) return null;
 
@@ -166,10 +155,27 @@ const ComprehensiveReport = () => {
     setMaxAmount(undefined);
   };
 
-  const handleExport = () => {
-    // TODO: Implement export functionality
-    console.log('Export comprehensive data:', data);
+  const handleSeedDemo = async () => {
+    const res = await reseedTestDatabase();
+    toast.success(`Đã đồng bộ ${res.invoices} hóa đơn & dữ liệu báo cáo tổng hợp!`);
   };
+
+  const exportColumns: ExportColumn[] = [
+    { key: 'date', label: 'Ngày', align: 'center' },
+    { key: 'orders', label: 'Số đơn hàng', align: 'right' },
+    { key: 'revenue', label: 'Doanh thu (VNĐ)', align: 'right', format: (v) => `${Number(v || 0).toLocaleString('vi-VN')} ₫` },
+    { key: 'avgOrder', label: 'Giá trị TB/đơn', align: 'right', format: (v) => `${Number(v || 0).toLocaleString('vi-VN')} ₫` },
+  ];
+
+  const exportRows = useMemo(() => {
+    if (!data) return [];
+    return data.current.dailyData.map((d) => ({
+      date: d.date,
+      orders: d.orders,
+      revenue: d.revenue,
+      avgOrder: d.orders > 0 ? Math.round(d.revenue / d.orders) : 0,
+    }));
+  }, [data]);
 
   if (loading) {
     return (
@@ -196,33 +202,38 @@ const ComprehensiveReport = () => {
   }
 
   if (!data) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center">
-          <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-purple-600" />
-          <p className="text-gray-600">Đang xử lý dữ liệu...</p>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-purple-900">Báo Cáo Tổng Hợp</h1>
           <p className="text-gray-600">Phân tích toàn diện kết quả kinh doanh</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={handleSeedDemo} className="border-indigo-200 text-indigo-700 hover:bg-indigo-50">
+            <Database className="h-4 w-4 mr-2" />
+            Đồng bộ DB Mẫu (Test)
+          </Button>
           <Button variant="outline" size="sm" onClick={refresh}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Làm mới
           </Button>
-          <Button variant="outline" size="sm" onClick={handleExport}>
-            <Download className="h-4 w-4 mr-2" />
-            Xuất Excel
-          </Button>
+          <ExportDropdownButton
+            data={exportRows}
+            columns={exportColumns}
+            filename="Bao_Cao_Tong_Hop_Kinh_Doanh"
+            title="BÁO CÁO TỔNG HỢP KẾT QUẢ HOẠT ĐỘNG KINH DOANH"
+            subtitle={`Doanh thu kỳ này: ${data.current.revenue.toLocaleString('vi-VN')} ₫ | Tăng trưởng: ${data.comparison.revenueGrowth.toFixed(1)}%`}
+            summaryStats={[
+              { label: 'Tổng doanh thu kỳ này', value: `${data.current.revenue.toLocaleString('vi-VN')} ₫` },
+              { label: 'Tổng đơn hàng', value: `${data.current.orders} đơn` },
+              { label: 'Tăng trưởng doanh thu', value: `${data.comparison.revenueGrowth >= 0 ? '+' : ''}${data.comparison.revenueGrowth.toFixed(1)}%` },
+            ]}
+          />
         </div>
       </div>
 
@@ -281,7 +292,7 @@ const ComprehensiveReport = () => {
                 {data.comparison.averageOrderValueGrowth >= 0 ? '+' : ''}{data.comparison.averageOrderValueGrowth.toFixed(1)}%
               </div>
               <p className="text-sm text-gray-600 mt-1">
-                So với kỳ trước ({data.previous.averageOrderValue.toLocaleString('vi-VN')} ₫)
+                So với kỳ trước ({Math.round(data.previous.averageOrderValue).toLocaleString('vi-VN')} ₫)
               </p>
             </div>
           </div>
@@ -301,10 +312,9 @@ const ComprehensiveReport = () => {
 
         <TabsContent value="overview" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="transform transition-all duration-200 hover:shadow-lg">
+            <Card>
               <CardHeader>
                 <CardTitle className="text-purple-900">Xu Hướng Doanh Thu & Đơn Hàng</CardTitle>
-                <CardDescription>Theo dõi hiệu suất theo thời gian</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-80">
@@ -313,73 +323,26 @@ const ComprehensiveReport = () => {
                     options={{
                       responsive: true,
                       maintainAspectRatio: false,
-                      interaction: {
-                        intersect: false,
-                        mode: 'index',
-                      },
+                      interaction: { intersect: false, mode: 'index' },
                       scales: {
-                        y: {
-                          type: 'linear',
-                          display: true,
-                          position: 'left',
-                          beginAtZero: true,
-                          ticks: {
-                            callback: function(value) {
-                              return value.toLocaleString('vi-VN') + ' ₫';
-                            }
-                          }
-                        },
-                        y1: {
-                          type: 'linear',
-                          display: true,
-                          position: 'right',
-                          beginAtZero: true,
-                          grid: {
-                            drawOnChartArea: false,
-                          },
-                        },
+                        y: { type: 'linear', display: true, position: 'left', beginAtZero: true },
+                        y1: { type: 'linear', display: true, position: 'right', beginAtZero: true, grid: { drawOnChartArea: false } },
                       },
-                      plugins: {
-                        tooltip: {
-                          callbacks: {
-                            label: function(context) {
-                              if (context.dataset.label === 'Doanh thu (VNĐ)') {
-                                return 'Doanh thu: ' + context.parsed.y.toLocaleString('vi-VN') + ' ₫';
-                              }
-                              return context.dataset.label + ': ' + context.parsed.y;
-                            }
-                          }
-                        }
-                      }
                     }} 
                   />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="transform transition-all duration-200 hover:shadow-lg">
+            <Card>
               <CardHeader>
                 <CardTitle className="text-purple-900">Phân Bố Theo Danh Mục</CardTitle>
-                <CardDescription>Doanh thu theo từng loại sản phẩm</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-80">
                   <Doughnut 
                     data={chartData?.categoryChart || { labels: [], datasets: [] }}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      plugins: {
-                        tooltip: {
-                          callbacks: {
-                            label: function(context) {
-                              const percentage = ((context.parsed / data.current.revenue) * 100).toFixed(1);
-                              return context.label + ': ' + context.parsed.toLocaleString('vi-VN') + ' ₫ (' + percentage + '%)';
-                            }
-                          }
-                        }
-                      }
-                    }}
+                    options={{ responsive: true, maintainAspectRatio: false }}
                   />
                 </div>
               </CardContent>
@@ -389,47 +352,23 @@ const ComprehensiveReport = () => {
 
         <TabsContent value="trends" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="transform transition-all duration-200 hover:shadow-lg">
+            <Card>
               <CardHeader>
                 <CardTitle className="text-purple-900">Xu Hướng Doanh Thu</CardTitle>
-                <CardDescription>Theo dõi doanh thu theo thời gian</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-80">
                   <Line 
                     data={chartData?.revenueChart || { labels: [], datasets: [] }} 
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      scales: {
-                        y: {
-                          beginAtZero: true,
-                          ticks: {
-                            callback: function(value) {
-                              return value.toLocaleString('vi-VN') + ' ₫';
-                            }
-                          }
-                        }
-                      },
-                      plugins: {
-                        tooltip: {
-                          callbacks: {
-                            label: function(context) {
-                              return 'Doanh thu: ' + context.parsed.y.toLocaleString('vi-VN') + ' ₫';
-                            }
-                          }
-                        }
-                      }
-                    }} 
+                    options={{ responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }} 
                   />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="transform transition-all duration-200 hover:shadow-lg">
+            <Card>
               <CardHeader>
                 <CardTitle className="text-purple-900">Phân Tích Hiệu Suất</CardTitle>
-                <CardDescription>So sánh các chỉ số quan trọng</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-6">
@@ -442,13 +381,13 @@ const ComprehensiveReport = () => {
                       <div>
                         <p className="text-gray-600">Doanh thu cao nhất/ngày</p>
                         <p className="font-bold text-lg">
-                          {Math.max(...data.current.dailyData.map(d => d.revenue)).toLocaleString('vi-VN')} ₫
+                          {Math.max(0, ...data.current.dailyData.map(d => d.revenue)).toLocaleString('vi-VN')} ₫
                         </p>
                       </div>
                       <div>
                         <p className="text-gray-600">Đơn hàng cao nhất/ngày</p>
                         <p className="font-bold text-lg">
-                          {Math.max(...data.current.dailyData.map(d => d.orders))} đơn
+                          {Math.max(0, ...data.current.dailyData.map(d => d.orders))} đơn
                         </p>
                       </div>
                     </div>
@@ -463,13 +402,13 @@ const ComprehensiveReport = () => {
                       <div>
                         <p className="text-gray-600">Doanh thu TB/ngày</p>
                         <p className="font-bold text-lg">
-                          {(data.current.revenue / data.current.dailyData.length).toLocaleString('vi-VN')} ₫
+                          {Math.round(data.current.revenue / Math.max(1, data.current.dailyData.length)).toLocaleString('vi-VN')} ₫
                         </p>
                       </div>
                       <div>
                         <p className="text-gray-600">Đơn hàng TB/ngày</p>
                         <p className="font-bold text-lg">
-                          {(data.current.orders / data.current.dailyData.length).toFixed(1)} đơn
+                          {(data.current.orders / Math.max(1, data.current.dailyData.length)).toFixed(1)} đơn
                         </p>
                       </div>
                     </div>
@@ -482,38 +421,28 @@ const ComprehensiveReport = () => {
 
         <TabsContent value="products" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="transform transition-all duration-200 hover:shadow-lg">
+            <Card>
               <CardHeader>
                 <CardTitle className="text-purple-900">Top 8 Sản Phẩm Bán Chạy</CardTitle>
-                <CardDescription>Theo số lượng bán</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-80">
                   <Bar 
                     data={chartData?.topProductsChart || { labels: [], datasets: [] }}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      scales: {
-                        y: {
-                          beginAtZero: true
-                        }
-                      }
-                    }}
+                    options={{ responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }}
                   />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="transform transition-all duration-200 hover:shadow-lg">
+            <Card>
               <CardHeader>
                 <CardTitle className="text-purple-900">Chi Tiết Sản Phẩm</CardTitle>
-                <CardDescription>Thông tin chi tiết sản phẩm bán chạy</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4 max-h-80 overflow-y-auto">
                   {data.current.products.slice(0, 8).map((product, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-purple-50 transform transition-all duration-200 hover:bg-purple-100">
+                    <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-purple-50">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center font-bold text-white text-sm">
                           {index + 1}
@@ -537,55 +466,39 @@ const ComprehensiveReport = () => {
 
         <TabsContent value="categories" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="transform transition-all duration-200 hover:shadow-lg">
+            <Card>
               <CardHeader>
                 <CardTitle className="text-purple-900">Phân Bố Theo Danh Mục</CardTitle>
-                <CardDescription>Doanh thu theo từng danh mục</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-80">
                   <Doughnut 
                     data={chartData?.categoryChart || { labels: [], datasets: [] }}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      plugins: {
-                        tooltip: {
-                          callbacks: {
-                            label: function(context) {
-                              const percentage = ((context.parsed / data.current.revenue) * 100).toFixed(1);
-                              return context.label + ': ' + context.parsed.toLocaleString('vi-VN') + ' ₫ (' + percentage + '%)';
-                            }
-                          }
-                        }
-                      }
-                    }}
+                    options={{ responsive: true, maintainAspectRatio: false }}
                   />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="transform transition-all duration-200 hover:shadow-lg">
+            <Card>
               <CardHeader>
                 <CardTitle className="text-purple-900">Chi Tiết Danh Mục</CardTitle>
-                <CardDescription>Thông tin chi tiết từng danh mục</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4 max-h-80 overflow-y-auto">
                   {data.current.categories.map((category, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-purple-50 transform transition-all duration-200 hover:bg-purple-100">
+                    <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-purple-50">
                       <div className="flex-1">
                         <p className="font-medium">{category.name}</p>
                         <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
                           <div 
-                            className="bg-purple-600 h-2 rounded-full transition-all duration-500 ease-out" 
-                            style={{ width: `${category.percentage}%` }}
+                            className="bg-purple-600 h-2 rounded-full" 
+                            style={{ width: `${Math.min(100, category.percentage)}%` }}
                           ></div>
                         </div>
                       </div>
                       <div className="text-right ml-4">
                         <p className="font-bold text-purple-900">{category.revenue.toLocaleString('vi-VN')} ₫</p>
-                        <p className="text-sm text-gray-600">{category.orders} đơn hàng</p>
                         <Badge variant="outline" className="border-purple-300 text-purple-700">
                           {category.percentage.toFixed(1)}%
                         </Badge>
@@ -600,61 +513,37 @@ const ComprehensiveReport = () => {
 
         <TabsContent value="payment" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="transform transition-all duration-200 hover:shadow-lg">
+            <Card>
               <CardHeader>
                 <CardTitle className="text-purple-900">Phương Thức Thanh Toán</CardTitle>
-                <CardDescription>Phân bố theo hình thức thanh toán</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-80">
                   <Doughnut 
                     data={chartData?.paymentChart || { labels: [], datasets: [] }}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      plugins: {
-                        tooltip: {
-                          callbacks: {
-                            label: function(context) {
-                              const percentage = ((context.parsed / data.current.orders) * 100).toFixed(1);
-                              return context.label + ': ' + context.parsed + ' đơn (' + percentage + '%)';
-                            }
-                          }
-                        }
-                      }
-                    }}
+                    options={{ responsive: true, maintainAspectRatio: false }}
                   />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="transform transition-all duration-200 hover:shadow-lg">
+            <Card>
               <CardHeader>
                 <CardTitle className="text-purple-900">Chi Tiết Thanh Toán</CardTitle>
-                <CardDescription>Thông tin chi tiết từng phương thức</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   {data.current.paymentMethods.map((method, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-purple-50 transform transition-all duration-200 hover:bg-purple-100">
+                    <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-purple-50">
                       <div className="flex items-center gap-3">
                         <DollarSign className="h-5 w-5 text-purple-600" />
-                        <div className="flex-1">
+                        <div>
                           <p className="font-medium">{method.method}</p>
-                          <div className="w-32 bg-gray-200 rounded-full h-2 mt-1">
-                            <div 
-                              className="bg-purple-600 h-2 rounded-full transition-all duration-500 ease-out" 
-                              style={{ width: `${method.percentage}%` }}
-                            ></div>
-                          </div>
                         </div>
                       </div>
                       <div className="text-right">
                         <p className="font-bold text-purple-900">{method.count} đơn</p>
                         <p className="text-sm text-gray-600">{method.revenue.toLocaleString('vi-VN')} ₫</p>
-                        <Badge variant="outline" className="border-purple-300 text-purple-700">
-                          {method.percentage.toFixed(1)}%
-                        </Badge>
                       </div>
                     </div>
                   ))}
@@ -665,54 +554,23 @@ const ComprehensiveReport = () => {
         </TabsContent>
 
         <TabsContent value="hourly" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="transform transition-all duration-200 hover:shadow-lg">
-              <CardHeader>
-                <CardTitle className="text-purple-900">Phân Bố Đơn Hàng Theo Giờ</CardTitle>
-                <CardDescription>Xem giờ nào có nhiều khách hàng nhất</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-80">
-                  <Bar 
-                    data={chartData?.hourlyChart || { labels: [], datasets: [] }}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      scales: {
-                        y: {
-                          beginAtZero: true
-                        }
-                      }
-                    }}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="transform transition-all duration-200 hover:shadow-lg">
-              <CardHeader>
-                <CardTitle className="text-purple-900">Chi Tiết Theo Giờ</CardTitle>
-                <CardDescription>Thông tin chi tiết từng giờ</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                  {data.current.hourlyData.map((hour, index) => (
-                    <div key={index} className="text-center p-3 bg-purple-50 rounded-lg transform transition-all duration-200 hover:bg-purple-100 hover:scale-105">
-                      <p className="font-bold text-purple-900">{hour.hour}:00</p>
-                      <p className="text-sm text-gray-600">{hour.orders} đơn</p>
-                      <p className="text-xs text-purple-600">
-                        {hour.revenue.toLocaleString('vi-VN')} ₫
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-purple-900">Phân Bố Đơn Hàng Theo Giờ</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-80">
+                <Bar 
+                  data={chartData?.hourlyChart || { labels: [], datasets: [] }}
+                  options={{ responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }}
+                />
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
   );
 };
 
-export default ComprehensiveReport; 
+export default ComprehensiveReport;

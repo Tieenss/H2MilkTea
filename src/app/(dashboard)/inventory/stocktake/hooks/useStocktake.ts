@@ -2,8 +2,32 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { Stocktake, StocktakeFormData, StocktakeStats, StocktakeAlert } from '../types/stocktake';
-import { generateStocktakeId, calculateTotalValue, calculateDiscrepancyValue } from '../utils/formatters';
+import { generateStocktakeId, calculateTotalValue } from '../utils/formatters';
 import { JsonFileManager } from '@/utils/jsonFileManager';
+import authUtils from '@/utils/authUtils';
+import toast from 'react-hot-toast';
+
+const READ_ALERTS_KEY = 'h2_stocktake_read_alerts';
+const DISMISSED_ALERTS_KEY = 'h2_stocktake_dismissed_alerts';
+
+function getStoredSet(key: string): Set<string> {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function saveStoredSet(key: string, set: Set<string>) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(key, JSON.stringify(Array.from(set)));
+  } catch {
+    // Ignore storage error
+  }
+}
 
 export function useStocktake() {
   const [stocktakes, setStocktakes] = useState<Stocktake[]>([]);
@@ -18,72 +42,92 @@ export function useStocktake() {
     TyLeChinhXac: 0,
     GiaTriTonKho: 0,
     TongGiaTriChenhLech: 0,
-    SoMatHangChenhLech: 0
+    SoMatHangChenhLech: 0,
   });
 
-  // Fetch stocktakes from JSON file
   const fetchStocktakes = useCallback(async () => {
     setLoading(true);
     try {
       const data = await JsonFileManager.fetchDataFromJson<any>('KIEMKEKHO');
-      
-      // Transform data to match Stocktake interface
+
       const transformedData: Stocktake[] = data.map((item: any) => ({
         IDKiemKe: item.IDKiemKe,
         NgayKiemKe: item.NgayKiemKe,
         LoaiKiemKe: item.LoaiKiemKe,
         NhanVienThucHien: item.NhanVienThucHien,
         TrangThai: item.TrangThai,
-        GhiChu: item.GhiChu,
-        TongMatHang: item.TongMatHang,
-        TongGiaTri: item.TongGiaTri,
-        ChiTiet: item.ChiTiet
+        GhiChu: item.GhiChu || '',
+        TongMatHang: Number(item.TongMatHang) || (Array.isArray(item.ChiTiet) ? item.ChiTiet.length : 0),
+        TongGiaTri: Number(item.TongGiaTri) || 0,
+        ChiTiet: Array.isArray(item.ChiTiet) ? item.ChiTiet : [],
       }));
-      
+
       setStocktakes(transformedData);
-      
-      // Generate alerts based on data
+
+      const readSet = getStoredSet(READ_ALERTS_KEY);
+      const dismissedSet = getStoredSet(DISMISSED_ALERTS_KEY);
       const generatedAlerts: StocktakeAlert[] = [];
-      
-      // Check for overdue stocktakes
       const today = new Date();
-      const overdueStocktakes = transformedData.filter(s => {
+      const todayIso = today.toISOString();
+
+      // 1. Cảnh báo kiểm kê quá hạn (> 30 ngày)
+      const overdueStocktakes = transformedData.filter((s) => {
         if (!s.NgayKiemKe) return false;
-        try {
-          const stocktakeDate = new Date(s.NgayKiemKe.split('/').reverse().join('-'));
-          const daysDiff = Math.floor((today.getTime() - stocktakeDate.getTime()) / (1000 * 60 * 60 * 24));
-          return daysDiff > 30 && s.TrangThai === 'Hoàn thành';
-        } catch (error) {
-          console.warn('Invalid date format for stocktake:', s.IDKiemKe, s.NgayKiemKe);
-          return false;
-        }
+        const stocktakeDate = authUtils.parseFlexibleDate(s.NgayKiemKe);
+        if (!stocktakeDate) return false;
+        const daysDiff = Math.floor(
+          (today.getTime() - stocktakeDate.getTime()) / (1000 * 60 * 60 * 24)
+        );
+        return daysDiff > 30 && s.TrangThai === 'Hoàn thành';
       });
-      
-      if (overdueStocktakes.length > 0) {
+
+      if (overdueStocktakes.length > 0 && !dismissedSet.has('CB001')) {
+        const isRead = readSet.has('CB001');
+        const msg = `Có ${overdueStocktakes.length} đợt kiểm kê định kỳ đã quá 30 ngày cần thực hiện lại (${overdueStocktakes
+          .map((s) => s.IDKiemKe)
+          .join(', ')}).`;
         generatedAlerts.push({
           id: 'CB001',
-          type: 'warning',
-          message: `Có ${overdueStocktakes.length} kiểm kê cần thực hiện trong tuần tới`,
-          date: today.toISOString().split('T')[0],
-          isRead: false
+          IDCanhBao: 'CB001',
+          type: 'overdue',
+          LoaiCanhBao: 'overdue',
+          title: 'Nhắc lịch kiểm kê định kỳ',
+          TieuDe: 'Nhắc lịch kiểm kê định kỳ',
+          message: msg,
+          NoiDung: msg,
+          date: todayIso,
+          NgayTao: todayIso,
+          isRead,
+          DaDoc: isRead,
         });
       }
-      
-      // Check for discrepancies
-      const stocktakesWithDiscrepancy = transformedData.filter(s => 
-        s.ChiTiet.some(item => item.ChenhLech !== 0)
+
+      // 2. Cảnh báo chênh lệch kiểm kê
+      const stocktakesWithDiscrepancy = transformedData.filter((s) =>
+        s.ChiTiet.some((item) => Number(item.ChenhLech) !== 0)
       );
-      
-      if (stocktakesWithDiscrepancy.length > 0) {
+
+      if (stocktakesWithDiscrepancy.length > 0 && !dismissedSet.has('CB002')) {
+        const isRead = readSet.has('CB002');
+        const msg = `Phát hiện ${stocktakesWithDiscrepancy.length} phiếu kiểm kê có chênh lệch số lượng thực tế so với sổ sách (${stocktakesWithDiscrepancy
+          .map((s) => s.IDKiemKe)
+          .join(', ')}).`;
         generatedAlerts.push({
           id: 'CB002',
-          type: 'error',
-          message: `Có ${stocktakesWithDiscrepancy.length} kiểm kê có chênh lệch, cần kiểm tra lại`,
-          date: today.toISOString().split('T')[0],
-          isRead: false
+          IDCanhBao: 'CB002',
+          type: 'discrepancy',
+          LoaiCanhBao: 'discrepancy',
+          title: 'Cảnh báo chênh lệch tồn kho',
+          TieuDe: 'Cảnh báo chênh lệch tồn kho',
+          message: msg,
+          NoiDung: msg,
+          date: todayIso,
+          NgayTao: todayIso,
+          isRead,
+          DaDoc: isRead,
         });
       }
-      
+
       setAlerts(generatedAlerts);
     } catch (error) {
       console.error('Error fetching stocktakes:', error);
@@ -94,25 +138,34 @@ export function useStocktake() {
     }
   }, []);
 
-  // Calculate stats
   const calculateStats = useCallback((data: Stocktake[]) => {
     const TongKiemKe = data.length;
-    const HoanThanh = data.filter(s => s.TrangThai === 'Hoàn thành').length;
-    const DangThucHien = data.filter(s => s.TrangThai === 'Đang thực hiện').length;
-    const ChoThucHien = data.filter(s => s.TrangThai === 'Chờ thực hiện').length;
-    
-    const TongGiaTriChenhLech = data.reduce((sum, s) => 
-      sum + s.ChiTiet.reduce((itemSum, item) => itemSum + item.GiaTriChenhLech, 0), 0
-    );
-    
-    const SoMatHangChenhLech = data.reduce((sum, s) => 
-      sum + s.ChiTiet.filter(item => item.ChenhLech !== 0).length, 0
+    const HoanThanh = data.filter((s) => s.TrangThai === 'Hoàn thành').length;
+    const DangThucHien = data.filter((s) => s.TrangThai === 'Đang thực hiện').length;
+    const ChoThucHien = data.filter((s) => s.TrangThai === 'Chờ thực hiện').length;
+
+    const TongGiaTriChenhLech = data.reduce(
+      (sum, s) =>
+        sum +
+        (s.ChiTiet || []).reduce(
+          (itemSum, item) => itemSum + (Number(item.GiaTriChenhLech) || 0),
+          0
+        ),
+      0
     );
 
-    // Calculate additional stats
-    const CoChenhLech = data.filter(s => s.ChiTiet.some(item => item.ChenhLech !== 0)).length;
-    const TyLeChinhXac = TongKiemKe > 0 ? Math.round(((TongKiemKe - CoChenhLech) / TongKiemKe) * 100) : 0;
-    const GiaTriTonKho = data.reduce((sum, s) => sum + s.TongGiaTri, 0);
+    const SoMatHangChenhLech = data.reduce(
+      (sum, s) =>
+        sum + (s.ChiTiet || []).filter((item) => Number(item.ChenhLech) !== 0).length,
+      0
+    );
+
+    const CoChenhLech = data.filter((s) =>
+      (s.ChiTiet || []).some((item) => Number(item.ChenhLech) !== 0)
+    ).length;
+    const TyLeChinhXac =
+      TongKiemKe > 0 ? Math.round(((TongKiemKe - CoChenhLech) / TongKiemKe) * 100) : 100;
+    const GiaTriTonKho = data.reduce((sum, s) => sum + (Number(s.TongGiaTri) || 0), 0);
 
     setStats({
       TongKiemKe,
@@ -123,37 +176,44 @@ export function useStocktake() {
       TyLeChinhXac,
       GiaTriTonKho,
       TongGiaTriChenhLech,
-      SoMatHangChenhLech
+      SoMatHangChenhLech,
     });
   }, []);
 
-  // Add new stocktake
   const addStocktake = useCallback(async (formData: StocktakeFormData) => {
     setLoading(true);
     try {
+      const userData = authUtils.getUserData();
+      const staffName =
+        formData.NhanVienThucHien ||
+        userData?.['Họ và Tên'] ||
+        userData?.username ||
+        'Quản lý kho';
+
       const newStocktake: Stocktake = {
         IDKiemKe: generateStocktakeId(),
-        NgayKiemKe: new Date().toLocaleDateString('vi-VN'),
-        LoaiKiemKe: formData.LoaiKiemKe as any,
-        NhanVienThucHien: 'Người dùng hiện tại', // TODO: Get from auth
-        TrangThai: 'Chờ thực hiện',
-        GhiChu: formData.GhiChu,
+        NgayKiemKe: formData.NgayKiemKe || authUtils.formatVNDateOnly(new Date()),
+        LoaiKiemKe: (formData.LoaiKiemKe as any) || 'Định kỳ',
+        NhanVienThucHien: staffName,
+        TrangThai: (formData.TrangThai as any) || 'Hoàn thành',
+        GhiChu: formData.GhiChu || '',
         TongMatHang: formData.ChiTiet.length,
         TongGiaTri: calculateTotalValue({
           ...formData,
           IDKiemKe: '',
           NgayKiemKe: '',
           LoaiKiemKe: formData.LoaiKiemKe as any,
-          NhanVienThucHien: '',
-          TrangThai: 'Chờ thực hiện',
+          NhanVienThucHien: staffName,
+          TrangThai: 'Hoàn thành',
           TongMatHang: 0,
           TongGiaTri: 0,
-          ChiTiet: formData.ChiTiet
+          ChiTiet: formData.ChiTiet,
         } as Stocktake),
-        ChiTiet: formData.ChiTiet
+        ChiTiet: formData.ChiTiet,
       };
 
-      setStocktakes(prev => [newStocktake, ...prev]);
+      await authUtils.addKiemKeKho(newStocktake);
+      setStocktakes((prev) => [newStocktake, ...prev]);
       return newStocktake;
     } catch (error) {
       console.error('Error adding stocktake:', error);
@@ -163,49 +223,59 @@ export function useStocktake() {
     }
   }, []);
 
-  // Update stocktake
-  const updateStocktake = useCallback(async (stocktakeId: string, formData: StocktakeFormData) => {
-    setLoading(true);
-    try {
-      const updatedStocktake: Stocktake = {
-        IDKiemKe: stocktakeId,
-        NgayKiemKe: new Date().toLocaleDateString('vi-VN'),
-        LoaiKiemKe: formData.LoaiKiemKe as any,
-        NhanVienThucHien: 'Người dùng hiện tại', // TODO: Get from auth
-        TrangThai: 'Đang thực hiện',
-        GhiChu: formData.GhiChu,
-        TongMatHang: formData.ChiTiet.length,
-        TongGiaTri: calculateTotalValue({
-          ...formData,
+  const updateStocktake = useCallback(
+    async (stocktakeId: string, formData: StocktakeFormData) => {
+      setLoading(true);
+      try {
+        const userData = authUtils.getUserData();
+        const staffName =
+          formData.NhanVienThucHien ||
+          userData?.['Họ và Tên'] ||
+          userData?.username ||
+          'Quản lý kho';
+
+        const updatedStocktake: Stocktake = {
           IDKiemKe: stocktakeId,
-          NgayKiemKe: '',
-          LoaiKiemKe: formData.LoaiKiemKe as any,
-          NhanVienThucHien: '',
-          TrangThai: 'Đang thực hiện',
-          TongMatHang: 0,
-          TongGiaTri: 0,
-          ChiTiet: formData.ChiTiet
-        } as Stocktake),
-        ChiTiet: formData.ChiTiet
-      };
+          NgayKiemKe: formData.NgayKiemKe || authUtils.formatVNDateOnly(new Date()),
+          LoaiKiemKe: (formData.LoaiKiemKe as any) || 'Định kỳ',
+          NhanVienThucHien: staffName,
+          TrangThai: (formData.TrangThai as any) || 'Đang thực hiện',
+          GhiChu: formData.GhiChu || '',
+          TongMatHang: formData.ChiTiet.length,
+          TongGiaTri: calculateTotalValue({
+            ...formData,
+            IDKiemKe: stocktakeId,
+            NgayKiemKe: '',
+            LoaiKiemKe: formData.LoaiKiemKe as any,
+            NhanVienThucHien: staffName,
+            TrangThai: 'Đang thực hiện',
+            TongMatHang: 0,
+            TongGiaTri: 0,
+            ChiTiet: formData.ChiTiet,
+          } as Stocktake),
+          ChiTiet: formData.ChiTiet,
+        };
 
-      setStocktakes(prev => 
-        prev.map(s => s.IDKiemKe === stocktakeId ? updatedStocktake : s)
-      );
-      return updatedStocktake;
-    } catch (error) {
-      console.error('Error updating stocktake:', error);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+        await authUtils.updateKiemKeKho(stocktakeId, updatedStocktake);
+        setStocktakes((prev) =>
+          prev.map((s) => (s.IDKiemKe === stocktakeId ? updatedStocktake : s))
+        );
+        return updatedStocktake;
+      } catch (error) {
+        console.error('Error updating stocktake:', error);
+        throw error;
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
 
-  // Delete stocktake
   const deleteStocktake = useCallback(async (stocktakeId: string) => {
     setLoading(true);
     try {
-      setStocktakes(prev => prev.filter(s => s.IDKiemKe !== stocktakeId));
+      await authUtils.deleteKiemKeKho(stocktakeId);
+      setStocktakes((prev) => prev.filter((s) => s.IDKiemKe !== stocktakeId));
     } catch (error) {
       console.error('Error deleting stocktake:', error);
       throw error;
@@ -214,36 +284,60 @@ export function useStocktake() {
     }
   }, []);
 
-  // Mark alert as read
-  const markAlertAsRead = useCallback(async (alertId: string) => {
+  // Đánh dấu cảnh báo đã đọc và lưu bền vững vào localStorage
+  const markAlertAsRead = useCallback((alertId: string) => {
     try {
-      setAlerts(prev => 
-        prev.map(alert => 
-          alert.id === alertId 
-            ? { ...alert, isRead: true }
+      const readSet = getStoredSet(READ_ALERTS_KEY);
+      readSet.add(alertId);
+      saveStoredSet(READ_ALERTS_KEY, readSet);
+
+      setAlerts((prev) =>
+        prev.map((alert) =>
+          alert.id === alertId || alert.IDCanhBao === alertId
+            ? { ...alert, isRead: true, DaDoc: true }
             : alert
         )
       );
+      toast.success('Đã đánh dấu cảnh báo là đã đọc!');
     } catch (error) {
       console.error('Error marking alert as read:', error);
     }
   }, []);
 
-  // Dismiss alert
-  const dismissAlert = useCallback(async (alertId: string) => {
+  // Xóa/Ẩn cảnh báo và lưu bền vững vào localStorage
+  const dismissAlert = useCallback((alertId: string) => {
     try {
-      setAlerts(prev => prev.filter(alert => alert.id !== alertId));
+      const dismissedSet = getStoredSet(DISMISSED_ALERTS_KEY);
+      dismissedSet.add(alertId);
+      saveStoredSet(DISMISSED_ALERTS_KEY, dismissedSet);
+
+      setAlerts((prev) =>
+        prev.filter((alert) => alert.id !== alertId && alert.IDCanhBao !== alertId)
+      );
+      toast.success('Đã bỏ qua thông báo cảnh báo!');
     } catch (error) {
       console.error('Error dismissing alert:', error);
     }
   }, []);
 
-  // Load data on mount
+  const dismissAllAlerts = useCallback(() => {
+    try {
+      const dismissedSet = getStoredSet(DISMISSED_ALERTS_KEY);
+      alerts.forEach((a) => {
+        dismissedSet.add(a.id || a.IDCanhBao);
+      });
+      saveStoredSet(DISMISSED_ALERTS_KEY, dismissedSet);
+      setAlerts([]);
+      toast.success('Đã ẩn toàn bộ cảnh báo kiểm kê!');
+    } catch (error) {
+      console.error('Error dismissing all alerts:', error);
+    }
+  }, [alerts]);
+
   useEffect(() => {
     fetchStocktakes();
   }, [fetchStocktakes]);
 
-  // Recalculate stats when stocktakes change
   useEffect(() => {
     calculateStats(stocktakes);
   }, [stocktakes, calculateStats]);
@@ -258,6 +352,7 @@ export function useStocktake() {
     updateStocktake,
     deleteStocktake,
     markAlertAsRead,
-    dismissAlert
+    dismissAlert,
+    dismissAllAlerts,
   };
-} 
+}
