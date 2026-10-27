@@ -113,7 +113,8 @@ export interface ReportFilters {
 }
 
 export const parseDateFromString = (dateString: string): Date => {
-  return AuthUtils.parseFlexibleDate(dateString);
+  const d = AuthUtils.parseFlexibleDate(dateString);
+  return d && !isNaN(d.getTime()) ? d : new Date();
 };
 
 const getTimeRangeType = (from: Date, to: Date): 'day' | 'week' | 'month' | 'quarter' | 'year' | 'custom' => {
@@ -175,7 +176,7 @@ export const useReportData = (filters: ReportFilters) => {
   const [error, setError] = useState<string | null>(null);
 
   const timeRange = useMemo(() => {
-    if (!filters.dateRange?.from || !filters.dateRange?.to) {
+    if (!filters.dateRange?.from) {
       const now = new Date();
       const from = startOfMonth(now);
       const to = endOfMonth(now);
@@ -190,7 +191,7 @@ export const useReportData = (filters: ReportFilters) => {
     }
 
     const from = startOfDay(filters.dateRange.from);
-    const to = endOfDay(filters.dateRange.to);
+    const to = endOfDay(filters.dateRange.to || filters.dateRange.from);
     const type = getTimeRangeType(from, to);
     const previous = getPreviousTimeRange(from, to, type);
 
@@ -225,7 +226,8 @@ export const useReportData = (filters: ReportFilters) => {
       const currentHoaDons = hoaDons.filter((hd: HoaDon) => {
         const rawDate = hd['Ngày'] || hd['Thời gian'];
         if (!rawDate) return false;
-        const hoaDonDate = parseDateFromString(String(rawDate));
+        const hoaDonDate = AuthUtils.parseFlexibleDate(rawDate);
+        if (!hoaDonDate || isNaN(hoaDonDate.getTime())) return false;
         const interval: Interval = { start: timeRange.current.from, end: timeRange.current.to };
         const totalAmount = Number(hd['Tổng tiền']) || 0;
         const payMethod = String(hd['Loại thanh toán'] || hd['Hình thức thanh toán'] || 'Tiền mặt');
@@ -241,7 +243,8 @@ export const useReportData = (filters: ReportFilters) => {
       const previousHoaDons = hoaDons.filter((hd: HoaDon) => {
         const rawDate = hd['Ngày'] || hd['Thời gian'];
         if (!rawDate) return false;
-        const hoaDonDate = parseDateFromString(String(rawDate));
+        const hoaDonDate = AuthUtils.parseFlexibleDate(rawDate);
+        if (!hoaDonDate || isNaN(hoaDonDate.getTime())) return false;
         const interval: Interval = { start: timeRange.previous.from, end: timeRange.previous.to };
         return isWithinInterval(hoaDonDate, interval) && 
                isPaidStatus(hd['Trạng thái']);
@@ -258,10 +261,14 @@ export const useReportData = (filters: ReportFilters) => {
       const previousAverageOrderValue = previousOrders > 0 ? previousRevenue / previousOrders : 0;
 
       // Calculate growth rates
-      const revenueGrowth = previousRevenue > 0 ? ((currentRevenue - previousRevenue) / previousRevenue) * 100 : (currentRevenue > 0 ? 100 : 0);
-      const ordersGrowth = previousOrders > 0 ? ((currentOrders - previousOrders) / previousOrders) * 100 : (currentOrders > 0 ? 100 : 0);
-      const averageOrderValueGrowth = previousAverageOrderValue > 0 ? 
-        ((currentAverageOrderValue - previousAverageOrderValue) / previousAverageOrderValue) * 100 : 0;
+      const rawRevenueGrowth = previousRevenue > 0 ? ((currentRevenue - previousRevenue) / previousRevenue) * 100 : (currentRevenue > 0 ? 100 : 0);
+      const rawOrdersGrowth = previousOrders > 0 ? ((currentOrders - previousOrders) / previousOrders) * 100 : (currentOrders > 0 ? 100 : 0);
+      const rawAvgGrowth = previousAverageOrderValue > 0 ? 
+        ((currentAverageOrderValue - previousAverageOrderValue) / previousAverageOrderValue) * 100 : (currentAverageOrderValue > 0 ? 100 : 0);
+
+      const revenueGrowth = isNaN(rawRevenueGrowth) ? 0 : rawRevenueGrowth;
+      const ordersGrowth = isNaN(rawOrdersGrowth) ? 0 : rawOrdersGrowth;
+      const averageOrderValueGrowth = isNaN(rawAvgGrowth) ? 0 : rawAvgGrowth;
 
       const currentInvoiceIds = new Set(
         currentHoaDons.map((hd) => String(hd.IDHOADON || hd.IDHD || ''))
@@ -357,7 +364,9 @@ export const useReportData = (filters: ReportFilters) => {
       }
 
       currentHoaDons.forEach((hd: HoaDon) => {
-        const hoaDonDate = parseDateFromString(String(hd['Ngày'] || hd['Thời gian']));
+        const rawDate = hd['Ngày'] || hd['Thời gian'];
+        const hoaDonDate = AuthUtils.parseFlexibleDate(rawDate);
+        if (!hoaDonDate || isNaN(hoaDonDate.getTime())) return;
         const date = format(hoaDonDate, 'dd/MM/yyyy', { locale: vi });
         if (dailyStats.has(date)) {
           const existing = dailyStats.get(date)!;
@@ -373,7 +382,9 @@ export const useReportData = (filters: ReportFilters) => {
       }
 
       currentHoaDons.forEach((hd: HoaDon) => {
-        const hoaDonDate = parseDateFromString(String(hd['Ngày'] || hd['Thời gian']));
+        const rawDate = hd['Ngày'] || hd['Thời gian'];
+        const hoaDonDate = AuthUtils.parseFlexibleDate(rawDate);
+        if (!hoaDonDate || isNaN(hoaDonDate.getTime())) return;
         const hour = hoaDonDate.getHours();
         const existing = hourlyStats.get(hour);
         if (existing) {

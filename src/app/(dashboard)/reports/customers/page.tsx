@@ -96,6 +96,7 @@ interface CustomerReportData {
 const calculateAge = (birthDate: string): number => {
   if (!birthDate) return 0;
   const birth = AuthUtils.parseFlexibleDate(birthDate);
+  if (!birth || isNaN(birth.getTime())) return 0;
   const today = new Date();
   let age = today.getFullYear() - birth.getFullYear();
   const monthDiff = today.getMonth() - birth.getMonth();
@@ -159,7 +160,7 @@ const CustomersReport = () => {
     const filteredCustomers = customers.filter(customer => {
       if (!customer['Ngày tạo']) return false;
       const createDate = AuthUtils.parseFlexibleDate(customer['Ngày tạo']);
-      return createDate >= startDate;
+      return Boolean(createDate && createDate >= startDate);
     });
 
     const totalCustomers = customers.length;
@@ -218,8 +219,10 @@ const CustomersReport = () => {
     customers.forEach(customer => {
       if (customer['Ngày tạo']) {
         const createDate = AuthUtils.parseFlexibleDate(customer['Ngày tạo']);
-        const monthKey = `${createDate.getFullYear()}-${String(createDate.getMonth() + 1).padStart(2, '0')}`;
-        growthStats.set(monthKey, (growthStats.get(monthKey) || 0) + 1);
+        if (createDate && !isNaN(createDate.getTime())) {
+          const monthKey = `${createDate.getFullYear()}-${String(createDate.getMonth() + 1).padStart(2, '0')}`;
+          growthStats.set(monthKey, (growthStats.get(monthKey) || 0) + 1);
+        }
       }
     });
 

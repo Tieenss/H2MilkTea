@@ -129,12 +129,12 @@ const StaffReport = () => {
     
     const validHoaDons = hoaDons.filter(hd => {
       const hoaDonDate = AuthUtils.parseFlexibleDate(hd['Ngày'] || hd['Thời gian']);
-      return hoaDonDate >= startDate && isPaidStatus(hd['Trạng thái']);
+      return Boolean(hoaDonDate && hoaDonDate >= startDate && isPaidStatus(hd['Trạng thái']));
     });
 
     const previousHoaDons = hoaDons.filter(hd => {
       const hoaDonDate = AuthUtils.parseFlexibleDate(hd['Ngày'] || hd['Thời gian']);
-      return hoaDonDate >= previousStartDate && hoaDonDate < startDate && isPaidStatus(hd['Trạng thái']);
+      return Boolean(hoaDonDate && hoaDonDate >= previousStartDate && hoaDonDate < startDate && isPaidStatus(hd['Trạng thái']));
     });
 
     const staffStats = new Map<string, any>();
@@ -143,7 +143,7 @@ const StaffReport = () => {
     validHoaDons.forEach(hd => {
       const staffName = String(hd['Nhân viên'] || hd['Thu ngân'] || 'Thu ngân Ca 1');
       const revenue = Number(hd['Tổng tiền']) || 0;
-      const hdDate = AuthUtils.parseFlexibleDate(hd['Ngày'] || hd['Thời gian']);
+      const hdDate = AuthUtils.parseFlexibleDate(hd['Ngày'] || hd['Thời gian']) || new Date();
       
       if (staffStats.has(staffName)) {
         const existing = staffStats.get(staffName);
@@ -209,7 +209,9 @@ const StaffReport = () => {
     }
 
     validHoaDons.forEach(hd => {
-      const date = AuthUtils.parseFlexibleDate(hd['Ngày'] || hd['Thời gian']).toLocaleDateString('vi-VN');
+      const d = AuthUtils.parseFlexibleDate(hd['Ngày'] || hd['Thời gian']);
+      if (!d) return;
+      const date = d.toLocaleDateString('vi-VN');
       const staffName = String(hd['Nhân viên'] || hd['Thu ngân'] || 'Thu ngân Ca 1');
       const revenue = Number(hd['Tổng tiền']) || 0;
       
@@ -244,7 +246,9 @@ const StaffReport = () => {
     }
 
     validHoaDons.forEach(hd => {
-      const hour = AuthUtils.parseFlexibleDate(hd['Ngày'] || hd['Thời gian']).getHours();
+      const d = AuthUtils.parseFlexibleDate(hd['Ngày'] || hd['Thời gian']);
+      if (!d) return;
+      const hour = d.getHours();
       const staffName = String(hd['Nhân viên'] || hd['Thu ngân'] || 'Thu ngân Ca 1');
       
       const hourData = hourlyStats.get(hour);

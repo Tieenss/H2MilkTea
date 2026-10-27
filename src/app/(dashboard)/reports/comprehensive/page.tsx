@@ -10,7 +10,11 @@ import {
   RefreshCw,
   AlertCircle,
   Activity,
-  Database
+  Database,
+  PieChart,
+  Package,
+  BarChart3,
+  CreditCard
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -289,7 +293,7 @@ const ComprehensiveReport = () => {
             <div className="text-center p-4 bg-white rounded-lg">
               <h4 className="font-semibold text-purple-900 mb-2">Tăng Trưởng Giá Trị TB</h4>
               <div className="text-2xl font-bold text-purple-900">
-                {data.comparison.averageOrderValueGrowth >= 0 ? '+' : ''}{data.comparison.averageOrderValueGrowth.toFixed(1)}%
+                {(data.comparison.averageOrderValueGrowth || 0) >= 0 ? '+' : ''}{(data.comparison.averageOrderValueGrowth || 0).toFixed(1)}%
               </div>
               <p className="text-sm text-gray-600 mt-1">
                 So với kỳ trước ({Math.round(data.previous.averageOrderValue).toLocaleString('vi-VN')} ₫)
@@ -318,18 +322,25 @@ const ComprehensiveReport = () => {
               </CardHeader>
               <CardContent>
                 <div className="h-80">
-                  <Line 
-                    data={chartData?.combinedChart || { labels: [], datasets: [] }} 
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      interaction: { intersect: false, mode: 'index' },
-                      scales: {
-                        y: { type: 'linear', display: true, position: 'left', beginAtZero: true },
-                        y1: { type: 'linear', display: true, position: 'right', beginAtZero: true, grid: { drawOnChartArea: false } },
-                      },
-                    }} 
-                  />
+                  {data.current.dailyData.length === 0 ? (
+                    <div className="flex h-full flex-col items-center justify-center text-muted-foreground p-4 text-center">
+                      <Activity className="h-10 w-10 mb-2 opacity-40 text-purple-600" />
+                      <p className="text-sm font-medium">Chưa có dữ liệu xu hướng trong kỳ này</p>
+                    </div>
+                  ) : (
+                    <Line 
+                      data={chartData?.combinedChart || { labels: [], datasets: [] }} 
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { intersect: false, mode: 'index' },
+                        scales: {
+                          y: { type: 'linear', display: true, position: 'left' as const, beginAtZero: true },
+                          y1: { type: 'linear', display: true, position: 'right' as const, beginAtZero: true, grid: { drawOnChartArea: false } },
+                        },
+                      }} 
+                    />
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -340,10 +351,17 @@ const ComprehensiveReport = () => {
               </CardHeader>
               <CardContent>
                 <div className="h-80">
-                  <Doughnut 
-                    data={chartData?.categoryChart || { labels: [], datasets: [] }}
-                    options={{ responsive: true, maintainAspectRatio: false }}
-                  />
+                  {data.current.categories.length === 0 ? (
+                    <div className="flex h-full flex-col items-center justify-center text-muted-foreground p-4 text-center">
+                      <PieChart className="h-10 w-10 mb-2 opacity-40 text-purple-600" />
+                      <p className="text-sm font-medium">Chưa có dữ liệu danh mục trong kỳ này</p>
+                    </div>
+                  ) : (
+                    <Doughnut 
+                      data={chartData?.categoryChart || { labels: [], datasets: [] }}
+                      options={{ responsive: true, maintainAspectRatio: false }}
+                    />
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -358,10 +376,17 @@ const ComprehensiveReport = () => {
               </CardHeader>
               <CardContent>
                 <div className="h-80">
-                  <Line 
-                    data={chartData?.revenueChart || { labels: [], datasets: [] }} 
-                    options={{ responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }} 
-                  />
+                  {data.current.dailyData.length === 0 ? (
+                    <div className="flex h-full flex-col items-center justify-center text-muted-foreground p-4 text-center">
+                      <Activity className="h-10 w-10 mb-2 opacity-40 text-purple-600" />
+                      <p className="text-sm font-medium">Chưa có dữ liệu xu hướng doanh thu trong kỳ này</p>
+                    </div>
+                  ) : (
+                    <Line 
+                      data={chartData?.revenueChart || { labels: [], datasets: [] }} 
+                      options={{ responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }} 
+                    />
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -427,10 +452,17 @@ const ComprehensiveReport = () => {
               </CardHeader>
               <CardContent>
                 <div className="h-80">
-                  <Bar 
-                    data={chartData?.topProductsChart || { labels: [], datasets: [] }}
-                    options={{ responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }}
-                  />
+                  {data.current.products.length === 0 ? (
+                    <div className="flex h-full flex-col items-center justify-center text-muted-foreground p-4 text-center">
+                      <Package className="h-10 w-10 mb-2 opacity-40 text-purple-600" />
+                      <p className="text-sm font-medium">Chưa có dữ liệu sản phẩm trong kỳ này</p>
+                    </div>
+                  ) : (
+                    <Bar 
+                      data={chartData?.topProductsChart || { labels: [], datasets: [] }}
+                      options={{ responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }}
+                    />
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -472,10 +504,17 @@ const ComprehensiveReport = () => {
               </CardHeader>
               <CardContent>
                 <div className="h-80">
-                  <Doughnut 
-                    data={chartData?.categoryChart || { labels: [], datasets: [] }}
-                    options={{ responsive: true, maintainAspectRatio: false }}
-                  />
+                  {data.current.categories.length === 0 ? (
+                    <div className="flex h-full flex-col items-center justify-center text-muted-foreground p-4 text-center">
+                      <PieChart className="h-10 w-10 mb-2 opacity-40 text-purple-600" />
+                      <p className="text-sm font-medium">Chưa có dữ liệu danh mục trong kỳ này</p>
+                    </div>
+                  ) : (
+                    <Doughnut 
+                      data={chartData?.categoryChart || { labels: [], datasets: [] }}
+                      options={{ responsive: true, maintainAspectRatio: false }}
+                    />
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -493,14 +532,14 @@ const ComprehensiveReport = () => {
                         <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
                           <div 
                             className="bg-purple-600 h-2 rounded-full" 
-                            style={{ width: `${Math.min(100, category.percentage)}%` }}
+                            style={{ width: `${Math.min(100, Math.max(0, category.percentage || 0))}%` }}
                           ></div>
                         </div>
                       </div>
                       <div className="text-right ml-4">
                         <p className="font-bold text-purple-900">{category.revenue.toLocaleString('vi-VN')} ₫</p>
                         <Badge variant="outline" className="border-purple-300 text-purple-700">
-                          {category.percentage.toFixed(1)}%
+                          {(category.percentage || 0).toFixed(1)}%
                         </Badge>
                       </div>
                     </div>
@@ -519,10 +558,17 @@ const ComprehensiveReport = () => {
               </CardHeader>
               <CardContent>
                 <div className="h-80">
-                  <Doughnut 
-                    data={chartData?.paymentChart || { labels: [], datasets: [] }}
-                    options={{ responsive: true, maintainAspectRatio: false }}
-                  />
+                  {data.current.paymentMethods.length === 0 ? (
+                    <div className="flex h-full flex-col items-center justify-center text-muted-foreground p-4 text-center">
+                      <CreditCard className="h-10 w-10 mb-2 opacity-40 text-purple-600" />
+                      <p className="text-sm font-medium">Chưa có dữ liệu phương thức thanh toán trong kỳ này</p>
+                    </div>
+                  ) : (
+                    <Doughnut 
+                      data={chartData?.paymentChart || { labels: [], datasets: [] }}
+                      options={{ responsive: true, maintainAspectRatio: false }}
+                    />
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -560,10 +606,17 @@ const ComprehensiveReport = () => {
             </CardHeader>
             <CardContent>
               <div className="h-80">
-                <Bar 
-                  data={chartData?.hourlyChart || { labels: [], datasets: [] }}
-                  options={{ responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }}
-                />
+                {data.current.hourlyData.length === 0 ? (
+                  <div className="flex h-full flex-col items-center justify-center text-muted-foreground p-4 text-center">
+                    <BarChart3 className="h-10 w-10 mb-2 opacity-40 text-purple-600" />
+                    <p className="text-sm font-medium">Chưa có dữ liệu theo giờ trong kỳ này</p>
+                  </div>
+                ) : (
+                  <Bar 
+                    data={chartData?.hourlyChart || { labels: [], datasets: [] }}
+                    options={{ responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }}
+                  />
+                )}
               </div>
             </CardContent>
           </Card>

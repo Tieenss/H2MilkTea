@@ -27,6 +27,8 @@ if (typeof (globalThis as any).window === 'undefined') {
 }
 
 import authUtils from '@/utils/authUtils';
+import { parseDateFromString } from '@/hooks/useReportData';
+import { exportToFormattedCSV } from '@/utils/exportUtils';
 
 describe('Patch 0.2710 - Application-Level Sync, Duplicate Prevention & Triggers', () => {
   beforeEach(() => {
@@ -216,5 +218,44 @@ describe('Patch 0.2710 - Application-Level Sync, Duplicate Prevention & Triggers
     expect(settledInvRes.success).toBe(true);
     expect(settledInvRes.data['Trạng thái']).toBe('Đã thanh toán');
     expect(settledInvRes.data['Tiền nợ']).toBe(0);
+  });
+
+  it('reports: parseDateFromString safely falls back without throwing on null or invalid input', () => {
+    const valid = parseDateFromString('27/10/2026 10:30:00');
+    expect(valid).toBeInstanceOf(Date);
+    expect(isNaN(valid.getTime())).toBe(false);
+
+    const empty = parseDateFromString('');
+    expect(empty).toBeInstanceOf(Date);
+    expect(isNaN(empty.getTime())).toBe(false);
+
+    const invalid = parseDateFromString('not-a-valid-date');
+    expect(invalid).toBeInstanceOf(Date);
+    expect(isNaN(invalid.getTime())).toBe(false);
+  });
+
+  it('reports: ExportDropdownButton and exportUtils support summaryStats alongside summaryRows', () => {
+    if (typeof (globalThis as any).document === 'undefined') {
+      (globalThis as any).document = {
+        createElement: () => ({ click: () => {}, setAttribute: () => {} }),
+        body: { appendChild: () => {}, removeChild: () => {} },
+      };
+    }
+    if (typeof (globalThis as any).URL?.createObjectURL === 'undefined') {
+      (globalThis as any).URL = {
+        createObjectURL: () => 'blob:mock',
+        revokeObjectURL: () => {},
+      };
+    }
+
+    // Test that passing summaryStats doesn't crash export
+    expect(() => {
+      exportToFormattedCSV({
+        title: 'Báo cáo thử nghiệm',
+        filename: 'test_report',
+        data: [{ id: 1, name: 'Trà Sữa Oolong', revenue: 50000 }],
+        summaryStats: [{ label: 'Tổng doanh thu', value: '50.000 ₫' }]
+      });
+    }).not.toThrow();
   });
 });

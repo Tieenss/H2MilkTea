@@ -123,12 +123,12 @@ const BestsellersReport = () => {
     
     const validHoaDons = hoaDons.filter(hd => {
       const hoaDonDate = AuthUtils.parseFlexibleDate(hd['Ngày'] || hd['Thời gian']);
-      return hoaDonDate >= startDate && isPaidStatus(hd['Trạng thái']);
+      return Boolean(hoaDonDate && hoaDonDate >= startDate && isPaidStatus(hd['Trạng thái']));
     });
 
     const previousHoaDons = hoaDons.filter(hd => {
       const hoaDonDate = AuthUtils.parseFlexibleDate(hd['Ngày'] || hd['Thời gian']);
-      return hoaDonDate >= previousStartDate && hoaDonDate < startDate && isPaidStatus(hd['Trạng thái']);
+      return Boolean(hoaDonDate && hoaDonDate >= previousStartDate && hoaDonDate < startDate && isPaidStatus(hd['Trạng thái']));
     });
 
     const validIds = new Set(validHoaDons.map(hd => String(hd.IDHOADON || hd.IDHD || '')));

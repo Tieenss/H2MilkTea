@@ -14,6 +14,7 @@ export interface FormattedExportOptions {
   columns?: ExportColumn[];
   data: any[];
   summaryRows?: Array<{ label: string; value: string | number }>;
+  summaryStats?: Array<{ label: string; value: string | number }>;
   preparedBy?: string;
 }
 
@@ -54,7 +55,8 @@ function normalizeRowsAndColumns(options: FormattedExportOptions): {
 
 // 1. Xuất file Excel (.xlsx) có tiêu đề quán, ngày xuất, định dạng độ rộng cột tự động và dòng tổng kết
 export function exportToFormattedExcel(options: FormattedExportOptions) {
-  const { title, subtitle, filename, summaryRows = [] } = options;
+  const { title, subtitle, filename } = options;
+  const summaryRows = options.summaryRows || options.summaryStats || [];
   const { columns, rows } = normalizeRowsAndColumns(options);
 
   const nowStr = new Date().toLocaleString('vi-VN');
@@ -134,7 +136,8 @@ export function exportToFormattedCSV(options: FormattedExportOptions) {
 
 // Tạo HTML chuẩn A4 dùng chung cho xuất Word (.doc) và In trực tiếp (Print A4)
 function buildPrintableHtmlDocument(options: FormattedExportOptions): string {
-  const { title, subtitle, summaryRows = [], preparedBy = 'Quản trị viên H2' } = options;
+  const { title, subtitle, preparedBy = 'Quản trị viên H2' } = options;
+  const summaryRows = options.summaryRows || options.summaryStats || [];
   const { columns, rows } = normalizeRowsAndColumns(options);
   const nowStr = new Date().toLocaleString('vi-VN');
 

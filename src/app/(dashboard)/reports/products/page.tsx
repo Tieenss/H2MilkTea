@@ -301,14 +301,22 @@ const ProductsReport = () => {
               </CardHeader>
               <CardContent>
                 <div className="h-80">
-                  <Bar 
-                    data={chartData?.topProductsChart || { labels: [], datasets: [] }}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      scales: { y: { beginAtZero: true } }
-                    }}
-                  />
+                  {data.current.products.length === 0 ? (
+                    <div className="flex h-full flex-col items-center justify-center text-muted-foreground p-4 text-center">
+                      <Package className="h-10 w-10 mb-2 opacity-40 text-purple-600" />
+                      <p className="text-sm font-medium">Chưa có dữ liệu sản phẩm trong kỳ này</p>
+                      <p className="text-xs text-gray-500 mt-1">Vui lòng chọn khoảng thời gian khác hoặc đồng bộ dữ liệu mẫu</p>
+                    </div>
+                  ) : (
+                    <Bar 
+                      data={chartData?.topProductsChart || { labels: [], datasets: [] }}
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: { y: { beginAtZero: true } }
+                      }}
+                    />
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -320,13 +328,21 @@ const ProductsReport = () => {
               </CardHeader>
               <CardContent>
                 <div className="h-80">
-                  <Doughnut 
-                    data={chartData?.categoryChart || { labels: [], datasets: [] }}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                    }}
-                  />
+                  {data.current.categories.length === 0 ? (
+                    <div className="flex h-full flex-col items-center justify-center text-muted-foreground p-4 text-center">
+                      <PieChart className="h-10 w-10 mb-2 opacity-40 text-purple-600" />
+                      <p className="text-sm font-medium">Chưa có dữ liệu danh mục trong kỳ này</p>
+                      <p className="text-xs text-gray-500 mt-1">Vui lòng chọn khoảng thời gian khác hoặc đồng bộ dữ liệu mẫu</p>
+                    </div>
+                  ) : (
+                    <Doughnut 
+                      data={chartData?.categoryChart || { labels: [], datasets: [] }}
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                      }}
+                    />
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -341,14 +357,21 @@ const ProductsReport = () => {
               </CardHeader>
               <CardContent>
                 <div className="h-80">
-                  <Bar 
-                    data={chartData?.topProductsRevenueChart || { labels: [], datasets: [] }}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      scales: { y: { beginAtZero: true } }
-                    }}
-                  />
+                  {data.current.products.length === 0 ? (
+                    <div className="flex h-full flex-col items-center justify-center text-muted-foreground p-4 text-center">
+                      <Package className="h-10 w-10 mb-2 opacity-40 text-purple-600" />
+                      <p className="text-sm font-medium">Chưa có dữ liệu sản phẩm trong kỳ này</p>
+                    </div>
+                  ) : (
+                    <Bar 
+                      data={chartData?.topProductsRevenueChart || { labels: [], datasets: [] }}
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: { y: { beginAtZero: true } }
+                      }}
+                    />
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -390,14 +413,21 @@ const ProductsReport = () => {
               </CardHeader>
               <CardContent>
                 <div className="h-80">
-                  <Bar 
-                    data={chartData?.categoryQuantityChart || { labels: [], datasets: [] }}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      scales: { y: { beginAtZero: true } }
-                    }}
-                  />
+                  {data.current.categories.length === 0 ? (
+                    <div className="flex h-full flex-col items-center justify-center text-muted-foreground p-4 text-center">
+                      <BarChart3 className="h-10 w-10 mb-2 opacity-40 text-purple-600" />
+                      <p className="text-sm font-medium">Chưa có dữ liệu danh mục trong kỳ này</p>
+                    </div>
+                  ) : (
+                    <Bar 
+                      data={chartData?.categoryQuantityChart || { labels: [], datasets: [] }}
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: { y: { beginAtZero: true } }
+                      }}
+                    />
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -415,14 +445,14 @@ const ProductsReport = () => {
                         <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
                           <div 
                             className="bg-purple-600 h-2 rounded-full" 
-                            style={{ width: `${Math.min(100, category.percentage)}%` }}
+                            style={{ width: `${Math.min(100, Math.max(0, category.percentage || 0))}%` }}
                           ></div>
                         </div>
                       </div>
                       <div className="text-right ml-4">
                         <p className="font-bold text-purple-900">{category.revenue.toLocaleString('vi-VN')} ₫</p>
                         <Badge variant="outline" className="border-purple-300 text-purple-700">
-                          {category.percentage.toFixed(1)}%
+                          {(category.percentage || 0).toFixed(1)}%
                         </Badge>
                       </div>
                     </div>
