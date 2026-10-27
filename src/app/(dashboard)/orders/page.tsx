@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { FileText, Filter, Settings } from 'lucide-react';
+import { FileText, Filter, Settings, CheckCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -18,9 +18,11 @@ import type { Invoice } from './types/invoice';
 import authUtils from '@/utils/authUtils';
 import toast from 'react-hot-toast';
 import { ExportDropdownButton } from '@/components/ExportDropdownButton';
+import { useTodayOrdersContext } from '@/context/TodayOrdersContext';
 
 export default function InvoiceManagementPage() {
   const router = useRouter();
+  const { markOrdersAsRead, unreadOrdersCount } = useTodayOrdersContext();
   const {
     invoices,
     invoiceDetails,
@@ -85,7 +87,17 @@ export default function InvoiceManagementPage() {
     const isManagerUser = userData['Phân quyền'] === 'Quản lý';
     setIsAdmin(isAdminUser);
     setIsManager(isManagerUser);
-  }, [router]);
+
+    // Khi người dùng vào trang Đơn hàng, tự động đánh dấu đã xem tất cả đơn hiện tại
+    markOrdersAsRead();
+  }, [router, markOrdersAsRead]);
+
+  // Đánh dấu đã xem khi danh sách hóa đơn hoàn tất tải
+  useEffect(() => {
+    if (invoices.length > 0) {
+      markOrdersAsRead();
+    }
+  }, [invoices.length, markOrdersAsRead]);
 
   const handleViewDetails = async (invoice: Invoice) => {
     try {
@@ -231,6 +243,19 @@ export default function InvoiceManagementPage() {
               },
             ]}
           />
+
+          <Button
+            onClick={() => {
+              markOrdersAsRead();
+              toast.success('Đã đánh dấu đã xem tất cả đơn hàng!');
+            }}
+            variant="outline"
+            size="sm"
+            className="border-blue-200 text-blue-700 hover:bg-blue-50"
+          >
+            <CheckCheck className="w-4 h-4 mr-2" />
+            Đã xem tất cả
+          </Button>
 
           <Button onClick={fetchInvoices} variant="outline" size="sm">
             <Filter className="w-4 h-4 mr-2" />

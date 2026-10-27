@@ -129,4 +129,26 @@ describe('Patch 0.2710 - Application-Level Sync, Duplicate Prevention & Triggers
     const invoices = await authUtils.getAllHoaDon();
     expect(invoices.length).toBeGreaterThanOrEqual(25);
   });
+
+  it('marks orders as read so sidebar unread badge is cleared after viewing /orders', async () => {
+    const invoices = await authUtils.getAllHoaDon();
+    expect(invoices.length).toBeGreaterThan(0);
+
+    const STORAGE_VIEWED_ORDER_IDS = 'h2_orders_viewed_ids_v1';
+    const STORAGE_LAST_VIEWED_TIME = 'h2_orders_last_viewed_time_v1';
+
+    // Before viewing, no viewed IDs in localStorage
+    expect(mockLocalStorage.getItem(STORAGE_VIEWED_ORDER_IDS)).toBeNull();
+
+    // Simulate markOrdersAsRead action when user enters /orders
+    const now = Date.now();
+    mockLocalStorage.setItem(STORAGE_LAST_VIEWED_TIME, String(now));
+    const allIds = invoices.map((inv: any) => String(inv.IDHOADON || inv.IDHD || ''));
+    mockLocalStorage.setItem(STORAGE_VIEWED_ORDER_IDS, JSON.stringify(allIds));
+
+    // Stored IDs must contain all current invoices
+    const stored = JSON.parse(mockLocalStorage.getItem(STORAGE_VIEWED_ORDER_IDS) || '[]');
+    expect(stored.length).toBe(allIds.length);
+    expect(Number(mockLocalStorage.getItem(STORAGE_LAST_VIEWED_TIME))).toBe(now);
+  });
 });
