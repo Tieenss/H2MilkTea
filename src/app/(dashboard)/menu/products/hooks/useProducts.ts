@@ -148,6 +148,21 @@ export const useProducts = () => {
           return false;
         }
 
+        const existingNames = new Set(
+          products.map((p) => String(p['Tên sản phẩm'] || '').trim().toLowerCase())
+        );
+        const duplicateNames = processedData.filter((product) =>
+          existingNames.has(String(product['Tên sản phẩm'] || '').trim().toLowerCase())
+        );
+
+        if (duplicateNames.length > 0) {
+          toast.error(
+            `Các món sau đã có trong menu: ${duplicateNames.map((p) => `"${p['Tên sản phẩm']}"`).join(', ')}. Vui lòng kiểm tra lại để tránh thêm trùng.`,
+            { id: toastId }
+          );
+          return false;
+        }
+
         const savedList: Product[] = [];
         for (const productData of processedData) {
           const result = await authUtils.addSanPham(productData);

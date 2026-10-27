@@ -1116,8 +1116,16 @@ class AuthUtils {
             ? tableData.some(item => String(item[primaryKey] || '').toLowerCase() === String(providedId).toLowerCase())
             : false;
 
+        // Nếu client/người dùng truyền mã cụ thể mà mã này ĐÃ TỒN TẠI trên hệ thống -> Báo lỗi chặn lại, không tự ý âm thầm đổi mã
+        if (providedId && isProvidedIdDuplicate) {
+            return {
+                success: false,
+                message: `Mã "${providedId}" đã tồn tại trong danh mục ${tableName}! Vui lòng kiểm tra lại để tránh thêm trùng.`
+            };
+        }
+
         let primaryId = '';
-        if (providedId && !isProvidedIdDuplicate) {
+        if (providedId) {
             primaryId = String(providedId);
         } else {
             switch (tableName) {

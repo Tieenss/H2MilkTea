@@ -41,11 +41,11 @@ describe('Patch 0.2710 - Application-Level Sync, Duplicate Prevention & Triggers
     mockLocalStorage.clear();
   });
 
-  it('1.d - Adding a product does not mutate caller array in-place or create duplicate IDSP', async () => {
+  it('1.d - Adding a product does not mutate caller array in-place and rejects duplicate IDSP', async () => {
     const initialList = await authUtils.apiRequest('DMHH', 'getall', {});
     const initialCount = initialList.length;
 
-    const createdRes = await authUtils.apiRequest('DMHH', 'create', {
+    const duplicateRes = await authUtils.apiRequest('DMHH', 'create', {
       IDSP: 'SP001', // Duplicate ID with existing SP001
       'Tên sản phẩm': 'Bún Bò Huế Đặc Biệt',
       'Loại sản phẩm': 'Món ăn',
@@ -55,13 +55,23 @@ describe('Patch 0.2710 - Application-Level Sync, Duplicate Prevention & Triggers
       'Trạng thái': 'Còn hàng',
     });
 
-    const newItem = createdRes?.data || createdRes;
-    // Because SP001 already exists, handleCreate must assign a new unique IDSP
-    expect(newItem.IDSP).not.toBe('SP001');
-    expect(newItem['Tên sản phẩm']).toBe('Bún Bò Huế Đặc Biệt');
+    // Because SP001 already exists, handleCreate must return failure and report duplicate ID
+    expect(duplicateRes.success).toBe(false);
+    expect(duplicateRes.message).toContain('đã tồn tại');
 
     // initialList must not have been mutated in-place by handleCreate
     expect(initialList.length).toBe(initialCount);
+
+    // Creating without duplicate ID assigns a new ID and succeeds
+    const createdRes = await authUtils.apiRequest('DMHH', 'create', {
+      'Tên sản phẩm': 'Bún Bò Huế Đặc Biệt',
+      'Loại sản phẩm': 'Món ăn',
+      'Đơn vị tính': 'Tô',
+      'Đơn giá': 45000,
+      'Giá vốn': 22000,
+      'Trạng thái': 'Còn hàng',
+    });
+    expect(createdRes.success).toBe(true);
 
     const updatedList = await authUtils.apiRequest('DMHH', 'getall', {});
     expect(updatedList.length).toBe(initialCount + 1);

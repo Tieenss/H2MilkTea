@@ -371,6 +371,15 @@ export default function ProductPage() {
             onImportExcel={handleImportExcel}
             isAdmin={isAdmin}
             isManager={isManager}
+            onOpenAIModal={() => {
+              if (!isAdmin && !isManager) {
+                toast.error('Bạn không có quyền thực hiện chức năng này!');
+                return;
+              }
+              setIsAIModalOpen(true);
+            }}
+            onOpenDuplicateChecker={() => setIsDuplicateCheckerOpen(true)}
+            duplicateCount={duplicateCountBadge}
           />
         </CardContent>
       </Card>

@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown, X, Plus, Upload, Download } from 'lucide-react';
+import { ChevronDown, X, Plus, Upload, Download, Sparkles, CopyCheck } from 'lucide-react';
 import type { Table } from '@tanstack/react-table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,6 +25,9 @@ interface DataTableToolbarProps<TData> {
   isManager: boolean;
   globalFilter: string;
   onGlobalFilterChange: (value: string) => void;
+  onOpenAIModal?: () => void;
+  onOpenDuplicateChecker?: () => void;
+  duplicateCount?: number;
 }
 
 export function DataTableToolbar<TData>({ 
@@ -36,7 +39,10 @@ export function DataTableToolbar<TData>({
   isAdmin, 
   isManager,
   globalFilter,
-  onGlobalFilterChange 
+  onGlobalFilterChange,
+  onOpenAIModal,
+  onOpenDuplicateChecker,
+  duplicateCount = 0
 }: DataTableToolbarProps<TData>) {
   const isFiltered = table.getState().columnFilters.length > 0 || globalFilter.length > 0;
 
@@ -49,14 +55,14 @@ export function DataTableToolbar<TData>({
   };
 
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="flex flex-1 items-center space-x-2">
         <div className="flex flex-wrap items-center gap-2">
           <Input
             placeholder="Tìm kiếm sản phẩm..."
             value={globalFilter}
             onChange={(event) => onGlobalFilterChange(event.target.value)}
-            className="h-8 w-[150px] lg:w-[250px]"
+            className="h-8 w-[150px] lg:w-[220px]"
           />
           
           {table.getColumn('Trạng thái') && (
@@ -96,14 +102,46 @@ export function DataTableToolbar<TData>({
         </div>
       </div>
 
-      <div className="flex items-center space-x-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {onOpenDuplicateChecker && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onOpenDuplicateChecker}
+            className="h-8 flex items-center gap-1.5 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 font-semibold relative"
+          >
+            <CopyCheck className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            <span className="hidden sm:inline">Kiểm tra trùng lặp</span>
+            <span className="sm:hidden">Trùng lặp</span>
+            {duplicateCount > 0 && (
+              <span className="ml-0.5 px-1.5 py-0.2 text-[10px] font-black rounded-full bg-red-600 text-white animate-pulse">
+                {duplicateCount}
+              </span>
+            )}
+          </Button>
+        )}
+
         {(isAdmin || isManager) && (
           <>
+            {onOpenAIModal && (
+              <Button
+                type="button"
+                onClick={onOpenAIModal}
+                size="sm"
+                className="h-8 flex items-center gap-1.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white shadow-sm font-semibold"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-yellow-300 animate-pulse" />
+                <span className="hidden sm:inline">Thêm bằng AI ✨</span>
+                <span className="sm:hidden">AI ✨</span>
+              </Button>
+            )}
+
             <Button
               onClick={onImportExcel}
               size="sm"
               variant="outline"
-              className="flex items-center gap-1"
+              className="h-8 flex items-center gap-1"
             >
               <Upload className="w-4 h-4" />
               <span className="hidden sm:inline">Import Excel</span>
@@ -113,7 +151,7 @@ export function DataTableToolbar<TData>({
             <Button
               onClick={onAddNew}
               size="sm"
-              className="bg-blue-600 hover:bg-blue-700 flex items-center gap-1"
+              className="h-8 bg-blue-600 hover:bg-blue-700 flex items-center gap-1 text-white font-semibold"
             >
               <Plus className="w-4 h-4" />
               <span className="hidden sm:inline">Thêm sản phẩm</span>

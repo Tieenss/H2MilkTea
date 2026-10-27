@@ -197,6 +197,18 @@ export function AIProductCreatorModal({
       return;
     }
 
+    // Chặn trùng lặp tên sản phẩm (vd: thêm 2 lần bún bò huế)
+    const normName = generatedProduct.name.trim().toLowerCase();
+    const existingSameName = currentProducts.find(
+      (p) => String(p['Tên sản phẩm'] || '').trim().toLowerCase() === normName
+    );
+    if (existingSameName) {
+      toast.error(
+        `Sản phẩm "${generatedProduct.name}" đã tồn tại trên hệ thống với mã ${existingSameName.IDSP}! Vui lòng kiểm tra lại để tránh thêm trùng.`
+      );
+      return;
+    }
+
     const newId = generateProductId();
     const payload: ProductFormData = {
       IDSP: newId,
@@ -609,7 +621,13 @@ export function AIProductCreatorModal({
                             : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900'
                         }`}
                       />
-                      <div className="flex flex-wrap gap-1 mt-1">
+                      {(!generatedProduct.price || generatedProduct.price <= 0) && (
+                        <div className="text-[10.5px] text-amber-600 dark:text-amber-400 font-semibold mt-1">
+                          ⚠️ Đang để trống giá bán (Món sẽ được lưu với giá 0đ để cập nhật sau)
+                        </div>
+                      )}
+                      <div className="flex flex-wrap items-center gap-1 mt-1">
+                        <span className="text-[10px] text-gray-500 mr-0.5">Điền nhanh:</span>
                         {QUICK_PRICE_PRESETS.map((preset) => (
                           <button
                             key={preset}
@@ -949,7 +967,7 @@ export function AIProductCreatorModal({
                                 />
                               </td>
                               <td className="p-1.5">
-                                <div className="relative">
+                                <div className="space-y-1">
                                   <input
                                     ref={(el) => {
                                       priceInputRefs.current[rowIdx] = el;
@@ -958,7 +976,7 @@ export function AIProductCreatorModal({
                                     min={0}
                                     step={1000}
                                     value={item.price > 0 ? item.price : ''}
-                                    placeholder="Để trống hoặc nhập giá..."
+                                    placeholder="Để trống (0đ)..."
                                     onChange={(e) =>
                                       handleUpdateScanItem(
                                         originalIndex,
@@ -976,12 +994,30 @@ export function AIProductCreatorModal({
                                         }
                                       }
                                     }}
-                                    className={`w-full px-2 py-1 rounded border font-bold ${
+                                    className={`w-full px-2 py-1 rounded border font-bold text-xs ${
                                       isBlankPrice
                                         ? 'border-amber-400 bg-amber-50/60 dark:bg-amber-950/30 placeholder:text-amber-600/80 placeholder:font-normal'
                                         : 'border-emerald-400 bg-white dark:bg-gray-900 text-emerald-700 dark:text-emerald-400'
                                     }`}
                                   />
+                                  <div className="flex flex-wrap items-center gap-1">
+                                    {isBlankPrice && (
+                                      <span className="text-[9.5px] text-amber-600 dark:text-amber-400 font-medium">
+                                        Trống giá (0đ)
+                                      </span>
+                                    )}
+                                    {[20000, 25000, 30000, 35000, 40000].map((preset) => (
+                                      <button
+                                        key={preset}
+                                        type="button"
+                                        onClick={() => handleUpdateScanItem(originalIndex, 'price', preset)}
+                                        className="text-[9.5px] px-1 py-0.2 rounded bg-gray-100 dark:bg-gray-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-gray-700 dark:text-gray-300 hover:text-emerald-700 font-semibold transition-colors"
+                                        title={`Đặt giá ${preset.toLocaleString('vi-VN')}đ`}
+                                      >
+                                        {preset / 1000}k
+                                      </button>
+                                    ))}
+                                  </div>
                                 </div>
                               </td>
                               <td className="p-1.5">

@@ -23,11 +23,14 @@ interface DataTableProps<TData, TValue> {
   data: TData[];
   categories: string[];
   units: string[];
-   onDeleteMultiple?: (productIds: string[]) => void;
+  onDeleteMultiple?: (productIds: string[]) => void;
   onAddNew: () => void;
   onImportExcel: () => void;
   isAdmin: boolean;
   isManager: boolean;
+  onOpenAIModal?: () => void;
+  onOpenDuplicateChecker?: () => void;
+  duplicateCount?: number;
 }
 
 export function DataTable<TData, TValue>({
@@ -39,6 +42,9 @@ export function DataTable<TData, TValue>({
   onImportExcel,
   isAdmin,
   isManager,
+  onOpenAIModal,
+  onOpenDuplicateChecker,
+  duplicateCount = 0,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({
@@ -113,78 +119,81 @@ export function DataTable<TData, TValue>({
         isManager={isManager}
         globalFilter={globalFilter}
         onGlobalFilterChange={setGlobalFilter}
+        onOpenAIModal={onOpenAIModal}
+        onOpenDuplicateChecker={onOpenDuplicateChecker}
+        duplicateCount={duplicateCount}
       />
 
       {/* Scrollable table container */}
       <div className="rounded-md border">
-  <div className="relative h-[600px] overflow-auto">
-    <table className="min-w-full table-auto">
-      <thead className="sticky top-0 z-20 bg-gray-50">
-        {table.getHeaderGroups().map((headerGroup) => (
-          <tr key={headerGroup.id}>
-            {headerGroup.headers.map((header) => (
-              <th 
-                key={header.id}
-                className="whitespace-nowrap border-b-2 border-gray-200 bg-gray-50 px-4 py-3 text-left text-sm font-medium text-gray-900"
-                style={{
-                  position: 'sticky',
-                  top: 0,
-                  backgroundColor: 'rgb(249 250 251)',
-                  zIndex: 20,
-                }}
-              >
-                {header.isPlaceholder
-                  ? null
-                  : flexRender(
-                      header.column.columnDef.header,
-                      header.getContext()
-                    )}
-              </th>
-            ))}
-          </tr>
-        ))}
-      </thead>
-      <tbody>
-        {table.getRowModel().rows?.length ? (
-          table.getRowModel().rows.map((row, index) => (
-            <tr
-              key={row.id}
-              className={`hover:bg-gray-50 transition-colors ${
-                index % 2 === 0 ? 'bg-white' : 'bg-gray-25'
-              }`}
-            >
-              {row.getVisibleCells().map((cell) => (
-                <td 
-                  key={cell.id}
-                  className="whitespace-nowrap border-b border-gray-100 px-4 py-3 text-sm text-gray-900"
-                >
-                  {flexRender(
-                    cell.column.columnDef.cell,
-                    cell.getContext()
-                  )}
-                </td>
+        <div className="relative h-[600px] overflow-auto">
+          <table className="min-w-full table-auto">
+            <thead className="sticky top-0 z-20 bg-gray-50">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <tr key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <th 
+                      key={header.id}
+                      className="whitespace-nowrap border-b-2 border-gray-200 bg-gray-50 px-4 py-3 text-left text-sm font-medium text-gray-900"
+                      style={{
+                        position: 'sticky',
+                        top: 0,
+                        backgroundColor: 'rgb(249 250 251)',
+                        zIndex: 20,
+                      }}
+                    >
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
+                    </th>
+                  ))}
+                </tr>
               ))}
-            </tr>
-          ))
-        ) : (
-          <tr>
-            <td
-              colSpan={columns.length}
-              className="h-24 text-center px-4 py-3"
-            >
-              <div className="flex flex-col items-center justify-center space-y-2">
-                <div className="text-gray-500">Không có kết quả.</div>
-                <div className="text-sm text-gray-400">
-                  Thử điều chỉnh bộ lọc hoặc tìm kiếm khác
-                </div>
-              </div>
-            </td>
-          </tr>
-        )}
-      </tbody>
-    </table>
-  </div>
-</div>
+            </thead>
+            <tbody>
+              {table.getRowModel().rows?.length ? (
+                table.getRowModel().rows.map((row, index) => (
+                  <tr
+                    key={row.id}
+                    className={`hover:bg-gray-50 transition-colors ${
+                      index % 2 === 0 ? 'bg-white' : 'bg-gray-25'
+                    }`}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <td 
+                        key={cell.id}
+                        className="whitespace-nowrap border-b border-gray-100 px-4 py-3 text-sm text-gray-900"
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td
+                    colSpan={columns.length}
+                    className="h-24 text-center px-4 py-3"
+                  >
+                    <div className="flex flex-col items-center justify-center space-y-2">
+                      <div className="text-gray-500">Không có kết quả.</div>
+                      <div className="text-sm text-gray-400">
+                        Thử điều chỉnh bộ lọc hoặc tìm kiếm khác
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
       {/* Summary info */}
       <div className="flex flex-col sm:flex-row items-center justify-between space-y-2 sm:space-y-0 py-2">
         <div className="text-sm text-muted-foreground order-2 sm:order-1">
