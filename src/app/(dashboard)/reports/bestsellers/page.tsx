@@ -73,7 +73,7 @@ interface BestsellerData {
 
 const isPaidStatus = (status: any): boolean => {
   const s = String(status || '').trim();
-  return s === 'Đã thanh toán' || s === 'Đã hoàn thành' || s === 'Hoàn thành';
+  return s === 'Đã thanh toán' || s === 'Đã hoàn thành' || s === 'Hoàn thành' || s === 'Ghi nợ' || s === 'Nợ một phần';
 };
 
 const BestsellersReport = () => {

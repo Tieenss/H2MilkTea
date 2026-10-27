@@ -29,6 +29,7 @@ interface InvoiceDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onPrint: () => void;
+  onSettleInvoiceDebt?: (invoice: Invoice) => Promise<void>;
 }
 
 export const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
@@ -36,7 +37,8 @@ export const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
   details,
   isOpen,
   onClose,
-  onPrint
+  onPrint,
+  onSettleInvoiceDebt
 }) => {
   if (!invoice) return null;
 
@@ -191,9 +193,32 @@ export const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
               </div>
               <div className="flex justify-between text-sm">
                 <span>Tiền thừa:</span>
-                <span>{formatCurrency(invoice['Tiền thừa'])}</span>
+                <span>{formatCurrency(invoice['Tiền thừa'] || 0)}</span>
               </div>
+              {(Number(invoice['Tiền nợ']) > 0 || invoice['Loại thanh toán'] === 'Ghi nợ' || invoice['Trạng thái'] === 'Ghi nợ' || invoice['Trạng thái'] === 'Nợ một phần') && (
+                <div className="flex justify-between text-sm pt-1 border-t font-semibold">
+                  <span className="text-amber-800">Tiền nợ:</span>
+                  <span className="text-rose-600 font-bold">{formatCurrency(Number(invoice['Tiền nợ']) || Math.max(0, finalTotal - (Number(invoice['Khách trả']) || 0)))}</span>
+                </div>
+              )}
             </div>
+
+            {(invoice['Trạng thái'] === 'Ghi nợ' || invoice['Trạng thái'] === 'Nợ một phần' || Number(invoice['Tiền nợ']) > 0) && onSettleInvoiceDebt && (
+              <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-semibold text-amber-900">Đơn hàng đang ghi nợ</div>
+                  <div className="text-xs text-amber-700">Khách hàng còn nợ {formatCurrency(Number(invoice['Tiền nợ']) || Math.max(0, finalTotal - (Number(invoice['Khách trả']) || 0)))}</div>
+                </div>
+                <Button
+                  onClick={async () => {
+                    await onSettleInvoiceDebt(invoice);
+                  }}
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-medium text-xs h-8 px-3"
+                >
+                  Thu nợ & Hoàn tất
+                </Button>
+              </div>
+            )}
 
             {invoice['Ghi chú'] && (
               <div className="mt-4 pt-4 border-t">

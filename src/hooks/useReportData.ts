@@ -166,7 +166,7 @@ const getPreviousTimeRange = (from: Date, to: Date, type: string) => {
 
 const isPaidStatus = (statusRaw: any): boolean => {
   const s = String(statusRaw || '').trim();
-  return s === 'Đã thanh toán' || s === 'Đã hoàn thành' || s === 'Hoàn thành';
+  return s === 'Đã thanh toán' || s === 'Đã hoàn thành' || s === 'Hoàn thành' || s === 'Ghi nợ' || s === 'Nợ một phần';
 };
 
 export const useReportData = (filters: ReportFilters) => {

@@ -1228,13 +1228,13 @@ class AuthUtils {
     private handleUpdate(tableName: string, data: any) {
         const tableData = Array.isArray(this.demoData[tableName]) ? [...this.demoData[tableName]] : [];
         const primaryKey = this.getPrimaryKey(tableName);
-        const recordId = data[primaryKey] || data.id || (tableName === 'HOADON' ? data.IDHD : undefined);
+        const recordId = data[primaryKey] || data.id || (tableName === 'HOADON' ? data.IDHD : undefined) || (tableName === 'KHACHHANG' ? (data.IDKH || data.IDKHACHHANG) : undefined);
 
         if (!recordId) {
             throw new Error('Không tìm thấy ID để cập nhật');
         }
 
-        const recordIndex = tableData.findIndex(item => item[primaryKey] === recordId || (tableName === 'HOADON' && item.IDHD === recordId));
+        const recordIndex = tableData.findIndex(item => item[primaryKey] === recordId || (tableName === 'HOADON' && item.IDHD === recordId) || (tableName === 'KHACHHANG' && (item.IDKH === recordId || item.IDKHACHHANG === recordId)));
 
         if (recordIndex === -1) {
             throw new Error('Không tìm thấy bản ghi để cập nhật');
@@ -1258,13 +1258,13 @@ class AuthUtils {
     private handleDelete(tableName: string, data: any) {
         const tableData = Array.isArray(this.demoData[tableName]) ? [...this.demoData[tableName]] : [];
         const primaryKey = this.getPrimaryKey(tableName);
-        const recordId = data[primaryKey] || data.id || (tableName === 'HOADON' ? data.IDHD : undefined);
+        const recordId = data[primaryKey] || data.id || (tableName === 'HOADON' ? data.IDHD : undefined) || (tableName === 'KHACHHANG' ? (data.IDKH || data.IDKHACHHANG) : undefined);
 
         if (!recordId) {
             throw new Error('Không tìm thấy ID để xóa');
         }
 
-        const recordIndex = tableData.findIndex(item => item[primaryKey] === recordId || (tableName === 'HOADON' && item.IDHD === recordId));
+        const recordIndex = tableData.findIndex(item => item[primaryKey] === recordId || (tableName === 'HOADON' && item.IDHD === recordId) || (tableName === 'KHACHHANG' && (item.IDKH === recordId || item.IDKHACHHANG === recordId)));
 
         if (recordIndex === -1) {
             throw new Error('Không tìm thấy bản ghi để xóa');

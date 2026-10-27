@@ -253,6 +253,11 @@ const CustomerCard: React.FC<CustomerCardProps> = ({ customer, isSelected, onSel
               <Badge className={getCustomerTypeColor(customer['Loại khách hàng'])}>
                 {customer['Loại khách hàng']}
               </Badge>
+              {Number(customer['Công nợ']) > 0 && (
+                <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-300 font-semibold">
+                  Nợ: {formatCurrency(Number(customer['Công nợ']))}
+                </Badge>
+              )}
             </div>
             
             <div className="flex items-center gap-4 text-sm text-gray-600">

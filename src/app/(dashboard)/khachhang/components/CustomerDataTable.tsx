@@ -3,7 +3,7 @@
 
 import * as React from 'react';
 import { ColumnDef } from '@tanstack/react-table';
-import { ArrowUpDown, MoreHorizontal, Eye, Edit, Trash, Phone, Mail, Gift } from 'lucide-react';
+import { ArrowUpDown, MoreHorizontal, Eye, Edit, Trash, Phone, Mail, Gift, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
@@ -60,6 +60,7 @@ interface CustomerDataTableProps {
   onViewDetails: (customer: Customer) => void;
   onEditCustomer: (customer: Customer) => void;
   onDeleteCustomer: (customerId: string) => void;
+  onSettleDebt?: (customer: Customer) => void;
   isAdmin: boolean;
   isManager: boolean;
 }
@@ -69,6 +70,7 @@ export const CustomerDataTable: React.FC<CustomerDataTableProps> = ({
   onViewDetails,
   onEditCustomer,
   onDeleteCustomer,
+  onSettleDebt,
   isAdmin,
   isManager
 }) => {
@@ -190,6 +192,29 @@ export const CustomerDataTable: React.FC<CustomerDataTableProps> = ({
       ),
     },
     {
+      accessorKey: 'Công nợ',
+      header: ({ column }) => (
+        <Button variant="ghost" onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}>
+          Công nợ
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
+      cell: ({ row }) => {
+        const debt = Number(row.getValue('Công nợ')) || 0;
+        return (
+          <div className="text-right font-medium min-w-[120px]">
+            {debt > 0 ? (
+              <span className="text-rose-600 font-semibold bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                {formatCurrency(debt)}
+              </span>
+            ) : (
+              <span className="text-gray-400">0 ₫</span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
       accessorKey: 'Lần mua cuối',
       header: 'Lần mua cuối',
       cell: ({ row }) => {
@@ -242,6 +267,13 @@ export const CustomerDataTable: React.FC<CustomerDataTableProps> = ({
                   <Eye className="mr-2 h-4 w-4" />
                   Xem chi tiết
                 </DropdownMenuItem>
+
+                {Number(customer['Công nợ']) > 0 && onSettleDebt && (
+                  <DropdownMenuItem onClick={() => onSettleDebt(customer)} className="text-amber-700 font-semibold bg-amber-50 focus:bg-amber-100">
+                    <CreditCard className="mr-2 h-4 w-4 text-amber-600" />
+                    Thu nợ khách hàng ({formatCurrency(Number(customer['Công nợ']))})
+                  </DropdownMenuItem>
+                )}
 
                 <DropdownMenuItem 
                   onClick={() => window.open(`tel:${customer['Số điện thoại']}`)}

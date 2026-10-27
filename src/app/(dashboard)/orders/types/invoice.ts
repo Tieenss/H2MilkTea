@@ -10,6 +10,8 @@ export interface Invoice {
   'Giảm giá': number;
   'Khách trả': number;
   'Tiền thừa': number;
+  'Tiền nợ'?: number;
+  'Đã thanh toán'?: number;
   'Ghi chú': string;
   'Trạng thái': string;
   'Trạng thái sử dụng bàn': string;
@@ -39,6 +41,8 @@ export interface InvoiceFormData {
   'Giảm giá': number;
   'Khách trả': number;
   'Tiền thừa': number;
+  'Tiền nợ'?: number;
+  'Đã thanh toán'?: number;
   'Ghi chú': string;
   'Trạng thái': string;
   'Trạng thái sử dụng bàn': string;

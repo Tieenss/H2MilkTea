@@ -151,4 +151,70 @@ describe('Patch 0.2710 - Application-Level Sync, Duplicate Prevention & Triggers
     expect(stored.length).toBe(allIds.length);
     expect(Number(mockLocalStorage.getItem(STORAGE_LAST_VIEWED_TIME))).toBe(now);
   });
+
+  it('records debt invoice (Ghi nợ), updates customer debt, and supports debt repayment', async () => {
+    // 1. Get or create a customer
+    const customers = await authUtils.apiRequest('KHACHHANG', 'getall', {});
+    expect(customers.length).toBeGreaterThan(0);
+    const testCustomer = customers[0];
+    const initialDebt = Number(testCustomer['Công nợ']) || 0;
+    const customerId = testCustomer.IDKHACHHANG || testCustomer.IDKH;
+
+    // 2. Simulate POS Debt Checkout: total = 75,000, paidAmount = 25,000, debt = 50,000
+    const invoiceId = `INV_DEBT_TEST_${Date.now()}`;
+    const invoiceTotal = 75000;
+    const paidAmount = 25000;
+    const debtAmount = invoiceTotal - paidAmount;
+
+    const invoiceRes = await authUtils.apiRequest('HOADON', 'create', {
+      IDHD: invoiceId,
+      IDHOADON: invoiceId,
+      'Thời gian': '27/10/2026 11:30:00',
+      'Tổng số lượng': 2,
+      'Tổng tiền': invoiceTotal,
+      'Thu ngân': 'Thu ngân test',
+      'Trạng thái': 'Nợ một phần',
+      'Hình thức thanh toán': 'Ghi nợ',
+      'Loại thanh toán': 'Ghi nợ',
+      'Mã khách hàng': customerId,
+      'Tên khách hàng': testCustomer['Tên khách hàng'],
+      'Số điện thoại': testCustomer['Số điện thoại'],
+      'Khách trả': paidAmount,
+      'Tiền nợ': debtAmount,
+      'Đã thanh toán': paidAmount
+    });
+
+    expect(invoiceRes.success).toBe(true);
+
+    // Update customer debt
+    const updatedCustomerRes = await authUtils.apiRequest('KHACHHANG', 'update', {
+      IDKHACHHANG: customerId,
+      IDKH: customerId,
+      'Công nợ': initialDebt + debtAmount,
+      'Lịch sử mua hàng': `${testCustomer['Lịch sử mua hàng'] || ''}, ${invoiceId}`
+    });
+    expect(updatedCustomerRes.success).toBe(true);
+    expect(Number(updatedCustomerRes.data['Công nợ'])).toBe(initialDebt + debtAmount);
+
+    // 3. Customer repays remaining debt of 50,000
+    const settleDebtRes = await authUtils.apiRequest('KHACHHANG', 'update', {
+      IDKHACHHANG: customerId,
+      IDKH: customerId,
+      'Công nợ': initialDebt, // Fully paid off this invoice debt
+    });
+    expect(Number(settleDebtRes.data['Công nợ'])).toBe(initialDebt);
+
+    // 4. Mark debt invoice as settled
+    const settledInvRes = await authUtils.apiRequest('HOADON', 'update', {
+      IDHOADON: invoiceId,
+      IDHD: invoiceId,
+      'Trạng thái': 'Đã thanh toán',
+      'Tiền nợ': 0,
+      'Khách trả': invoiceTotal,
+      'Đã thanh toán': invoiceTotal
+    });
+    expect(settledInvRes.success).toBe(true);
+    expect(settledInvRes.data['Trạng thái']).toBe('Đã thanh toán');
+    expect(settledInvRes.data['Tiền nợ']).toBe(0);
+  });
 });

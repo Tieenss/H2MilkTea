@@ -5,6 +5,8 @@ export const INVOICE_STATUS = [
   { value: 'Chờ xác nhận', label: 'Chờ xác nhận', color: 'bg-yellow-100 text-yellow-800' },
   { value: 'Đã xác nhận', label: 'Đã xác nhận', color: 'bg-blue-100 text-blue-800' },
   { value: 'Đã thanh toán', label: 'Đã thanh toán', color: 'bg-green-100 text-green-800' },
+  { value: 'Ghi nợ', label: 'Ghi nợ', color: 'bg-amber-100 text-amber-800' },
+  { value: 'Nợ một phần', label: 'Nợ một phần', color: 'bg-orange-100 text-orange-800' },
   { value: 'Đã hủy', label: 'Đã hủy', color: 'bg-red-100 text-red-800' }
 ];
 
@@ -18,7 +20,8 @@ export const PAYMENT_METHODS = [
   { value: 'Tiền mặt', label: 'Tiền mặt' },
   { value: 'Chuyển khoản', label: 'Chuyển khoản' },
   { value: 'Thẻ', label: 'Thẻ' },
-  { value: 'VietQR', label: 'VietQR' }
+  { value: 'VietQR', label: 'VietQR' },
+  { value: 'Ghi nợ', label: 'Ghi nợ' }
 ];
 
 export const INITIAL_INVOICE_FORM: InvoiceFormData = {

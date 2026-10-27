@@ -54,6 +54,9 @@ export interface PaymentData {
   discount: number;
   paidAmount: number;
   change: number;
+  paymentType?: string;
+  debtAmount?: number;
+  isDebt?: boolean;
   note: string;
   items: CartItem[];
   customerInfo?: CustomerInfo | null;
@@ -70,6 +73,7 @@ export interface Invoice {
   'Giảm giá': number;
   'Khách trả': number;
   'Tiền thừa': number;
+  'Tiền nợ'?: number;
   'Ghi chú': string;
   'Trạng thái': string;
   'Trạng thái sử dụng bàn': string;

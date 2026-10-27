@@ -39,6 +39,7 @@ interface CustomerDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onEdit: () => void;
+  onSettleDebt?: (customer: Customer) => void;
 }
 
 export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
@@ -46,7 +47,8 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
   transactions,
   isOpen,
   onClose,
-  onEdit
+  onEdit,
+  onSettleDebt
 }) => {
   if (!customer) return null;
 
@@ -180,8 +182,8 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
             </TabsContent>
 
             <TabsContent value="loyalty" className="space-y-6">
-              {/* Loyalty Stats */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Loyalty & Debt Stats */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="p-4 bg-orange-50 rounded-lg">
                   <div className="flex items-center space-x-2 mb-2">
                     <Gift className="h-5 w-5 text-orange-600" />
@@ -199,6 +201,23 @@ export const CustomerDetailsModal: React.FC<CustomerDetailsModalProps> = ({
                   </div>
                   <div className="text-2xl font-bold text-green-600">
                     {formatCurrency(customer['Tổng chi tiêu'])}
+                  </div>
+                </div>
+
+                <div className={`p-4 rounded-lg ${Number(customer['Công nợ']) > 0 ? 'bg-amber-50 border border-amber-300' : 'bg-gray-50'}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center space-x-1.5">
+                      <CreditCard className={`h-5 w-5 ${Number(customer['Công nợ']) > 0 ? 'text-amber-600' : 'text-gray-500'}`} />
+                      <h4 className={`font-semibold ${Number(customer['Công nợ']) > 0 ? 'text-amber-900' : 'text-gray-700'}`}>Công nợ</h4>
+                    </div>
+                    {Number(customer['Công nợ']) > 0 && onSettleDebt && (
+                      <Button size="sm" onClick={() => onSettleDebt(customer)} className="h-6 text-xs bg-amber-600 hover:bg-amber-700 text-white px-2">
+                        Thu nợ
+                      </Button>
+                    )}
+                  </div>
+                  <div className={`text-2xl font-bold ${Number(customer['Công nợ']) > 0 ? 'text-rose-600' : 'text-gray-600'}`}>
+                    {formatCurrency(Number(customer['Công nợ']) || 0)}
                   </div>
                 </div>
 

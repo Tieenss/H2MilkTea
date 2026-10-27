@@ -10,6 +10,7 @@ export interface Customer {
   'Loại khách hàng': string;
   'Điểm tích lũy': number;
   'Tổng chi tiêu': number;
+  'Công nợ'?: number;
   'Lần mua cuối': string;
   'Ghi chú': string;
   'Trạng thái': string;

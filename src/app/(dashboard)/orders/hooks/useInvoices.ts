@@ -162,6 +162,66 @@ export const useInvoices = () => {
     }
   }, [invoices]);
 
+  // Settle invoice debt
+  const settleInvoiceDebt = useCallback(async (invoiceId: string) => {
+    try {
+      const invoice = invoices.find(inv => inv.IDHOADON === invoiceId);
+      if (!invoice) {
+        throw new Error('Không tìm thấy hóa đơn');
+      }
+
+      const finalTotal = Number(invoice['Tổng tiền']) + Number(invoice['VAT'] || 0) - Number(invoice['Giảm giá'] || 0);
+      const remainingDebt = Number(invoice['Tiền nợ']) || Math.max(0, finalTotal - (Number(invoice['Khách trả']) || 0));
+
+      const updatedInvoice = {
+        ...invoice,
+        'Trạng thái': 'Đã thanh toán',
+        'Tiền nợ': 0,
+        'Khách trả': finalTotal,
+        'Đã thanh toán': finalTotal
+      };
+
+      const result = await authUtils.apiRequest('HOADON', 'update', {
+        ...updatedInvoice
+      });
+
+      if (!Array.isArray(result) && result.success) {
+        setInvoices(prev => prev.map(inv =>
+          inv.IDHOADON === invoiceId ? updatedInvoice : inv
+        ));
+
+        // Giảm công nợ của khách hàng tương ứng nếu có
+        const custName = invoice['Khách hàng'];
+        if (custName && custName !== 'Khách lẻ') {
+          try {
+            const customers = await authUtils.apiRequest('KHACHHANG', 'getall', {});
+            if (Array.isArray(customers)) {
+              const cust = customers.find(c => c['Tên khách hàng'] === custName || c.IDKHACHHANG === invoice['Mã khách hàng'] || c.IDKH === invoice['Mã khách hàng']);
+              if (cust) {
+                const currentCustDebt = Number(cust['Công nợ']) || 0;
+                const newCustDebt = Math.max(0, currentCustDebt - remainingDebt);
+                await authUtils.apiRequest('KHACHHANG', 'update', {
+                  IDKHACHHANG: cust.IDKHACHHANG || cust.IDKH,
+                  IDKH: cust.IDKH || cust.IDKHACHHANG,
+                  'Công nợ': newCustDebt
+                });
+              }
+            }
+          } catch (e) {
+            console.warn('Lỗi cập nhật công nợ khách hàng:', e);
+          }
+        }
+
+        toast.success(`Thu nợ hóa đơn ${invoiceId} thành công!`);
+      } else {
+        throw new Error('Lỗi khi thu nợ hóa đơn');
+      }
+    } catch (error: any) {
+      console.error('Error settling invoice debt:', error);
+      toast.error(error.message || 'Lỗi khi thu nợ hóa đơn');
+    }
+  }, [invoices]);
+
   // Delete invoice
   const deleteInvoice = useCallback(async (invoiceId: string) => {
     const originalInvoices = invoices;
@@ -219,6 +279,7 @@ export const useInvoices = () => {
     fetchInvoiceDetails,
     addInvoice,
     updateInvoiceStatus,
+    settleInvoiceDebt,
     deleteInvoice
   };
 };

@@ -14,6 +14,7 @@ import { CustomerStatsComponent } from './components/CustomerStats';
 import { CustomerDataTable } from './components/CustomerDataTable';
 import { CustomerDetailsModal } from './components/CustomerDetailsModal';
 import { CustomerFormModal } from './components/CustomerFormModal';
+import { DebtRepaymentModal } from './components/DebtRepaymentModal';
 import { CUSTOMER_TYPES, CUSTOMER_STATUS } from './utils/customerConstants';
 import { exportCustomerData } from './utils/customerFormatters';
 import type { Customer, CustomerFormData } from './types/customer';
@@ -79,6 +80,8 @@ export default function CustomerManagementPage() {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showFormModal, setShowFormModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [showDebtModal, setShowDebtModal] = useState(false);
+  const [debtCustomer, setDebtCustomer] = useState<Customer | null>(null);
 
   // Filtered customers
   const filteredCustomers = React.useMemo(() => {
@@ -135,6 +138,62 @@ export default function CustomerManagementPage() {
     setSelectedCustomer(customer);
     setIsEditing(true);
     setShowFormModal(true);
+  };
+
+  // Handle open debt repayment modal
+  const handleOpenSettleDebt = (customer: Customer) => {
+    setDebtCustomer(customer);
+    setShowDebtModal(true);
+  };
+
+  // Handle confirm debt repayment
+  const handleConfirmSettleDebt = async (customer: Customer, amount: number, paymentMethod: string, note: string) => {
+    try {
+      const currentDebt = Number(customer['Công nợ']) || 0;
+      const newDebt = Math.max(0, currentDebt - amount);
+      const customerId = customer.IDKHACHHANG || customer.IDKH;
+
+      // Cập nhật công nợ khách hàng
+      await updateCustomer(customerId, {
+        'Công nợ': newDebt,
+        'Ghi chú': note ? `${customer['Ghi chú'] ? customer['Ghi chú'] + '; ' : ''}${note} (${formatCurrency(amount)})` : customer['Ghi chú']
+      });
+
+      // Tìm và cập nhật các hóa đơn nợ liên quan nếu có
+      if (customer['Hóa đơn liên quan']) {
+        const invIds = customer['Hóa đơn liên quan'].split(',').map(s => s.trim()).filter(Boolean);
+        for (const invId of invIds) {
+          try {
+            const invs = await authUtils.apiRequest('HOADON', 'find', { filter: { IDHOADON: invId } });
+            if (Array.isArray(invs) && invs.length > 0) {
+              const inv = invs[0];
+              if (inv['Trạng thái'] === 'Ghi nợ' || inv['Trạng thái'] === 'Nợ một phần') {
+                const invDebt = Number(inv['Tiền nợ']) || 0;
+                if (invDebt > 0) {
+                  const payForThisInv = Math.min(invDebt, amount);
+                  const remInvDebt = invDebt - payForThisInv;
+                  await authUtils.apiRequest('HOADON', 'update', {
+                    IDHOADON: invId,
+                    IDHD: invId,
+                    'Tiền nợ': remInvDebt,
+                    'Trạng thái': remInvDebt <= 0 ? 'Đã thanh toán' : 'Nợ một phần',
+                    'Khách trả': (Number(inv['Khách trả']) || 0) + payForThisInv
+                  });
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('Lỗi cập nhật hóa đơn nợ:', e);
+          }
+        }
+      }
+
+      toast.success(`Thu nợ thành công ${formatCurrency(amount)} từ khách ${customer['Tên khách hàng']}!`);
+      await fetchCustomers();
+    } catch (err: any) {
+      console.error('Error settling debt:', err);
+      toast.error(err.message || 'Lỗi khi thu nợ');
+    }
   };
 
   // Handle add new customer
@@ -321,6 +380,7 @@ export default function CustomerManagementPage() {
             onViewDetails={handleViewDetails}
             onEditCustomer={handleEditCustomer}
             onDeleteCustomer={handleDeleteCustomer}
+            onSettleDebt={handleOpenSettleDebt}
             isAdmin={isAdmin}
             isManager={isManager}
           />
@@ -341,6 +401,21 @@ export default function CustomerManagementPage() {
           setIsEditing(true);
           setShowFormModal(true);
         }}
+        onSettleDebt={(cust) => {
+          setShowDetailsModal(false);
+          handleOpenSettleDebt(cust);
+        }}
+      />
+
+      {/* Debt Repayment Modal */}
+      <DebtRepaymentModal
+        customer={debtCustomer}
+        isOpen={showDebtModal}
+        onClose={() => {
+          setShowDebtModal(false);
+          setDebtCustomer(null);
+        }}
+        onConfirm={handleConfirmSettleDebt}
       />
 
       {/* Form Modal */}

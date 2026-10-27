@@ -889,12 +889,14 @@ export const usePOS = () => {
   }, []);
 
   // Update customer after purchase
-  const updateCustomerAfterPurchase = useCallback(async (customer: Customer, invoiceTotal: number, invoiceId: string) => {
+  const updateCustomerAfterPurchase = useCallback(async (customer: Customer, invoiceTotal: number, invoiceId: string, debtAmount: number = 0) => {
     try {
       const newPoints = calculatePointsFromSpending(invoiceTotal, customer['Loại khách hàng']);
       const currentPoints = Number(customer['Điểm tích lũy']) || 0;
       const currentSpending = Number(customer['Tổng chi tiêu']) || 0;
+      const currentDebt = Number(customer['Công nợ']) || 0;
       const newTotalSpending = currentSpending + invoiceTotal;
+      const newTotalDebt = Math.max(0, currentDebt + (Number(debtAmount) || 0));
       let newCustomerType = customer['Loại khách hàng'];
 
       if (newTotalSpending >= 50000000 && newCustomerType !== 'Khách kim cương') {
@@ -905,19 +907,25 @@ export const usePOS = () => {
         showNotification(`Khách hàng ${customer['Tên khách hàng']} đã được nâng cấp lên Khách VIP!`, 'success');
       }
 
+      const customerId = customer.IDKHACHHANG || customer.IDKH || customer.id;
       const updatedHistory = customer['Lịch sử mua hàng']
         ? `${customer['Lịch sử mua hàng']}, ${invoiceId}`
         : invoiceId;
 
       await authUtils.apiRequest('KHACHHANG', 'update', {
-        IDKH: customer.IDKH,
+        IDKHACHHANG: customerId,
+        IDKH: customerId,
         'Điểm tích lũy': currentPoints + newPoints,
         'Tổng chi tiêu': newTotalSpending,
+        'Công nợ': newTotalDebt,
         'Loại khách hàng': newCustomerType,
-        'Lịch sử mua hàng': updatedHistory
+        'Lịch sử mua hàng': updatedHistory,
+        'Lần mua cuối': formatToVietnameseDateTime(new Date())
       });
 
-      if (newPoints > 0) {
+      if (debtAmount > 0) {
+        showNotification(`Đã ghi nợ ${new Intl.NumberFormat('vi-VN').format(debtAmount)}đ cho khách ${customer['Tên khách hàng']}. Tổng nợ: ${new Intl.NumberFormat('vi-VN').format(newTotalDebt)}đ`, 'success');
+      } else if (newPoints > 0) {
         showNotification(`Khách hàng được tích lũy thêm ${newPoints} điểm!`);
       }
     } catch (error) {
@@ -933,22 +941,34 @@ export const usePOS = () => {
       cancelPendingAutosave();
 
       const invoiceId = paymentData.id || generateId('INV');
+      const payType = paymentData.paymentType || paymentData.paymentMethod || 'Tiền mặt';
+      const isDebt = payType === 'Ghi nợ' || (paymentData.debtAmount && paymentData.debtAmount > 0);
+      const paidAmount = isDebt ? (Number(paymentData.paidAmount) || 0) : (Number(paymentData.paidAmount) || paymentData.total);
+      const debtAmount = isDebt ? Math.max(0, paymentData.total - paidAmount) : 0;
+      const invoiceStatus = isDebt ? (debtAmount >= paymentData.total ? 'Ghi nợ' : 'Nợ một phần') : 'Đã hoàn thành';
+
       const invoice = {
         IDHD: invoiceId,
+        IDHOADON: invoiceId,
         'Thời gian': formatToVietnameseDateTime(new Date()),
         'Tổng số lượng': cart.reduce((sum, item) => sum + item.quantity, 0),
         'Tổng tiền': paymentData.total,
         'Ghi chú': paymentData.note || '',
         'Mã bàn': selectedTableId || 'Khách mua về',
         'Thu ngân': nhanvien,
-        'Trạng thái': 'Đã hoàn thành',
-        'Hình thức thanh toán': paymentData.paymentMethod || 'Tiền mặt',
-        'Mã khách hàng': selectedCustomer ? selectedCustomer.IDKH : '',
+        'Trạng thái': invoiceStatus,
+        'Hình thức thanh toán': payType,
+        'Loại thanh toán': payType,
+        'Mã khách hàng': selectedCustomer ? (selectedCustomer.IDKHACHHANG || selectedCustomer.IDKH || '') : '',
         'Tên khách hàng': selectedCustomer ? selectedCustomer['Tên khách hàng'] : 'Khách lẻ',
         'Số điện thoại': selectedCustomer ? selectedCustomer['Số điện thoại'] : '',
         'Ưu đãi': paymentData.customerDiscount || 0,
-        'Tiền khách đưa': paymentData.paidAmount || paymentData.total,
-        'Tiền thối': paymentData.change || 0
+        'Tiền khách đưa': paidAmount,
+        'Khách trả': paidAmount,
+        'Tiền thối': isDebt ? 0 : (paymentData.change || 0),
+        'Tiền thừa': isDebt ? 0 : (paymentData.change || 0),
+        'Tiền nợ': debtAmount,
+        'Đã thanh toán': paidAmount
       };
 
       const details = cart.map(item => ({
@@ -982,7 +1002,7 @@ export const usePOS = () => {
       await saveInvoice(invoice, details);
 
       if (selectedCustomer) {
-        await updateCustomerAfterPurchase(selectedCustomer, paymentData.total, invoiceId);
+        await updateCustomerAfterPurchase(selectedCustomer, paymentData.total, invoiceId, debtAmount);
       }
 
       try {
@@ -1041,7 +1061,7 @@ export const usePOS = () => {
       if (typeof window !== 'undefined' && activePOSOrderIds.length > 0) {
         window.dispatchEvent(new CustomEvent('pos_order_settled', { detail: { orderIds: activePOSOrderIds } }));
       }
-      showNotification('Thanh toán thành công!');
+      showNotification(isDebt ? `Ghi nợ đơn hàng thành công! (Nợ: ${new Intl.NumberFormat('vi-VN').format(debtAmount)}đ)` : 'Thanh toán thành công!');
     } catch (error: any) {
       console.error('Lỗi thanh toán:', error);
       showNotification(error.message || 'Lỗi khi xử lý thanh toán!', 'error');

@@ -31,6 +31,7 @@ export default function InvoiceManagementPage() {
     fetchInvoices,
     fetchInvoiceDetails,
     updateInvoiceStatus,
+    settleInvoiceDebt,
     deleteInvoice,
   } = useInvoices();
 
@@ -350,6 +351,11 @@ export default function InvoiceManagementPage() {
           setSelectedInvoice(null);
         }}
         onPrint={() => selectedInvoice && handlePrintInvoice(selectedInvoice)}
+        onSettleInvoiceDebt={async (inv) => {
+          await settleInvoiceDebt(inv.IDHOADON);
+          setShowDetailsModal(false);
+          setSelectedInvoice(null);
+        }}
       />
     </div>
   );

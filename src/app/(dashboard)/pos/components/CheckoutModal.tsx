@@ -163,6 +163,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         paidAmountRef.current.value = new Intl.NumberFormat('vi-VN').format(finalTotal);
         paidAmountRef.current.dataset.value = finalTotal.toString();
       }
+    } else if (paymentType === 'Ghi nợ') {
+      // Mặc định khách nợ toàn bộ (0đ trả trước), thu ngân có thể nhập tiền cọc/trả trước nếu có
+      handleInputChange('paidAmount', 0);
+      if (paidAmountRef.current) {
+        paidAmountRef.current.value = '0';
+        paidAmountRef.current.dataset.value = '0';
+      }
     }
   };
 
@@ -171,8 +178,23 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
     if (isProcessing) return;
 
+    const isDebt = formData.paymentType === 'Ghi nợ';
+
     // Validation
-    if (formData.paidAmount < finalTotal) {
+    if (isDebt) {
+      if (!selectedCustomer || formData.customer === 'Khách lẻ') {
+        alert('Vui lòng chọn khách hàng cụ thể trước khi thực hiện ghi nợ!');
+        return;
+      }
+      if (formData.paidAmount > finalTotal) {
+        alert('Số tiền trả trước không được vượt quá tổng hóa đơn khi ghi nợ!');
+        return;
+      }
+      if (formData.paidAmount < 0) {
+        alert('Số tiền trả trước không hợp lệ!');
+        return;
+      }
+    } else if (formData.paidAmount < finalTotal) {
       alert('Số tiền khách trả không đủ!');
       return;
     }
@@ -199,6 +221,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         paidAmount: formData.paidAmount,
         note: formData.note,
         paymentType: formData.paymentType,
+        debtAmount: isDebt ? Math.max(0, finalTotal - formData.paidAmount) : 0,
+        isDebt,
         qrCodeUrl: showQRCode ? qrCodeUrl : null,
         bankInfo: selectedBank ? {
           bank: selectedBank,
@@ -447,18 +471,70 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 {/* Paid Amount */}
                 <div>
                   <Label htmlFor="paidAmount" className="text-sm font-medium text-gray-700">
-                    Khách trả (VNĐ)
+                    {formData.paymentType === 'Ghi nợ' ? 'Khách trả trước (VNĐ)' : 'Khách trả (VNĐ)'}
                   </Label>
                   <Input
                     ref={paidAmountRef}
                     id="paidAmount"
                     type="text"
-                    defaultValue={new Intl.NumberFormat('vi-VN').format(total)}
+                    defaultValue={formData.paymentType === 'Ghi nợ' ? '0' : new Intl.NumberFormat('vi-VN').format(total)}
                     onChange={handlePaidAmountChange}
                     className="mt-1 touch-target"
-                    data-value={total}
+                    data-value={formData.paymentType === 'Ghi nợ' ? 0 : total}
                     disabled={['Chuyển khoản', 'VietQR', 'Thẻ'].includes(formData.paymentType)}
                   />
+
+                  {/* Quick Amount Buttons for Debt */}
+                  {formData.paymentType === 'Ghi nợ' && (
+                    <div className="grid grid-cols-3 gap-2 mt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          handleInputChange('paidAmount', 0);
+                          if (paidAmountRef.current) {
+                            paidAmountRef.current.value = '0';
+                            paidAmountRef.current.dataset.value = '0';
+                          }
+                        }}
+                        className="text-xs touch-target bg-amber-50 text-amber-800 border-amber-300"
+                      >
+                        Nợ 100% (0đ)
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const half = Math.round(finalTotal / 2000) * 1000;
+                          handleInputChange('paidAmount', half);
+                          if (paidAmountRef.current) {
+                            paidAmountRef.current.value = new Intl.NumberFormat('vi-VN').format(half);
+                            paidAmountRef.current.dataset.value = half.toString();
+                          }
+                        }}
+                        className="text-xs touch-target"
+                      >
+                        Trả 50%
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          handleInputChange('paidAmount', finalTotal);
+                          if (paidAmountRef.current) {
+                            paidAmountRef.current.value = new Intl.NumberFormat('vi-VN').format(finalTotal);
+                            paidAmountRef.current.dataset.value = finalTotal.toString();
+                          }
+                        }}
+                        className="text-xs touch-target"
+                      >
+                        Trả đủ
+                      </Button>
+                    </div>
+                  )}
 
                   {/* Quick Amount Buttons */}
                   {formData.paymentType === 'Tiền mặt' && (
@@ -493,6 +569,31 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     </div>
                   )}
                 </div>
+
+                {/* Debt Summary Box */}
+                {formData.paymentType === 'Ghi nợ' && (
+                  <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg space-y-2">
+                    <div className="flex justify-between items-center text-sm font-medium text-amber-900">
+                      <span>Số tiền ghi nợ cho đơn:</span>
+                      <span className="text-base font-bold text-amber-700">
+                        {formatCurrency(Math.max(0, finalTotal - formData.paidAmount))}
+                      </span>
+                    </div>
+                    {(!selectedCustomer || formData.customer === 'Khách lẻ') ? (
+                      <div className="text-xs text-red-600 bg-red-50 p-2 rounded border border-red-200 flex items-center justify-between">
+                        <span>⚠️ Cần chọn khách hàng để ghi nợ</span>
+                        <Button type="button" size="sm" variant="outline" className="h-6 text-xs bg-white text-red-700 border-red-300 px-2" onClick={onSelectCustomer}>
+                          Chọn khách
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-amber-800 pt-1 border-t border-amber-200 flex justify-between">
+                        <span>Khách: <strong>{selectedCustomer['Tên khách hàng']}</strong></span>
+                        <span>Nợ cũ: <strong>{formatCurrency(Number(selectedCustomer['Công nợ']) || 0)}</strong></span>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Change Amount */}
                 {formData.paymentType === 'Tiền mặt' && (
@@ -632,10 +733,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             </Button>
             <Button
               type="submit"
-              disabled={isProcessing || formData.paidAmount < finalTotal}
+              disabled={
+                isProcessing ||
+                (formData.paymentType === 'Ghi nợ'
+                  ? (!selectedCustomer || formData.customer === 'Khách lẻ' || formData.paidAmount > finalTotal)
+                  : formData.paidAmount < finalTotal)
+              }
               className={`flex-2 flex items-center justify-center gap-2 touch-target ${isProcessing
                 ? 'bg-blue-400 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700 text-white'
+                : formData.paymentType === 'Ghi nợ'
+                  ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'
                 }`}
             >
               {isProcessing ? (
@@ -649,7 +757,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
                       d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
-                  <span>Xác nhận thanh toán</span>
+                  <span>
+                    {formData.paymentType === 'Ghi nợ'
+                      ? `Xác nhận ghi nợ (${formatCurrency(Math.max(0, finalTotal - formData.paidAmount))})`
+                      : 'Xác nhận thanh toán'}
+                  </span>
                 </>
               )}
             </Button>
@@ -873,18 +985,70 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
              {/* Paid Amount */}
              <div>
                <Label htmlFor="paidAmount" className="text-sm font-medium text-gray-700">
-                 Khách trả (VNĐ)
+                 {formData.paymentType === 'Ghi nợ' ? 'Khách trả trước (VNĐ)' : 'Khách trả (VNĐ)'}
                </Label>
                <Input
                  ref={paidAmountRef}
                  id="paidAmount"
                  type="text"
-                 defaultValue={new Intl.NumberFormat('vi-VN').format(total)}
+                 defaultValue={formData.paymentType === 'Ghi nợ' ? '0' : new Intl.NumberFormat('vi-VN').format(total)}
                  onChange={handlePaidAmountChange}
                  className="mt-1"
-                 data-value={total}
+                 data-value={formData.paymentType === 'Ghi nợ' ? 0 : total}
                  disabled={['Chuyển khoản', 'VietQR', 'Thẻ'].includes(formData.paymentType)}
                />
+
+               {/* Quick Amount Buttons for Debt */}
+               {formData.paymentType === 'Ghi nợ' && (
+                 <div className="flex gap-2 mt-2">
+                   <Button
+                     type="button"
+                     variant="outline"
+                     size="sm"
+                     onClick={() => {
+                       handleInputChange('paidAmount', 0);
+                       if (paidAmountRef.current) {
+                         paidAmountRef.current.value = '0';
+                         paidAmountRef.current.dataset.value = '0';
+                       }
+                     }}
+                     className="flex-1 text-xs bg-amber-50 text-amber-800 border-amber-300"
+                   >
+                     Nợ 100% (0đ)
+                   </Button>
+                   <Button
+                     type="button"
+                     variant="outline"
+                     size="sm"
+                     onClick={() => {
+                       const half = Math.round(finalTotal / 2000) * 1000;
+                       handleInputChange('paidAmount', half);
+                       if (paidAmountRef.current) {
+                         paidAmountRef.current.value = new Intl.NumberFormat('vi-VN').format(half);
+                         paidAmountRef.current.dataset.value = half.toString();
+                       }
+                     }}
+                     className="flex-1 text-xs"
+                   >
+                     Trả 50%
+                   </Button>
+                   <Button
+                     type="button"
+                     variant="outline"
+                     size="sm"
+                     onClick={() => {
+                       handleInputChange('paidAmount', finalTotal);
+                       if (paidAmountRef.current) {
+                         paidAmountRef.current.value = new Intl.NumberFormat('vi-VN').format(finalTotal);
+                         paidAmountRef.current.dataset.value = finalTotal.toString();
+                       }
+                     }}
+                     className="flex-1 text-xs"
+                   >
+                     Trả đủ
+                   </Button>
+                 </div>
+               )}
 
                {/* Quick Amount Buttons - Only show for cash payments */}
                {formData.paymentType === 'Tiền mặt' && (
@@ -934,6 +1098,31 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                </div>
              )}
 
+             {/* Debt Summary Box for Desktop */}
+             {formData.paymentType === 'Ghi nợ' && (
+               <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg space-y-2">
+                 <div className="flex justify-between items-center text-sm font-medium text-amber-900">
+                   <span>Số tiền ghi nợ cho đơn:</span>
+                   <span className="text-base font-bold text-amber-700">
+                     {formatCurrency(Math.max(0, finalTotal - formData.paidAmount))}
+                   </span>
+                 </div>
+                 {(!selectedCustomer || formData.customer === 'Khách lẻ') ? (
+                   <div className="text-xs text-red-600 bg-red-50 p-2 rounded border border-red-200 flex items-center justify-between">
+                     <span>⚠️ Cần chọn khách hàng cụ thể để ghi nợ</span>
+                     <Button type="button" size="sm" variant="outline" className="h-6 text-xs bg-white text-red-700 border-red-300 px-2" onClick={onSelectCustomer}>
+                       Chọn khách
+                     </Button>
+                   </div>
+                 ) : (
+                   <div className="text-xs text-amber-800 pt-1 border-t border-amber-200 flex justify-between">
+                     <span>Khách: <strong>{selectedCustomer['Tên khách hàng']}</strong></span>
+                     <span>Nợ cũ: <strong>{formatCurrency(Number(selectedCustomer['Công nợ']) || 0)}</strong></span>
+                   </div>
+                 )}
+               </div>
+             )}
+
              {/* Notes */}
              <div>
                <Label htmlFor="note" className="text-sm font-medium text-gray-700">
@@ -962,10 +1151,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
              </Button>
              <Button
                type="submit"
-               disabled={isProcessing || formData.paidAmount < finalTotal}
+               disabled={
+                 isProcessing ||
+                 (formData.paymentType === 'Ghi nợ'
+                   ? (!selectedCustomer || formData.customer === 'Khách lẻ' || formData.paidAmount > finalTotal)
+                   : formData.paidAmount < finalTotal)
+               }
                className={`flex items-center justify-center gap-2 ${isProcessing
                  ? 'bg-blue-400 cursor-not-allowed'
-                 : 'bg-blue-600 hover:bg-blue-700'
+                 : formData.paymentType === 'Ghi nợ'
+                   ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                   : 'bg-blue-600 hover:bg-blue-700 text-white'
                  }`}
              >
                {isProcessing ? (
@@ -979,7 +1175,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
                        d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
                    </svg>
-                   <span>Xác nhận thanh toán</span>
+                   <span>
+                     {formData.paymentType === 'Ghi nợ'
+                       ? `Xác nhận ghi nợ (${formatCurrency(Math.max(0, finalTotal - formData.paidAmount))})`
+                       : 'Xác nhận thanh toán'}
+                   </span>
                  </>
                )}
              </Button>

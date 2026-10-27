@@ -99,6 +99,10 @@ export const getStatusIcon = (status: string): string => {
       return '✅';
     case 'Đã thanh toán':
       return '💰';
+    case 'Ghi nợ':
+    case 'Nợ một phần':
+      return '📝';
+      return '💰';
     case 'Đã hủy':
       return '❌';
     default:

@@ -15,7 +15,8 @@ export const POS_CONFIG = {
 export const PAYMENT_TYPES = [
   { value: 'Tiền mặt', label: 'Tiền mặt' },
   { value: 'Chuyển khoản', label: 'Chuyển khoản' },
-  { value: 'Thẻ', label: 'Thẻ' }
+  { value: 'Thẻ', label: 'Thẻ' },
+  { value: 'Ghi nợ', label: 'Ghi nợ' }
 ];
 
 export const TABLE_STATUS = {
