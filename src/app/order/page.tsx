@@ -44,6 +44,9 @@ function OrderWelcomeContent() {
           setIsValidTable(true);
           setTableName(data.tableName);
           setTableInfo(table, data.tableName);
+          if (typeof window !== 'undefined' && data.qrToken) {
+            sessionStorage.setItem(`h2_session_qr_token_${table}`, data.qrToken);
+          }
         } else {
           setIsValidTable(false);
         }

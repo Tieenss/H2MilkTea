@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bundledTables from '@/data/DSBAN.json';
+import { generateTableQrToken } from '@/lib/qr/token';
 
-// Validate table exists
+// Validate table exists and mint signed table session token
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const tableId = searchParams.get('table')?.trim();
@@ -13,13 +14,13 @@ export async function GET(request: NextRequest) {
   try {
     // Use the bundled table data as a reliable fallback in serverless deployments.
     const tables = bundledTables as Array<Record<string, string>>;
-    
+
     try {
       // Dynamic import to avoid build-time errors
       const { createClient } = await import('@supabase/supabase-js');
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
       const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-      
+
       if (supabaseUrl && supabaseKey) {
         const supabase = createClient(supabaseUrl, supabaseKey);
         const { data, error } = await supabase
@@ -27,12 +28,19 @@ export async function GET(request: NextRequest) {
           .select('*')
           .eq('IDBAN', tableId)
           .single();
-        
+
         if (data && !error) {
           if (data['Trạng thái'] === 'Ngừng hoạt động' || data['Trạng thái'] === 'Bảo trì') {
             return NextResponse.json({ valid: false, error: 'Bàn này hiện không hoạt động' });
           }
-          return NextResponse.json({ valid: true, tableId: data.IDBAN, tableName: data['Tên bàn'], status: data['Trạng thái'] });
+          const qrToken = generateTableQrToken(data.IDBAN);
+          return NextResponse.json({
+            valid: true,
+            tableId: data.IDBAN,
+            tableName: data['Tên bàn'],
+            status: data['Trạng thái'],
+            qrToken,
+          });
         }
       }
     } catch {
@@ -41,22 +49,25 @@ export async function GET(request: NextRequest) {
 
     // Handle special "takeaway" table
     if (tableId.toLocaleLowerCase('vi') === 'takeaway') {
-      const takeawayTable = tables.find(t => t['IDBAN'] === 'Khách mua về');
+      const takeawayTable = tables.find((t) => t['IDBAN'] === 'Khách mua về');
+      const qrToken = generateTableQrToken('Khách mua về');
       return NextResponse.json({
         valid: true,
         tableId: 'Khách mua về',
         tableName: 'Khách mua về',
         status: takeawayTable?.['Trạng thái'] || 'Đang hoạt động',
+        qrToken,
       });
     }
 
     // Find table by IDBAN
     const norm = tableId.trim().toLocaleLowerCase('vi');
-    const table = tables.find(t => 
-      String(t['IDBAN'] || '').trim().toLocaleLowerCase('vi') === norm ||
-      String(t['Tên bàn'] || '').trim().toLocaleLowerCase('vi') === norm
+    const table = tables.find(
+      (t) =>
+        String(t['IDBAN'] || '').trim().toLocaleLowerCase('vi') === norm ||
+        String(t['Tên bàn'] || '').trim().toLocaleLowerCase('vi') === norm
     );
-    
+
     if (table) {
       if (table['Trạng thái'] === 'Ngừng hoạt động' || table['Trạng thái'] === 'Bảo trì') {
         return NextResponse.json({
@@ -65,11 +76,13 @@ export async function GET(request: NextRequest) {
         });
       }
 
+      const qrToken = generateTableQrToken(table['IDBAN']);
       return NextResponse.json({
         valid: true,
         tableId: table['IDBAN'],
         tableName: table['Tên bàn'],
         status: table['Trạng thái'],
+        qrToken,
       });
     }
 

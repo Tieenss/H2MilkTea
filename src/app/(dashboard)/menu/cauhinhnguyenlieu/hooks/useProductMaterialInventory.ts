@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ProductMaterial } from '../types/productMaterial';
+import authUtils from '@/utils/authUtils';
 
 export interface ProductMaterialInventoryStats {
   IDSP: string;
@@ -17,13 +18,17 @@ export const useProductMaterialInventory = () => {
   const calculateInventoryStats = async () => {
     try {
       setLoading(true);
-      
-      // Đọc dữ liệu từ các file JSON
-      const [productMaterialsData, orderDetailsData, productsData] = await Promise.all([
-        fetch('/data/CAUHINH.json').then(res => res.json()),
-        fetch('/data/HOADONDETAIL.json').then(res => res.json()),
-        fetch('/data/DMHH.json').then(res => res.json())
+
+      // Đọc dữ liệu từ API live (ưu tiên Supabase qua authUtils), fallback file JSON
+      const [productMaterialsRes, orderDetailsRes, productsRes] = await Promise.all([
+        authUtils.apiRequest('CAUHINH', 'getall', {}).catch(() => fetch('/data/CAUHINH.json').then((res) => res.json())),
+        authUtils.apiRequest('HOADONDETAIL', 'getall', {}).catch(() => fetch('/data/HOADONDETAIL.json').then((res) => res.json())),
+        authUtils.apiRequest('DMHH', 'getall', {}).catch(() => fetch('/data/DMHH.json').then((res) => res.json())),
       ]);
+
+      const productMaterialsData: any[] = Array.isArray(productMaterialsRes) ? productMaterialsRes : (productMaterialsRes?.data || []);
+      const orderDetailsData: any[] = Array.isArray(orderDetailsRes) ? orderDetailsRes : (orderDetailsRes?.data || []);
+      const productsData: any[] = Array.isArray(productsRes) ? productsRes : (productsRes?.data || []);
 
       const stats: ProductMaterialInventoryStats[] = [];
 
@@ -40,18 +45,18 @@ export const useProductMaterialInventory = () => {
       Object.keys(productConfigs).forEach((productId) => {
         const configs = productConfigs[productId];
         const product = productsData.find((p: any) => p.IDSP === productId);
-        
+
         if (!product) return;
 
         // Tính tổng số lượng nguyên vật liệu sử dụng cho 1 sản phẩm
         const totalMaterialsPerProduct = configs.reduce((sum: number, config: any) => {
-          return sum + (config['Số lượng quy đổi'] || config['Số lượng cần']);
+          return sum + (Number(config['Số lượng quy đổi']) || Number(config['Số lượng cần']) || 0);
         }, 0);
 
         // Tính số lượng sản phẩm đã bán
         const soldQuantity = orderDetailsData
           .filter((detail: any) => detail.IDSP === productId)
-          .reduce((sum: number, detail: any) => sum + (parseInt(detail['Số lượng']) || 0), 0);
+          .reduce((sum: number, detail: any) => sum + (parseInt(detail['Số lượng'], 10) || 0), 0);
 
         // Tính tổng nguyên vật liệu tiêu thụ
         const totalMaterialsConsumed = soldQuantity * totalMaterialsPerProduct;
@@ -69,10 +74,10 @@ export const useProductMaterialInventory = () => {
         stats.push({
           IDSP: productId,
           'Tên sản phẩm': product['Tên sản phẩm'] || 'Không xác định',
-          'Tổng NVL sử dụng': totalMaterialsPerProduct,
+          'Tổng NVL sử dụng': Math.round(totalMaterialsPerProduct * 1000) / 1000,
           'Số lượng bán': soldQuantity,
-          'Tổng NVL tiêu thụ': totalMaterialsConsumed,
-          'Trạng thái': status
+          'Tổng NVL tiêu thụ': Math.round(totalMaterialsConsumed * 1000) / 1000,
+          'Trạng thái': status,
         });
       });
 
@@ -98,6 +103,6 @@ export const useProductMaterialInventory = () => {
   return {
     inventoryStats,
     loading,
-    refreshStats
+    refreshStats,
   };
-}; 
+};

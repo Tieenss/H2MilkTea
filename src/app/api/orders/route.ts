@@ -84,11 +84,18 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: false, error: 'Quá nhiều yêu cầu đặt món từ bàn này. Vui lòng chờ 1 phút.' }, { status: 429 });
       }
 
-      if (process.env.FEATURE_QR_TOKEN === 'true') {
-        const qrToken = String(body.qrToken || request.headers.get('x-qr-token') || '').trim();
-        const verification = verifyTableQrToken(qrToken, resolvedTable.IDBAN);
-        if (!verification.valid) {
-          return NextResponse.json({ success: false, error: verification.reason || 'Mã xác thực bàn không hợp lệ.' }, { status: 403 });
+      const qrToken = String(body.qrToken || request.headers.get('x-qr-token') || '').trim();
+      const enforceQrToken = process.env.FEATURE_QR_TOKEN === 'true' || (process.env.NODE_ENV === 'production' && process.env.FEATURE_QR_TOKEN !== 'false');
+
+      if (qrToken || enforceQrToken) {
+        if (!qrToken && enforceQrToken) {
+          return NextResponse.json({ success: false, error: 'Thiếu mã xác thực phiên đặt món (QR token).' }, { status: 403 });
+        }
+        if (qrToken) {
+          const verification = verifyTableQrToken(qrToken, resolvedTable.IDBAN);
+          if (!verification.valid) {
+            return NextResponse.json({ success: false, error: verification.reason || 'Mã xác thực bàn không hợp lệ.' }, { status: 403 });
+          }
         }
       }
     }

@@ -232,6 +232,49 @@ export const useReportData = (filters: ReportFilters) => {
         setLoading(true);
         setError(null);
 
+        // Ưu tiên gọi API tổng hợp server-side /api/reports/sales để tối ưu tốc độ và giảm tải RAM
+        try {
+          const params = new URLSearchParams({
+            from: timeRange.current.from.toISOString(),
+            to: timeRange.current.to.toISOString(),
+            prevFrom: timeRange.previous.from.toISOString(),
+            prevTo: timeRange.previous.to.toISOString(),
+          });
+          if (filters.categories?.length) params.set('categories', filters.categories.join(','));
+          if (filters.paymentMethods?.length) params.set('paymentMethods', filters.paymentMethods.join(','));
+          if (filters.minAmount !== undefined) params.set('minAmount', String(filters.minAmount));
+          if (filters.maxAmount !== undefined) params.set('maxAmount', String(filters.maxAmount));
+
+          const res = await fetch(`/api/reports/sales?${params.toString()}`);
+          if (res.ok) {
+            const json = await res.json();
+            if (json.success && json.data) {
+              const dailyStats = new Map();
+              const daysDiff = differenceInDays(timeRange.current.to, timeRange.current.from);
+              for (let i = 0; i <= daysDiff; i++) {
+                const date = new Date(timeRange.current.from);
+                date.setDate(date.getDate() + i);
+                const dateKey = format(date, 'dd/MM/yyyy', { locale: vi });
+                dailyStats.set(dateKey, { date: dateKey, revenue: 0, orders: 0 });
+              }
+
+              setData({
+                current: {
+                  ...json.data.current,
+                  dailyData: Array.from(dailyStats.values()),
+                },
+                previous: json.data.previous,
+                comparison: json.data.comparison,
+                timeRange,
+              });
+              setLoading(false);
+              return;
+            }
+          }
+        } catch {
+          // Fallback sang cơ chế tính toán phía client khi server offline
+        }
+
         const [hoaDonRes, hoaDonDetailRes, sanPhamRes] = await Promise.all([
           AuthUtils.getAllHoaDon(),
           AuthUtils.getAllHoaDonDetail(),

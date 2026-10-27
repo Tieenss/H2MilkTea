@@ -38,12 +38,18 @@ function CartPageContent() {
     setIsSubmitting(true);
     try {
       idempotencyKey.current ||= crypto.randomUUID();
+      const sessionQrToken = typeof window !== 'undefined' ? (sessionStorage.getItem(`h2_session_qr_token_${tableParam}`) || '') : '';
       const res = await fetch('/api/orders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey.current },
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': idempotencyKey.current,
+          ...(sessionQrToken ? { 'x-qr-token': sessionQrToken } : {}),
+        },
         body: JSON.stringify({
           source: 'QR_TABLE',
           tableId: tableParam,
+          qrToken: sessionQrToken || undefined,
           items: items.map(item => ({
             productId: item.product.IDSP,
             productName: item.product['Tên sản phẩm'],

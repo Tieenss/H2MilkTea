@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminSupabaseClient, getAuthenticatedStaff } from '@/lib/supabase/server';
 import { tinhTienDonHang } from '@/lib/cart/pricing';
+import { recordInventoryExport } from '@/lib/inventory/bomDeduction';
 
 interface CheckoutBody {
   tableId: string;
@@ -125,6 +126,10 @@ export async function POST(request: NextRequest) {
       });
 
       if (!rpcError && rpcData && rpcData.success) {
+        // Tự động trừ kho theo định lượng BOM và tạo phiếu xuất kho NHAPXUATKHO
+        const staffName = (staff as any).fullName || (staff as any).username || staff.user_metadata?.full_name || staff.email || 'Nhân viên';
+        await recordInventoryExport(supabase, invoiceId, staffName, cart);
+
         return NextResponse.json({
           success: true,
           invoiceId: rpcData.invoice_id || invoiceId,
@@ -215,6 +220,10 @@ export async function POST(request: NextRequest) {
         .eq('table_id', tableId)
         .eq('payment_status', 'unpaid');
     }
+
+    // 2.7 Tự động trừ kho theo định lượng BOM và tạo phiếu xuất kho NHAPXUATKHO
+    const staffName = (staff as any).fullName || (staff as any).username || staff.user_metadata?.full_name || staff.email || 'Nhân viên';
+    await recordInventoryExport(supabase, invoiceId, staffName, cart);
 
     return NextResponse.json({ success: true, invoiceId });
   } catch (err: any) {
