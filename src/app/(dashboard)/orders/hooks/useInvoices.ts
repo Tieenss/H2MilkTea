@@ -124,15 +124,13 @@ export const useInvoices = () => {
     }
   }, []);
 
-  // Update invoice status
+  // Update invoice status (hỗ trợ cả các đơn có bàn đã bị xóa)
   const updateInvoiceStatus = useCallback(async (invoiceId: string, status: string) => {
     try {
       const invoice = invoices.find(inv => inv.IDHOADON === invoiceId);
-      if (!invoice) {
-        throw new Error('Không tìm thấy hóa đơn');
-      }
-
-      const updatedInvoice = { ...invoice, 'Trạng thái': status };
+      const updatedInvoice = invoice
+        ? { ...invoice, 'Trạng thái': status }
+        : { IDHOADON: invoiceId, 'Trạng thái': status };
       
       const result = await authUtils.apiRequest('HOADON', 'update', { 
         ...updatedInvoice 
@@ -140,7 +138,7 @@ export const useInvoices = () => {
 
       if (!Array.isArray(result) && result.success) {
         setInvoices(prev => prev.map(inv => 
-          inv.IDHOADON === invoiceId ? updatedInvoice : inv
+          inv.IDHOADON === invoiceId ? { ...inv, 'Trạng thái': status } : inv
         ));
 
         const statusMessages = {
@@ -222,7 +220,7 @@ export const useInvoices = () => {
     }
   }, [invoices]);
 
-  // Delete invoice
+  // Delete invoice (xóa sạch chi tiết HOADONDETAIL trước, kể cả đơn mồ côi)
   const deleteInvoice = useCallback(async (invoiceId: string) => {
     const originalInvoices = invoices;
     
@@ -237,15 +235,24 @@ export const useInvoices = () => {
 
       const toastId = toast.loading('Đang xóa hóa đơn...');
 
-      // Delete details first
-      const detailsToDelete = invoiceDetails.get(invoiceId) || [];
-      for (const detail of detailsToDelete) {
-        await authUtils.apiRequest('HOADONDETAIL', 'delete', { 
-          IDHOADONDETAIL: detail.IDHOADONDETAIL 
+      // 1. Luôn truy vấn và xóa sạch tất cả chi tiết trong HOADONDETAIL trước
+      try {
+        const details = await authUtils.apiRequest('HOADONDETAIL', 'find', {
+          filter: { IDHOADON: invoiceId }
         });
+        if (Array.isArray(details) && details.length > 0) {
+          for (const d of details) {
+            const detailPk = d.IDHOADONDETAIL || d.id;
+            if (detailPk) {
+              await authUtils.apiRequest('HOADONDETAIL', 'delete', { IDHOADONDETAIL: detailPk });
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Lỗi khi dọn dẹp chi tiết hóa đơn cũ:', err);
       }
 
-      // Then delete invoice
+      // 2. Xóa bản ghi hóa đơn chính trong HOADON
       const result = await authUtils.apiRequest('HOADON', 'delete', {
         IDHOADON: invoiceId
       });
@@ -263,7 +270,7 @@ export const useInvoices = () => {
       console.error('Error deleting invoice:', error);
       toast.error(error.message || 'Có lỗi xảy ra khi xóa hóa đơn');
     }
-  }, [invoices, invoiceDetails]);
+  }, [invoices]);
 
   // Initialize
   useEffect(() => {

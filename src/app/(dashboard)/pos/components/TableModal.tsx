@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -34,28 +34,37 @@ export const TableModal: React.FC<TableModalProps> = ({
     return items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   };
 
-  // Thống kê các bàn đang có đơn chưa thanh toán
-  const occupiedTables = useMemo(() => {
-    return tables.filter((t) => {
-      const items = activeOrders.get(t.IDBAN) || [];
-      return items.length > 0 || t['Trạng thái sử dụng'] === 'Đang sử dụng';
-    });
-  }, [tables, activeOrders]);
-
-  const totalUnpaidAmount = useMemo(() => {
-    let sum = 0;
-    for (const [_, items] of activeOrders.entries()) {
-      sum += calculateTotal(items);
-    }
-    return sum;
+  // Helper lấy danh sách món giỏ hàng của bàn một cách nhất quán (khớp theo cả ID lẫn Tên bàn)
+  const getTableCart = useCallback((table: Table): CartItem[] => {
+    const byId = activeOrders.get(table.IDBAN);
+    if (byId && byId.length > 0) return byId;
+    const byName = activeOrders.get(table['Tên bàn']);
+    if (byName && byName.length > 0) return byName;
+    return [];
   }, [activeOrders]);
 
-  const emptyTablesCount = tables.length - occupiedTables.length;
+  // Thống kê các bàn thực tế đang có đơn chưa thanh toán (chỉ tính các bàn đang hiển thị trong quán)
+  const occupiedTables = useMemo(() => {
+    return tables.filter((t) => {
+      const items = getTableCart(t);
+      return items.length > 0 || t['Trạng thái sử dụng'] === 'Đang sử dụng';
+    });
+  }, [tables, getTableCart]);
+
+  // TỔNG TIỀN TẠM TÍNH CHUẨN XÁC: Chỉ cộng dồn tổng tiền của các bàn đang hiển thị thực tế
+  const totalUnpaidAmount = useMemo(() => {
+    return occupiedTables.reduce((sum, table) => {
+      const items = getTableCart(table);
+      return sum + calculateTotal(items);
+    }, 0);
+  }, [occupiedTables, getTableCart]);
+
+  const emptyTablesCount = Math.max(0, tables.length - occupiedTables.length);
 
   // Lọc danh sách bàn theo tab và tìm kiếm
   const filteredTables = useMemo(() => {
     return tables.filter((t) => {
-      const items = activeOrders.get(t.IDBAN) || [];
+      const items = getTableCart(t);
       const hasOrder = items.length > 0 || t['Trạng thái sử dụng'] === 'Đang sử dụng';
 
       if (filterMode === 'occupied' && !hasOrder) return false;
@@ -70,7 +79,7 @@ export const TableModal: React.FC<TableModalProps> = ({
 
       return true;
     });
-  }, [tables, activeOrders, filterMode, searchQuery]);
+  }, [tables, getTableCart, filterMode, searchQuery]);
 
   const canTransfer = selectedTableId && activeOrders.has(selectedTableId) && 
     activeOrders.get(selectedTableId)!.length > 0;
@@ -188,23 +197,23 @@ export const TableModal: React.FC<TableModalProps> = ({
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 mb-4">
               {filteredTables.map((table) => {
-              const tableItems = activeOrders.get(table.IDBAN) || [];
-              const hasOrder = tableItems.length > 0;
-              const isCurrentTable = selectedTableId === table.IDBAN;
-              const presence = presenceByTable?.get(table.IDBAN);
+                const tableItems = getTableCart(table);
+                const hasOrder = tableItems.length > 0;
+                const isCurrentTable = selectedTableId === table.IDBAN || selectedTableId === table['Tên bàn'];
+                const presence = presenceByTable?.get(table.IDBAN);
 
-              return (
-                <TableCard
-                  key={table.IDBAN}
-                  table={table}
-                  hasOrder={hasOrder}
-                  itemCount={tableItems.reduce((sum, it) => sum + it.quantity, 0)}
-                  isCurrentTable={isCurrentTable}
-                  orderTotal={hasOrder ? calculateTotal(tableItems) : 0}
-                  presence={presence}
-                  onSelect={onSelectTable}
-                />
-              );
+                return (
+                  <TableCard
+                    key={table.IDBAN}
+                    table={table}
+                    hasOrder={hasOrder}
+                    itemCount={tableItems.reduce((sum, it) => sum + it.quantity, 0)}
+                    isCurrentTable={isCurrentTable}
+                    orderTotal={hasOrder ? calculateTotal(tableItems) : 0}
+                    presence={presence}
+                    onSelect={onSelectTable}
+                  />
+                );
               })}
             </div>
           )}

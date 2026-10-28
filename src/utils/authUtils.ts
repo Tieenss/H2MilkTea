@@ -956,10 +956,14 @@ class AuthUtils {
                         const targetId = (data && pk && data[pk]) ? data[pk] : data?.id;
                         if (pk && targetId) {
                             try {
+                                // Nếu xóa hóa đơn, xóa sạch chi tiết trong HOADONDETAIL trước để tránh lỗi khóa ngoại Foreign Key
+                                if (tableName === 'HOADON') {
+                                    await supabase.from('HOADONDETAIL').delete().eq('IDHOADON', targetId);
+                                }
                                 const { error } = await supabase.from(tableName).delete().eq(pk, targetId);
                                 if (error) console.warn("Supabase delete warning:", error.message);
-                            } catch {
-                                // Ignore
+                            } catch (e: any) {
+                                console.warn("Supabase delete exception:", e?.message);
                             }
                         }
                     }
@@ -1245,7 +1249,15 @@ class AuthUtils {
         const recordIndex = tableData.findIndex(item => item[primaryKey] === recordId || (tableName === 'HOADON' && item.IDHD === recordId) || (tableName === 'KHACHHANG' && (item.IDKH === recordId || item.IDKHACHHANG === recordId)));
 
         if (recordIndex === -1) {
-            throw new Error('Không tìm thấy bản ghi để cập nhật');
+            // Nếu bản ghi chưa có trong local demoData (nhưng có trên Supabase), thêm vào demoData và cho phép cập nhật
+            const newRecord = {
+                ...data,
+                ...(tableName === 'HOADON' || tableName === 'CAUHINH' ? {
+                    'Ngày cập nhật': new Date().toLocaleString('vi-VN')
+                } : {})
+            };
+            this.demoData[tableName] = [...tableData, newRecord];
+            return { success: true, data: { ...newRecord }, message: 'Cập nhật thành công!' };
         }
 
         const updatedRecord = {
@@ -1275,7 +1287,8 @@ class AuthUtils {
         const recordIndex = tableData.findIndex(item => item[primaryKey] === recordId || (tableName === 'HOADON' && item.IDHD === recordId) || (tableName === 'KHACHHANG' && (item.IDKH === recordId || item.IDKHACHHANG === recordId)));
 
         if (recordIndex === -1) {
-            throw new Error('Không tìm thấy bản ghi để xóa');
+            // Bản ghi không có trong local demoData nhưng có thể có trên Supabase -> vẫn cho phép xóa
+            return { success: true, data: { [primaryKey]: recordId }, message: 'Xóa thành công!' };
         }
 
         const deletedRecord = tableData.splice(recordIndex, 1)[0];
