@@ -16,7 +16,7 @@ import { CustomerDetailsModal } from './components/CustomerDetailsModal';
 import { CustomerFormModal } from './components/CustomerFormModal';
 import { DebtRepaymentModal } from './components/DebtRepaymentModal';
 import { CUSTOMER_TYPES, CUSTOMER_STATUS } from './utils/customerConstants';
-import { exportCustomerData } from './utils/customerFormatters';
+import { exportCustomerData, formatCurrency } from './utils/customerFormatters';
 import type { Customer, CustomerFormData } from './types/customer';
 import authUtils from '@/utils/authUtils';
 import toast from 'react-hot-toast';

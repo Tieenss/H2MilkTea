@@ -1,6 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { Search, RefreshCw, Users, Filter, X, GalleryVertical, QrCode } from 'lucide-react';
 
 import { Card } from '@/components/ui/card';
