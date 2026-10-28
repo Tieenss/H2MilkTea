@@ -1,5 +1,7 @@
 /**
  * Module nhận diện và phân giải Bàn (Table Resolver) cho AI POS
+ * Ưu tiên tuyệt đối Tên Bàn (name) thay vì Mã Bàn (id) vì mã bàn trong CSDL
+ * có thể không trùng khớp với số thứ tự hiển thị, hoặc bàn đã được quản lý đổi tên.
  */
 
 import { normalizeSearchText } from './catalog';
@@ -15,6 +17,7 @@ export interface TableMatchResult {
   matchedText: string;
   isNotFound?: boolean;
   requestedName?: string;
+  availableTables?: string[];
 }
 
 const NUMBER_WORDS: Record<string, number> = {
@@ -46,9 +49,10 @@ export function resolveTableFromMessage(
   const takeawayKeywords = ['mang ve', 'mua ve', 'khach mua ve', 'mang di', 'take away', 'takeaway'];
   for (const kw of takeawayKeywords) {
     if (normalized.includes(kw)) {
-      const takeawayTable = tables.find(
-        (t) => normalizeSearchText(t.name).includes('khach mua ve') || normalizeSearchText(t.name).includes('mang ve'),
-      );
+      const takeawayTable = tables.find((t) => {
+        const n = normalizeSearchText(t.name);
+        return n.includes('khach mua ve') || n.includes('mang ve') || n.includes('takeaway');
+      });
       if (takeawayTable) {
         return {
           table: takeawayTable,
@@ -59,20 +63,35 @@ export function resolveTableFromMessage(
     }
   }
 
-  // 2. Khớp trực tiếp tên bàn nếu có nhắc đầy đủ (ví dụ "Bàn VIP 1", "Bàn 03", "Sân thượng 2")
-  for (const t of tables) {
+  // 2. So khớp trực tiếp theo TÊN BÀN (name) đầy đủ hoặc tên tùy biến
+  // Sắp xếp các bàn theo độ dài tên giảm dần (để "Bàn VIP 1" được ưu tiên trước "Bàn 1")
+  const sortedByNameLength = [...tables].sort(
+    (a, b) => b.name.trim().length - a.name.trim().length,
+  );
+
+  for (const t of sortedByNameLength) {
     const normTableName = normalizeSearchText(t.name);
-    if (normTableName && (normalized.includes(normTableName) || normalized.includes(t.id.toLowerCase()))) {
+    if (!normTableName) continue;
+
+    // Ranh giới từ hoặc bắt đầu/kết thúc chuỗi để không bị nhầm (ví dụ: "bàn 1" không khớp vào "bàn 10")
+    // Cho phép số có hoặc không có số 0 ở đầu (ví dụ "02" khớp với "2")
+    const flexibleNamePattern = normTableName
+      .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      .replace(/\b0*([0-9]+)\b/g, '0*$1');
+
+    const nameRegex = new RegExp(`(^|\\s|[^a-z0-9])${flexibleNamePattern}($|\\s|[^a-z0-9])`, 'i');
+
+    if (nameRegex.test(normalized)) {
       return {
         table: t,
-        confidence: 0.95,
+        confidence: 0.98,
         matchedText: t.name,
       };
     }
   }
 
-  // 3. Kiểm tra mẫu câu có số bàn: "bàn 3", "bàn 03", "bàn số 3", "b3", "table 3", "bàn ba"
-  // Regex tìm: (ban|b|table)\s*(so\s*)?([0-9]+|[a-z]+)
+  // 3. Kiểm tra mẫu câu gọi bàn bằng số hoặc từ ngữ:
+  // "bàn 3", "bàn 03", "bàn số 3", "b3", "table 3", "bàn ba", "bàn năm"
   const tableRegex = /\b(?:ban|table|b)\s*(?:so\s*)?([0-9]{1,3}|mot|hai|ba|bon|tu|nam|sau|bay|tam|chin|muoi)\b/gi;
   const match = tableRegex.exec(normalized);
 
@@ -81,19 +100,44 @@ export function resolveTableFromMessage(
     const tableNumber = NUMBER_WORDS[rawNumberPart] ?? parseInt(rawNumberPart, 10);
 
     if (Number.isInteger(tableNumber) && tableNumber > 0) {
-      // Tìm bàn phù hợp trong danh sách
-      // Tên bàn có thể là: "Bàn 03", "Bàn 3", "Bàn số 3", "B003", "BAN003"...
-      const matchedTable = tables.find((t) => {
+      const formattedNum2 = tableNumber < 10 ? `0${tableNumber}` : `${tableNumber}`;
+
+      // 3.1. ƯU TIÊN TUYỆT ĐỐI THEO TÊN BÀN (t.name):
+      // Người dùng gọi "bàn 3", tìm bàn có TÊN là "Bàn 03", "Bàn 3", "B3", "Bàn số 3"...
+      let matchedTable = tables.find((t) => {
         const normName = normalizeSearchText(t.name);
-        const numPattern = new RegExp(`\\b0*${tableNumber}\\b`);
         return (
-          numPattern.test(normName) ||
-          t.id.toLowerCase() === `b00${tableNumber}` ||
-          t.id.toLowerCase() === `ban00${tableNumber}` ||
-          t.id.toLowerCase() === `b${tableNumber}` ||
-          t.id.toLowerCase() === `ban${tableNumber}`
+          normName === `ban ${formattedNum2}` ||
+          normName === `ban ${tableNumber}` ||
+          normName === `b${formattedNum2}` ||
+          normName === `b${tableNumber}` ||
+          normName === `ban so ${formattedNum2}` ||
+          normName === `ban so ${tableNumber}`
         );
       });
+
+      // 3.2. Nếu chưa thấy, tìm bàn mà TÊN chứa số thứ tự này (như "Bàn VIP 3", "Sân thượng 03", "Khu A Bàn 3")
+      if (!matchedTable) {
+        matchedTable = tables.find((t) => {
+          const normName = normalizeSearchText(t.name);
+          const numPattern = new RegExp(`(^|\\D)0*${tableNumber}(\\D|$)`, 'i');
+          return numPattern.test(normName);
+        });
+      }
+
+      // 3.3. CHỈ FALLBACK tìm theo IDBAN khi và chỉ khi KHÔNG có bàn nào trùng tên
+      // và ID thực sự khớp mã người dùng đọc (ví dụ người dùng đọc mã kỹ thuật BAN003)
+      if (!matchedTable) {
+        matchedTable = tables.find((t) => {
+          const normId = t.id.toLowerCase();
+          return (
+            normId === `b00${tableNumber}` ||
+            normId === `ban00${tableNumber}` ||
+            normId === `b${tableNumber}` ||
+            normId === `ban${tableNumber}`
+          );
+        });
+      }
 
       if (matchedTable) {
         return {
@@ -103,13 +147,28 @@ export function resolveTableFromMessage(
         };
       }
 
-      // Người dùng đã chỉ định số bàn cụ thể nhưng không có trong danh sách bàn
-      const formattedNum = tableNumber < 10 ? `0${tableNumber}` : `${tableNumber}`;
+      // Không tìm thấy bàn nào có tên phù hợp
+      const availableTableNames = tables.map((t) => t.name).filter(Boolean);
       return {
         confidence: 1.0,
         matchedText: match[0],
         isNotFound: true,
-        requestedName: `Bàn ${formattedNum}`,
+        requestedName: `Bàn ${formattedNum2}`,
+        availableTables: availableTableNames,
+      };
+    }
+  }
+
+  // 4. Khớp tên tùy biến khi người dùng chỉ gọi cụm từ đặc biệt của bàn
+  // (Ví dụ quán có bàn tên là: "VIP 1", "Sân Vườn", "Góc Cửa Sổ")
+  for (const t of sortedByNameLength) {
+    const normTableName = normalizeSearchText(t.name);
+    if (normTableName.length < 3) continue;
+    if (normalized.includes(normTableName)) {
+      return {
+        table: t,
+        confidence: 0.9,
+        matchedText: t.name,
       };
     }
   }

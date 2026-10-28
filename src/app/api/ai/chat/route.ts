@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
       cart?: unknown;
       pathname?: unknown;
       pageContext?: unknown;
+      tables?: unknown;
     };
     const message = typeof body.message === 'string' ? body.message.trim() : '';
     if (!message) {
@@ -69,17 +70,31 @@ export async function POST(request: NextRequest) {
     }
 
     // 4. Tải danh sách bàn (DSBAN)
-    const { data: liveTables } = supabase
-      ? await supabase.from('DSBAN').select('IDBAN, Tên bàn, Trạng thái, Sức chứa tối đa')
-      : { data: null };
-    const rawTables = liveTables?.length ? liveTables : tableData;
-    const tables: TableInfo[] = (rawTables as Array<{ IDBAN?: string; 'Tên bàn'?: string; 'Trạng thái'?: string }>)
-      .filter((t) => t['Trạng thái'] === 'Đang hoạt động' || !t['Trạng thái'])
-      .map((t) => ({
-        id: String(t.IDBAN || ''),
-        name: String(t['Tên bàn'] || ''),
-      }))
-      .filter((t) => t.id && t.name);
+    let tables: TableInfo[] = [];
+
+    // Nếu client truyền danh sách bàn thực tế (vừa cập nhật / đổi tên bàn trong Quản lý bàn)
+    if (Array.isArray(body.tables) && body.tables.length > 0) {
+      tables = (body.tables as any[])
+        .map((t) => ({
+          id: String(t.id || t.IDBAN || ''),
+          name: String(t.name || t['Tên bàn'] || ''),
+        }))
+        .filter((t) => t.id && t.name);
+    }
+
+    if (tables.length === 0) {
+      const { data: liveTables } = supabase
+        ? await supabase.from('DSBAN').select('IDBAN, Tên bàn, Trạng thái, Sức chứa tối đa')
+        : { data: null };
+      const rawTables = liveTables?.length ? liveTables : tableData;
+      tables = (rawTables as Array<{ IDBAN?: string; 'Tên bàn'?: string; 'Trạng thái'?: string }>)
+        .filter((t) => t['Trạng thái'] === 'Đang hoạt động' || !t['Trạng thái'])
+        .map((t) => ({
+          id: String(t.IDBAN || ''),
+          name: String(t['Tên bàn'] || ''),
+        }))
+        .filter((t) => t.id && t.name);
+    }
 
     // 5. Thực thi qua AI Pipeline an toàn
     const history = Array.isArray(body.history)

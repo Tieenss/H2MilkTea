@@ -8,9 +8,11 @@ describe('AI Features & Resolvers', () => {
     { id: 'Khách mua về', name: 'Khách mua về' },
     { id: 'B001', name: 'Bàn 01' },
     { id: 'B002', name: 'Bàn 02' },
-    { id: 'BAN001', name: 'Bàn 03' },
-    { id: 'BAN002', name: 'Bàn 04' },
+    { id: 'BAN001', name: 'Bàn 03' }, // Chú ý: ID BAN001 nhưng tên lại là Bàn 03
+    { id: 'BAN002', name: 'Bàn 04' }, // Chú ý: ID BAN002 nhưng tên lại là Bàn 04
     { id: 'BAN003', name: 'Bàn 05' },
+    { id: 'TB_VIP', name: 'Bàn VIP Sân Thượng' },
+    { id: 'TB_GARDEN', name: 'Sân Vườn 02' },
   ];
 
   const mockProducts = toActiveCatalog([
@@ -24,9 +26,38 @@ describe('AI Features & Resolvers', () => {
     it('detects table with "bàn 3" or "bàn 03"', () => {
       const result1 = resolveTableFromMessage('cho tôi 3 ly trà sữa vào bàn 3', mockTables);
       expect(result1?.table.name).toBe('Bàn 03');
+      expect(result1?.table.id).toBe('BAN001');
 
       const result2 = resolveTableFromMessage('bàn 03 thêm 2 ly', mockTables);
       expect(result2?.table.name).toBe('Bàn 03');
+      expect(result2?.table.id).toBe('BAN001');
+    });
+
+    it('prioritizes table name over ID when ID and Name conflict (Bàn 1 -> Bàn 01, not BAN001)', () => {
+      // Bàn 1 phải tìm đúng Bàn 01 (id B001), KHÔNG ĐƯỢC nhầm sang id BAN001 (mang tên Bàn 03)
+      const res1 = resolveTableFromMessage('mở bàn 1', mockTables);
+      expect(res1?.table.name).toBe('Bàn 01');
+      expect(res1?.table.id).toBe('B001');
+
+      // Bàn 2 phải tìm đúng Bàn 02 (id B002), KHÔNG ĐƯỢC nhầm sang id BAN002 (mang tên Bàn 04)
+      const res2 = resolveTableFromMessage('mở bàn 2', mockTables);
+      expect(res2?.table.name).toBe('Bàn 02');
+      expect(res2?.table.id).toBe('B002');
+
+      // Bàn 4 phải tìm đúng Bàn 04 (id BAN002)
+      const res4 = resolveTableFromMessage('mở bàn 4', mockTables);
+      expect(res4?.table.name).toBe('Bàn 04');
+      expect(res4?.table.id).toBe('BAN002');
+    });
+
+    it('detects custom renamed tables (Bàn VIP Sân Thượng, Sân Vườn 02)', () => {
+      const resVIP = resolveTableFromMessage('mở bàn VIP sân thượng thêm 2 trà sữa', mockTables);
+      expect(resVIP?.table.name).toBe('Bàn VIP Sân Thượng');
+      expect(resVIP?.table.id).toBe('TB_VIP');
+
+      const resGarden = resolveTableFromMessage('chuyển đơn sang sân vườn 2', mockTables);
+      expect(resGarden?.table.name).toBe('Sân Vườn 02');
+      expect(resGarden?.table.id).toBe('TB_GARDEN');
     });
 
     it('detects short syntax "b4" or "table 2"', () => {
@@ -90,4 +121,3 @@ describe('AI Features & Resolvers', () => {
     });
   });
 });
-

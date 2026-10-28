@@ -317,6 +317,26 @@ export function GlobalAssistant() {
     setIsLoading(true);
 
     try {
+      // Đọc danh sách bàn hiện tại từ localStorage (nếu người dùng vừa đổi tên bàn trong Quản lý bàn)
+      let clientTables: Array<{ id: string; name: string }> | undefined = undefined;
+      try {
+        const localDataStr = typeof window !== 'undefined' ? localStorage.getItem('demoData') : null;
+        if (localDataStr) {
+          const parsed = JSON.parse(localDataStr);
+          if (parsed && Array.isArray(parsed.DSBAN) && parsed.DSBAN.length > 0) {
+            clientTables = parsed.DSBAN
+              .filter((t: any) => t['Trạng thái'] === 'Đang hoạt động' || !t['Trạng thái'])
+              .map((t: any) => ({
+                id: String(t.IDBAN || ''),
+                name: String(t['Tên bàn'] || ''),
+              }))
+              .filter((t: any) => t.id && t.name);
+          }
+        }
+      } catch {
+        // Bỏ qua lỗi đọc localStorage
+      }
+
       const response = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -325,6 +345,7 @@ export function GlobalAssistant() {
           pathname,
           pageContext: pageContext.name,
           history: messages.slice(-6).map((m) => ({ role: m.role, content: m.content })),
+          tables: clientTables,
         }),
       });
 
