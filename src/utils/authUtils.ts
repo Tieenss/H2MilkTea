@@ -34,6 +34,10 @@ class AuthUtils {
         }
     }
 
+    private isBrowser() {
+        return typeof window !== 'undefined' && typeof window.location !== 'undefined' && typeof window.location.origin === 'string' && window.location.origin.startsWith('http') && !process.env.VITEST;
+    }
+
     private isClient() {
         return typeof window !== 'undefined';
     }
@@ -859,29 +863,29 @@ class AuthUtils {
         }
     }
 
-    // Gộp dữ liệu từ Supabase với dữ liệu local mà không làm mất dữ liệu mẫu khi bảng Supabase rỗng
+    // Đồng bộ dữ liệu chuẩn từ Supabase Cloud làm nguồn chân lý duy nhất (Single Source of Truth)
     private mergeSupabaseData(tableName: string, supaData: any[]) {
         if (!Array.isArray(supaData) || supaData.length === 0) return;
-        const pk = this.getPrimaryKey(tableName);
-        const currentList = Array.isArray(this.demoData[tableName]) ? this.demoData[tableName] : [];
 
-        // Đối với các bảng giao dịch cần dữ liệu mẫu phong phú (HOADON, HOADONDETAIL, KIEMKEKHO, NHAPXUATKHO),
-        // gộp theo khóa chính để vừa giữ bản ghi mới trên Supabase vừa giữ bản ghi local/seed
-        if (['HOADON', 'HOADONDETAIL', 'KIEMKEKHO', 'NHAPXUATKHO'].includes(tableName)) {
-            const map = new Map<string, any>();
-            currentList.forEach(item => {
-                const id = String(item[pk] || item.IDHD || '');
-                if (id) map.set(id, item);
-            });
-            supaData.forEach(item => {
-                const id = String(item[pk] || item.IDHD || '');
-                if (id) map.set(id, { ...(map.get(id) || {}), ...item });
-            });
-            this.demoData[tableName] = Array.from(map.values());
-            this.normalizeAndSyncDemoData();
-        } else {
-            this.demoData[tableName] = supaData.map(item => ({ ...item }));
-        }
+        // Chuẩn hóa và làm giàu dữ liệu từ Cloud về định dạng Frontend cần (bổ sung các alias Bàn, IDHD, IDKH, Thu ngân...)
+        const enrichedList = supaData.map(item => {
+            const enriched = { ...item };
+            if (tableName === 'HOADON') {
+                enriched['Bàn'] = enriched['Bàn'] || enriched.IDBAN || 'Khách mua về';
+                enriched.IDHD = enriched.IDHD || enriched.IDHOADON;
+                enriched['Thu ngân'] = enriched['Thu ngân'] || enriched['Nhân viên'] || 'Thu ngân';
+                enriched['Hình thức thanh toán'] = enriched['Hình thức thanh toán'] || enriched['Loại thanh toán'] || 'Tiền mặt';
+                enriched['Thời gian'] = enriched['Thời gian'] || enriched['Ngày'];
+            } else if (tableName === 'HOADONDETAIL') {
+                enriched.IDHD = enriched.IDHD || enriched.IDHOADON;
+            } else if (tableName === 'KHACHHANG') {
+                enriched.IDKH = enriched.IDKH || enriched.IDKHACHHANG;
+            }
+            return enriched;
+        });
+
+        this.demoData[tableName] = enrichedList;
+        this.saveDemoData();
     }
 
     async apiRequest(tableName: string, action: string, data: any, select: any = {}) {
@@ -889,21 +893,36 @@ class AuthUtils {
             this.initializeDemoData();
             this.autoRecovery();
 
-            let supabase: any = null;
-            try {
-                supabase = createClient();
-            } catch {
-                supabase = null;
-            }
-
-            if (supabase && ['getall', 'find', 'get', 'read'].includes(action.toLowerCase())) {
+            // 1. Đồng bộ dữ liệu mới nhất từ Cloud qua /api/db (bỏ qua hạn chế RLS)
+            if (this.isBrowser() && ['getall', 'find', 'get', 'read'].includes(action.toLowerCase())) {
                 try {
-                    const { data: supaData, error } = await supabase.from(tableName).select('*');
-                    if (!error && Array.isArray(supaData) && supaData.length > 0) {
-                        this.mergeSupabaseData(tableName, supaData);
+                    const res = await fetch(`/api/db?table=${encodeURIComponent(tableName)}`);
+                    if (res.ok) {
+                        const json = await res.json();
+                        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+                            this.mergeSupabaseData(tableName, json.data);
+                        }
                     }
                 } catch {
-                    // Fallback về in-memory demoData khi offline hoặc bảng chưa có trên Supabase
+                    // Fallback về in-memory/localStorage khi mất kết nối hoặc offline
+                }
+            } else if (!this.isBrowser() && ['getall', 'find', 'get', 'read'].includes(action.toLowerCase())) {
+                let supabase: any = null;
+                try {
+                    supabase = createClient();
+                } catch {
+                    supabase = null;
+                }
+
+                if (supabase) {
+                    try {
+                        const { data: supaData, error } = await supabase.from(tableName).select('*');
+                        if (!error && Array.isArray(supaData) && supaData.length > 0) {
+                            this.mergeSupabaseData(tableName, supaData);
+                        }
+                    } catch {
+                        // Fallback về in-memory demoData khi offline
+                    }
                 }
             }
 
@@ -921,52 +940,17 @@ class AuthUtils {
                 case 'add':
                 case 'insert':
                     result = this.handleCreate(tableName, data);
-                    if (supabase && result && result.data) {
-                        try {
-                            const { error } = await supabase.from(tableName).insert(result.data);
-                            if (error) console.warn("Supabase insert warning:", error.message);
-                        } catch {
-                            // Bỏ qua lỗi Supabase nếu bảng chỉ lưu local
-                        }
-                    }
                     break;
 
                 case 'update':
                 case 'edit':
                 case 'modify':
                     result = this.handleUpdate(tableName, data);
-                    if (supabase && result && result.data) {
-                        const pk = this.getPrimaryKey(tableName);
-                        if (pk && result.data[pk]) {
-                            try {
-                                const { error } = await supabase.from(tableName).update(result.data).eq(pk, result.data[pk]);
-                                if (error) console.warn("Supabase update warning:", error.message);
-                            } catch {
-                                // Ignore
-                            }
-                        }
-                    }
                     break;
 
                 case 'delete':
                 case 'remove':
                     result = this.handleDelete(tableName, data);
-                    if (supabase && result) {
-                        const pk = this.getPrimaryKey(tableName);
-                        const targetId = (data && pk && data[pk]) ? data[pk] : data?.id;
-                        if (pk && targetId) {
-                            try {
-                                // Nếu xóa hóa đơn, xóa sạch chi tiết trong HOADONDETAIL trước để tránh lỗi khóa ngoại Foreign Key
-                                if (tableName === 'HOADON') {
-                                    await supabase.from('HOADONDETAIL').delete().eq('IDHOADON', targetId);
-                                }
-                                const { error } = await supabase.from(tableName).delete().eq(pk, targetId);
-                                if (error) console.warn("Supabase delete warning:", error.message);
-                            } catch (e: any) {
-                                console.warn("Supabase delete exception:", e?.message);
-                            }
-                        }
-                    }
                     break;
 
                 case 'getall':
@@ -977,6 +961,23 @@ class AuthUtils {
 
             if (['create', 'add', 'insert', 'update', 'edit', 'modify', 'delete', 'remove'].includes(action.toLowerCase())) {
                 this.saveDemoData();
+
+                // Đồng bộ thay đổi tức thời xuống Supabase Cloud qua endpoint API /api/db
+                if (this.isBrowser()) {
+                    try {
+                        fetch('/api/db', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                table: tableName,
+                                action: action.toLowerCase(),
+                                data: (result && result.data) ? result.data : data
+                            })
+                        }).catch(e => console.warn('Lỗi đồng bộ Cloud /api/db:', e));
+                    } catch (e) {
+                        console.warn('Lỗi gửi request /api/db:', e);
+                    }
+                }
             }
 
             return result;
