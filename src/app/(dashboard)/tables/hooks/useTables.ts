@@ -108,6 +108,9 @@ export const useTables = () => {
       const result = await authUtils.apiRequest('DSBAN', 'delete', { IDBAN: tableId });
       
       if (!Array.isArray(result) && result.success) {
+        // Dọn dẹp giỏ hàng nháp liên quan đến bàn vừa xóa
+        fetch(`/api/pos/cart-draft?tableId=${encodeURIComponent(tableId)}`, { method: 'DELETE' }).catch(() => {});
+
         toast.success(`Xóa bàn "${tableName}" thành công!`, { id: toastId });
       } else {
         // Rollback on error

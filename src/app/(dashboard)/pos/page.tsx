@@ -184,21 +184,31 @@ export default function POSPage() {
           ? 'text-blue-700 bg-blue-50/40 border-b border-slate-100'
           : 'text-emerald-700 bg-emerald-50/40 border-b border-slate-100';
 
-  // Đếm số lượng bàn đang có đơn hàng chưa thanh toán
+  // Đếm số lượng bàn đang có đơn hàng chưa thanh toán (chỉ tính các bàn đang thực sự tồn tại trong quán)
   const unpaidTablesCount = useMemo(() => {
     let count = 0;
-    const counted = new Set<string>();
-    for (const [tblId, items] of activeOrders.entries()) {
-      if (items && items.length > 0) {
-        counted.add(tblId);
+    const countedTableIds = new Set<string>();
+
+    tables.forEach(table => {
+      const byId = activeOrders.get(table.IDBAN);
+      const byName = activeOrders.get(table['Tên bàn']);
+      const items = (byId && byId.length > 0) ? byId : ((byName && byName.length > 0) ? byName : []);
+      
+      if (items.length > 0) {
+        countedTableIds.add(table.IDBAN);
+        count++;
+      }
+    });
+
+    if (selectedTableId && cart.length > 0 && !countedTableIds.has(selectedTableId)) {
+      const isExistingTable = tables.some(t => t.IDBAN === selectedTableId || t['Tên bàn'] === selectedTableId);
+      if (isExistingTable) {
         count++;
       }
     }
-    if (selectedTableId && cart.length > 0 && !counted.has(selectedTableId)) {
-      count++;
-    }
+
     return count;
-  }, [activeOrders, selectedTableId, cart]);
+  }, [tables, activeOrders, selectedTableId, cart]);
 
   const currentTablePresence = selectedTableId ? presenceByTable?.get(selectedTableId) : undefined;
 

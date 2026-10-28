@@ -383,9 +383,20 @@ export const usePOS = () => {
       const res = await fetch('/api/pos/cart-draft', { cache: 'no-store' });
       const result = await res.json();
       if (res.ok && result.success && Array.isArray(result.drafts)) {
+        const validTableIds = new Set(tables.map(t => String(t.IDBAN || '')));
+        const validTableNames = new Set(tables.map(t => String(t['Tên bàn'] || '')));
+
         setActiveOrders((current) => {
           const next = new Map(current);
           result.drafts.forEach((draft: CartDraft) => {
+            const tableExists = validTableIds.size === 0 || validTableIds.has(draft.table_id) || validTableNames.has(draft.table_id);
+            if (!tableExists) {
+              // Bàn không còn tồn tại: Tự động dọn dẹp khỏi activeOrders và xóa nháp mồ côi trên Cloud
+              next.delete(draft.table_id);
+              fetch(`/api/pos/cart-draft?tableId=${encodeURIComponent(draft.table_id)}`, { method: 'DELETE' }).catch(() => {});
+              return;
+            }
+
             if (Array.isArray(draft.cart) && draft.cart.length > 0) {
               next.set(draft.table_id, draft.cart);
               updateTableStatus(draft.table_id, 'Đang sử dụng');
@@ -403,7 +414,27 @@ export const usePOS = () => {
       console.error('Lỗi tải toàn bộ giỏ hàng nháp các bàn:', err);
       return [];
     }
-  }, [setActiveOrders, updateTableStatus]);
+  }, [tables, setActiveOrders, updateTableStatus]);
+
+  // Tự động dọn dẹp đơn nháp mồ côi khỏi activeOrders mỗi khi danh sách bàn thay đổi
+  useEffect(() => {
+    if (!tables || tables.length === 0) return;
+    const validTableIds = new Set(tables.map(t => String(t.IDBAN || '')));
+    const validTableNames = new Set(tables.map(t => String(t['Tên bàn'] || '')));
+
+    setActiveOrders((current) => {
+      let changed = false;
+      const next = new Map(current);
+      for (const [tblKey] of next.entries()) {
+        if (!validTableIds.has(tblKey) && !validTableNames.has(tblKey)) {
+          next.delete(tblKey);
+          changed = true;
+          fetch(`/api/pos/cart-draft?tableId=${encodeURIComponent(tblKey)}`, { method: 'DELETE' }).catch(() => {});
+        }
+      }
+      return changed ? next : current;
+    });
+  }, [tables, setActiveOrders]);
 
   // Lắng nghe Realtime toàn bảng pos_cart_drafts để cập nhật trạng thái mọi bàn tức thời
   useEffect(() => {

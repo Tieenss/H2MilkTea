@@ -219,6 +219,11 @@ export async function POST(request: NextRequest) {
         await supabase.from('HOADONDETAIL').delete().eq('IDHOADON', targetId);
       }
 
+      // Xóa giỏ hàng nháp nếu xóa bàn
+      if (table === 'DSBAN') {
+        await supabase.from('pos_cart_drafts').delete().eq('table_id', targetId);
+      }
+
       const { error } = await supabase.from(table).delete().eq(pk, targetId);
       if (error) {
         console.warn(`Supabase ${table} delete warning:`, error.message);
