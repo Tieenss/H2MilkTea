@@ -46,6 +46,8 @@ interface ChatMessage {
     toppings?: string[];
     note?: string;
   }>;
+  approvalStatus?: 'pending' | 'confirmed' | 'rejected';
+  approvalTimestamp?: string;
 }
 
 interface PageContextInfo {
@@ -329,6 +331,10 @@ export function GlobalAssistant() {
       const data = await response.json();
 
       if (response.ok && data.success) {
+        const hasActionableItems = Boolean(
+          (data.items && data.items.length > 0) ||
+          (data.action === 'select_table' && data.targetTable)
+        );
         const assistantMsg: ChatMessage = {
           role: 'assistant',
           content: data.message || 'Đã xử lý yêu cầu của bạn.',
@@ -336,21 +342,9 @@ export function GlobalAssistant() {
           action: data.action,
           targetTable: data.targetTable,
           items: data.items,
+          approvalStatus: hasActionableItems ? 'pending' : undefined,
         };
         setMessages((prev) => [...prev, assistantMsg]);
-
-        // Nếu người dùng đang ở /pos và AI nhận diện lệnh thêm món hoặc chọn bàn
-        if (pathname === '/pos' && (data.action === 'add' || data.action === 'select_table')) {
-          window.dispatchEvent(
-            new CustomEvent('h2_pos_ai_apply', {
-              detail: {
-                action: data.action,
-                items: data.items,
-                targetTable: data.targetTable,
-              },
-            })
-          );
-        }
       } else {
         setMessages((prev) => [
           ...prev,
@@ -371,6 +365,61 @@ export function GlobalAssistant() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Xác nhận duyệt đơn bằng tay
+  const handleApproveOrder = (index: number) => {
+    const msg = messages[index];
+    if (!msg || !msg.action) return;
+
+    const timeStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+
+    setMessages((prev) =>
+      prev.map((m, idx) =>
+        idx === index
+          ? {
+              ...m,
+              approvalStatus: 'confirmed',
+              approvalTimestamp: timeStr,
+            }
+          : m
+      )
+    );
+
+    const payload = {
+      action: msg.action,
+      items: msg.items || [],
+      targetTable: msg.targetTable,
+    };
+
+    if (pathname === '/pos') {
+      window.dispatchEvent(new CustomEvent('h2_pos_ai_apply', { detail: payload }));
+      toast.success(`Đã duyệt đơn và nạp vào ${msg.targetTable?.name || 'bàn'}!`);
+    } else {
+      try {
+        localStorage.setItem('h2_pending_ai_pos_order', JSON.stringify(payload));
+      } catch (err) {
+        console.warn('Lỗi lưu pending AI order:', err);
+      }
+      toast.success(`Đã duyệt đơn! Đang chuyển sang màn hình POS...`);
+      router.push('/pos');
+    }
+  };
+
+  // Hủy bỏ / từ chối duyệt
+  const handleRejectOrder = (index: number) => {
+    setMessages((prev) =>
+      prev.map((m, idx) =>
+        idx === index
+          ? {
+              ...m,
+              approvalStatus: 'rejected',
+              approvalTimestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+            }
+          : m
+      )
+    );
+    toast('Đã hủy bỏ thao tác gọi món của AI.', { icon: 'ℹ️' });
   };
 
   // 6. NHẬN DIỆN GIỌNG NÓI
@@ -561,20 +610,90 @@ export function GlobalAssistant() {
                     {renderMessageContent(msg.content)}
                   </div>
 
-                  {/* Chi tiết món nếu AI nhận diện lệnh gọi món trên POS */}
-                  {!isUser && msg.items && msg.items.length > 0 && (
-                    <div className="mt-2 w-full max-w-[90%] rounded-xl border border-emerald-200 bg-emerald-50/70 p-2.5 text-[11px] text-emerald-950 space-y-1">
-                      <div className="font-bold flex items-center justify-between text-emerald-800">
-                        <span>Đã nhận diện {msg.items.length} món:</span>
-                        {msg.targetTable && <Badge variant="outline" className="text-[10px] bg-white border-emerald-300">{msg.targetTable.name}</Badge>}
+                  {/* Thẻ Duyệt Đơn Bằng Tay (Manual Approval Card) */}
+                  {!isUser && ((msg.items && msg.items.length > 0) || (msg.action === 'select_table' && msg.targetTable)) && (
+                    <div className="mt-2.5 w-full max-w-[95%] rounded-xl border-2 border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-900 shadow-md p-3 text-xs space-y-2.5">
+                      {/* Tiêu đề thẻ & Bàn mục tiêu */}
+                      <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-slate-800">
+                        <div className="flex items-center gap-1.5 font-bold text-indigo-900 dark:text-indigo-200">
+                          <Sparkles className="h-4 w-4 text-amber-500 animate-pulse" />
+                          <span>Phiếu xem trước lệnh gọi món</span>
+                        </div>
+                        {msg.targetTable && (
+                          <Badge className="bg-indigo-600 text-white text-[11px] font-bold px-2 py-0.5">
+                            📍 {msg.targetTable.name}
+                          </Badge>
+                        )}
                       </div>
-                      <div className="space-y-0.5">
-                        {msg.items.map((it, iIdx) => (
-                          <div key={iIdx} className="flex justify-between">
-                            <span>• {it.quantity}x {it.productName} {it.size ? `(Size ${it.size})` : ''}</span>
-                            <span className="text-gray-500 text-[10px]">{it.sugar ? `${it.sugar} đường` : ''} {it.ice ? `· ${it.ice}` : ''}</span>
+
+                      {/* Thông tin chi tiết món nếu có */}
+                      {msg.items && msg.items.length > 0 ? (
+                        <div className="space-y-1.5 bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800">
+                          <div className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                            {msg.action === 'remove' ? 'Món yêu cầu bớt:' : 'Món yêu cầu thêm:'}
                           </div>
-                        ))}
+                          {msg.items.map((it, iIdx) => (
+                            <div key={iIdx} className="flex flex-col gap-0.5 border-b border-slate-200/60 dark:border-slate-700/60 pb-1.5 last:border-b-0 last:pb-0">
+                              <div className="flex justify-between font-bold text-slate-900 dark:text-white">
+                                <span>{it.quantity}x {it.productName}</span>
+                                {it.size && <span className="text-[10px] bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 px-1.5 py-0.2 rounded font-semibold">Size {it.size}</span>}
+                              </div>
+                              <div className="flex flex-wrap gap-1 text-[10px] text-slate-500 dark:text-slate-400">
+                                {it.sugar && it.sugar !== '100%' && <span>{it.sugar} đường</span>}
+                                {it.ice && it.ice !== '100% đá' && <span>· {it.ice}</span>}
+                                {it.toppings && it.toppings.length > 0 && <span>· +{it.toppings.join(', ')}</span>}
+                                {it.note && <span className="italic">({it.note})</span>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/60 p-2 rounded-lg">
+                          Chuyển đến làm việc với bàn: <strong>{msg.targetTable?.name}</strong> (chưa có món)
+                        </div>
+                      )}
+
+                      {/* Ghi chú nhắc nhở duyệt */}
+                      <div className="text-[10.5px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 p-2 rounded border border-amber-200/60 flex items-start gap-1.5 leading-snug">
+                        <span className="font-bold shrink-0">⚠️ Duyệt bằng tay:</span>
+                        <span>Vui lòng kiểm tra lại xem AI đã nhận diện đúng bàn và món bạn cần chưa trước khi áp dụng vào giỏ hàng.</span>
+                      </div>
+
+                      {/* Nút hành động Duyệt / Hủy */}
+                      <div className="pt-1 flex items-center justify-end gap-2">
+                        {msg.approvalStatus === 'confirmed' ? (
+                          <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/60 px-3 py-1.5 rounded-lg border border-emerald-300">
+                            <Check className="h-4 w-4" />
+                            <span>Đã duyệt & áp dụng vào {msg.targetTable?.name || 'bàn'}{msg.approvalTimestamp ? ` (${msg.approvalTimestamp})` : ''}</span>
+                          </div>
+                        ) : msg.approvalStatus === 'rejected' ? (
+                          <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 bg-gray-100 dark:bg-gray-800 px-3 py-1.5 rounded-lg">
+                            <X className="h-4 w-4" />
+                            <span>Đã hủy bỏ thao tác này</span>
+                          </div>
+                        ) : (
+                          <>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleRejectOrder(index)}
+                              className="h-8 px-2.5 text-xs text-gray-600 hover:text-red-600 hover:bg-red-50 border-gray-300 font-medium"
+                            >
+                              <X className="h-3.5 w-3.5 mr-1" />
+                              Hủy bỏ
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => handleApproveOrder(index)}
+                              className="h-8 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-sm flex items-center gap-1"
+                            >
+                              <Check className="h-3.5 w-3.5 mr-1" />
+                              Xác nhận duyệt thêm vào bàn
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </div>
                   )}

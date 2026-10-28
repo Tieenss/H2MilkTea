@@ -99,6 +99,68 @@ export default function POSPage() {
   const [showMobileCart, setShowMobileCart] = React.useState(false);
   const [isSearchExpanded, setIsSearchExpanded] = React.useState(false);
 
+  // Lắng nghe sự kiện duyệt đơn từ Trợ lý AI (GlobalAssistant)
+  React.useEffect(() => {
+    const handleAiApply = (e: any) => {
+      const detail = e.detail;
+      if (!detail) return;
+
+      const { action, targetTable, items } = detail;
+
+      // 1. Chuyển sang bàn mục tiêu nếu có
+      if (targetTable?.id) {
+        selectTable(targetTable.id);
+      }
+
+      // 2. Thêm hoặc bớt món
+      if (action === 'add' && Array.isArray(items) && items.length > 0) {
+        items.forEach((item: any) => {
+          const qty = Math.max(1, Number(item.quantity) || 1);
+          for (let i = 0; i < qty; i++) {
+            addToCart(item.productId, {
+              size: item.size,
+              sugar: item.sugar,
+              ice: item.ice,
+              toppings: item.toppings,
+              note: item.note,
+            });
+          }
+        });
+        toast.success(`Đã nạp ${items.length} món từ Trợ lý AI vào ${targetTable?.name || 'bàn'}!`);
+      } else if (action === 'remove' && Array.isArray(items) && items.length > 0) {
+        items.forEach((item: any) => {
+          const qty = Math.max(1, Number(item.quantity) || 1);
+          adjustQuantity(item.productId, -qty);
+        });
+        toast.success(`Đã bớt món theo lệnh của Trợ lý AI!`);
+      } else if (action === 'select_table') {
+        toast.success(`Đã chuyển sang ${targetTable?.name || 'bàn'}!`);
+      }
+    };
+
+    window.addEventListener('h2_pos_ai_apply', handleAiApply);
+
+    // Kiểm tra pending AI order nếu được duyệt từ một trang khác chuyển sang
+    try {
+      const pendingStr = localStorage.getItem('h2_pending_ai_pos_order');
+      if (pendingStr) {
+        localStorage.removeItem('h2_pending_ai_pos_order');
+        const pending = JSON.parse(pendingStr);
+        if (pending) {
+          setTimeout(() => {
+            handleAiApply(new CustomEvent('h2_pos_ai_apply', { detail: pending }));
+          }, 350);
+        }
+      }
+    } catch (err) {
+      console.warn('Lỗi xử lý pending AI order:', err);
+    }
+
+    return () => {
+      window.removeEventListener('h2_pos_ai_apply', handleAiApply);
+    };
+  }, [selectTable, addToCart, adjustQuantity]);
+
   const sharedCartLabel =
     sharedCartStatus === 'connected'
       ? `Đồng bộ giỏ hàng (${realtimeStatus})`

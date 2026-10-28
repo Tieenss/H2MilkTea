@@ -17,6 +17,7 @@ export const DEFAULT_ALIASES: Record<string, string> = {
   'ts': 'tra sua tran chau den',
   'tsnt': 'tra sua topping thach cu nang',
   'tstt': 'tra sua tran chau den',
+  'tstc': 'tra sua tran chau den',
   'cf': 'cafe sua da',
   'cfd': 'cafe den da',
   'cfs': 'cafe sua da',
@@ -37,6 +38,8 @@ export const DEFAULT_ALIASES: Record<string, string> = {
   'den da': 'cafe den da',
   'den nong': 'cafe den nong',
   'tra sua truyen thong': 'tra sua tran chau den',
+  'tra sua tran chau': 'tra sua tran chau den',
+  'tra sua': 'tra sua tran chau den',
   'tra sua nuong': 'tra sua topping thach cu nang',
   'hong tra dac biet': 'hong tra sua',
   'hong tra': 'hong tra sua',
@@ -51,6 +54,10 @@ export const DEFAULT_ALIASES: Record<string, string> = {
   'ca phe den': 'cafe den da',
   'ca phe sua da': 'cafe sua da',
   'ca phe sua': 'cafe sua da',
+  'ca phe': 'cafe sua da',
+  'cafe': 'cafe sua da',
+  'matcha': 'tra sua matcha dau do',
+  'tra sua matcha': 'tra sua matcha dau do',
 };
 
 /**

@@ -45,9 +45,13 @@ describe('AI Features & Resolvers', () => {
       expect(result2?.table.name).toBe('Khách mua về');
     });
 
-    it('returns null for non-existing tables', () => {
+    it('returns isNotFound flag for non-existing tables and null if no table pattern mentioned', () => {
       const result = resolveTableFromMessage('bàn 99 thêm 1 ly', mockTables);
-      expect(result).toBeNull();
+      expect(result?.isNotFound).toBe(true);
+      expect(result?.requestedName).toBe('Bàn 99');
+
+      const noTable = resolveTableFromMessage('cho 1 ly trà đào', mockTables);
+      expect(noTable).toBeNull();
     });
   });
 
@@ -86,3 +90,4 @@ describe('AI Features & Resolvers', () => {
     });
   });
 });
+

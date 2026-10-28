@@ -10,7 +10,7 @@ export interface RuleMatchResult {
 }
 
 const GREETING_REGEX = /^(xin chào(\s+(bạn|bot|em|shop|ad|trợ lý|ai))?|chào(\s+(bạn|bot|em|shop|ad|trợ lý|ai|buổi sáng|buổi trưa|buổi chiều|buổi tối))?|hello(\s+(bạn|bot|trợ lý|ai))?|hi(\s+(bạn|bot))?|alo(\s+(bạn|bot))?|hey)[!. ]*$/i;
-const TABLE_ONLY_REGEX = /^(mở|chuyển( sang)?|chọn|vào)\s+(bàn\s+[a-z0-9]+|khách mua về|mang về)[!. ]*$/i;
+const OPEN_TABLE_REGEX = /^(?:mở|chuyển(?:\s+sang)?|chọn|vào)\s+(?:bàn\s+[a-z0-9]+|khách mua về|mang về)(?:\s*(?:và|rồi|để)?\s*(?:thêm món|gọi món|order|lên đơn))?[!. ]*$/i;
 
 /**
  * Trích xuất các tùy chọn phổ biến (size, đường, đá, topping, nhiệt độ)
@@ -82,12 +82,13 @@ function extractNoteAndOptions(text: string): {
     remaining = remaining.replace(sugarMatch[0], ' ');
   }
 
-  // Topping nếu có
-  const toppingMatch = remaining.match(/(them|kem)?\s*(tran chau( trang| den)?|thach( cu nang| pho mai| suong sao)?|pudding( trung)?)/i);
+  // Topping nếu có (phải có từ chỉ định như "thêm", "kèm", "topping", "+" hoặc nằm sau cùng)
+  const toppingMatch = remaining.match(/(?:them|kem|topping|\+)\s*(tran chau( trang| den)?|thach( cu nang| pho mai| suong sao)?|pudding( trung)?)/i);
   if (toppingMatch) {
     const rawTopping = toppingMatch[0].trim();
-    notes.push(rawTopping);
-    toppings.push(rawTopping.replace(/^(them|kem)\s+/i, ''));
+    const toppingName = rawTopping.replace(/^(?:them|kem|topping|\+)\s*/i, '');
+    notes.push(`Thêm ${toppingName}`);
+    toppings.push(toppingName);
     remaining = remaining.replace(toppingMatch[0], ' ');
   }
 
@@ -127,42 +128,57 @@ export function matchRuleBased(
     };
   }
 
-  // 2. Kiểm tra câu lệnh chỉ chọn hoặc mở bàn
-  if (TABLE_ONLY_REGEX.test(trimmed)) {
-    const tableRes = resolveTableFromMessage(trimmed, tables);
-    if (tableRes && tableRes.table) {
-      return {
-        matched: true,
-        output: {
-          action: 'select_table',
-          targetTable: tableRes.table,
-          items: [],
-          message: `Chuyển sang ${tableRes.table.name}.`,
-          isBlocked: false,
-          blockedReason: null,
-        },
-      };
-    }
+  // Phân giải bàn từ câu lệnh
+  const tableRes = resolveTableFromMessage(trimmed, tables);
+
+  // 2. Nếu người dùng chỉ định một bàn KHÔNG TỒN TẠI trong quán -> Báo lỗi ngay lập tức
+  if (tableRes?.isNotFound) {
+    const activeNames = tables.map((t) => t.name).join(', ');
+    return {
+      matched: true,
+      output: {
+        action: 'none',
+        targetTable: null,
+        items: [],
+        message: `⚠️ Quán không có "${tableRes.requestedName}" trong hệ thống (hoặc bàn đang ngừng hoạt động). Quán hiện có các bàn: ${activeNames}. Vui lòng chọn lại đúng bàn.`,
+        isBlocked: false,
+        blockedReason: null,
+      },
+    };
   }
 
-  // 3. Phân tích thêm/bớt món theo mẫu rõ ràng (Rule-based item matching)
+  // 3. Kiểm tra câu lệnh chỉ mở bàn hoặc "mở bàn X và thêm món" nhưng chưa nói rõ món cụ thể
+  if (OPEN_TABLE_REGEX.test(trimmed) && tableRes?.table) {
+    return {
+      matched: true,
+      output: {
+        action: 'select_table',
+        targetTable: tableRes.table,
+        items: [],
+        message: `Đã chọn ${tableRes.table.name}. Bàn hiện chưa có món nào, bạn muốn gọi thêm những món gì cho bàn này ạ? (Gợi ý: Trà sữa nướng, Trà đào, Cà phê muối...)`,
+        isBlocked: false,
+        blockedReason: null,
+      },
+    };
+  }
+
+  // 4. Phân tích thêm/bớt món theo mẫu rõ ràng (Rule-based item matching)
   const isRemove = /(bớt|xóa|hủy|giảm)\s+/i.test(trimmed);
   const action = isRemove ? 'remove' : 'add';
 
-  // Tách bàn dựa trên chuỗi chuẩn hóa
-  const tableRes = resolveTableFromMessage(trimmed, tables);
   let workingText = normalizeSearchText(trimmed);
 
+  // Xóa phần bàn ra khỏi chuỗi để phân tích món
   if (tableRes && tableRes.matchedText) {
     const normMatched = normalizeSearchText(tableRes.matchedText);
-    const tablePattern = new RegExp(`(cho|vao|o|sang)?\\s*(${tableRes.matchedText}|${normMatched})`, 'gi');
+    const tablePattern = new RegExp(`(?:cho|vao|o|sang|mo)?\\s*(?:${tableRes.matchedText}|${normMatched})`, 'gi');
     workingText = workingText.replace(tablePattern, ' ');
   }
 
   // Tách từ khóa hành động và các cụm đại từ xưng hô tự nhiên (vd: "thêm cho tôi", "cho mình", "lấy giùm anh", "order giúp em")
-  workingText = workingText
-    .replace(/^(cho|them|lay|goi|order|len don|bot|xoa|huy|giam)(\s+(cho|gium|ho)?\s*(toi|tao|minh|em|anh|chi|khach|ban))?\s+/i, ' ')
-    .replace(/\b(cho|gium|ho)\s+(toi|tao|minh|em|anh|chi|khach)\b/gi, ' ')
+  workingText = workingText.trim()
+    .replace(/^(?:mo|cho|them|lay|goi|order|len don|bot|xoa|huy|giam|chon|chuyen sang|chuyen|vao)(\s+(?:cho|gium|ho)?\s*(?:toi|tao|minh|em|anh|chi|khach|ban))?\s+/i, ' ')
+    .replace(/\b(?:cho|gium|ho)\s+(?:toi|tao|minh|em|anh|chi|khach)\b/gi, ' ')
     .trim();
 
   // Tách các món: hỗ trợ dấu phẩy, "va", "voi", "kem", "+", hoặc khoảng trắng trước số lượng tiếp theo (vd: "2 bx 1 cf")
@@ -173,6 +189,20 @@ export function matchRuleBased(
     .filter(Boolean);
 
   if (parts.length === 0) {
+    // Nếu chỉ có ý định chọn bàn
+    if (tableRes?.table) {
+      return {
+        matched: true,
+        output: {
+          action: 'select_table',
+          targetTable: tableRes.table,
+          items: [],
+          message: `Đã chọn ${tableRes.table.name}. Bàn hiện chưa có món nào, bạn muốn gọi thêm những món gì cho bàn này ạ?`,
+          isBlocked: false,
+          blockedReason: null,
+        },
+      };
+    }
     return { matched: false };
   }
 
@@ -262,8 +292,8 @@ export function matchRuleBased(
       return `${i.quantity}x ${i.productName}${uniqueOpts.length ? ` (${uniqueOpts.join(', ')})` : ''}`;
     }).join(', ');
     const msg = action === 'remove'
-      ? `Đã nhận diện bớt: ${itemNames}${tableSuffix}. Vui lòng xác nhận.`
-      : `Đã nhận diện thêm: ${itemNames}${tableSuffix}. Vui lòng xác nhận.`;
+      ? `Đã nhận diện bớt: ${itemNames}${tableSuffix}. Vui lòng kiểm tra và duyệt đơn bên dưới.`
+      : `Đã nhận diện thêm: ${itemNames}${tableSuffix}. Vui lòng kiểm tra và duyệt đơn bên dưới.`;
 
     return {
       matched: true,

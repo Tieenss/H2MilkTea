@@ -1,13 +1,13 @@
 import { checkSecurityGuardrails } from './security';
 import { matchRuleBased } from './ruleEngine';
-import { resolveProduct } from './catalog';
+import { resolveProduct, normalizeSearchText } from './catalog';
 import { resolveTableFromMessage } from './table';
 import { getKnowledgeBasePrompt, appendCitationIfMissing, findRelevantKnowledge, removeCitation } from './knowledge';
 import { createAuditLog } from './auditLogger';
 import { AiOutputSchema, type AiOutput, type ParsedItem } from './schema';
 import type { CatalogItem, CatalogProduct, TableInfo } from './types';
 
-export const PROMPT_VERSION = 'v1.1.0';
+export const PROMPT_VERSION = 'v1.2.0';
 export const DEFAULT_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
 // Rate limiting: Tối đa 20 yêu cầu / phút / nhân viên
@@ -187,6 +187,21 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
     price: p.price,
   }));
   const preResolvedTable = resolveTableFromMessage(message, tables);
+
+  // Nếu người dùng yêu cầu số bàn cụ thể mà bàn này KHÔNG TỒN TẠI trong quán
+  if (preResolvedTable?.isNotFound) {
+    const activeNames = tables.map((t) => t.name).join(', ');
+    return {
+      success: true,
+      action: 'none',
+      targetTable: null,
+      items: [],
+      message: `⚠️ Quán không có "${preResolvedTable.requestedName}" trong hệ thống (hoặc bàn đang ngừng hoạt động). Quán hiện có các bàn: ${activeNames}. Vui lòng chọn lại đúng bàn.`,
+      source: 'rule',
+      isBlocked: false,
+    };
+  }
+
   const knowledgePrompt = getKnowledgeBasePrompt(customFaqs as any);
 
   const systemPrompt = [
@@ -198,35 +213,27 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
     'NGUYÊN TẮC AN TOÀN TUYỆT ĐỐI:',
     '- BẠN KHÔNG BAO GIỜ được tự ý thanh toán, xóa bàn, sửa giá hoặc cấp quyền quản trị.',
     '- Nếu người dùng yêu cầu thanh toán, sửa giá, xóa bàn -> trả về action = "none" và nhắc nhở không có quyền.',
+    '- BẠN KHÔNG BAO GIỜ được tự báo "đã thêm đơn thành công" khi người dùng chưa xác nhận duyệt bằng tay.',
     '',
-    'NHIỆM VỤ:',
-    '1. GỌI MÓN & CHỌN BÀN (action: "add" | "remove" | "select_table"):',
-    '   - Trả về JSON đúng cấu trúc: { action, targetTable, items, message }',
-    '   - targetTable: { id, name } nếu có đề cập đến bàn hoặc mang về, ngược lại null.',
-    '   - Mỗi item: { productId, productName, quantity, note, size, sugar, ice, toppings }.',
-    '     * quantity: Số nguyên từ 1 đến 10 (mặc định 1).',
-    '     * size: "S" | "M" | "L" (mặc định "M")',
-    '     * sugar: "0%" | "30%" | "50%" | "70%" | "100%" (mặc định "100%")',
-    '     * ice: "không đá" | "ít đá" | "100% đá" | "nhiều đá" | "nóng" (mặc định "100% đá")',
-    '     * toppings: mảng tên topping (ví dụ: ["trân châu đen"]) hoặc []',
-    '   - Nhận diện linh hoạt lỗi gõ phím tiếng Việt (vd: "lước" = "nước", "ép dưa" = "Ép dưa hấu", "nâu đá" = "Cafe sữa đá").',
-    '   - Luôn ưu tiên chọn đúng productName và productId từ Catalog món.',
-    '',
-    '3. ĐIỀU HƯỚNG & HỖ TRỢ NGỮ CẢNH CÁC TRANG TOÀN HỆ THỐNG (Mục #16):',
-    '   - Bạn là trợ lý cho toàn bộ phần mềm H2 MilkTea (POS, Bếp, Kho, Thực đơn, Khách hàng, Cài đặt).',
-    '   - Nếu người dùng muốn chuyển trang, hãy giải thích và đính kèm đường link Markdown: [Đến máy POS](/pos), [Mở màn hình Bếp](/kitchen), [Quản lý Thực đơn](/menu/products), [Quản lý Kho](/inventory), [Khách hàng](/khachhang), [Cài đặt Mẫu in & VAT](/receipt-settings).',
-    '',
-    '2. HỎI ĐÁP TIỆN ÍCH, TƯ VẤN & HƯỚNG DẪN (action: "qa"):',
-    '   - Khi người dùng chào hỏi, nhờ gợi ý món ("hôm nay nên uống gì", "món gì ngon"), hỏi pass wifi, giờ mở cửa, menu, phím tắt, cách in bill, hướng dẫn phần mềm...',
-    '   - Đặt action = "qa", targetTable = null, items = [].',
-    '   - Trả lời bằng tiếng Việt thân thiện, tự nhiên và nhiệt tình.',
-    '   - QUY TẮC TRÍCH DẪN NGUỒN:',
-    '     + CHỈ đính kèm nguồn trích dẫn khi trả lời các câu hỏi nghiệp vụ hướng dẫn sử dụng phần mềm POS (ví dụ: cách thêm món, sửa giá, cài máy in, đổi bàn, phím tắt, xử lý sự cố hệ thống). Định dạng: [Nguồn: Hướng dẫn sử dụng > {Tên mục}](/user-guide#{sectionId}).',
-    '     + TUYỆT ĐỐI KHÔNG đính kèm nguồn trích dẫn đối với các câu giao tiếp chào hỏi, cảm ơn, hỏi thăm, tư vấn chọn món đồ uống hoặc thông tin tiện ích quán (wifi, giờ mở cửa).',
+    'NGUYÊN TẮC QUAN TRỌNG VỀ BÀN VÀ MÓN:',
+    `1. Danh sách Bàn hợp lệ trong quán: ${tables.map((t) => t.name).join(', ')}.`,
+    '2. NẾU NGƯỜI DÙNG YÊU CẦU MỘT BÀN KHÔNG CÓ TRONG DANH SÁCH (ví dụ Bàn 99):',
+    '   - TUYỆT ĐỐI KHÔNG tự nhận là bàn đó.',
+    '   - Đặt action = "none", targetTable = null, items = [].',
+    `   - message: Cảnh báo không tìm thấy bàn đó và liệt kê các bàn đang có: ${tables.map((t) => t.name).join(', ')}.`,
+    '3. NẾU NGƯỜI DÙNG NÓI "MỞ BÀN ... VÀ THÊM MÓN" HOẶC "GỌI MÓN" NHƯNG CHƯA NÊU RÕ TÊN MÓN CỤ THỂ:',
+    '   - TUYỆT ĐỐI KHÔNG tự bịa ra món và không nói "đã thêm đơn thành công".',
+    '   - Đặt action = "select_table", items = [].',
+    '   - message: Thông báo đã chọn bàn đó và hỏi người dùng muốn gọi thêm những món gì cho bàn.',
+    '4. NẾU CÓ MÓN CỤ THỂ ĐƯỢC NÊU:',
+    '   - Bóc tách đúng action: "add" | "remove", targetTable, items.',
+    '   - Mỗi item: { productId, productName, quantity, size, sugar, ice, toppings, note }.',
+    '   - message: Tóm tắt món đã nhận diện và kết thúc bằng câu nhắc: "Vui lòng kiểm tra và duyệt đơn bên dưới."',
     '',
     'VÍ DỤ MẪU:',
-    '- "thêm cho tôi 3 lước ép dưa vào bàn 6" -> { "action": "add", "targetTable": { "name": "Bàn 6" }, "items": [{ "productName": "Ép dưa hấu", "quantity": 3 }], "message": "Đã nhận diện thêm 3x Ép dưa hấu cho Bàn 6." }',
-    '- "cho 2 ts tc đen 50 đường mang về" -> { "action": "add", "targetTable": { "name": "Mang về" }, "items": [{ "productName": "Trà sữa trân châu đen", "quantity": 2, "sugar": "50%" }] }',
+    '- "mở bàn 3 và thêm món" -> { "action": "select_table", "targetTable": { "name": "Bàn 03" }, "items": [], "message": "Đã chọn Bàn 03. Bạn muốn gọi thêm những món gì cho bàn này ạ?" }',
+    '- "cho 2 ts nướng size L 50 đường vào bàn 3" -> { "action": "add", "targetTable": { "name": "Bàn 03" }, "items": [{ "productName": "Trà sữa topping thạch củ năng", "quantity": 2, "size": "L", "sugar": "50%" }], "message": "Đã nhận diện: 2x Trà sữa nướng (Size L, 50% đường) cho Bàn 03. Vui lòng kiểm tra và duyệt đơn bên dưới." }',
+    '- "cho 1 ly trà đào mang về" -> { "action": "add", "targetTable": { "name": "Khách mua về" }, "items": [{ "productName": "Trà đào cam sả", "quantity": 1 }], "message": "Đã nhận diện: 1x Trà đào cam sả mang về. Vui lòng kiểm tra và duyệt đơn bên dưới." }',
     '',
     `Danh sách Bàn hợp lệ: ${JSON.stringify(tables.map((t) => ({ id: t.id, name: t.name })))}`,
     `Catalog món hợp lệ: ${JSON.stringify(catalogItems)}`,
@@ -270,7 +277,6 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
     }
   } catch (llmErr) {
     console.warn('Lỗi gọi Gemini LLM:', llmErr);
-    // Không làm sập POS khi AI lỗi, trả về fallback thân thiện
     return {
       success: true,
       action: 'none',
@@ -281,7 +287,7 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
     };
   }
 
-  // 5. Kiểm tra và Ép schema đầu ra bằng Zod (Khoan dung & Tự phục hồi dữ liệu)
+  // 5. Kiểm tra và Ép schema đầu ra bằng Zod
   const parsedJson = extractLlmJson(responseText) || {};
   const zodValidation = AiOutputSchema.safeParse(parsedJson);
 
@@ -289,8 +295,6 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
   if (zodValidation.success) {
     validatedOutput = zodValidation.data;
   } else {
-    // Tự động phục hồi dữ liệu từ parsedJson nếu Zod có cảnh báo nhỏ
-    console.warn('Zod parse cảnh báo định dạng AI, đang phục hồi:', zodValidation.error?.format());
     const rawItems = Array.isArray(parsedJson?.items) ? (parsedJson.items as unknown[]) : [];
     const recoveredItems: ParsedItem[] = rawItems
       .map((itemVal: unknown) => {
@@ -337,7 +341,7 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
         finalItems.push({
           productId: matched.id,
           productName: matched.name,
-          quantity: Math.max(1, Math.min(item.quantity, 10)), // Ngưỡng an toàn tối đa 10 ly
+          quantity: Math.max(1, Math.min(item.quantity, 10)),
           note: item.note || '',
           size: item.size || 'M',
           sugar: item.sugar || '100%',
@@ -348,40 +352,63 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
     }
   }
 
-  // Nhận diện bàn chuẩn hóa
+  // 7. Server-Side Table Validation
   let finalTargetTable: TableInfo | null = null;
   if (validatedOutput.targetTable) {
     const rawTableId = validatedOutput.targetTable.id;
     const rawTableName = validatedOutput.targetTable.name;
     const found = tables.find(
-      (t) => t.id === rawTableId || t.name.toLowerCase() === rawTableName?.toLowerCase() || t.id === rawTableName
+      (t) =>
+        t.id === rawTableId ||
+        t.name.toLowerCase() === rawTableName?.toLowerCase() ||
+        normalizeSearchText(t.name) === normalizeSearchText(rawTableName || '') ||
+        t.id === rawTableName
     );
+
     if (found) {
       finalTargetTable = found;
+    } else if (rawTableName) {
+      // LLM phán đoán bàn không tồn tại trong danh mục quán
+      const activeNames = tables.map((t) => t.name).join(', ');
+      return {
+        success: true,
+        action: 'none',
+        targetTable: null,
+        items: [],
+        message: `⚠️ Quán không có "${rawTableName}" trong hệ thống (hoặc bàn đang ngừng hoạt động). Quán hiện có các bàn: ${activeNames}. Vui lòng chọn lại đúng bàn.`,
+        source: 'llm',
+        isBlocked: false,
+      };
     }
   }
 
-  if (!finalTargetTable && preResolvedTable) {
+  if (!finalTargetTable && preResolvedTable?.table) {
     finalTargetTable = preResolvedTable.table;
   }
 
-  // Xử lý thông điệp và đính kèm trích dẫn nguồn nếu là action QA
+  // 8. Nếu có bàn nhưng không có món nào -> Chuyển sang action select_table
+  if (finalTargetTable && finalItems.length === 0 && (validatedOutput.action === 'add' || validatedOutput.action === 'select_table')) {
+    validatedOutput.action = 'select_table';
+  }
+
+  // 9. Xử lý thông điệp rõ ràng, không bao giờ tự ý báo "đã thêm đơn thành công"
   let finalMessage = validatedOutput.message || '';
   if (validatedOutput.action === 'qa') {
     const matchedTopic = findRelevantKnowledge(message);
     if (matchedTopic) {
       finalMessage = appendCitationIfMissing(finalMessage || 'Đã trả lời hướng dẫn.', matchedTopic);
     } else {
-      // Câu hỏi thông thường, chào hỏi, gợi ý đồ uống, tiện ích quán:
-      // Tuyệt đối không gắn nguồn và chủ động xóa nguồn nếu AI vô tình sinh ra
       finalMessage = removeCitation(finalMessage || 'Xin chào! Tôi có thể hỗ trợ gì cho bạn?');
     }
+  } else if (validatedOutput.action === 'select_table' && finalTargetTable) {
+    finalMessage = `Đã chọn ${finalTargetTable.name}. Bàn hiện chưa có món nào, bạn muốn gọi thêm những món gì cho bàn này ạ? (Gợi ý: Trà sữa nướng, Trà đào, Cà phê muối...)`;
+  } else if (finalItems.length > 0) {
+    const tableText = finalTargetTable ? ` cho ${finalTargetTable.name}` : '';
+    finalMessage = validatedOutput.action === 'remove'
+      ? `Đã nhận diện yêu cầu bớt ${finalItems.length} món${tableText}. Vui lòng kiểm tra và duyệt đơn bên dưới.`
+      : `Đã nhận diện ${finalItems.length} món${tableText}. Vui lòng kiểm tra và duyệt đơn bên dưới.`;
   } else if (!finalMessage) {
-    finalMessage = finalItems.length
-      ? 'Đã nhận diện món. Vui lòng xác nhận.'
-      : validatedOutput.action === 'select_table' && finalTargetTable
-        ? `Chuyển sang ${finalTargetTable.name}.`
-        : 'Chưa nhận diện được yêu cầu.';
+    finalMessage = 'Chưa nhận diện được yêu cầu. Bạn có thể nói rõ hơn món hoặc bàn cần phục vụ nhé!';
   }
 
   const latencyMs = Date.now() - startTime;
