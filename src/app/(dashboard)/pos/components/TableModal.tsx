@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -27,9 +27,50 @@ export const TableModal: React.FC<TableModalProps> = ({
   onShowTransfer,
   presenceByTable,
 }) => {
+  const [filterMode, setFilterMode] = useState<'all' | 'occupied' | 'empty'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
   const calculateTotal = (items: CartItem[]): number => {
     return items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   };
+
+  // Thống kê các bàn đang có đơn chưa thanh toán
+  const occupiedTables = useMemo(() => {
+    return tables.filter((t) => {
+      const items = activeOrders.get(t.IDBAN) || [];
+      return items.length > 0 || t['Trạng thái sử dụng'] === 'Đang sử dụng';
+    });
+  }, [tables, activeOrders]);
+
+  const totalUnpaidAmount = useMemo(() => {
+    let sum = 0;
+    for (const [_, items] of activeOrders.entries()) {
+      sum += calculateTotal(items);
+    }
+    return sum;
+  }, [activeOrders]);
+
+  const emptyTablesCount = tables.length - occupiedTables.length;
+
+  // Lọc danh sách bàn theo tab và tìm kiếm
+  const filteredTables = useMemo(() => {
+    return tables.filter((t) => {
+      const items = activeOrders.get(t.IDBAN) || [];
+      const hasOrder = items.length > 0 || t['Trạng thái sử dụng'] === 'Đang sử dụng';
+
+      if (filterMode === 'occupied' && !hasOrder) return false;
+      if (filterMode === 'empty' && hasOrder) return false;
+
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase().trim();
+        const name = (t['Tên bàn'] || '').toLowerCase();
+        const id = (t.IDBAN || '').toLowerCase();
+        return name.includes(query) || id.includes(query);
+      }
+
+      return true;
+    });
+  }, [tables, activeOrders, filterMode, searchQuery]);
 
   const canTransfer = selectedTableId && activeOrders.has(selectedTableId) && 
     activeOrders.get(selectedTableId)!.length > 0;
@@ -78,10 +119,75 @@ export const TableModal: React.FC<TableModalProps> = ({
           </div>
         </div>
 
+        {/* Banner thống kê đơn chưa thanh toán & Bộ lọc bàn */}
+        <div className="px-4 py-2.5 bg-slate-50 border-b border-gray-200 flex flex-wrap items-center justify-between gap-2.5">
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setFilterMode('all')}
+              className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-colors ${
+                filterMode === 'all'
+                  ? 'bg-slate-800 text-white shadow-sm'
+                  : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              Tất cả ({tables.length})
+            </button>
+            <button
+              onClick={() => setFilterMode('occupied')}
+              className={`px-2.5 py-1 text-xs rounded-lg font-medium flex items-center gap-1.5 transition-colors ${
+                filterMode === 'occupied'
+                  ? 'bg-amber-600 text-white shadow-sm'
+                  : 'bg-white border border-amber-200 text-amber-800 hover:bg-amber-50'
+              }`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+              <span>Đang có đơn ({occupiedTables.length})</span>
+            </button>
+            <button
+              onClick={() => setFilterMode('empty')}
+              className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-colors ${
+                filterMode === 'empty'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'bg-white border border-emerald-200 text-emerald-800 hover:bg-emerald-50'
+              }`}
+            >
+              Bàn trống ({emptyTablesCount})
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 flex-1 sm:flex-initial justify-end">
+            {occupiedTables.length > 0 && (
+              <span className="text-[11px] text-amber-800 bg-amber-100/80 border border-amber-200 px-2 py-0.5 rounded font-medium hidden md:inline">
+                Tạm tính chưa trả: <strong>{formatCurrency(totalUnpaidAmount)}</strong>
+              </span>
+            )}
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Tìm tên bàn..."
+              className="text-xs px-2.5 py-1 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-purple-500 w-32 sm:w-40"
+            />
+          </div>
+        </div>
+
         {/* Tables Grid */}
         <div className="p-4 overflow-y-auto flex-1">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 mb-4">
-            {tables.map((table) => {
+          {filteredTables.length === 0 ? (
+            <div className="py-12 text-center text-gray-400">
+              <p className="text-sm">Không có bàn nào phù hợp với bộ lọc hiện tại.</p>
+              {filterMode !== 'all' && (
+                <button
+                  onClick={() => setFilterMode('all')}
+                  className="mt-2 text-xs text-purple-600 hover:underline font-medium"
+                >
+                  Xem tất cả bàn
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 mb-4">
+              {filteredTables.map((table) => {
               const tableItems = activeOrders.get(table.IDBAN) || [];
               const hasOrder = tableItems.length > 0;
               const isCurrentTable = selectedTableId === table.IDBAN;
@@ -99,8 +205,9 @@ export const TableModal: React.FC<TableModalProps> = ({
                   onSelect={onSelectTable}
                 />
               );
-            })}
-          </div>
+              })}
+            </div>
+          )}
 
           {/* Legend */}
           <TableLegend />

@@ -183,6 +183,22 @@ export default function POSPage() {
           ? 'text-blue-700 bg-blue-50/40 border-b border-slate-100'
           : 'text-emerald-700 bg-emerald-50/40 border-b border-slate-100';
 
+  // Đếm số lượng bàn đang có đơn hàng chưa thanh toán
+  const unpaidTablesCount = useMemo(() => {
+    let count = 0;
+    const counted = new Set<string>();
+    for (const [tblId, items] of activeOrders.entries()) {
+      if (items && items.length > 0) {
+        counted.add(tblId);
+        count++;
+      }
+    }
+    if (selectedTableId && cart.length > 0 && !counted.has(selectedTableId)) {
+      count++;
+    }
+    return count;
+  }, [activeOrders, selectedTableId, cart]);
+
   const currentTablePresence = selectedTableId ? presenceByTable?.get(selectedTableId) : undefined;
 
   return (
@@ -234,12 +250,18 @@ export default function POSPage() {
                 onClick={() => setShowTableModal(true)}
                 variant="outline"
                 size="sm"
-                className="border-purple-200 text-purple-700 hover:bg-purple-50 flex-shrink-0 text-xs px-2"
+                className="border-purple-200 text-purple-700 hover:bg-purple-50 flex-shrink-0 text-xs px-2 flex items-center"
+                title={unpaidTablesCount > 0 ? `Đang có ${unpaidTablesCount} bàn có đơn chưa thanh toán` : 'Chọn bàn'}
               >
                 <GalleryVertical className="w-3 h-3" />
                 <span className="hidden xs:inline ml-1">
                   {selectedTableName ? selectedTableName : 'Bàn'}
                 </span>
+                {unpaidTablesCount > 0 && (
+                  <span className="ml-1 px-1.5 py-0.2 text-[9px] font-bold text-white bg-amber-500 rounded-full shadow-sm">
+                    {unpaidTablesCount}
+                  </span>
+                )}
               </Button>
 
               {selectedTableId && selectedTableName !== 'Khách mua về' && (
@@ -386,15 +408,25 @@ export default function POSPage() {
                 onClick={() => setShowTableModal(true)}
                 variant="outline"
                 size="sm"
-                className="border-purple-200 text-purple-700 hover:bg-purple-50 text-xs"
+                className="border-purple-200 text-purple-700 hover:bg-purple-50 text-xs flex items-center"
+                title={unpaidTablesCount > 0 ? `Đang có ${unpaidTablesCount} bàn có đơn chưa thanh toán` : 'Chọn bàn phục vụ'}
               >
-                <GalleryVertical className="w-3 h-3 mr-1" />
+                <GalleryVertical className="w-3.5 h-3.5 mr-1" />
                 {selectedTableName ? (
-                  <Badge variant="secondary" className="ml-1 text-xs">
+                  <Badge variant="secondary" className="text-xs">
                     {selectedTableName}
                   </Badge>
                 ) : (
                   'Chọn bàn'
+                )}
+                {unpaidTablesCount > 0 && (
+                  <Badge
+                    variant="destructive"
+                    className="ml-1.5 px-1.5 py-0 text-[10px] font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-full shadow-sm flex items-center gap-1"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                    <span>{unpaidTablesCount} có đơn</span>
+                  </Badge>
                 )}
               </Button>
 
