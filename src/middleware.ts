@@ -47,6 +47,7 @@ export function middleware(request: NextRequest) {
     '/tables',
     '/kitchen',
     // Menu & Sản phẩm
+    '/products',
     '/menu/products',
     '/menu/cauhinhnguyenlieu',
     '/menu/nguyenlieu',
@@ -68,6 +69,8 @@ export function middleware(request: NextRequest) {
     '/reports/dashboard',
     '/reports/sales',
     '/reports/bestsellers',
+    '/reports/products',
+    '/reports/comprehensive',
     '/reports/staff',
     
     // Cài đặt hệ thống
