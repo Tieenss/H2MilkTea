@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ToastProvider } from "@/components/ToastProvider";
 import { AppearanceProvider } from "@/components/AppearanceProvider";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const viewport: Viewport = {
   themeColor: "#000000",
@@ -59,6 +60,7 @@ export default function RootLayout({
         <AppearanceProvider />
         {children}
         <ToastProvider />
+        <SpeedInsights />
       </body>
     </html>
   );
