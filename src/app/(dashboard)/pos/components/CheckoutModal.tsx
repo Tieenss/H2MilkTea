@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -29,17 +29,10 @@ interface CheckoutModalProps {
 }
 
 const generateVietQRUrl = (bankCode: string, accountNumber: string, accountName: string, amount: number, description: string) => {
-  const baseUrl = 'https://img.vietqr.io/image';
-  const params = new URLSearchParams({
-    bankId: bankCode,
-    accountId: accountNumber,
-    accountName: accountName,
-    amount: amount.toString(),
-    addInfo: description,
-    template: 'compact'
-  });
-
-  return `${baseUrl}/${bankCode}-${accountNumber}-compact.png?${params}`;
+  const cleanBank = bankCode.replace(/\s+/g, '');
+  const cleanDes = encodeURIComponent(description.slice(0, 50));
+  // Sử dụng SePay VietQR Image Gateway với độ phân giải cao và tự động đối soát
+  return `https://qr.sepay.vn/img?acc=${encodeURIComponent(accountNumber)}&bank=${encodeURIComponent(cleanBank)}&amount=${amount}&des=${cleanDes}`;
 };
 
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({
@@ -114,11 +107,37 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setChange(newChange);
   }, [total, formData.discount, formData.paidAmount]);
 
+  // Tự động nạp thông tin tài khoản ngân hàng quán từ cấu hình CompanyInfo
+  useEffect(() => {
+    try {
+      const savedInfoStr = localStorage.getItem('gigapos-company-info');
+      if (savedInfoStr) {
+        const savedInfo = JSON.parse(savedInfoStr);
+        if (savedInfo.bankAccount) setAccountNumber(savedInfo.bankAccount);
+        if (savedInfo.bankAccountHolder) setAccountName(savedInfo.bankAccountHolder);
+        if (savedInfo.bankName) {
+          setSelectedBank({
+            id: 'saved-bank',
+            name: savedInfo.bankName,
+            code: savedInfo.bankName,
+            bin: '',
+            shortName: savedInfo.bankName,
+            logo: '',
+            transferSupported: 1,
+            lookupSupported: 1,
+          });
+        }
+      }
+    } catch {}
+  }, []);
+
   // Generate QR code when payment type changes to banking methods
   useEffect(() => {
     if (['Chuyển khoản', 'VietQR'].includes(formData.paymentType)) {
       if (selectedBank && accountNumber && accountName) {
-        const description = `Thanh toan ban ${selectedTableName} - ${new Date().toLocaleString('vi-VN')}`;
+        // Cú pháp chuẩn nhận diện tự động cho SePay Webhook: H2 <TênBàn>
+        const cleanTable = selectedTableName.replace(/\s+/g, '');
+        const description = `H2 ${cleanTable}`;
         const url = generateVietQRUrl(selectedBank.code, accountNumber, accountName, finalTotal, description);
         setQrCodeUrl(url);
         setShowQRCode(true);
