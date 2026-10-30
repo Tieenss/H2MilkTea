@@ -223,14 +223,13 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
     try {
       const raw = localStorage.getItem(LOCAL_KDS_ORDERS_KEY);
       if (!raw) {
-        const defaults = getDefaultSeedKitchenOrders();
-        localStorage.setItem(LOCAL_KDS_ORDERS_KEY, JSON.stringify(defaults));
-        return defaults;
+        // Mặc định màn hình bếp trống, chỉ hiển thị khi có đơn thực tế hoặc người dùng bấm Tạo đơn mẫu
+        return [];
       }
       const parsed = JSON.parse(raw);
       return Array.isArray(parsed) ? parsed : [];
     } catch {
-      return getDefaultSeedKitchenOrders();
+      return [];
     }
   };
 
@@ -306,8 +305,8 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
     const channel = supabase
       .channel('staff-pos-orders')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_orders' }, (payload) => {
-        const row = payload.new as Partial<KitchenOrder> & { order_status?: string };
-        const id = String(row.id || '');
+        const row = payload.new as any;
+        const id = String(row?.id || '');
         if (
           payload.eventType === 'INSERT' &&
           row.order_status === 'accepted' &&
@@ -317,17 +316,50 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
         ) {
           playNotificationSound();
         }
+
+        // Tự động dọn đơn khỏi màn hình bếp khi đơn đã thanh toán hoặc hoàn thành phục vụ
+        if (
+          payload.eventType === 'UPDATE' &&
+          (row.kitchen_status === 'served' || row.order_status === 'completed' || row.payment_status === 'paid')
+        ) {
+          setOrders((prev) => prev.filter((o) => o.id !== id));
+        }
+
         fetchOrders();
       })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') setIsConnected(true);
       });
 
+    // Lắng nghe sự kiện thanh toán dọn bàn từ quầy POS
+    const handleTableCleared = (event: any) => {
+      const { tableId, tableName, orderIds } = event.detail || {};
+      setOrders((prev) =>
+        prev.filter((o) => {
+          // Ngoại trừ đơn mẫu do bấm nút tạo mẫu
+          if (o.id && (String(o.id).startsWith('KDS-') || String(o.id).startsWith('demo-kds-'))) return true;
+          if (orderIds && Array.isArray(orderIds) && orderIds.includes(o.id)) return false;
+          if (tableId && (o.tableId === tableId || o.tableName === tableName)) return false;
+          return true;
+        })
+      );
+      fetchOrders(false);
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('pos_table_cleared', handleTableCleared);
+      window.addEventListener('pos_order_settled', handleTableCleared);
+    }
+
     const interval = setInterval(() => fetchOrders(false), 15000);
 
     return () => {
       clearInterval(interval);
       void supabase.removeChannel(channel);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('pos_table_cleared', handleTableCleared);
+        window.removeEventListener('pos_order_settled', handleTableCleared);
+      }
     };
   }, [fetchOrders]);
 
@@ -485,6 +517,16 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
     }
   };
 
+  const handleClearAllOrders = () => {
+    localStorage.removeItem(LOCAL_KDS_ORDERS_KEY);
+    localStorage.removeItem(LOCAL_KDS_STATUS_MAP_KEY);
+    localStorage.removeItem(LOCAL_KDS_COMPLETED_ITEMS_KEY);
+    setCompletedItemsMap({});
+    setOrders([]);
+    toast.success('Đã dọn sạch toàn bộ đơn trên màn hình bếp!');
+    fetchOrders(false);
+  };
+
   const handleResetDemoOrders = () => {
     const defaults = getDefaultSeedKitchenOrders();
     saveLocalOrders(defaults);
@@ -621,13 +663,24 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
             </Button>
 
             <Button
+              onClick={handleClearAllOrders}
+              variant="outline"
+              size="sm"
+              className="border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300"
+              title="Dọn sạch các đơn tồn đọng để làm gọn màn hình bếp"
+            >
+              <Trash2 className="w-4 h-4 mr-1.5" />
+              Làm sạch bếp
+            </Button>
+
+            <Button
               onClick={handleResetDemoOrders}
               variant="outline"
               size="sm"
               className="border-indigo-200 text-indigo-700 hover:bg-indigo-50"
             >
               <Sparkles className="w-4 h-4 mr-1.5" />
-              Khôi phục 3 đơn mẫu
+              Nạp 3 đơn mẫu
             </Button>
 
             <Button

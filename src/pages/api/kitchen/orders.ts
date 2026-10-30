@@ -11,9 +11,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!supabase) return res.status(503).json({ success: false, error: 'Order service is not configured.' });
 
   const { data, error } = await supabase.from('pos_orders')
-    .select('id,source,table_id,table_name,employee,items,notes,kitchen_status,created_at,tracking_token')
+    .select('id,source,table_id,table_name,employee,items,notes,kitchen_status,payment_status,order_status,created_at,tracking_token')
     .eq('order_status', 'accepted')
     .neq('kitchen_status', 'served')
+    .neq('payment_status', 'paid')
     .order('created_at', { ascending: true });
   if (error) return res.status(500).json({ success: false, error: 'Could not load kitchen orders.' });
 

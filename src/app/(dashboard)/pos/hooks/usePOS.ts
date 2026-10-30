@@ -1145,9 +1145,34 @@ export const usePOS = () => {
       setSelectedCustomer(null);
       setShowCheckoutModal(false);
 
-      // Phát event để QROrderInbox xóa đơn tức thì
-      if (typeof window !== 'undefined' && activePOSOrderIds.length > 0) {
-        window.dispatchEvent(new CustomEvent('pos_order_settled', { detail: { orderIds: activePOSOrderIds } }));
+      // Dọn dẹp đơn bếp của bàn này trong localStorage nếu có
+      if (typeof window !== 'undefined') {
+        try {
+          const rawKds = localStorage.getItem('h2_kds_local_orders_v1');
+          if (rawKds) {
+            const list = JSON.parse(rawKds);
+            const remaining = list.filter((o: any) => {
+              // Giữ lại đơn mẫu KDS tạo thủ công
+              if (o.id && (String(o.id).startsWith('KDS-') || String(o.id).startsWith('demo-kds-') || o.isSample)) {
+                return true;
+              }
+              const isMatchTable = selectedTableId && (o.tableId === selectedTableId || o.tableName === selectedTableName);
+              const isMatchOrder = activePOSOrderIds.includes(o.id);
+              return !isMatchTable && !isMatchOrder;
+            });
+            localStorage.setItem('h2_kds_local_orders_v1', JSON.stringify(remaining));
+          }
+        } catch (e) {
+          console.warn('Lỗi dọn đơn bếp local:', e);
+        }
+
+        // Phát event để QROrderInbox và KitchenDisplay dọn sạch đơn tức thì
+        if (activePOSOrderIds.length > 0) {
+          window.dispatchEvent(new CustomEvent('pos_order_settled', { detail: { orderIds: activePOSOrderIds } }));
+        }
+        window.dispatchEvent(new CustomEvent('pos_table_cleared', {
+          detail: { tableId: selectedTableId, tableName: selectedTableName, orderIds: activePOSOrderIds }
+        }));
       }
       showNotification(isDebt ? `Ghi nợ đơn hàng thành công! (Nợ: ${new Intl.NumberFormat('vi-VN').format(debtAmount)}đ)` : 'Thanh toán thành công!');
     } catch (error: any) {

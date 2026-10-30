@@ -217,29 +217,33 @@ export async function POST(request: NextRequest) {
     }
 
     // 2.6 Đồng bộ đơn pos_orders sang 'paid' và 'completed'
+    // 2.6 Đồng bộ đơn pos_orders sang 'paid', 'completed' và 'served' (dọn khỏi bếp)
     if (linkedOrderIds.length > 0) {
       await supabase
         .from('pos_orders')
         .update({
           payment_status: 'paid',
           order_status: 'completed',
+          kitchen_status: 'served',
           payment_method: paymentType,
           invoice_id: invoiceId,
           updated_at: new Date().toISOString(),
         })
         .in('id', linkedOrderIds);
-    } else if (tableId && tableId !== 'Khách mua về') {
+    }
+    if (tableId && tableId !== 'Khách mua về') {
       await supabase
         .from('pos_orders')
         .update({
           payment_status: 'paid',
           order_status: 'completed',
+          kitchen_status: 'served',
           payment_method: paymentType,
           invoice_id: invoiceId,
           updated_at: new Date().toISOString(),
         })
         .eq('table_id', tableId)
-        .eq('payment_status', 'unpaid');
+        .neq('kitchen_status', 'served');
     }
 
     return NextResponse.json({ success: true, invoiceId });
