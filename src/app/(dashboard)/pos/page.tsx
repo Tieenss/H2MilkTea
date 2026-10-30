@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useMemo, useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
@@ -136,6 +136,29 @@ export default function POSPage() {
         toast.success(`Đã bớt món theo lệnh của Trợ lý AI!`);
       } else if (action === 'select_table') {
         toast.success(`Đã chuyển sang ${targetTable?.name || 'bàn'}!`);
+      } else if (action === 'send_kitchen') {
+        if (!selectedTableId) {
+          toast.error('Vui lòng chọn một bàn trước khi gửi bếp!');
+          return;
+        }
+        if (cart.length === 0) {
+          toast.error('Giỏ hàng đang trống, chưa có món để gửi bếp!');
+          return;
+        }
+        void sendToKitchen(selectedTableId);
+      } else if (action === 'checkout') {
+        if (cart.length === 0) {
+          toast.error('Giỏ hàng đang trống, không thể thanh toán!');
+          return;
+        }
+        setShowCheckoutModal(true);
+      } else if (action === 'clear_cart') {
+        clearCart();
+        toast.success('Đã dọn sạch giỏ hàng theo lệnh AI!');
+      } else if (action === 'print_labels') {
+        window.dispatchEvent(new CustomEvent('h2_pos_trigger_print_labels'));
+      } else if (action === 'print_receipt') {
+        window.dispatchEvent(new CustomEvent('h2_pos_trigger_print_receipt'));
       }
     };
 

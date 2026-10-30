@@ -66,10 +66,11 @@ const PAGE_CONTEXT_MAP: Record<string, PageContextInfo> = {
     description: 'Order đồ uống, chọn bàn, tính tiền, in tem nhãn ly',
     icon: <Monitor className="h-4 w-4 text-indigo-500" />,
     suggestedChips: [
-      '3 trà sữa nướng vào bàn 3',
-      'Đổi sang bàn 2',
-      'In tem dán ly cà phê',
-      'Gửi đến bếp pha chế',
+      'In tem dán ly',
+      'In hóa đơn thanh toán',
+      'Gửi đơn sang bếp pha chế',
+      'Thanh toán tại quầy',
+      'Đọc màn hình hiện tại',
     ],
   },
   '/kitchen': {
@@ -306,6 +307,177 @@ export function GlobalAssistant() {
     }
   };
 
+  // 4.5 BỘ NHẬN DIỆN LỆNH TỨC THỜI (0.01 GIÂY - 100% FREE - KHÔNG TỐN TOKEN AI)
+  const parseAndExecuteInstantCommand = (rawText: string): boolean => {
+    const text = rawText.trim().toLowerCase();
+
+    // Lệnh 1: In tem nhãn dán ly
+    if (/^(in\s*(tem|nhãn|tem\s*ly|label|tem\s*dán)|print\s*label)/i.test(text) || text === 'in tem dán ly') {
+      if (pathname === '/pos') {
+        window.dispatchEvent(new CustomEvent('h2_pos_ai_apply', { detail: { action: 'print_labels' } }));
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: '🖨️ **Đang mở hộp thoại in tem nhãn ly!**\nĐã sẵn sàng tạo lệnh in tem cho các ly đồ uống trong giỏ hàng.',
+            source: 'rule',
+          },
+        ]);
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: '🖨️ **Lệnh in tem dán ly chỉ khả dụng trên màn hình Bán hàng POS.**\nBạn hãy chuyển sang màn hình POS để in tem cho đơn nhé.',
+            source: 'rule',
+          },
+        ]);
+      }
+      return true;
+    }
+
+    // Lệnh 2: In hóa đơn / bill
+    if (/^(in\s*(hóa\s*đơn|bill|phiếu\s*tính\s*tiền|receipt)|print\s*receipt)/i.test(text) || text === 'in hóa đơn thanh toán') {
+      if (pathname === '/pos') {
+        window.dispatchEvent(new CustomEvent('h2_pos_ai_apply', { detail: { action: 'print_receipt' } }));
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: '🧾 **Đang kích hoạt lệnh in hóa đơn thanh toán!**\nDữ liệu đơn hàng đang được chuyển tới mẫu in nhiệt.',
+            source: 'rule',
+          },
+        ]);
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: '🧾 **Lệnh in hóa đơn chỉ khả dụng trên màn hình Bán hàng POS hoặc Quản lý đơn hàng.**',
+            source: 'rule',
+          },
+        ]);
+      }
+      return true;
+    }
+
+    // Lệnh 3: Gửi đơn sang Bếp / Pha chế
+    if (/^(gửi\s*(đến|sang)?\s*(bếp|pha\s*chế)|chuyển\s*(sang)?\s*bếp|bếp\s*làm\s*món)/i.test(text) || text === 'gửi đơn sang bếp pha chế') {
+      if (pathname === '/pos') {
+        window.dispatchEvent(new CustomEvent('h2_pos_ai_apply', { detail: { action: 'send_kitchen' } }));
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: '👨‍🍳 **Đã gửi danh sách món sang Màn hình Bếp KDS!**\nCác món đã được xếp vào hàng chờ pha chế của quán.',
+            source: 'rule',
+          },
+        ]);
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: '👨‍🍳 **Lệnh chuyển bếp chỉ hoạt động khi bạn đang mở bàn trên màn hình POS.**',
+            source: 'rule',
+          },
+        ]);
+      }
+      return true;
+    }
+
+    // Lệnh 4: Mở thanh toán tại quầy
+    if (/^(thanh\s*toán|tính\s*tiền|mở\s*thanh\s*toán|checkout)/i.test(text) || text === 'thanh toán tại quầy') {
+      if (pathname === '/pos') {
+        window.dispatchEvent(new CustomEvent('h2_pos_ai_apply', { detail: { action: 'checkout' } }));
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: '💳 **Đã mở hộp thoại thanh toán!**\nBạn có thể thu Tiền mặt hoặc hiển thị mã VietQR để SePay tự động báo có.',
+            source: 'rule',
+          },
+        ]);
+      } else {
+        router.push('/pos');
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: '💳 Đang chuyển sang màn hình POS để bạn chọn bàn và tiến hành thanh toán...',
+            source: 'rule',
+          },
+        ]);
+      }
+      return true;
+    }
+
+    // Lệnh 5: Xóa sạch giỏ hàng
+    if (/^(xóa\s*(sạch)?\s*giỏ(\s*hàng)?|hủy\s*giỏ|clear\s*cart)/i.test(text)) {
+      if (pathname === '/pos') {
+        window.dispatchEvent(new CustomEvent('h2_pos_ai_apply', { detail: { action: 'clear_cart' } }));
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: '🗑️ **Đã dọn sạch giỏ hàng của bàn hiện tại.**',
+            source: 'rule',
+          },
+        ]);
+      }
+      return true;
+    }
+
+    // Lệnh 6: Đọc nhận diện màn hình hiện tại (Screen Awareness)
+    if (/(đọc\s*màn\s*hình|màn\s*hình\s*(đang)?\s*có\s*gì|tôi\s*(đang)?\s*ở\s*đâu|ngữ\s*cảnh|hướng\s*dẫn\s*trang)/i.test(text) || text === 'đọc màn hình hiện tại') {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: `📱 **NGỮ CẢNH MÀN HÌNH HIỆN TẠI:**\n` +
+            `• **Màn hình:** ${pageContext.name} (\`${pathname}\`)\n` +
+            `• **Phân hệ:** ${pageContext.category}\n` +
+            `• **Mô tả chức năng:** ${pageContext.description}\n\n` +
+            `💡 **Bạn có thể ra lệnh nhanh cho mình:**\n` +
+            pageContext.suggestedChips.map((c) => `  - "${c}"`).join('\n'),
+          source: 'rule',
+        },
+      ]);
+      return true;
+    }
+
+    // Lệnh 7: Điều hướng siêu tốc sang các màn hình chức năng khác
+    const navPatterns: Array<{ regex: RegExp; route: string; name: string }> = [
+      { regex: /(mở|vào|đến|chuyển\s*sang|đi\s*tới)?\s*(máy\s*)?(bán\s*hàng|pos)/i, route: '/pos', name: 'Máy Bán Hàng POS' },
+      { regex: /(mở|vào|đến|chuyển\s*sang|đi\s*tới)?\s*(màn\s*hình\s*)?(bếp|kds|nhà\s*bếp|pha\s*chế)/i, route: '/kitchen', name: 'Màn hình Nhà Bếp KDS' },
+      { regex: /(mở|vào|đến|chuyển\s*sang|đi\s*tới)?\s*(quản\s*lý\s*)?(kho|tồn\s*kho|nguyên\s*liệu)/i, route: '/inventory', name: 'Quản Lý Kho Hàng' },
+      { regex: /(mở|vào|đến|chuyển\s*sang|đi\s*tới)?\s*(báo\s*cáo|thống\s*kê|doanh\s*thu)/i, route: '/reports/dashboard', name: 'Báo Cáo Doanh Thu' },
+      { regex: /(mở|vào|đến|chuyển\s*sang|đi\s*tới)?\s*(quản\s*lý\s*)?(đơn\s*hàng|hóa\s*đơn|lịch\s*sử)/i, route: '/orders', name: 'Quản Lý Đơn Hàng' },
+      { regex: /(mở|vào|đến|chuyển\s*sang|đi\s*tới)?\s*(cài\s*đặt|cấu\s*hình\s*mẫu\s*in|mẫu\s*in|vat|ngân\s*hàng)/i, route: '/receipt-settings', name: 'Cài Đặt Mẫu In & Ngân Hàng' },
+      { regex: /(mở|vào|đến|chuyển\s*sang|đi\s*tới)?\s*(thực\s*đơn|danh\s*sách\s*món|menu|sản\s*phẩm)/i, route: '/menu/products', name: 'Danh Mục Thực Đơn' },
+      { regex: /(mở|vào|đến|chuyển\s*sang|đi\s*tới)?\s*(khách\s*hàng|hội\s*viên|crm)/i, route: '/khachhang', name: 'Khách Hàng & Hội Viên' },
+    ];
+
+    for (const item of navPatterns) {
+      if (item.regex.test(text) && (text.includes('mở') || text.includes('vào') || text.includes('đến') || text.includes('chuyển') || text.includes('đi') || text.length < 25)) {
+        if (pathname !== item.route) {
+          router.push(item.route);
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: 'assistant',
+              content: `🚀 **Đang chuyển bạn đến ${item.name}!**\nVui lòng chờ trong giây lát...`,
+              source: 'rule',
+            },
+          ]);
+          return true;
+        }
+      }
+    }
+
+    return false;
+  };
+
   // 5. GỬI TIN NHẮN & XỬ LÝ NGỮ CẢNH (Mục #16)
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend || inputValue).trim();
@@ -314,6 +486,13 @@ export function GlobalAssistant() {
     const userMsg: ChatMessage = { role: 'user', content: text };
     setMessages((prev) => [...prev, userMsg]);
     setInputValue('');
+
+    // Kiểm tra và thực thi tức thời qua Local Intent Parser (0.01 giây, 0 đồng, không tốn AI token)
+    const executedLocally = parseAndExecuteInstantCommand(text);
+    if (executedLocally) {
+      return;
+    }
+
     setIsLoading(true);
 
     try {

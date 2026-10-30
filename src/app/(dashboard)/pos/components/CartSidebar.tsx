@@ -111,6 +111,33 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
     setIsPrintModalOpen(true);
   };
 
+  // Lắng nghe lệnh in từ Trợ lý AI Copilot
+  useEffect(() => {
+    const handleTriggerLabels = () => {
+      if (cart.length === 0) {
+        toast.error('Giỏ hàng trống, chưa có món để in tem!');
+        return;
+      }
+      handlePrintAllLabels();
+    };
+
+    const handleTriggerReceipt = () => {
+      if (cart.length === 0) {
+        toast.error('Giỏ hàng trống, chưa có món để in hóa đơn!');
+        return;
+      }
+      void handleConfirmPrintFromModal('receipt', cart);
+    };
+
+    window.addEventListener('h2_pos_trigger_print_labels', handleTriggerLabels);
+    window.addEventListener('h2_pos_trigger_print_receipt', handleTriggerReceipt);
+
+    return () => {
+      window.removeEventListener('h2_pos_trigger_print_labels', handleTriggerLabels);
+      window.removeEventListener('h2_pos_trigger_print_receipt', handleTriggerReceipt);
+    };
+  }, [cart]);
+
   // Xử lý in từ Modal lựa chọn (Chỉ in tem, Chỉ in hóa đơn, hoặc In cả hai)
   const handleConfirmPrintFromModal = async (action: PrintActionType, selectedItems: CartItem[]) => {
     setIsPrintingModal(true);
