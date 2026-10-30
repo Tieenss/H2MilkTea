@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
     const change = isDebt ? 0 : Math.max(0, paidAmount - finalAmount);
 
     // Chuẩn bị payload hóa đơn
-    const invoiceRecord = body.invoice ? {
+    const invoiceRecord: Record<string, any> = body.invoice ? {
       ...body.invoice,
       IDHOADON: invoiceId,
       IDBAN: tableId,
@@ -96,7 +96,6 @@ export async function POST(request: NextRequest) {
       "Ngày": body.invoice['Ngày'] || formatDate(new Date()),
       "Trạng thái sự dụng bàn": body.invoice['Trạng thái sự dụng bàn'] || (tableName === 'Khách mua về' ? 'Mang về' : 'Đã trả bàn'),
       "Loại thanh toán": paymentType,
-      idempotency_key: idempotencyKey || null,
     } : {
       IDHOADON: invoiceId,
       IDBAN: tableId,
@@ -113,8 +112,8 @@ export async function POST(request: NextRequest) {
       "Trạng thái sự dụng bàn": tableName === 'Khách mua về' ? 'Mang về' : 'Đã trả bàn',
       "Loại thanh toán": paymentType,
       "Hóa đơn chi tiết": rawCart.map((item: any) => `${invoiceId}_${item.id || item.IDSP}`).join(' , '),
-      idempotency_key: idempotencyKey || null,
     };
+    delete invoiceRecord.idempotency_key;
 
     // Chuẩn bị danh sách chi tiết hóa đơn
     const detailsRecords = Array.isArray(body.details) && body.details.length > 0
