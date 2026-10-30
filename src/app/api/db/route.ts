@@ -199,9 +199,23 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // 3. Bảo mật chống thất thoát: Chỉ Quản lý hoặc Admin mới có quyền xóa / hủy hóa đơn (HOADON)
+    const act = String(action || '').toLowerCase();
+    if (table === 'HOADON' && ['delete', 'remove'].includes(act)) {
+      const staffRole = await getStaffRole(supabase, staff);
+      const normalizedRole = String(staffRole.role || '').toLowerCase().trim();
+      const canCancel = staffRole.isAdmin || ['quản lý', 'quan ly', 'admin', 'manager'].includes(normalizedRole);
+
+      if (!canCancel) {
+        return NextResponse.json({
+          success: false,
+          error: 'Chỉ Quản lý hoặc Quản trị viên (Admin) mới có quyền hủy hóa đơn.'
+        }, { status: 403 });
+      }
+    }
+
     const schema = SCHEMAS[table];
     const pk = schema.pk;
-    const act = String(action || '').toLowerCase();
 
     if (['create', 'add', 'insert'].includes(act)) {
       const cleanData = sanitizePayload(table, data);

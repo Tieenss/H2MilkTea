@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
@@ -173,6 +173,16 @@ export function GlobalAssistant() {
       'Cài đặt mẫu in & VAT',
     ],
   };
+
+  const isPOS = pathname === '/pos' || pathname?.startsWith('/pos');
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsDesktop(window.innerWidth >= 1024);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   const [isOpen, setIsOpen] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
@@ -969,7 +979,7 @@ export function GlobalAssistant() {
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className={`fixed z-50 flex h-12 w-12 sm:h-13 sm:w-13 items-center justify-center rounded-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-600/30 hover:scale-105 active:scale-95 transition-all ${pathname === "/pos" || pathname?.startsWith("/pos") ? "bottom-28 right-4 lg:bottom-32 lg:right-6" : "bottom-5 right-5"}`}
+        className={`fixed z-40 flex h-12 w-12 sm:h-13 sm:w-13 items-center justify-center rounded-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-600/30 hover:scale-105 active:scale-95 transition-all ${isPOS ? "bottom-4 right-4 lg:bottom-5 lg:right-[calc(390px+1.25rem)]" : "bottom-5 right-5"}`}
         title="Mở Trợ lý AI H2 MilkTea"
         aria-label="Trợ lý AI H2"
       >

@@ -1,9 +1,9 @@
-﻿'use client';
+'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Trash, User, Gift, Plus, Minus, ChefHat, Tag, QrCode, AlertTriangle } from 'lucide-react';
+import { Trash, User, Gift, Plus, Minus, ChefHat, Tag, QrCode, AlertTriangle, Receipt } from 'lucide-react';
 import { formatCurrency, formatPoints } from '../utils/formatters';
 import type { CartItem } from '../types/pos';
 import { Customer } from '@/app/(dashboard)/khachhang/types/customer';
@@ -260,9 +260,9 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
   };
 
   return (
-    <div className="w-full h-full bg-white rounded-lg shadow-lg flex flex-col lg:h-[calc(100vh-12rem)]">
+    <div className="w-full h-full bg-white rounded-xl shadow-md border border-slate-200 flex flex-col min-h-0 overflow-hidden">
       {/* Cart Header */}
-      <div className="p-3 lg:p-4 border-b flex-shrink-0">
+      <div className="p-2.5 sm:p-3 border-b flex-shrink-0 bg-white">
         <div className="flex justify-between items-center mb-3">
           <div className="flex items-center gap-2">
             <h3 className="text-lg lg:text-xl font-semibold text-gray-800 flex items-center">
@@ -451,7 +451,7 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
       </AlertDialog>
 
       {/* Cart Items */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-1 hide-scrollbar">
+      <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-1.5 hide-scrollbar">
         {cart.length === 0 ? (
           <EmptyCart onShowTableModal={onShowTableModal} />
         ) : (
@@ -470,7 +470,7 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
 
       {/* Cart Summary */}
       {cart.length > 0 && (
-        <div className="border-t bg-gray-50 p-2 space-y-2 flex-shrink-0">
+        <div className="border-t bg-slate-50/95 backdrop-blur-xs p-2.5 sm:p-3 space-y-2 flex-shrink-0 sticky bottom-0 z-10">
           <CartSummary 
             subtotal={subtotal} 
             vat={vat} 
@@ -484,6 +484,7 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
             onCheckout={onCheckout}
             onShowTableModal={onShowTableModal}
             onSendToKitchen={handleSendKitchen}
+            onPrintReceipt={() => void handleConfirmPrintFromModal('receipt', cart)}
             isSendingKitchen={isSendingKitchen}
             isKitchenSent={sentKitchenSignature === cartSignature}
             canCheckout={canCheckout}
@@ -558,9 +559,9 @@ const CartItemCard: React.FC<CartItemCardProps> = ({
   };
 
   return (
-    <div className="bg-white p-2 rounded-lg border mobile-cart-item">
-      <div className="flex items-center gap-2 flex-1">
-        <div className="w-10 h-10 bg-gray-100 rounded flex items-center justify-center flex-shrink-0 overflow-hidden">
+    <div className="bg-white p-2 sm:p-2.5 rounded-xl border border-slate-200 hover:border-slate-300 transition-all shadow-2xs">
+      <div className="flex items-start gap-2">
+        <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center shrink-0 overflow-hidden border border-slate-200/60">
           <img
             src={item.image || "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400&h=400&fit=crop&crop=center"}
             alt={item.name}
@@ -572,25 +573,37 @@ const CartItemCard: React.FC<CartItemCardProps> = ({
         </div>
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between mb-1">
-            <h3 className="font-medium text-gray-800 text-xs line-clamp-1 flex-1">
+          <div className="flex items-start justify-between gap-1 mb-1">
+            <h4 className="font-bold text-slate-800 text-xs sm:text-sm line-clamp-2 break-words leading-tight flex-1">
               {item.name}
-            </h3>
-            <span className="text-xs font-semibold text-blue-600 ml-2">
+              {item.size && (
+                <span className="ml-1 text-[10px] font-extrabold px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 inline-block align-middle">
+                  Size {item.size}
+                </span>
+              )}
+            </h4>
+            <span className="text-xs sm:text-sm font-bold text-blue-600 shrink-0 whitespace-nowrap ml-1.5">
               {formatCurrency(item.price * item.quantity)}
             </span>
           </div>
-          
-          <div className="flex items-center justify-between">
-            <div className="text-xs text-gray-600">
+
+          {item.note && (
+            <p className="text-[11px] text-blue-600 italic mb-1.5 break-words leading-tight bg-blue-50/70 p-1.5 rounded-lg border border-blue-100">
+              {item.note}
+            </p>
+          )}
+
+          <div className="flex items-center justify-between gap-1 pt-0.5">
+            <div className="text-[11px] text-slate-500 font-medium shrink-0">
               {formatCurrency(item.price)} × {item.quantity}
             </div>
-            
-            {/* Inline quantity controls */}
-            <div className="flex items-center space-x-1">
+
+            <div className="flex items-center gap-1 shrink-0">
               <button
+                type="button"
                 onClick={() => onAdjustQuantity(item.id, -1)}
-                className="w-6 h-6 flex items-center justify-center bg-gray-200 rounded hover:bg-gray-300 transition-colors"
+                className="w-6 h-6 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md transition-colors active:scale-95"
+                title="Giảm 1"
               >
                 <Minus className="w-3 h-3" />
               </button>
@@ -600,21 +613,24 @@ const CartItemCard: React.FC<CartItemCardProps> = ({
                 value={localQuantity}
                 onChange={handleQuantityChange}
                 onBlur={handleQuantityBlur}
-                className="w-8 h-6 text-center text-xs text-gray-800 bg-transparent border border-gray-300 rounded focus:outline-none focus:border-blue-500"
+                className="w-8 h-6 text-center text-xs font-bold text-slate-800 bg-white border border-slate-300 rounded-md focus:outline-none focus:border-blue-500 select-all"
                 min="1"
               />
 
               <button
+                type="button"
                 onClick={() => onAdjustQuantity(item.id, 1)}
-                className="w-6 h-6 flex items-center justify-center bg-gray-200 rounded hover:bg-gray-300 transition-colors"
+                className="w-6 h-6 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md transition-colors active:scale-95"
+                title="Tăng 1"
               >
                 <Plus className="w-3 h-3" />
               </button>
-              
+
               {onPrintLabel && (
                 <button
+                  type="button"
                   onClick={() => onPrintLabel(item)}
-                  className="w-8 h-8 flex items-center justify-center bg-purple-50 text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors active:scale-95 ml-0.5"
+                  className="w-6 h-6 flex items-center justify-center bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-md transition-colors active:scale-95"
                   title="In tem món này"
                 >
                   <Tag className="w-3 h-3" />
@@ -622,9 +638,10 @@ const CartItemCard: React.FC<CartItemCardProps> = ({
               )}
 
               <button
+                type="button"
                 onClick={() => onShowNoteModal(item)}
-                className="w-8 h-8 flex items-center justify-center bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors active:scale-95"
-                title="Ghi chú"
+                className="w-6 h-6 flex items-center justify-center bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-md transition-colors active:scale-95"
+                title="Ghi chú topping"
               >
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
@@ -633,22 +650,15 @@ const CartItemCard: React.FC<CartItemCardProps> = ({
               </button>
 
               <button
+                type="button"
                 onClick={() => onRemove(item.id)}
-                className="w-8 h-8 flex items-center justify-center bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition-colors active:scale-95"
-                title="Xóa"
+                className="w-6 h-6 flex items-center justify-center bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-md transition-colors active:scale-95"
+                title="Xóa món"
               >
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <Trash className="w-3 h-3" />
               </button>
             </div>
           </div>
-          
-          {item.note && (
-            <p className="text-xs text-blue-600 italic mt-1 line-clamp-1">
-              {item.note}
-            </p>
-          )}
         </div>
       </div>
     </div>
@@ -661,51 +671,45 @@ const CartSummary: React.FC<{
   total: number;
   customerDiscount: number;
 }> = ({ subtotal, vat, total, customerDiscount }) => (
-  <>
-    {/* Subtotal */}
-    <div className="flex justify-between items-center text-gray-600 text-sm">
-      <span>Tạm tính:</span>
-      <span className="font-medium">{formatCurrency(subtotal)}</span>
+  <div className="space-y-1 sm:space-y-1.5 text-xs sm:text-sm">
+    <div className="flex justify-between items-center text-gray-600">
+      <span className="truncate">Tạm tính:</span>
+      <span className="font-medium shrink-0 ml-2">{formatCurrency(subtotal)}</span>
     </div>
 
-    {/* VAT */}
-    <div className="flex justify-between items-center text-gray-600 text-sm">
-      <span>VAT ({subtotal > 0 ? Math.round((vat / subtotal) * 100) : 10}%):</span>
-      <span className="font-medium">{formatCurrency(vat)}</span>
+    <div className="flex justify-between items-center text-gray-600">
+      <span className="truncate">VAT ({subtotal > 0 ? Math.round((vat / subtotal) * 100) : 10}%):</span>
+      <span className="font-medium shrink-0 ml-2">{formatCurrency(vat)}</span>
     </div>
 
-    {/* Customer Discount */}
     {customerDiscount > 0 && (
-      <div className="flex justify-between items-center text-green-600 text-sm bg-green-50 p-2 rounded border border-green-200">
-        <div className="flex items-center">
-          <Gift className="w-3 h-3 mr-1" />
-          <span className="font-medium">Ưu đãi khách hàng:</span>
+      <div className="flex justify-between items-center text-emerald-800 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200 text-xs">
+        <div className="flex items-center min-w-0">
+          <Gift className="w-3.5 h-3.5 mr-1 shrink-0 text-emerald-600" />
+          <span className="font-semibold truncate">Ưu đãi:</span>
         </div>
-        <div className="text-right">
-          <div className="font-bold">-{formatCurrency(customerDiscount)}</div>
-          <div className="text-xs">({((customerDiscount / subtotal) * 100).toFixed(0)}% giảm)</div>
+        <div className="text-right shrink-0 ml-2 font-bold">
+          -{formatCurrency(customerDiscount)}
         </div>
       </div>
     )}
 
-    {/* Divider */}
-    <div className="border-t border-gray-200 my-2"></div>
+    <div className="border-t border-gray-200 my-1"></div>
 
-    {/* Total */}
-    <div className="flex justify-between items-center">
-      <span className="font-semibold text-base lg:text-lg text-gray-800">Tổng tiền:</span>
-      <span className="font-bold text-lg lg:text-xl text-blue-600">{formatCurrency(total)}</span>
+    <div className="flex justify-between items-center pt-0.5">
+      <span className="font-bold text-sm sm:text-base text-gray-800">Tổng tiền:</span>
+      <span className="font-black text-base sm:text-lg text-blue-600 tracking-tight">{formatCurrency(total)}</span>
     </div>
-  </>
+  </div>
 );
 
-// Component mới cho Action Buttons
 const ActionButtons: React.FC<{
   cart: CartItem[];
   selectedTableId: string | null;
   onCheckout: () => void;
   onShowTableModal: () => void;
   onSendToKitchen?: () => Promise<void>;
+  onPrintReceipt: () => void;
   isSendingKitchen: boolean;
   isKitchenSent: boolean;
   canCheckout?: boolean;
@@ -716,6 +720,7 @@ const ActionButtons: React.FC<{
   onCheckout,
   onShowTableModal,
   onSendToKitchen,
+  onPrintReceipt,
   isSendingKitchen,
   isKitchenSent,
   canCheckout = true,
@@ -754,56 +759,66 @@ const ActionButtons: React.FC<{
     : 'Thanh toán';
 
   return (
-    <div className="space-y-3">
-      {/* Send to Kitchen Button - Only show if handler is provided */}
-      {onSendToKitchen && (
-        <div className="space-y-1">
+    <div className="space-y-2">
+      {/* Cụm nút phụ: Gửi bếp & In hóa đơn tạm tính */}
+      <div className="grid grid-cols-2 gap-2">
+        {onSendToKitchen && (
           <Button
+            type="button"
             onClick={handleKitchenClick}
             disabled={isDisabled || isSendingKitchen || isKitchenSent}
-            className={`w-full py-2.5 px-4 rounded-lg flex items-center justify-center space-x-2 transition-colors touch-target text-sm font-bold ${
+            className={`h-9 sm:h-10 px-2 rounded-xl flex items-center justify-center space-x-1.5 transition-all text-xs font-bold min-w-0 ${
               isDisabled
-                ? 'bg-gray-300 cursor-not-allowed text-gray-500'
+                ? 'bg-gray-200 cursor-not-allowed text-gray-400'
                 : isKitchenSent
                 ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
-                : 'bg-orange-500 hover:bg-orange-600 text-white shadow-sm'
+                : 'bg-orange-500 hover:bg-orange-600 text-white shadow-xs active:scale-[0.98]'
             }`}
+            title={needTable ? 'Chọn bàn trước khi gửi bếp' : 'Gửi đơn xuống quầy pha chế'}
           >
-            <ChefHat className="w-4 h-4" />
-            <span>
+            <ChefHat className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">
               {needTable
-                ? 'Chọn bàn để gửi bếp'
+                ? 'Chọn bàn gửi bếp'
                 : isSendingKitchen
-                ? 'Đang chuyển xuống bếp...'
+                ? 'Đang gửi...'
                 : isKitchenSent
-                ? '✓ Đã chuyển bếp pha chế'
-                : 'Gửi đến bếp pha chế'}
+                ? '✓ Đã gửi bếp'
+                : 'Gửi bếp'}
             </span>
           </Button>
-          {!needTable && !isDisabled && (
-            <p className="text-[10px] text-gray-500 text-center">
-              Chuyển danh sách món xuống quầy bếp & tự động in tem ly
-            </p>
-          )}
-        </div>
-      )}
+        )}
 
-      {/* Checkout Button */}
+        <Button
+          type="button"
+          onClick={onPrintReceipt}
+          disabled={isDisabled}
+          variant="outline"
+          className="h-9 sm:h-10 px-2 rounded-xl flex items-center justify-center space-x-1.5 border-purple-200 text-purple-700 hover:bg-purple-50 transition-all text-xs font-bold min-w-0 shadow-2xs active:scale-[0.98]"
+          title="In hóa đơn tạm tính cho khách"
+        >
+          <Receipt className="w-3.5 h-3.5 shrink-0 text-purple-600" />
+          <span className="truncate">In hóa đơn</span>
+        </Button>
+      </div>
+
+      {/* Nút Thanh toán chính */}
       <Button
+        type="button"
         onClick={handleCheckoutClick}
         disabled={isCheckoutDisabled}
         title={!canCheckout ? 'Không thể thanh toán khi giỏ hàng chưa đồng bộ hoặc đang xung đột' : undefined}
-        className={`w-full py-3 px-4 rounded-lg flex items-center justify-center space-x-2 transition-colors touch-target text-base ${
+        className={`w-full h-11 sm:h-12 px-3 rounded-xl flex items-center justify-center space-x-2 transition-all font-bold text-sm sm:text-base min-w-0 shadow-md ${
           isCheckoutDisabled
             ? 'bg-blue-300 cursor-not-allowed text-gray-100'
-            : 'bg-blue-600 hover:bg-blue-700 text-white'
+            : 'bg-blue-600 hover:bg-blue-700 text-white active:scale-[0.99]'
         }`}
       >
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
             d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
         </svg>
-        <span>{checkoutText}</span>
+        <span className="truncate">{checkoutText}</span>
       </Button>
     </div>
   );

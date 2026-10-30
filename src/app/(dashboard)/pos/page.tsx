@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useMemo, useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
@@ -236,7 +236,7 @@ export default function POSPage() {
   const currentTablePresence = selectedTableId ? presenceByTable?.get(selectedTableId) : undefined;
 
   return (
-    <div className="bg-background ">
+    <div className="bg-background h-full flex flex-col min-h-0 overflow-hidden">
       <div
         className={`h-7 px-3 flex items-center justify-between text-xs transition-colors duration-200 select-none ${sharedCartToneClass}`}
         role="status"
@@ -562,9 +562,9 @@ export default function POSPage() {
 {/* Trợ lý AI GlobalAssistant đã được gắn ở DashboardLayout (Mục #16) */}
 
       {/* Main Content */}
-      <div className="flex flex-col lg:flex-row h-[calc(100vh-8rem)] lg:h-[calc(100vh-12rem)]">
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-2.5 overflow-hidden">
         {/* Product Grid - Full width on mobile */}
-        <div className="flex-1 lg:flex-grow">
+        <div className="flex-1 min-h-0 h-full flex flex-col overflow-hidden">
           <ProductGrid
             products={filteredProducts}
             onAddToCart={addToCart}
@@ -572,7 +572,7 @@ export default function POSPage() {
         </div>
 
         {/* Desktop Cart Sidebar */}
-        <div className="hidden lg:block lg:w-1/3">
+        <div className="hidden lg:flex lg:flex-col lg:w-[380px] xl:w-[420px] 2xl:w-[450px] h-full min-h-0 shrink-0">
           <CartSidebar
             cart={cart}
             subtotal={subtotal}
@@ -628,7 +628,7 @@ export default function POSPage() {
               </Button>
             </div>
 
-            <div className="overflow-y-auto max-h-[calc(85vh-100px)]">
+            <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
               <CartSidebar
                 cart={cart}
                 subtotal={subtotal}

@@ -100,7 +100,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
       </div>
 
       <div className="space-y-1 sm:space-y-2">
-        <h3 className="font-medium text-gray-900 text-xs sm:text-sm line-clamp-2 min-h-[2rem] sm:min-h-[2.5rem] leading-tight">
+        <h3 className="font-medium text-gray-900 text-xs sm:text-sm line-clamp-2 break-words min-h-[2rem] sm:min-h-[2.5rem] leading-tight">
           {product['Tên sản phẩm']}
         </h3>
 

@@ -292,7 +292,7 @@ const TableCard: React.FC<TableCardProps> = ({
     >
       <div>
         <div className="flex items-start justify-between mb-1.5">
-          <h3 className="font-bold text-gray-800 text-sm truncate">
+          <h3 className="font-bold text-gray-800 text-sm line-clamp-2 break-words leading-tight">
             {table['Tên bàn']}
           </h3>
           {getStatusIcon()}

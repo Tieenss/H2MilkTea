@@ -168,4 +168,62 @@ describe('Cloud Database API Route (/api/db)', () => {
     );
     expect(mockUpdateEq).toHaveBeenCalledWith('IDHOADON', 'INV_TO_DELETE');
   });
+
+  it('POST /api/db rejects HOADON delete when staff is regular employee without Admin/Manager role (403)', async () => {
+    // Giả lập nhân viên bình thường (Nhân viên / Thu ngân / Phục vụ)
+    getStaffRole.mockResolvedValueOnce({ role: 'Nhân viên', isAdmin: false });
+
+    const deletePayload = {
+      table: 'HOADON',
+      action: 'delete',
+      data: {
+        IDHOADON: 'INV_TO_DELETE',
+        cancel_reason: 'Nhân viên tự ý hủy',
+        cancelled_by: 'Staff'
+      }
+    };
+
+    const req = new NextRequest('http://localhost:3000/api/db', {
+      method: 'POST',
+      body: JSON.stringify(deletePayload)
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(403);
+    const json = await res.json();
+    expect(json.success).toBe(false);
+    expect(json.error).toContain('Chỉ Quản lý hoặc Quản trị viên (Admin) mới có quyền hủy hóa đơn.');
+  });
+
+  it('POST /api/db allows HOADON delete when staff has Quản lý role', async () => {
+    getStaffRole.mockResolvedValueOnce({ role: 'Quản lý', isAdmin: false });
+
+    const mockUpdateEq = vi.fn().mockResolvedValue({ error: null });
+    const mockUpdate = vi.fn().mockReturnValue({ eq: mockUpdateEq });
+    mockFrom.mockImplementation((tableName: string) => {
+      if (tableName === 'HOADON') return { update: mockUpdate };
+      return {};
+    });
+
+    const deletePayload = {
+      table: 'HOADON',
+      action: 'delete',
+      data: {
+        IDHOADON: 'INV_TO_DELETE',
+        cancel_reason: 'Quản lý duyệt hủy đơn làm sai',
+        cancelled_by: 'Quản lý ca'
+      }
+    };
+
+    const req = new NextRequest('http://localhost:3000/api/db', {
+      method: 'POST',
+      body: JSON.stringify(deletePayload)
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(json.softDeleted).toBe(true);
+  });
 });

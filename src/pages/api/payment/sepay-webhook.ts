@@ -19,8 +19,8 @@ export interface SePayWebhookBody {
 export function extractPaymentKeywords(content: string = '') {
   const normalized = content.toUpperCase();
 
-  // 1. Tìm mã hóa đơn (ví dụ: H2 HD1024, HD1024, INV-1234, H2-INV1024)
-  const invoiceMatch = normalized.match(/(?:H2[_\s-]?)?((?:HD|INV)[-_]?[A-Z0-9]+)/i);
+  // 1. Tìm mã hóa đơn (ví dụ: H2 HD1024, H2 HD 1024, HD1024, INV-1234, INV 1234, H2-INV1024)
+  const invoiceMatch = normalized.match(/(?:H2[_\s-]?)?((?:HD|INV)[-_\s]?[A-Z0-9]+)/i);
   const matchedInvoiceCode = invoiceMatch ? invoiceMatch[1].replace(/\s+/g, '') : null;
 
   // 2. Tìm mã bàn (ví dụ: BAN01, BAN 01, BÀN 01, BAN-1)
@@ -34,6 +34,17 @@ export function extractPaymentKeywords(content: string = '') {
   return { matchedInvoiceCode, matchedTableId };
 }
 
+// In-memory LRU / Set để chống xử lý trùng lặp giao dịch (Idempotency Guard)
+const processedTransactionIds = new Set<string | number>();
+
+function markTransactionProcessed(id: string | number) {
+  if (processedTransactionIds.size > 1000) {
+    const toDelete = Array.from(processedTransactionIds).slice(0, 500);
+    toDelete.forEach((t) => processedTransactionIds.delete(t));
+  }
+  processedTransactionIds.add(id);
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
@@ -44,18 +55,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const expectedApiKey = process.env.SEPAY_API_KEY;
   if (expectedApiKey) {
     const authHeader = req.headers.authorization || '';
-    const isAuthorized =
-      authHeader === `Apikey ${expectedApiKey}` ||
-      authHeader === `Bearer ${expectedApiKey}` ||
-      authHeader.includes(expectedApiKey);
+    const match = authHeader.match(/^(?:Apikey|Bearer)\s+(.+)$/i);
+    const providedKey = match ? match[1].trim() : authHeader.trim();
 
-    if (!isAuthorized) {
+    if (providedKey !== expectedApiKey) {
       console.warn('[SePay Webhook] Unauthorized request received with header:', authHeader);
       return res.status(401).json({ success: false, error: 'Unauthorized: Invalid SePay API Key' });
     }
   }
 
   const payload: SePayWebhookBody = req.body || {};
+  const transactionId = payload.id;
+
+  // 1.1 Kiểm tra Idempotency Guard từ bộ nhớ đệm: Nếu giao dịch đã xử lý -> Phản hồi 200 ngay, không xử lý lại
+  if (transactionId && processedTransactionIds.has(transactionId)) {
+    return res.status(200).json({
+      success: true,
+      message: 'Giao dịch đã được ghi nhận và xử lý trước đó (Idempotent replay).',
+      isDuplicate: true,
+      transactionId,
+    });
+  }
 
   // 2. Chỉ xử lý giao dịch tiền vào (transferType === 'in')
   if (payload.transferType && payload.transferType !== 'in') {
@@ -79,7 +99,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         // Tìm hóa đơn khớp chính xác hoặc khớp chuỗi
         const { data: invoices } = await supabase
           .from('HOADON')
-          .select('IDHOADON, IDBAN, "Tổng tiền", "Trạng thái"')
+          .select('IDHOADON, IDBAN, "Tổng tiền", "Trạng thái", "Ghi chú"')
           .or(`IDHOADON.eq.${matchedInvoiceCode},IDHOADON.ilike.%${matchedInvoiceCode}%`)
           .limit(1);
 
@@ -87,6 +107,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           const inv = invoices[0];
           updatedInvoiceId = inv.IDHOADON;
           resolvedTableId = resolvedTableId || inv.IDBAN;
+
+          // 🛡️ Idempotency DB check: Nếu hóa đơn đã được thanh toán trước đó
+          if (inv['Trạng thái'] === 'Đã thanh toán') {
+            if (transactionId) markTransactionProcessed(transactionId);
+            return res.status(200).json({
+              success: true,
+              message: 'Hóa đơn này đã được thanh toán trước đó (Idempotent).',
+              isDuplicate: true,
+              transactionId,
+              matchedInvoiceId: updatedInvoiceId,
+              matchedTableId: resolvedTableId,
+            });
+          }
 
           // Cập nhật trạng thái hóa đơn sang Đã thanh toán
           await supabase
@@ -152,6 +185,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     } catch (dbErr) {
       console.error('[SePay Webhook] Database processing error:', dbErr);
     }
+  }
+
+  if (transactionId) {
+    markTransactionProcessed(transactionId);
   }
 
   return res.status(200).json({

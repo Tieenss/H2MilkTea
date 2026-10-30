@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -309,9 +309,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     {cart.map((item, index) => (
                       <div key={`${item.id}-${index}`} className="flex justify-between items-start py-2 text-sm">
                         <div className="flex-1 mr-2">
-                          <p className="font-medium text-gray-800 line-clamp-1">{item.name}</p>
+                          <p className="font-medium text-gray-800 break-words leading-tight">{item.name}</p>
                           {item.note && (
-                            <p className="text-xs text-blue-600 italic line-clamp-1">{item.note}</p>
+                            <p className="text-xs text-blue-600 italic break-words leading-tight">{item.note}</p>
                           )}
                           <p className="text-xs text-gray-500">
                             {formatCurrency(item.price)} × {item.quantity}
@@ -813,7 +813,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           </Button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col xl:flex-row">
+        <form onSubmit={handleSubmit} className="flex flex-col xl:flex-row max-h-[calc(92vh-85px)] overflow-y-auto">
           {/* Left: Order Summary */}
           <div className="xl:w-1/3 p-6 border-r border-gray-200">
             <h3 className="font-semibold text-gray-800 mb-4">Chi tiết đơn hàng</h3>

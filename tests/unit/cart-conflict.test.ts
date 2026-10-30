@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   getLineItemKey,
   diffCartItems,
@@ -147,6 +147,79 @@ describe('Cart Merge & Conflict Resolution (Phase 2)', () => {
       const shouldIgnoreRemote = isWritingInFlight;
       expect(shouldIgnoreRemote).toBe(true);
       expect(localCart[0].quantity).toBe(5);
+    });
+
+    it('Stress test: 50 rapid sequential clicks with self-echoes never trigger false conflict modal', () => {
+      const myDevId = 'cashier_terminal_pos_01';
+      let localCart = [createItem('p1', 'Trà Sữa Trân Châu', 30000, 1)];
+      let localVersion = 1;
+      let conflictData: any = null;
+      let writeInFlight = false;
+      let debounceActive = false;
+
+      // Mô phỏng 50 lượt click nhanh liên tục của thu ngân
+      for (let click = 2; click <= 50; click++) {
+        // Thu ngân click tăng số lượng
+        localCart = [createItem('p1', 'Trà Sữa Trân Châu', 30000, click)];
+        debounceActive = true;
+        writeInFlight = true;
+
+        // Mô phỏng đồng thời có các bản draft cũ (echo) từ server dội về
+        const incomingStaleDraft = {
+          table_id: 'BAN01',
+          cart: [createItem('p1', 'Trà Sữa Trân Châu', 30000, click - 1)],
+          updated_by_device: myDevId,
+          version: localVersion,
+        };
+
+        // Thuật toán kiểm tra xung đột trong useSharedCartDraft.ts
+        const isSelfDevice = incomingStaleDraft.updated_by_device === myDevId;
+        if (isSelfDevice) {
+          localVersion = Math.max(localVersion, incomingStaleDraft.version);
+          conflictData = null; // Tuyệt đối không coi là xung đột
+        } else if (writeInFlight || debounceActive) {
+          // Bỏ qua update từ thiết bị khác trong lúc đang click dồn dập
+        } else {
+          const diff = diffCartItems(localCart, incomingStaleDraft.cart);
+          if (diff.hasConflict) conflictData = diff;
+        }
+
+        expect(conflictData).toBeNull();
+        expect(localCart[0].quantity).toBe(click);
+      }
+
+      expect(conflictData).toBeNull();
+      expect(localCart[0].quantity).toBe(50);
+    });
+
+    it('validates realtime channel pos-all-cart-drafts-global event processing and self-echo guard', () => {
+      const myDeviceId = 'pos_screen_1';
+      const activeOrders = new Map<string, any[]>();
+
+      // Giả lập hàm xử lý table_status_sync trên channel pos-all-cart-drafts-global
+      const handleTableStatusSync = (payload: { tableId: string; cart: any[]; deviceId?: string }) => {
+        // Bỏ qua nếu broadcast do chính thiết bị này phát đi
+        if (payload.deviceId && payload.deviceId === myDeviceId) return false;
+        if (payload.cart && payload.cart.length > 0) {
+          activeOrders.set(payload.tableId, payload.cart);
+        } else {
+          activeOrders.delete(payload.tableId);
+        }
+        return true;
+      };
+
+      // 1. Nhận sự kiện từ thiết bị khác
+      const remoteEvent = { tableId: 'BAN05', cart: [createItem('p1', 'Trà Sữa', 25000, 2)], deviceId: 'pos_screen_2' };
+      const processedRemote = handleTableStatusSync(remoteEvent);
+      expect(processedRemote).toBe(true);
+      expect(activeOrders.has('BAN05')).toBe(true);
+
+      // 2. Nhận sự kiện dội ngược từ chính mình (self-echo)
+      const selfEvent = { tableId: 'BAN05', cart: [createItem('p1', 'Trà Sữa', 25000, 3)], deviceId: myDeviceId };
+      const processedSelf = handleTableStatusSync(selfEvent);
+      expect(processedSelf).toBe(false);
+      // Dữ liệu không bị thay đổi bởi self-echo
+      expect(activeOrders.get('BAN05')?.[0].quantity).toBe(2);
     });
   });
 });

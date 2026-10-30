@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
@@ -914,7 +914,7 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
                         <p className="text-xs text-slate-500 mt-0.5">
                           Mã: <span className="font-mono font-semibold text-slate-700">#{order.id.slice(-6)}</span> • {order.employee}
                         </p>
-                        <div className="flex items-center gap-1.5 mt-1.5">
+                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                           <Badge
                             className={`text-[11px] px-2 py-0.5 ${
                               order.source === 'QR_TABLE'
@@ -976,7 +976,7 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
                               </button>
                               <div className="flex-1">
                                 <div
-                                  className={`font-bold text-base sm:text-lg leading-snug tracking-tight ${
+                                  className={`font-bold text-base sm:text-lg leading-snug tracking-tight break-words ${
                                     isItemDone ? 'line-through text-slate-500' : 'text-slate-800'
                                   }`}
                                 >
@@ -992,7 +992,7 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
                                   >
                                     {itemStation === 'kitchen' ? '🍰 Bếp/Bánh' : '🧋 Pha chế'}
                                   </span>
-                                  {item.note && (<span className="inline-flex items-center gap-1 bg-amber-100 text-amber-950 font-extrabold text-sm px-2.5 py-1 rounded-md border border-amber-300 shadow-2xs"><span>⚡</span> {item.note}</span>)}
+                                  {item.note && (<span className="inline-flex items-center gap-1 bg-amber-100 text-amber-950 font-bold text-xs sm:text-sm px-2.5 py-1 rounded-md border border-amber-300 shadow-2xs break-words max-w-full"><span>⚡</span> {item.note}</span>)}
                                 </div>
                               </div>
                             </div>
@@ -1016,7 +1016,7 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
                     {order.notes && (
                       <div className="mb-4 p-2.5 bg-amber-50 border border-amber-200 rounded-xl">
                         <div className="text-xs font-bold text-amber-900">📋 Ghi chú đơn hàng:</div>
-                        <div className="text-xs text-amber-800 mt-0.5">{order.notes}</div>
+                        <div className="text-xs text-amber-800 mt-0.5 break-words leading-relaxed">{order.notes}</div>
                       </div>
                     )}
                   </div>
