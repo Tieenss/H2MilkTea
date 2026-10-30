@@ -13,6 +13,7 @@ vi.mock('@/lib/supabase/server', () => ({
 
 import { POST as checkoutPOST } from '@/app/api/pos/checkout/route';
 import kitchenOrdersHandler from '@/pages/api/kitchen/orders';
+import kitchenClearStaleHandler from '@/pages/api/kitchen/clear-stale';
 
 function makeRequest(body: unknown) {
   return new NextRequest('http://localhost/api/pos/checkout', {
@@ -91,7 +92,7 @@ describe('Kitchen Cleanup & Checkout Logic Flow', () => {
     });
   });
 
-  it('2. Đảm bảo API /api/kitchen/orders chỉ lấy đơn accepted chưa served và chưa paid', async () => {
+  it('2. Đảm bảo API /api/kitchen/orders chỉ lấy đơn accepted chưa served, chưa paid và trong vòng 16h', async () => {
     const mockOrders = [
       {
         id: 'ord-1',
@@ -119,6 +120,11 @@ describe('Kitchen Cleanup & Checkout Logic Flow', () => {
       neq: vi.fn((col, val) => {
         if (col === 'kitchen_status') expect(val).toBe('served');
         if (col === 'payment_status') expect(val).toBe('paid');
+        return chain;
+      }),
+      gte: vi.fn((col, val) => {
+        expect(col).toBe('created_at');
+        expect(typeof val).toBe('string');
         return chain;
       }),
       order: vi.fn(async () => ({ data: mockOrders, error: null })),
@@ -156,5 +162,55 @@ describe('Kitchen Cleanup & Checkout Logic Flow', () => {
     expect(jsonResult.orders).toHaveLength(1);
     expect(jsonResult.orders[0].id).toBe('ord-1');
     expect(jsonResult.orders[0].status).toBe('pending');
+  });
+
+  it('3. Đảm bảo API /api/kitchen/clear-stale cập nhật toàn bộ đơn tồn đọng sang served', async () => {
+    let updatePayload: any = null;
+    const chain = {
+      update: vi.fn((payload) => {
+        updatePayload = payload;
+        return chain;
+      }),
+      neq: vi.fn((col, val) => {
+        expect(col).toBe('kitchen_status');
+        expect(val).toBe('served');
+        return chain;
+      }),
+      select: vi.fn(async () => ({ data: [{ id: 'order-old-1' }, { id: 'order-old-2' }], error: null })),
+    };
+
+    const mockSupabase = {
+      from: vi.fn((table) => {
+        expect(table).toBe('pos_orders');
+        return chain;
+      }),
+    };
+    createAdminSupabaseClient.mockReturnValue(mockSupabase);
+
+    const req: any = {
+      method: 'POST',
+      headers: { cookie: 'staffUser={"role":"Admin"}' },
+    };
+    let jsonResult: any = null;
+    let statusCode: number = 0;
+    const res: any = {
+      status: vi.fn((code: number) => {
+        statusCode = code;
+        return {
+          json: (data: any) => {
+            jsonResult = data;
+          },
+        };
+      }),
+    };
+
+    await kitchenClearStaleHandler(req, res);
+
+    expect(statusCode).toBe(200);
+    expect(jsonResult.success).toBe(true);
+    expect(jsonResult.clearedCount).toBe(2);
+    expect(updatePayload).toMatchObject({
+      kitchen_status: 'served',
+    });
   });
 });

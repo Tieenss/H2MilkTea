@@ -10,11 +10,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const supabase = createAdminSupabaseClient();
   if (!supabase) return res.status(503).json({ success: false, error: 'Order service is not configured.' });
 
+  // Bộ lọc ca làm việc: Chỉ lấy các đơn trong vòng 16 giờ gần nhất, loại bỏ đơn ca cũ tồn đọng
+  const sixteenHoursAgo = new Date(Date.now() - 16 * 60 * 60 * 1000).toISOString();
+
   const { data, error } = await supabase.from('pos_orders')
     .select('id,source,table_id,table_name,employee,items,notes,kitchen_status,payment_status,order_status,created_at,tracking_token')
     .eq('order_status', 'accepted')
     .neq('kitchen_status', 'served')
     .neq('payment_status', 'paid')
+    .gte('created_at', sixteenHoursAgo)
     .order('created_at', { ascending: true });
   if (error) return res.status(500).json({ success: false, error: 'Could not load kitchen orders.' });
 

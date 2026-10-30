@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { createAdminSupabaseClient, getAuthenticatedStaff } from '@/lib/supabase/server';
 
 interface CheckoutBody {
@@ -153,6 +153,24 @@ export async function POST(request: NextRequest) {
       });
 
       if (!rpcError && rpcData && rpcData.success) {
+        // Đồng bộ dọn dẹp vé bếp khi thanh toán thành công qua RPC
+        try {
+          if (linkedOrderIds.length > 0) {
+            await supabase
+              .from('pos_orders')
+              .update({ kitchen_status: 'served', updated_at: new Date().toISOString() })
+              .in('id', linkedOrderIds);
+          }
+          if (tableId && tableId !== 'Khách mua về') {
+            await supabase
+              .from('pos_orders')
+              .update({ kitchen_status: 'served', updated_at: new Date().toISOString() })
+              .eq('table_id', tableId);
+          }
+        } catch (cleanupErr) {
+          console.warn('Không thể dọn dẹp pos_orders qua RPC:', cleanupErr);
+        }
+
         return NextResponse.json({
           success: true,
           invoiceId: rpcData.invoice_id || invoiceId,
