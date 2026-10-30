@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -311,17 +311,7 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
               <span>In tem</span>
             </button>
 
-            <button
-              onClick={handleClearCart}
-              disabled={cart.length === 0}
-              className={`px-2 lg:px-3 py-1.5 rounded-lg text-sm flex items-center transition-colors touch-target ${cart.length === 0
-                  ? 'bg-gray-300 cursor-not-allowed text-gray-500'
-                  : 'bg-red-500 text-white hover:bg-red-600'
-                }`}
-            >
-              <Trash className="w-4 h-4 mr-1" />
-              <span className="hidden sm:inline">Xóa tất cả</span>
-            </button>
+            <div className="ml-2 pl-2 border-l border-gray-200"><button onClick={handleClearCart} disabled={cart.length === 0} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center transition-colors touch-target ${cart.length === 0 ? "text-gray-300 cursor-not-allowed" : "text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-rose-200 active:scale-95"}`} title="Xóa toàn bộ món trong giỏ hàng"><Trash className="w-3.5 h-3.5 mr-1" /><span>Xóa hết</span></button></div>
           </div>
         </div>
 
@@ -597,7 +587,7 @@ const CartItemCard: React.FC<CartItemCardProps> = ({
               {onPrintLabel && (
                 <button
                   onClick={() => onPrintLabel(item)}
-                  className="w-6 h-6 flex items-center justify-center bg-purple-100 text-purple-700 rounded hover:bg-purple-200 transition-colors ml-1"
+                  className="w-8 h-8 flex items-center justify-center bg-purple-50 text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors active:scale-95 ml-0.5"
                   title="In tem món này"
                 >
                   <Tag className="w-3 h-3" />
@@ -606,7 +596,7 @@ const CartItemCard: React.FC<CartItemCardProps> = ({
 
               <button
                 onClick={() => onShowNoteModal(item)}
-                className="w-6 h-6 flex items-center justify-center bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                className="w-8 h-8 flex items-center justify-center bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors active:scale-95"
                 title="Ghi chú"
               >
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -617,7 +607,7 @@ const CartItemCard: React.FC<CartItemCardProps> = ({
 
               <button
                 onClick={() => onRemove(item.id)}
-                className="w-6 h-6 flex items-center justify-center bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+                className="w-8 h-8 flex items-center justify-center bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition-colors active:scale-95"
                 title="Xóa"
               >
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

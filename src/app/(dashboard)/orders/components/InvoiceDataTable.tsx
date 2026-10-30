@@ -1,4 +1,4 @@
-// components/InvoiceDataTable.tsx
+﻿// components/InvoiceDataTable.tsx
 'use client';
 
 import * as React from 'react';
@@ -123,7 +123,7 @@ export const InvoiceDataTable: React.FC<InvoiceDataTableProps> = ({
     },
     {
       accessorKey: 'IDBAN',
-      header: 'Bàn',
+      header: () => <span className="whitespace-nowrap">Bàn</span>,
       cell: ({ row }) => (
         <Badge variant="outline" className="min-w-[60px] justify-center">
           {row.getValue('IDBAN')}
@@ -132,7 +132,7 @@ export const InvoiceDataTable: React.FC<InvoiceDataTableProps> = ({
     },
     {
       accessorKey: 'Khách hàng',
-      header: 'Khách hàng',
+      header: () => <span className="whitespace-nowrap">Khách hàng</span>,
       cell: ({ row }) => (
         <div className="min-w-[120px]">
           {row.getValue('Khách hàng')}
@@ -141,7 +141,7 @@ export const InvoiceDataTable: React.FC<InvoiceDataTableProps> = ({
     },
     {
       accessorKey: 'Nhân viên',
-      header: 'Nhân viên',
+      header: () => <span className="whitespace-nowrap">Nhân viên</span>,
       cell: ({ row }) => (
         <div className="min-w-[120px]">
           {row.getValue('Nhân viên')}
@@ -173,7 +173,7 @@ export const InvoiceDataTable: React.FC<InvoiceDataTableProps> = ({
     },
     {
       accessorKey: 'Loại thanh toán',
-      header: 'Thanh toán',
+      header: () => <span className="whitespace-nowrap">Loại thanh toán</span>,
       cell: ({ row }) => (
         <Badge variant="secondary" className="min-w-[100px] justify-center">
           {row.getValue('Loại thanh toán')}
@@ -182,7 +182,7 @@ export const InvoiceDataTable: React.FC<InvoiceDataTableProps> = ({
     },
     {
       accessorKey: 'Trạng thái',
-      header: 'Trạng thái',
+      header: () => <span className="whitespace-nowrap">Trạng thái</span>,
       cell: ({ row }) => {
         const status = row.getValue('Trạng thái') as string;
         return (
@@ -194,7 +194,7 @@ export const InvoiceDataTable: React.FC<InvoiceDataTableProps> = ({
     },
     {
       id: 'actions',
-      header: 'Thao tác',
+      header: () => <span className="whitespace-nowrap">Thao tác</span>,
       cell: ({ row }) => {
         const invoice = row.original;
         const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
@@ -327,7 +327,7 @@ export const InvoiceDataTable: React.FC<InvoiceDataTableProps> = ({
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id} className="border-b">
                   {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id} className="bg-muted/50 border-r last:border-r-0">
+                    <TableHead key={header.id} className="bg-muted/50 border-r last:border-r-0 whitespace-nowrap text-xs font-bold text-slate-800 px-3 py-2.5">
                       {header.isPlaceholder
                         ? null
                         : flexRender(
@@ -348,7 +348,7 @@ export const InvoiceDataTable: React.FC<InvoiceDataTableProps> = ({
                     className="hover:bg-muted/50"
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id} className="border-r last:border-r-0">
+                      <TableCell key={cell.id} className="border-r last:border-r-0 whitespace-nowrap px-3 py-2">
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </TableCell>
                     ))}
