@@ -1,12 +1,17 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 
 export interface CompanyInfo {
   name: string;
+  brandName?: string;
   address: string;
   phone: string;
   email: string;
   taxCode: string;
   website: string;
+  bankName?: string;
+  bankAccount?: string;
+  bankAccountHolder?: string;
+  sepayApiKey?: string;
 }
 
 export interface ReceiptSettings {
@@ -50,12 +55,17 @@ export interface AllTemplateSettings {
 }
 
 const defaultCompanyInfo: CompanyInfo = {
-  name: 'GIGA POS SYSTEM',
+  name: 'H2 MILKTEA & COFFEE',
+  brandName: 'H2 MilkTea',
   address: '123 Đường ABC, Quận 1, TP.HCM',
   phone: '0901234567',
-  email: 'info@gigapos.com',
+  email: 'info@h2milktea.com',
   taxCode: '0123456789',
-  website: 'www.gigapos.com'
+  website: 'h2milktea.vercel.app',
+  bankName: 'MBBank',
+  bankAccount: '',
+  bankAccountHolder: '',
+  sepayApiKey: '',
 };
 
 const defaultSettings: AllTemplateSettings = {

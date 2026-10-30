@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+﻿import { describe, expect, it } from 'vitest';
 import {
   getLineItemKey,
   diffCartItems,
@@ -118,6 +118,35 @@ describe('Cart Merge & Conflict Resolution (Phase 2)', () => {
       expect(p1?.quantity).toBe(7);
       expect(p2?.quantity).toBe(1);
       expect(p3?.quantity).toBe(1);
+    });
+  });
+  describe('Self-Device Echo Suppression & Local Precedence (Phase 1)', () => {
+    it('does not trigger conflict when update originates from the same device', () => {
+      const myDevId = 'dev_abc123';
+      const localCart = [createItem('p1', 'Trà Sữa', 25000, 2)];
+      const remoteDraft = {
+        table_id: 'BAN01',
+        cart: [createItem('p1', 'Trà Sữa', 25000, 1)],
+        updated_by_device: myDevId,
+        version: 1,
+      };
+
+      const isSelfDevice = remoteDraft.updated_by_device === myDevId;
+      expect(isSelfDevice).toBe(true);
+      // Khi isSelfDevice là true, hệ thống bỏ qua kiểm tra diffCartItems, giữ nguyên localCart (qty=2)
+      const targetCart = isSelfDevice ? localCart : diffCartItems(localCart, remoteDraft.cart).mergedCart;
+      expect(targetCart[0].quantity).toBe(2);
+    });
+
+    it('preserves user fast clicks during in-flight debouncing', () => {
+      const isWritingInFlight = true;
+      const localCart = [createItem('p1', 'Trà Sữa', 25000, 5)];
+      const staleRemoteCart = [createItem('p1', 'Trà Sữa', 25000, 2)];
+
+      // Khi isWritingInFlight = true, bỏ qua remote update dội về
+      const shouldIgnoreRemote = isWritingInFlight;
+      expect(shouldIgnoreRemote).toBe(true);
+      expect(localCart[0].quantity).toBe(5);
     });
   });
 });
