@@ -17,7 +17,7 @@ export const useProducts = () => {
   const fetchProducts = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await authUtils.apiRequest('SanPham', 'Find', {});
+      const response = await authUtils.apiRequest('DMHH', 'getall', {});
       setProducts(response || []);
       toast.success("Đã tải dữ liệu sản phẩm thành công");
     } catch (error) {
@@ -58,9 +58,7 @@ export const useProducts = () => {
         return;
       }
 
-      await authUtils.apiRequest('SanPham', 'Add', {
-        "Rows": [formData]
-      });
+      await authUtils.apiRequest('DMHH', 'create', formData);
 
       // Add to state immediately
       setProducts(prev => [...prev, formData as Product]);
@@ -73,9 +71,7 @@ export const useProducts = () => {
 
   const updateProduct = useCallback(async (productId: string, formData: ProductFormData) => {
     try {
-      await authUtils.apiRequest('SanPham', 'Edit', {
-        "Rows": [formData]
-      });
+      await authUtils.apiRequest('DMHH', 'update', { IDSP: productId, ...formData });
 
       // Update state immediately
       setProducts(prev => prev.map(product =>
@@ -96,9 +92,7 @@ export const useProducts = () => {
         'Tên sản phẩm': `${product['Tên sản phẩm']} (Copy)`
       };
 
-      await authUtils.apiRequest('SanPham', 'Add', {
-        "Rows": [newProduct]
-      });
+      await authUtils.apiRequest('DMHH', 'create', newProduct);
 
       setProducts(prev => [...prev, newProduct]);
       toast.success('Sao chép sản phẩm thành công!');
@@ -119,9 +113,7 @@ export const useProducts = () => {
       
       const toastId = toast.loading('Đang xóa sản phẩm...');
       
-      await authUtils.apiRequest('SanPham', 'Delete', {
-        "Rows": [{ "IDSP": productId }]
-      });
+      await authUtils.apiRequest('DMHH', 'delete', { IDSP: productId });
 
       toast.success(`Xóa sản phẩm "${productName}" thành công!`, { id: toastId });
     } catch (error) {

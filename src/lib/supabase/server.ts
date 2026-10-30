@@ -81,30 +81,20 @@ export async function getStaffRole(
   }
 
   const emailLower = staff.email.toLowerCase().trim();
-  const username = emailLower.includes('@') ? emailLower.split('@')[0] : emailLower;
+  const username = (staff.user_metadata?.username || (emailLower.includes('@') ? emailLower.split('@')[0] : emailLower)).toLowerCase().trim();
 
-  // 1. Nhận diện trực tiếp nếu username là 'admin' hoặc email bắt đầu bằng admin@ hoặc user_metadata role là admin
-  if (
-    username === 'admin' ||
-    emailLower.startsWith('admin@') ||
-    staff.user_metadata?.role?.toLowerCase() === 'admin' ||
-    staff.user_metadata?.['Phân quyền'] === 'Admin'
-  ) {
-    return { role: 'Admin', isAdmin: true };
-  }
-
-  // 2. Tra cứu bảng DSNV trên Supabase (tìm theo username hoặc Email)
+  // 1. Tra cứu bảng DSNV trên Supabase (tìm theo username hoặc Email)
   if (supabase) {
     try {
       const { data } = await supabase
         .from('DSNV')
         .select('"Phân quyền", username, Email')
-        .or(`username.eq.${username},Email.eq.${emailLower},Email.ilike.%${username}%`)
+        .or(`username.ilike.${username},Email.ilike.${emailLower}`)
         .maybeSingle();
 
       if (data) {
         const role = data['Phân quyền'] || 'Nhân viên';
-        const isAdmin = role === 'Admin' || data.username?.toLowerCase() === 'admin';
+        const isAdmin = role.toLowerCase() === 'admin' || data.username?.toLowerCase() === 'admin';
         return { role, isAdmin };
       }
     } catch (err) {
@@ -112,19 +102,18 @@ export async function getStaffRole(
     }
   }
 
-  // 3. Fallback đối chiếu với file dữ liệu DSNV.json
+  // 2. Fallback đối chiếu với file dữ liệu DSNV.json nội bộ server
   const fallbackUser = (dsnvDataFallback as Array<{ username?: string; Email?: string; 'Phân quyền'?: string }>).find(
     (u) =>
       (u.username && u.username.toLowerCase() === username) ||
-      (u.Email && (u.Email.toLowerCase() === emailLower || u.Email.toLowerCase().startsWith(`${username}@`)))
+      (u.Email && u.Email.toLowerCase() === emailLower)
   );
 
   if (fallbackUser) {
     const role = fallbackUser['Phân quyền'] || 'Nhân viên';
-    const isAdmin = role === 'Admin' || fallbackUser.username?.toLowerCase() === 'admin';
+    const isAdmin = role.toLowerCase() === 'admin' || fallbackUser.username?.toLowerCase() === 'admin';
     return { role, isAdmin };
   }
 
   return { role: 'Nhân viên', isAdmin: false };
 }
-

@@ -4,8 +4,15 @@ import { NextRequest } from 'next/server';
 const mockFrom = vi.fn();
 const mockSupabase = { from: mockFrom };
 
+const { getAuthenticatedStaff, getStaffRole } = vi.hoisted(() => ({
+  getAuthenticatedStaff: vi.fn(),
+  getStaffRole: vi.fn(),
+}));
+
 vi.mock('@/lib/supabase/server', () => ({
   createAdminSupabaseClient: vi.fn(() => mockSupabase),
+  getAuthenticatedStaff,
+  getStaffRole,
 }));
 
 import { GET, POST } from '@/app/api/db/route';
@@ -13,6 +20,8 @@ import { GET, POST } from '@/app/api/db/route';
 describe('Cloud Database API Route (/api/db)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getAuthenticatedStaff.mockResolvedValue({ id: 'staff-1', email: 'staff@h2.com', user_metadata: { role: 'Admin' } });
+    getStaffRole.mockResolvedValue({ role: 'Admin', isAdmin: true });
   });
 
   it('GET /api/db?table=HOADON fetches invoices from Supabase Admin without RLS blocking', async () => {

@@ -81,6 +81,7 @@ export function useSharedCartDraft({
   const customerRef = useRef(selectedCustomer);
   const statusRef = useRef<SharedCartStatus>(status);
   const writeInFlightRef = useRef(false);
+  const isClearingRef = useRef(false);
   const pollIntervalRef = useRef<number | null>(null);
   const pollDelayRef = useRef(3500); // 3.5s base delay để đồng bộ dự phòng cực nhanh
   const debounceTimerRef = useRef<number | null>(null);
@@ -153,6 +154,13 @@ export function useSharedCartDraft({
   const applyDraft = useCallback((draft: CartDraft | null, force = false) => {
     const remoteVersion = draft?.version || 0;
     const remoteCart = draft?.cart || [];
+
+    if (isClearingRef.current) {
+      if (!draft || remoteCart.length === 0) {
+        isClearingRef.current = false;
+      }
+      return;
+    }
     const remoteCustomer = draft?.selected_customer ?? null;
 
     // Lần đầu mở bàn (force)
@@ -173,7 +181,7 @@ export function useSharedCartDraft({
         return;
       }
       // Nếu thu ngân đã bấm món trong lúc tải bản nháp rỗng từ server, giữ lại và lưu lên server
-      if (remoteCart.length === 0 && cartRef.current.length > 0) {
+      if (!isClearingRef.current && remoteCart.length === 0 && cartRef.current.length > 0) {
         setLastSyncAt(new Date());
         setStatus('connected');
         setConflictData(null);
@@ -427,7 +435,7 @@ export function useSharedCartDraft({
 
   // Debounce Autosave (lưu cả cart và selectedCustomer)
   useEffect(() => {
-    if (!tableId || statusRef.current === 'conflict') return;
+    if (!tableId || statusRef.current === 'conflict' || isClearingRef.current) return;
     const cartSnapshot = JSON.stringify(cart);
 
     // Nếu giỏ hàng vừa được nhận từ server hoặc đã xóa sạch (cart=[] và version=0), không trigger autosave đè

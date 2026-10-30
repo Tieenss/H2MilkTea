@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminSupabaseClient } from '@/lib/supabase/server';
+import { createAdminSupabaseClient, getAuthenticatedStaff, getStaffRole } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -150,7 +150,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Chưa cấu hình Supabase Admin' }, { status: 503 });
     }
 
-    const { data, error } = await supabase.from(table).select('*');
+    // Bảo mật P0-SEC-03: Không bao giờ trả về cột password của bảng DSNV qua API GET
+    let query = supabase.from(table).select('*');
+    if (table === 'DSNV') {
+      query = supabase
+        .from('DSNV')
+        .select('_RowNumber, username, "Họ và Tên", "Chức vụ", "Phòng", "Phân quyền", Email, Image, "Quyền View", "Số điện thoại", "Địa chỉ", "Ngày sinh", "Ngày vào làm", "Ghi chú"');
+    }
+
+    const { data, error } = await query;
     if (error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
@@ -165,6 +173,12 @@ export async function GET(request: NextRequest) {
 // POST: Thực hiện create, update, delete đồng bộ xuống Supabase Cloud
 export async function POST(request: NextRequest) {
   try {
+    // 1. Bảo mật P0-SEC-03: Bắt buộc kiểm tra phiên nhân viên đăng nhập cho các thao tác ghi
+    const staff = await getAuthenticatedStaff(request.headers.get('cookie') || '');
+    if (!staff) {
+      return NextResponse.json({ success: false, error: 'Bạn cần đăng nhập để thực hiện thao tác này.' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { table, action, data } = body;
 
@@ -175,6 +189,14 @@ export async function POST(request: NextRequest) {
     const supabase = createAdminSupabaseClient();
     if (!supabase) {
       return NextResponse.json({ success: false, error: 'Chưa cấu hình Supabase Admin' }, { status: 503 });
+    }
+
+    // 2. Bảo mật P0-SEC-01: Thao tác trên bảng nhân sự DSNV bắt buộc phải là Admin thật sự
+    if (table === 'DSNV') {
+      const staffRole = await getStaffRole(supabase, staff);
+      if (!staffRole.isAdmin) {
+        return NextResponse.json({ success: false, error: 'Chỉ Quản trị viên (Admin) mới có quyền quản lý nhân sự.' }, { status: 403 });
+      }
     }
 
     const schema = SCHEMAS[table];

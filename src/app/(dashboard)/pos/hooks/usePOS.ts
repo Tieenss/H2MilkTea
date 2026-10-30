@@ -11,6 +11,7 @@ import { useCart } from './useCart';
 import { formatCurrency, generateId, formatDate } from '../utils/formatters';
 import { printReceipt } from '../utils/receipt';
 import authUtils from '@/utils/authUtils';
+import { resolveCartConflict } from '@/lib/cart/mergeCart';
 import { Customer } from '@/app/(dashboard)/khachhang/types/customer';
 
 function playPosChimeSound() {
@@ -609,15 +610,14 @@ export const usePOS = () => {
     }
   }, [showNotification]);
 
-  const settleQrOrder = useCallback((order: {
+  const settleQrOrder = useCallback(async (order: {
     id: string;
     table_id: string;
     table_name?: string;
     items: Array<{ productId: string; productName: string; quantity: number; unitPrice: number; note?: string; size?: string; sugar?: string; ice?: string; unit?: string; image?: string }>;
   }) => {
     setSelectedTableId(order.table_id);
-    setCart(order.items.map((item) => {
-      // Tìm ảnh sản phẩm thật từ danh mục quán
+    const convertedIncomingItems: CartItem[] = order.items.map((item) => {
       const foundProduct = products.find(p => p.IDSP === item.productId || p['Tên sản phẩm'] === item.productName);
       const realImage = item.image || foundProduct?.['Hình ảnh'] || undefined;
 
@@ -630,11 +630,37 @@ export const usePOS = () => {
         image: realImage,
         note: [item.size && `Size ${item.size}`, item.sugar && `Đường ${item.sugar}`, item.ice && `Đá ${item.ice}`, item.note].filter(Boolean).join(' · '),
       };
-    }));
-    setActivePOSOrderIds([order.id]);
-    setSelectedCustomer(null);
+    });
+
+    // P0-BIZ-01: Gộp giỏ hàng đang có của bàn đó với món mới, không ghi đè mất món
+    const currentTableCart = activeOrders.get(order.table_id) || (selectedTableId === order.table_id ? cart : []);
+    const mergedCart = currentTableCart.length > 0
+      ? resolveCartConflict(currentTableCart, convertedIncomingItems, 'merge_quantities')
+      : convertedIncomingItems;
+
+    setCart(mergedCart);
+    setActiveOrders((prev) => new Map(prev).set(order.table_id, mergedCart));
+
+    // Gom tất cả các orderId chưa thanh toán của bàn này
+    try {
+      const res = await fetch('/api/pos/orders?include_accepted=true', { cache: 'no-store' });
+      const data = await res.json();
+      if (data?.success && Array.isArray(data.orders)) {
+        const tableUnpaidIds = data.orders
+          .filter((o: any) => o.table_id === order.table_id && o.payment_status === 'unpaid')
+          .map((o: any) => o.id);
+        const combinedIds = Array.from(new Set([...tableUnpaidIds, order.id, ...activePOSOrderIds]));
+        setActivePOSOrderIds(combinedIds);
+      } else {
+        setActivePOSOrderIds((prev) => Array.from(new Set([...prev, order.id])));
+      }
+    } catch {
+      setActivePOSOrderIds((prev) => Array.from(new Set([...prev, order.id])));
+    }
+
+    setSelectedCustomer(tableCustomersRef.current.get(order.table_id) || null);
     setShowCheckoutModal(true);
-  }, [setSelectedTableId, setCart, products]);
+  }, [setSelectedTableId, setCart, setActiveOrders, activeOrders, selectedTableId, cart, activePOSOrderIds, products]);
 
   // Nhận đơn QR và nạp món vào giỏ hàng của bàn
   const acceptQrOrder = useCallback((order: {
@@ -659,22 +685,28 @@ export const usePOS = () => {
       };
     });
 
-    setCart(convertedItems);
-    setActiveOrders((prev) => new Map(prev).set(order.table_id, convertedItems));
+    // P0-BIZ-01: Lấy giỏ hàng hiện có của bàn đó và gộp an toàn
+    const existingCart = activeOrders.get(order.table_id) || (selectedTableId === order.table_id ? cart : []);
+    const mergedCart = existingCart.length > 0
+      ? resolveCartConflict(existingCart, convertedItems, 'merge_quantities')
+      : convertedItems;
+
+    setCart(mergedCart);
+    setActiveOrders((prev) => new Map(prev).set(order.table_id, mergedCart));
     void fetch('/api/pos/cart-draft', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         tableId: order.table_id,
-        cart: convertedItems,
+        cart: mergedCart,
         selectedCustomer: null,
       }),
     }).catch((err) => console.warn('Lỗi lưu draft đơn QR:', err));
 
     setActivePOSOrderIds((prev) => prev.includes(order.id) ? prev : [...prev, order.id]);
     updateTableStatus(order.table_id, 'Đang sử dụng');
-    showNotification(`Đã nhận đơn và nạp các món vào ${order.table_name || 'bàn'}!`);
-  }, [setSelectedTableId, setCart, setActiveOrders, products, updateTableStatus, showNotification]);
+    showNotification(`Đã nhận đơn và gộp các món vào ${order.table_name || 'bàn'}!`);
+  }, [setSelectedTableId, setCart, setActiveOrders, activeOrders, selectedTableId, cart, products, updateTableStatus, showNotification]);
 
   // Fetch customers
   const fetchCustomers = useCallback(async () => {
@@ -854,11 +886,16 @@ export const usePOS = () => {
         throw new Error(result.error || 'Có lỗi xảy ra khi chuyển bàn trên máy chủ!');
       }
 
-      // Update in-memory orders & customer
+      // P1-BIZ-02: Sử dụng giỏ hàng đã gộp từ server để cập nhật bàn đích
+      const finalTargetCart = Array.isArray(result.mergedCart) && result.mergedCart.length > 0
+        ? result.mergedCart
+        : [...cart];
+
       const newActiveOrders = new Map(activeOrders);
-      newActiveOrders.set(targetTableId, [...cart]);
+      newActiveOrders.set(targetTableId, finalTargetCart);
       newActiveOrders.delete(sourceTableId);
       setActiveOrders(newActiveOrders);
+      setCart(finalTargetCart);
 
       const currentCust = tableCustomersRef.current.get(sourceTableId) || selectedCustomer;
       tableCustomersRef.current.set(targetTableId, currentCust);
@@ -1011,26 +1048,46 @@ export const usePOS = () => {
         'Ghi chú': item.note || ''
       }));
 
-      // Chuyển toàn bộ đơn POS/QR liên quan sang đã thanh toán
+      // P0-BIZ-04: Lưu hóa đơn nguyên tử và hoàn tất đơn qua API Server / RPC pos_pay_order
       const checkoutRes = await fetch('/api/pos/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          orderIds: activePOSOrderIds,
-          linkedOrderIds: activePOSOrderIds,
+          invoiceId,
           tableId: selectedTableId,
           tableName: selectedTableName,
+          cart,
           items: cart,
+          invoice,
+          details,
+          linkedOrderIds: activePOSOrderIds,
+          orderIds: activePOSOrderIds,
           totalAmount: paymentData.total,
           employee: nhanvien,
+          idempotencyKey: invoiceId,
+          paymentForm: {
+            customer: selectedCustomer ? selectedCustomer['Tên khách hàng'] : 'Khách lẻ',
+            discount: paymentData.customerDiscount || 0,
+            paidAmount,
+            note: paymentData.note || '',
+            paymentType: payType,
+            debtAmount,
+            totalAmount: paymentData.total,
+          },
         }),
       });
 
-      if (!checkoutRes.ok) {
-        console.warn('Lỗi ghi nhận checkout trạng thái pos_orders');
+      const checkoutData = await checkoutRes.json();
+      if (!checkoutRes.ok || !checkoutData.success) {
+        throw new Error(checkoutData.error || 'Lỗi xử lý thanh toán trên máy chủ!');
       }
 
-      await saveInvoice(invoice, details);
+      // Cập nhật đồng bộ cache offline / in-memory để báo cáo đọc mượt
+      try {
+        await saveInvoice(invoice, details);
+      } catch (cacheErr) {
+        console.warn('Lỗi đồng bộ cache hóa đơn:', cacheErr);
+      }
 
       if (selectedCustomer) {
         await updateCustomerAfterPurchase(selectedCustomer, paymentData.total, invoiceId, debtAmount);

@@ -2,17 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminSupabaseClient, getAuthenticatedStaff } from '@/lib/supabase/server';
 
 interface CheckoutBody {
-  tableId: string;
-  tableName: string;
-  invoiceId: string;
-  paymentForm: {
+  tableId?: string;
+  tableName?: string;
+  invoiceId?: string;
+  paymentForm?: {
     customer?: string;
     discount?: number;
     paidAmount?: number;
     note?: string;
     paymentType?: string;
+    debtAmount?: number;
+    totalAmount?: number;
   };
-  cart: Array<{
+  cart?: Array<{
     id: string;
     name: string;
     price: number;
@@ -20,6 +22,10 @@ interface CheckoutBody {
     unit?: string;
     note?: string;
   }>;
+  items?: Array<any>;
+  invoice?: any;
+  details?: any[];
+  orderIds?: string[];
   linkedOrderIds?: string[];
   idempotencyKey?: string;
 }
@@ -43,28 +49,34 @@ export async function POST(request: NextRequest) {
     }
 
     const body: CheckoutBody = await request.json();
-    const { tableId, tableName, invoiceId, paymentForm, cart, idempotencyKey } = body;
-    const rawLinked = body.linkedOrderIds || (body as any).orderIds;
+    const tableId = body.tableId || body.invoice?.IDBAN || '';
+    const tableName = body.tableName || body.invoice?.['Bàn'] || '';
+    const invoiceId = String(body.invoiceId || body.invoice?.IDHOADON || body.invoice?.IDHD || '').trim();
+    const paymentForm = body.paymentForm;
+    const rawCart = body.cart || body.items || [];
+    const idempotencyKey = body.idempotencyKey || body.invoice?.idempotency_key;
+    const rawLinked = body.linkedOrderIds || body.orderIds;
     const linkedOrderIds: string[] = Array.isArray(rawLinked) ? rawLinked : [];
 
-    if (!invoiceId?.trim()) {
+    if (!invoiceId) {
       return NextResponse.json({ success: false, error: 'Thiếu mã hóa đơn.' }, { status: 400 });
     }
-    if (!Array.isArray(cart) || cart.length === 0) {
+    if (!Array.isArray(rawCart) || rawCart.length === 0) {
       return NextResponse.json({ success: false, error: 'Giỏ hàng trống.' }, { status: 400 });
     }
 
-    const customer = paymentForm?.customer || 'Khách lẻ';
-    const discount = Number(paymentForm?.discount) || 0;
-    const paidAmount = Number(paymentForm?.paidAmount) || 0;
-    const note = paymentForm?.note || '';
-    const paymentType = paymentForm?.paymentType || 'Tiền mặt';
-
-    const total = cart.reduce((sum, item) => sum + (Number(item.price) * Number(item.quantity)), 0);
-    const vat = total * 0.1;
+    const staffName = staff.user_metadata?.name || staff.user_metadata?.username || staff.email || 'Thu ngân';
+    const customer = paymentForm?.customer || body.invoice?.['Khách hàng'] || 'Khách lẻ';
+    const discount = Number(paymentForm?.discount || body.invoice?.['Giảm giá'] || 0);
+    const total = Number(paymentForm?.totalAmount || body.invoice?.['Tổng tiền'] || rawCart.reduce((sum, item) => sum + (Number(item.price || item['Đơn giá']) * Number(item.quantity || item['Số lượng'])), 0));
+    const vat = Number(body.invoice?.['VAT'] || 0);
     const finalAmount = total + vat - discount;
+    const paymentType = paymentForm?.paymentType || body.invoice?.['Loại thanh toán'] || 'Tiền mặt';
+    const paidAmount = Number(paymentForm?.paidAmount ?? body.invoice?.['Khách trả'] ?? finalAmount);
+    const note = paymentForm?.note || body.invoice?.['Ghi chú'] || '';
 
-    if (paidAmount < finalAmount) {
+    const isDebt = paymentType === 'Ghi nợ' || body.invoice?.['Trạng thái'] === 'Ghi nợ' || (paymentForm?.debtAmount && paymentForm.debtAmount > 0);
+    if (!isDebt && paidAmount < finalAmount) {
       return NextResponse.json({ success: false, error: 'Số tiền khách trả không đủ.' }, { status: 400 });
     }
 
@@ -73,14 +85,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Dịch vụ dữ liệu chưa sẵn sàng.' }, { status: 503 });
     }
 
-    const change = paidAmount - finalAmount;
+    const change = isDebt ? 0 : Math.max(0, paidAmount - finalAmount);
 
-    // Chuẩn bị payload chuẩn cho RPC và DB
-    const invoiceRecord = {
+    // Chuẩn bị payload hóa đơn
+    const invoiceRecord = body.invoice ? {
+      ...body.invoice,
       IDHOADON: invoiceId,
-      IDBAN: tableId || '',
+      IDBAN: tableId,
+      "Nhân viên": body.invoice['Nhân viên'] || staffName,
+      "Ngày": body.invoice['Ngày'] || formatDate(new Date()),
+      "Trạng thái sự dụng bàn": body.invoice['Trạng thái sự dụng bàn'] || (tableName === 'Khách mua về' ? 'Mang về' : 'Đã trả bàn'),
+      "Loại thanh toán": paymentType,
+      idempotency_key: idempotencyKey || null,
+    } : {
+      IDHOADON: invoiceId,
+      IDBAN: tableId,
       "Ngày": formatDate(new Date()),
-      "Nhân viên": staff.fullName || staff.username,
+      "Nhân viên": staffName,
       "Khách hàng": customer,
       "Tổng tiền": total,
       "VAT": vat,
@@ -88,26 +109,39 @@ export async function POST(request: NextRequest) {
       "Khách trả": paidAmount,
       "Tiền thừa": change,
       "Ghi chú": note,
-      "Trạng thái": "Đã thanh toán",
+      "Trạng thái": isDebt ? 'Ghi nợ' : 'Đã thanh toán',
       "Trạng thái sự dụng bàn": tableName === 'Khách mua về' ? 'Mang về' : 'Đã trả bàn',
       "Loại thanh toán": paymentType,
-      "Hóa đơn chi tiết": cart.map(item => `${invoiceId}_${item.id}`).join(' , '),
+      "Hóa đơn chi tiết": rawCart.map((item: any) => `${invoiceId}_${item.id || item.IDSP}`).join(' , '),
       idempotency_key: idempotencyKey || null,
     };
 
-    const detailsRecords = cart.map(item => ({
-      IDHOADONDETAIL: `${invoiceId}_${item.id}`,
-      IDHOADON: invoiceId,
-      IDSP: item.id,
-      "Tên sản phẩm": item.name || '',
-      "Đơn vị tính": item.unit || 'Cái',
-      "Đơn giá": Number(item.price) || 0,
-      "Số lượng": Number(item.quantity) || 1,
-      "Thành tiền": Number(item.price) * Number(item.quantity),
-      "Ghi chú": item.note || '',
-    }));
+    // Chuẩn bị danh sách chi tiết hóa đơn
+    const detailsRecords = Array.isArray(body.details) && body.details.length > 0
+      ? body.details.map((d: any, idx: number) => ({
+          IDHOADONDETAIL: d.IDHOADONDETAIL || `${invoiceId}_${d.IDSP || d.id || idx + 1}`,
+          IDHOADON: invoiceId,
+          IDSP: String(d.IDSP || d.id || ''),
+          "Tên sản phẩm": d['Tên sản phẩm'] || d.name || '',
+          "Đơn vị tính": d['Đơn vị tính'] || d.unit || 'Ly',
+          "Đơn giá": Number(d['Đơn giá'] ?? d.price ?? 0),
+          "Số lượng": Number(d['Số lượng'] ?? d.quantity ?? 1),
+          "Thành tiền": Number(d['Thành tiền'] ?? (Number(d['Đơn giá'] ?? d.price ?? 0) * Number(d['Số lượng'] ?? d.quantity ?? 1))),
+          "Ghi chú": d['Ghi chú'] || d.note || '',
+        }))
+      : rawCart.map((item: any, idx: number) => ({
+          IDHOADONDETAIL: `${invoiceId}_${item.id || item.IDSP || idx + 1}`,
+          IDHOADON: invoiceId,
+          IDSP: String(item.id || item.IDSP || ''),
+          "Tên sản phẩm": item.name || item['Tên sản phẩm'] || '',
+          "Đơn vị tính": item.unit || item['Đơn vị tính'] || 'Ly',
+          "Đơn giá": Number(item.price || item['Đơn giá'] || 0),
+          "Số lượng": Number(item.quantity || item['Số lượng'] || 1),
+          "Thành tiền": Number(item.price || item['Đơn giá'] || 0) * Number(item.quantity || item['Số lượng'] || 1),
+          "Ghi chú": item.note || item['Ghi chú'] || '',
+        }));
 
-    // 1. Thử gọi RPC pos_pay_order trong Postgres
+    // 1. Thử gọi RPC pos_pay_order trong Postgres (Single-transaction)
     try {
       const { data: rpcData, error: rpcError } = await supabase.rpc('pos_pay_order', {
         payload: {
@@ -152,7 +186,6 @@ export async function POST(request: NextRequest) {
     // 2.2 Tạo Hóa Đơn
     const { error: invoiceError } = await supabase.from('HOADON').insert(invoiceRecord);
     if (invoiceError) {
-      // Nếu lỗi duplicate key trên idempotency_key do request đồng thời
       if (invoiceError.message?.includes('duplicate key') || invoiceError.code === '23505') {
         return NextResponse.json({ success: true, invoiceId, idempotent: true });
       }
@@ -183,7 +216,6 @@ export async function POST(request: NextRequest) {
       await supabase.from('pos_cart_drafts').delete().eq('table_id', tableId);
     }
 
-    // 2.6 Đồng bộ đơn bếp pos_orders sang 'paid'
     // 2.6 Đồng bộ đơn pos_orders sang 'paid' và 'completed'
     if (linkedOrderIds.length > 0) {
       await supabase
@@ -197,7 +229,6 @@ export async function POST(request: NextRequest) {
         })
         .in('id', linkedOrderIds);
     } else if (tableId && tableId !== 'Khách mua về') {
-      // Tự động tìm và hoàn tất tất cả đơn QR đang active của bàn này
       await supabase
         .from('pos_orders')
         .update({
