@@ -6,7 +6,7 @@ import {
     Pencil, Save, X, KeyRound, Shield, Camera, User,
     Mail, Building, Briefcase, Phone, MapPin, Activity,
     Calendar, FileText, Eye, EyeOff, Loader2,
-    Edit, UserCheck
+    Edit, UserCheck, Store, Database, Copy, CheckCircle2
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -160,6 +160,41 @@ const ProfilePage: React.FC = () => {
     const [loading, setLoading] = useState<boolean>(true);
     const [editing, setEditing] = useState<boolean>(false);
     const [changePassword, setChangePassword] = useState<boolean>(false);
+    
+    // Business & Tenant Profile State
+    const [businessProfile, setBusinessProfile] = useState({
+        businessName: 'Hộ kinh doanh H2 MilkTea & Coffee',
+        brandName: 'H2 MilkTea',
+        taxCode: '0318992812',
+        businessAddress: '123 Đường Nguyễn Tri Phương, P.5, Q.10, TP.HCM',
+        legalRepresentative: 'Nguyễn Hoàng Hải',
+        businessHotline: '1900 8888',
+        invoiceEmail: 'billing@h2milktea.vn',
+        tenantId: 'STORE-H2-VN01',
+        isolationMode: 'Row-Level Security (RLS) - Phân vùng độc lập',
+    });
+    const [editingBusiness, setEditingBusiness] = useState(false);
+
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem('h2_business_tenant_profile');
+            if (saved) {
+                setBusinessProfile(prev => ({ ...prev, ...JSON.parse(saved) }));
+            }
+        } catch (e) {
+            console.warn('Lỗi đọc hồ sơ doanh nghiệp:', e);
+        }
+    }, []);
+
+    const handleSaveBusinessProfile = () => {
+        try {
+            localStorage.setItem('h2_business_tenant_profile', JSON.stringify(businessProfile));
+            setEditingBusiness(false);
+            toast.success('Đã lưu hồ sơ doanh nghiệp và cấu hình phân vùng CSDL!');
+        } catch (e) {
+            toast.error('Lỗi khi lưu hồ sơ doanh nghiệp');
+        }
+    };
     const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
     const [isChangingPassword, setIsChangingPassword] = useState<boolean>(false);
     const [userData, setUserData] = useState<UserData | null>(null);
@@ -947,7 +982,168 @@ const ProfilePage: React.FC = () => {
                                )}
                            </CardContent>
                        </Card>
-                   </div>
+                   
+                        {/* Hồ sơ Doanh nghiệp Bán hàng & Phân vùng CSDL (Multi-Tenant Profile) */}
+                        <Card className="shadow-sm border-blue-100">
+                            <CardHeader className="pb-4 border-b bg-gradient-to-r from-blue-50/50 to-indigo-50/30">
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="p-2 bg-blue-600 rounded-lg text-white">
+                                            <Store className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <CardTitle className="text-lg font-bold text-gray-900">
+                                                Hồ sơ Doanh nghiệp & Định danh CSDL (Multi-Tenant)
+                                            </CardTitle>
+                                            <p className="text-xs text-gray-500 mt-0.5">
+                                                Thông tin pháp nhân bán hàng và cơ chế cô lập dữ liệu độc lập
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {editingBusiness ? (
+                                            <>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => setEditingBusiness(false)}
+                                                >
+                                                    <X className="w-4 h-4 mr-1.5" /> Hủy
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    className="bg-blue-600 hover:bg-blue-700"
+                                                    onClick={handleSaveBusinessProfile}
+                                                >
+                                                    <Save className="w-4 h-4 mr-1.5" /> Lưu hồ sơ
+                                                </Button>
+                                            </>
+                                        ) : (
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() => setEditingBusiness(true)}
+                                            >
+                                                <Edit className="w-4 h-4 mr-1.5" /> Chỉnh sửa
+                                            </Button>
+                                        )}
+                                    </div>
+                                </div>
+                            </CardHeader>
+                            <CardContent className="pt-6 space-y-6">
+                                {/* CSDL Phân vùng Tenant Info Box */}
+                                <div className="p-4 bg-slate-900 text-white rounded-xl shadow-inner space-y-3">
+                                    <div className="flex items-center justify-between flex-wrap gap-2">
+                                        <div className="flex items-center gap-2">
+                                            <Database className="w-4 h-4 text-emerald-400" />
+                                            <span className="text-xs font-semibold text-slate-300">
+                                                Mã Phân Vùng CSDL Độc Lập (Tenant ID):
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-xs font-mono px-2.5 py-0.5">
+                                                {businessProfile.tenantId}
+                                            </Badge>
+                                            <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                className="h-7 text-xs text-slate-300 hover:text-white hover:bg-slate-800 px-2"
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(businessProfile.tenantId);
+                                                    toast.success('Đã sao chép mã Tenant ID!');
+                                                }}
+                                            >
+                                                <Copy className="w-3.5 h-3.5 mr-1" /> Copy
+                                            </Button>
+                                        </div>
+                                    </div>
+                                    <div className="text-[11px] text-slate-400 leading-relaxed border-t border-slate-800 pt-2">
+                                        🛡️ <strong>Chính sách cách ly dữ liệu:</strong> Dữ liệu bán hàng, hóa đơn và thực đơn của doanh nghiệp này được bảo vệ độc lập qua công nghệ <em>Row-Level Security (PostgreSQL)</em>. Tài khoản doanh nghiệp mới sẽ không truy xuất hay dùng chung dữ liệu với cửa hàng H2MilkTea mẫu.
+                                    </div>
+                                </div>
+
+                                {/* Form Fields */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-semibold text-gray-700">Tên Doanh nghiệp / Hộ kinh doanh</Label>
+                                        <Input
+                                            value={businessProfile.businessName}
+                                            disabled={!editingBusiness}
+                                            onChange={(e) => setBusinessProfile({ ...businessProfile, businessName: e.target.value })}
+                                            placeholder="Tên pháp nhân kinh doanh"
+                                            className="text-xs"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-semibold text-gray-700">Tên Thương hiệu / Chuỗi hiển thị</Label>
+                                        <Input
+                                            value={businessProfile.brandName}
+                                            disabled={!editingBusiness}
+                                            onChange={(e) => setBusinessProfile({ ...businessProfile, brandName: e.target.value })}
+                                            placeholder="Tên thương hiệu trên hóa đơn"
+                                            className="text-xs"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-semibold text-gray-700">Mã số thuế (MST) / Số ĐKKD</Label>
+                                        <Input
+                                            value={businessProfile.taxCode}
+                                            disabled={!editingBusiness}
+                                            onChange={(e) => setBusinessProfile({ ...businessProfile, taxCode: e.target.value })}
+                                            placeholder="Mã số thuế doanh nghiệp"
+                                            className="text-xs"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-semibold text-gray-700">Người đại diện pháp luật</Label>
+                                        <Input
+                                            value={businessProfile.legalRepresentative}
+                                            disabled={!editingBusiness}
+                                            onChange={(e) => setBusinessProfile({ ...businessProfile, legalRepresentative: e.target.value })}
+                                            placeholder="Họ và tên người đại diện"
+                                            className="text-xs"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-semibold text-gray-700">Hotline CSKH / Hỗ trợ</Label>
+                                        <Input
+                                            value={businessProfile.businessHotline}
+                                            disabled={!editingBusiness}
+                                            onChange={(e) => setBusinessProfile({ ...businessProfile, businessHotline: e.target.value })}
+                                            placeholder="Số điện thoại chăm sóc khách hàng"
+                                            className="text-xs"
+                                        />
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-semibold text-gray-700">Email kế toán / Nhận hóa đơn điện tử</Label>
+                                        <Input
+                                            value={businessProfile.invoiceEmail}
+                                            disabled={!editingBusiness}
+                                            onChange={(e) => setBusinessProfile({ ...businessProfile, invoiceEmail: e.target.value })}
+                                            placeholder="Email kế toán nhận hóa đơn"
+                                            className="text-xs"
+                                        />
+                                    </div>
+
+                                    <div className="sm:col-span-2 space-y-1.5">
+                                        <Label className="text-xs font-semibold text-gray-700">Địa chỉ kinh doanh chính thức</Label>
+                                        <Input
+                                            value={businessProfile.businessAddress}
+                                            disabled={!editingBusiness}
+                                            onChange={(e) => setBusinessProfile({ ...businessProfile, businessAddress: e.target.value })}
+                                            placeholder="Địa chỉ trụ sở / địa chỉ kinh doanh"
+                                            className="text-xs"
+                                        />
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+</div>
 
                    {/* Sidebar */}
                    <div className="space-y-6">

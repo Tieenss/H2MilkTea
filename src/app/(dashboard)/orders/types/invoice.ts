@@ -55,4 +55,5 @@ export interface InvoiceStats {
   pendingInvoices: number;
   completedInvoices: number;
   cancelledInvoices: number;
+  cancelledLossRevenue?: number;
 }

@@ -125,22 +125,24 @@ describe('Cloud Database API Route (/api/db)', () => {
     expect(mockEq).toHaveBeenCalledWith('IDHOADON', 'INV_1');
   });
 
-  it('POST /api/db successfully cascades delete to HOADONDETAIL when deleting HOADON', async () => {
-    const mockDeleteDetailEq = vi.fn().mockResolvedValue({ error: null });
-    const mockDeleteInvoiceEq = vi.fn().mockResolvedValue({ error: null });
+  it('POST /api/db intercepts HOADON delete and performs Anti-Loss Soft Delete with audit note', async () => {
+    const mockUpdateEq = vi.fn().mockResolvedValue({ error: null });
+    const mockUpdate = vi.fn().mockReturnValue({ eq: mockUpdateEq });
 
     mockFrom.mockImplementation((tableName: string) => {
-      if (tableName === 'HOADONDETAIL') {
-        return { delete: vi.fn().mockReturnValue({ eq: mockDeleteDetailEq }) };
+      if (tableName === 'HOADON') {
+        return { update: mockUpdate };
       }
-      return { delete: vi.fn().mockReturnValue({ eq: mockDeleteInvoiceEq }) };
+      return {};
     });
 
     const deletePayload = {
       table: 'HOADON',
       action: 'delete',
       data: {
-        IDHOADON: 'INV_TO_DELETE'
+        IDHOADON: 'INV_TO_DELETE',
+        cancel_reason: 'Khách đổi ý hủy món',
+        cancelled_by: 'Admin'
       }
     };
 
@@ -153,11 +155,17 @@ describe('Cloud Database API Route (/api/db)', () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.success).toBe(true);
+    expect(json.softDeleted).toBe(true);
 
-    // Verify both HOADONDETAIL and HOADON were deleted
-    expect(mockFrom).toHaveBeenCalledWith('HOADONDETAIL');
-    expect(mockDeleteDetailEq).toHaveBeenCalledWith('IDHOADON', 'INV_TO_DELETE');
+    // Verify HOADONDETAIL is NOT deleted (preserving details for financial audit)
+    expect(mockFrom).not.toHaveBeenCalledWith('HOADONDETAIL');
     expect(mockFrom).toHaveBeenCalledWith('HOADON');
-    expect(mockDeleteInvoiceEq).toHaveBeenCalledWith('IDHOADON', 'INV_TO_DELETE');
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        'Trạng thái': 'Đã hủy',
+        'Ghi chú': expect.stringContaining('Khách đổi ý hủy món')
+      })
+    );
+    expect(mockUpdateEq).toHaveBeenCalledWith('IDHOADON', 'INV_TO_DELETE');
   });
 });

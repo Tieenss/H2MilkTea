@@ -236,9 +236,32 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: false, error: 'Thiếu ID để xóa' }, { status: 400 });
       }
 
-      // Cascade delete chi tiết nếu xóa hóa đơn
+      // 🛡️ BẢO VỆ CHỐNG THẤT THOÁT HÓA ĐƠN:
+      // Tuyệt đối không xóa cứng (hard delete) dữ liệu hóa đơn và chi tiết món.
+      // Chuyển sang lưu trữ vết kiểm toán (Soft Cancel / Audit Trail) để chủ quán & kế toán đối soát.
       if (table === 'HOADON') {
-        await supabase.from('HOADONDETAIL').delete().eq('IDHOADON', targetId);
+        const cancelReason = data.cancel_reason || data['Lý do hủy'] || data['Ghi chú'] || 'Quản lý yêu cầu hủy hóa đơn';
+        const cancelledBy = data.cancelled_by || data['Người hủy'] || 'Quản lý';
+        const cancelNote = `[ĐÃ HỦY] ${cancelReason} (Bởi: ${cancelledBy} lúc ${new Date().toLocaleString('vi-VN')})`;
+
+        const { error: cancelError } = await supabase
+          .from('HOADON')
+          .update({
+            'Trạng thái': 'Đã hủy',
+            'Ghi chú': cancelNote
+          })
+          .eq(pk, targetId);
+
+        if (cancelError) {
+          console.warn('Supabase HOADON soft delete warning:', cancelError.message);
+          return NextResponse.json({ success: false, error: cancelError.message }, { status: 400 });
+        }
+
+        return NextResponse.json({
+          success: true,
+          softDeleted: true,
+          message: 'Hóa đơn đã được lưu trữ an toàn dưới dạng Đã hủy để chống thất thoát.'
+        });
       }
 
       // Xóa giỏ hàng nháp nếu xóa bàn

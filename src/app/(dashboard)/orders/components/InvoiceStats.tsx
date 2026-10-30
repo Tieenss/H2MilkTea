@@ -70,15 +70,15 @@ export const InvoiceStatsComponent: React.FC<InvoiceStatsProps> = ({ stats }) =>
         </CardContent>
       </Card>
       
-      <Card>
+      <Card className="border-rose-200 bg-rose-50/20">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Đã hủy</CardTitle>
-          <XCircle className="h-4 w-4 text-muted-foreground" />
+          <CardTitle className="text-sm font-medium text-rose-900">Đã hủy (Kiểm toán)</CardTitle>
+          <XCircle className="h-4 w-4 text-rose-500" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold text-red-600">{stats.cancelledInvoices}</div>
-          <p className="text-xs text-muted-foreground">
-            Hóa đơn đã bị hủy
+          <div className="text-2xl font-bold text-rose-600">{stats.cancelledInvoices}</div>
+          <p className="text-xs text-rose-600/90 font-medium">
+            Thất thoát: {formatCurrency(stats.cancelledLossRevenue || 0)}
           </p>
         </CardContent>
       </Card>
