@@ -165,12 +165,12 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Server-Side Fallback an toàn (sử dụng service_role)
-    // 2.1 Kiểm tra Idempotency
-    if (idempotencyKey) {
+    // 2.1 Kiểm tra Idempotency dựa trên IDHOADON
+    if (invoiceId) {
       const { data: existing } = await supabase
         .from('HOADON')
         .select('IDHOADON')
-        .eq('idempotency_key', idempotencyKey)
+        .eq('IDHOADON', invoiceId)
         .maybeSingle();
 
       if (existing) {
@@ -183,8 +183,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 2.2 Tạo Hóa Đơn
-    const { error: invoiceError } = await supabase.from('HOADON').insert(invoiceRecord);
+    // 2.2 Tạo Hóa Đơn (bảo đảm loại bỏ các trường không thuộc schema HOADON)
+    const { idempotency_key: _unused, ...cleanInvoiceRecord } = invoiceRecord;
+    const { error: invoiceError } = await supabase.from('HOADON').insert(cleanInvoiceRecord);
     if (invoiceError) {
       if (invoiceError.message?.includes('duplicate key') || invoiceError.code === '23505') {
         return NextResponse.json({ success: true, invoiceId, idempotent: true });
