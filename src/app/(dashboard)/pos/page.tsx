@@ -535,7 +535,7 @@ export default function POSPage() {
         </Card>
       </div>
 
-      <QROrderInbox onSettle={settleQrOrder} onAccept={acceptQrOrder} />
+      <QROrderInbox onSettle={settleQrOrder} onAccept={acceptQrOrder} activeOrders={activeOrders} />
 {/* Trợ lý AI GlobalAssistant đã được gắn ở DashboardLayout (Mục #16) */}
 
       {/* Main Content */}

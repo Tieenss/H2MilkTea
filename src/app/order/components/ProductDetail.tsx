@@ -32,7 +32,6 @@ export function ProductDetail({ product, isOpen, onClose }: ProductDetailProps) 
   const isPlaceholder = product['Hình ảnh']?.includes('placeholder');
   const hasValidImage = product['Hình ảnh'] && !isPlaceholder && !imgError;
 
-  // Check if this is a food item (no drink customization needed)
   const handleAdd = () => {
     addItem(product, { size, sugar, ice, note, quantity });
     toast.success(`Đã thêm ${product['Tên sản phẩm']}`, { duration: 1500 });
@@ -50,7 +49,7 @@ export function ProductDetail({ product, isOpen, onClose }: ProductDetailProps) 
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/50 z-50 transition-opacity"
+        className="fixed inset-0 bg-black/60 z-50 backdrop-blur-2xs transition-opacity"
         onClick={onClose}
       />
 
@@ -58,20 +57,21 @@ export function ProductDetail({ product, isOpen, onClose }: ProductDetailProps) 
       <div className="fixed bottom-0 left-0 right-0 z-50 max-h-[90vh] bg-white rounded-t-3xl overflow-hidden shadow-2xl animate-slideUp">
         {/* Handle bar */}
         <div className="flex justify-center pt-3 pb-1">
-          <div className="w-10 h-1 rounded-full bg-gray-300" />
+          <div className="w-10 h-1 rounded-full bg-slate-300" />
         </div>
 
-        {/* Close button */}
+        {/* Close button - Đạt chuẩn 40px */}
         <button
           onClick={onClose}
-          className="absolute top-3 right-3 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center z-10 active:scale-90 transition-transform"
+          className="absolute top-3 right-3 w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center z-10 active:scale-90 transition-transform"
+          aria-label="Đóng"
         >
-          <X className="w-4 h-4 text-gray-500" />
+          <X className="w-5 h-5 text-slate-600" />
         </button>
 
-        <div className="overflow-y-auto max-h-[calc(90vh-80px)] pb-24">
+        <div className="overflow-y-auto max-h-[calc(90vh-90px)] pb-28">
           {/* Product Image */}
-          <div className="relative h-56 bg-gradient-to-br from-orange-50 to-amber-50">
+          <div className="relative h-56 bg-slate-100">
             {hasValidImage ? (
               <img
                 src={product['Hình ảnh']}
@@ -81,71 +81,73 @@ export function ProductDetail({ product, isOpen, onClose }: ProductDetailProps) 
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
-                <span className="text-7xl">🥤</span>
+                <span className="text-7xl">🧋</span>
               </div>
             )}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
           </div>
 
           <div className="px-5 pt-4 space-y-5">
             {/* Product Info */}
             <div>
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-3">
                 <div className="flex-1">
-                  <h2 className="text-xl font-bold text-gray-900">{product['Tên sản phẩm']}</h2>
-                  <span className="inline-block mt-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
+                  <h2 className="text-xl font-bold text-slate-900">{product['Tên sản phẩm']}</h2>
+                  <span className="inline-block mt-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-orange-50 text-orange-700">
                     {product['Loại sản phẩm']}
                   </span>
                 </div>
-                <div className="text-right">
-                  <span className="text-2xl font-bold bg-gradient-to-r from-red-600 to-orange-600 bg-clip-text text-transparent">
+                <div className="text-right shrink-0">
+                  <span className="text-2xl font-black text-orange-600">
                     {basePrice.toLocaleString('vi-VN')}đ
                   </span>
-                  <span className="block text-xs text-gray-400">/{product['Đơn vị tính']}</span>
+                  <span className="block text-xs text-slate-500 font-medium">/{product['Đơn vị tính']}</span>
                 </div>
               </div>
               {product['Mô tả'] && (
-                <p className="mt-2 text-sm text-gray-500">{product['Mô tả']}</p>
+                <p className="mt-2 text-xs sm:text-sm text-slate-600">{product['Mô tả']}</p>
               )}
             </div>
 
             {!isFood && (
               <>
-                {/* Size Selection */}
+                {/* Size Selection - Pill Selector chuẩn 44px */}
                 <div>
-                  <label className="text-sm font-semibold text-gray-800 mb-2 block">Kích cỡ</label>
+                  <label className="text-sm font-bold text-slate-900 mb-2 block">Kích cỡ (Size)</label>
                   <div className="grid grid-cols-2 gap-2.5">
                     {SIZE_OPTIONS.map((opt) => (
                       <button
                         key={opt.value}
+                        type="button"
                         onClick={() => setSize(opt.value)}
-                        className={`py-2.5 rounded-xl text-sm font-medium transition-all duration-200
+                        className={`h-12 rounded-xl text-sm font-semibold transition-all duration-150 flex flex-col items-center justify-center border
                           ${size === opt.value
-                            ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-md shadow-red-200/50'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:scale-95'
+                            ? 'bg-orange-50 border-2 border-orange-500 text-orange-700 shadow-xs font-bold'
+                            : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 active:scale-98'
                           }`}
                       >
-                        <span className="text-base font-bold">Size {opt.label}</span>
-                        <span className="block text-[10px] mt-0.5 opacity-85">
-                          {opt.priceAdjust > 0 ? `+${opt.priceAdjust.toLocaleString('vi-VN')}đ` : 'Giá gốc'}
+                        <span className="text-sm font-bold">Size {opt.label}</span>
+                        <span className="text-[10px] opacity-80 font-medium">
+                          {opt.priceAdjust > 0 ? `+${opt.priceAdjust.toLocaleString('vi-VN')}đ` : 'Giá chuẩn'}
                         </span>
                       </button>
                     ))}
                   </div>
                 </div>
 
-                {/* Sugar Level */}
+                {/* Sugar Level - Chiều cao 40px đạt chuẩn ngón cái */}
                 <div>
-                  <label className="text-sm font-semibold text-gray-800 mb-2 block">Độ ngọt</label>
+                  <label className="text-sm font-bold text-slate-900 mb-2 block">Độ ngọt (Đường)</label>
                   <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
                     {SUGAR_OPTIONS.map((opt) => (
                       <button
                         key={opt.value}
+                        type="button"
                         onClick={() => setSugar(opt.value)}
-                        className={`flex-shrink-0 px-3.5 py-2 rounded-xl text-xs font-medium transition-all duration-200
+                        className={`shrink-0 h-10 px-4 rounded-xl text-xs font-semibold transition-all duration-150 border
                           ${sugar === opt.value
-                            ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-md shadow-red-200/50'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:scale-95'
+                            ? 'bg-orange-50 border-2 border-orange-500 text-orange-700 shadow-xs font-bold'
+                            : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 active:scale-98'
                           }`}
                       >
                         {opt.label}
@@ -154,18 +156,19 @@ export function ProductDetail({ product, isOpen, onClose }: ProductDetailProps) 
                   </div>
                 </div>
 
-                {/* Ice Level */}
+                {/* Ice Level - Chiều cao 40px đạt chuẩn ngón cái */}
                 <div>
-                  <label className="text-sm font-semibold text-gray-800 mb-2 block">Đá</label>
+                  <label className="text-sm font-bold text-slate-900 mb-2 block">Lượng đá</label>
                   <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
                     {ICE_OPTIONS.map((opt) => (
                       <button
                         key={opt.value}
+                        type="button"
                         onClick={() => setIce(opt.value)}
-                        className={`flex-shrink-0 px-3.5 py-2 rounded-xl text-xs font-medium transition-all duration-200
+                        className={`shrink-0 h-10 px-4 rounded-xl text-xs font-semibold transition-all duration-150 border
                           ${ice === opt.value
-                            ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-md shadow-red-200/50'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:scale-95'
+                            ? 'bg-orange-50 border-2 border-orange-500 text-orange-700 shadow-xs font-bold'
+                            : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 active:scale-98'
                           }`}
                       >
                         {opt.label}
@@ -178,32 +181,36 @@ export function ProductDetail({ product, isOpen, onClose }: ProductDetailProps) 
 
             {/* Note */}
             <div>
-              <label className="text-sm font-semibold text-gray-800 mb-2 block">Ghi chú</label>
+              <label className="text-sm font-bold text-slate-900 mb-1.5 block">Ghi chú cho quầy pha chế</label>
               <textarea
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="Ví dụ: ít đá, thêm trân châu..."
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-orange-300 transition-all"
+                placeholder="Ví dụ: Mang ra cùng lúc, thêm ống hút to..."
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs sm:text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 transition-all placeholder:text-slate-400"
                 rows={2}
               />
             </div>
 
             {/* Quantity */}
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-semibold text-gray-800">Số lượng</label>
+            <div className="flex items-center justify-between pt-1">
+              <label className="text-sm font-bold text-slate-900">Số lượng ly</label>
               <div className="flex items-center gap-3">
                 <button
+                  type="button"
                   onClick={() => setQuantity(q => Math.max(1, q - 1))}
-                  className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center active:scale-90 transition-transform"
+                  className="w-11 h-11 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center active:scale-90 transition-transform text-slate-700"
+                  aria-label="Giảm số lượng"
                 >
-                  <Minus className="w-4 h-4 text-gray-600" />
+                  <Minus className="w-5 h-5" />
                 </button>
-                <span className="text-lg font-bold text-gray-900 w-8 text-center">{quantity}</span>
+                <span className="text-lg font-black text-slate-900 w-8 text-center">{quantity}</span>
                 <button
+                  type="button"
                   onClick={() => setQuantity(q => Math.min(20, q + 1))}
-                  className="w-9 h-9 rounded-full bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-white shadow-md shadow-red-200/50 active:scale-90 transition-transform"
+                  className="w-11 h-11 rounded-xl bg-orange-600 hover:bg-orange-700 text-white flex items-center justify-center shadow-md shadow-orange-600/20 active:scale-90 transition-transform"
+                  aria-label="Tăng số lượng"
                 >
-                  <Plus className="w-4 h-4" />
+                  <Plus className="w-5 h-5" />
                 </button>
               </div>
             </div>
@@ -211,10 +218,10 @@ export function ProductDetail({ product, isOpen, onClose }: ProductDetailProps) 
         </div>
 
         {/* Fixed Add to Cart Button */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 shadow-[0_-4px_20px_rgba(0,0,0,0.08)]">
+        <div className="absolute bottom-0 left-0 right-0 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] bg-white border-t border-slate-100 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
           <button
             onClick={handleAdd}
-            className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-red-500 to-orange-500 text-white font-bold text-base shadow-lg shadow-red-200/50 active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
+            className="w-full py-4 rounded-2xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-base shadow-lg shadow-orange-600/25 active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
           >
             <Plus className="w-5 h-5" />
             Thêm vào giỏ · {totalPrice.toLocaleString('vi-VN')}đ
@@ -228,7 +235,7 @@ export function ProductDetail({ product, isOpen, onClose }: ProductDetailProps) 
           to { transform: translateY(0); }
         }
         .animate-slideUp {
-          animation: slideUp 0.3s ease-out;
+          animation: slideUp 0.25s ease-out;
         }
       `}</style>
     </>

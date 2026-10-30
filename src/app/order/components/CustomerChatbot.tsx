@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -40,7 +40,7 @@ export function CustomerChatbot({
   tableId,
 }: CustomerChatbotProps) {
   const router = useRouter();
-  const { addItem } = useCart();
+  const { addItem, totalItems } = useCart();
   const [isOpen, setIsOpen] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -235,14 +235,16 @@ export function CustomerChatbot({
 
   return (
     <>
-      {/* Floating Trigger Button */}
+            {/* Floating Trigger Button - Tự động né thanh giỏ hàng và banner phục vụ */}
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-20 right-4 z-40 flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-500/30 hover:scale-105 active:scale-95 transition-all"
+        className={`fixed right-4 z-45 flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-orange-600 hover:bg-orange-700 text-white shadow-lg shadow-orange-600/30 hover:scale-105 active:scale-95 transition-all ${
+          totalItems > 0 ? "bottom-36" : "bottom-18"
+        }`}
         title="Trợ lý AI tư vấn gọi món"
         aria-label="Mở Trợ lý AI H2"
       >
-        <Sparkles className="w-4 h-4 animate-spin text-amber-200" style={{ animationDuration: '3s' }} />
+        <Sparkles className="w-4 h-4 text-amber-200" />
         <span className="text-xs font-bold tracking-tight">Hỏi AI món ngon</span>
       </button>
 

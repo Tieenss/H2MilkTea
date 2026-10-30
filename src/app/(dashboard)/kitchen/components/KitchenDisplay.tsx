@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
@@ -762,7 +762,7 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-5">
             {filteredOrders.map((order) => {
               const age = getOrderAge(order.orderTime);
               const priorityColor = getPriorityColor(order.priority, age, order.status);
@@ -780,7 +780,7 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
                     <div className="flex justify-between items-start gap-2 mb-3 pb-3 border-b border-slate-200/80">
                       <div>
                         <div className="flex items-center gap-2">
-                          <h3 className="font-bold text-lg text-slate-900">{order.tableName}</h3>
+                          <h3 className="font-black text-xl sm:text-2xl text-slate-950 tracking-tight">{order.tableName}</h3>
                           {(order.priority === 'urgent' || age > 15) && (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-600 text-white">
                               <AlertTriangle className="w-3 h-3" />
@@ -853,7 +853,7 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
                               </button>
                               <div className="flex-1">
                                 <div
-                                  className={`font-semibold text-sm leading-snug ${
+                                  className={`font-bold text-base sm:text-lg leading-snug tracking-tight ${
                                     isItemDone ? 'line-through text-slate-500' : 'text-slate-800'
                                   }`}
                                 >
@@ -869,17 +869,13 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
                                   >
                                     {itemStation === 'kitchen' ? '🍰 Bếp/Bánh' : '🧋 Pha chế'}
                                   </span>
-                                  {item.note && (
-                                    <span className="text-xs text-blue-600 font-medium italic">
-                                      📝 {item.note}
-                                    </span>
-                                  )}
+                                  {item.note && (<span className="inline-flex items-center gap-1 bg-amber-100 text-amber-950 font-extrabold text-sm px-2.5 py-1 rounded-md border border-amber-300 shadow-2xs"><span>⚡</span> {item.note}</span>)}
                                 </div>
                               </div>
                             </div>
                             <div className="text-right shrink-0">
                               <span
-                                className={`inline-block font-bold text-base px-2.5 py-0.5 rounded-lg ${
+                                className={`inline-block font-black text-lg sm:text-xl px-3 py-1 rounded-lg ${
                                   isItemDone
                                     ? 'bg-emerald-100 text-emerald-800'
                                     : 'bg-orange-100 text-orange-900'
