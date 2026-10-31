@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Kiến Trúc Tổng Thể Hệ Thống H2MilkTea POS & Realtime F&B",
+    "output": "01-system-architecture.html",
+    "quality_profile": "showcase"
+  },
+  "components": [
+    { "id": "pos_cashier", "type": "frontend", "label": "POS Thu Ngân", "sublabel": "Next.js 15 App Router", "pos": [50, 100], "size": [140, 65], "tag": "Quầy Bar / Thu ngân" },
+    { "id": "kds_screen", "type": "frontend", "label": "Màn Hình Bếp KDS", "sublabel": "Route /kitchen", "pos": [50, 240], "size": [140, 65], "tag": "Màn hình chế biến" },
+    { "id": "customer_qr", "type": "frontend", "label": "Web App Khách Hàng", "sublabel": "Route /order/menu", "pos": [50, 380], "size": [140, 65], "tag": "Quét VietQR tại bàn" },
+
+    { "id": "api_checkout", "type": "backend", "label": "API Checkout & Giỏ", "sublabel": "/api/pos/checkout", "pos": [300, 100], "size": [150, 65], "tag": "Atomic Transaction" },
+    { "id": "api_sepay", "type": "backend", "label": "API SePay Webhook", "sublabel": "/api/payment/sepay-webhook", "pos": [300, 240], "size": [150, 65], "tag": "Xác thực API-Key" },
+    { "id": "api_orders", "type": "backend", "label": "API Quản Lý Đơn", "sublabel": "/api/orders & /api/db", "pos": [300, 380], "size": [150, 65], "tag": "CRUD & Định mức BOM" },
+
+    { "id": "ai_tier1", "type": "security", "label": "AI Tầng 1: Local Intent", "sublabel": "0.01s • 0 Token Cost", "pos": [560, 100], "size": [160, 65], "tag": "In tem, Bill, Gửi bếp" },
+    { "id": "ai_tier2", "type": "cloud", "label": "AI Tầng 2: Gemini API", "sublabel": "Google Gemini 2.5 Flash/Pro", "pos": [560, 240], "size": [160, 65], "tag": "Tư vấn mở & Analytics" },
+    { "id": "supabase_realtime", "type": "messagebus", "label": "Supabase Realtime Hub", "sublabel": "WebSocket Broadcast", "pos": [560, 380], "size": [160, 65], "tag": "Kênh Cart Drafts & KDS" },
+
+    { "id": "postgres_db", "type": "database", "label": "PostgreSQL Cloud", "sublabel": "Supabase Managed DB", "pos": [830, 240], "size": [160, 70], "tag": "ACID Engine" },
+    { "id": "rls_policy", "type": "security", "label": "Row-Level Security (RLS)", "sublabel": "Cách ly store_id UUID", "pos": [830, 380], "size": [160, 65], "tag": "Multi-Tenant Guard" }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Phân Vùng Ứng Dụng Client (Frontend Next.js 15)", "wraps": ["pos_cashier", "kds_screen", "customer_qr"] },
+    { "kind": "region", "label": "Phân Vùng Serverless API & Cổng Thanh Toán", "wraps": ["api_checkout", "api_sepay", "api_orders"] },
+    { "kind": "region", "label": "Hệ Thống AI Kép & Trung Tâm Đồng Bộ Realtime", "wraps": ["ai_tier1", "ai_tier2", "supabase_realtime"] },
+    { "kind": "security-group", "label": "Phân Vùng Dữ Liệu Đa Khách Thuê (Multi-Tenant DB)", "wraps": ["postgres_db", "rls_policy"] }
+  ],
+  "connections": [
+    { "id": "pos-to-checkout", "from": "pos_cashier", "to": "api_checkout", "label": "POST Checkout / Giỏ", "variant": "emphasis" },
+    { "id": "pos-to-ai1", "from": "pos_cashier", "to": "ai_tier1", "label": "Khớp lệnh nội bộ (0.3ms)", "variant": "security" },
+    { "id": "ai1-to-ai2", "from": "ai_tier1", "to": "ai_tier2", "label": "Fallback câu hỏi phức tạp", "variant": "dashed" },
+    { "id": "kds-to-orders", "from": "kds_screen", "to": "api_orders", "label": "Cập nhật pha chế", "variant": "default" },
+    { "id": "qr-to-orders", "from": "customer_qr", "to": "api_orders", "label": "Tạo đơn chờ xác nhận", "variant": "default" },
+    { "id": "sepay-to-webhook", "from": "api_sepay", "to": "postgres_db", "label": "Xác nhận giao dịch NAPAS247", "variant": "emphasis" },
+    { "id": "checkout-to-db", "from": "api_checkout", "to": "postgres_db", "label": "Lưu hóa đơn & Trừ BOM kho", "variant": "emphasis" },
+    { "id": "orders-to-db", "from": "api_orders", "to": "postgres_db", "label": "Truy vấn CRUD", "variant": "default" },
+    { "id": "db-to-rls", "from": "postgres_db", "to": "rls_policy", "label": "Áp bộ lọc store_id", "variant": "security" },
+    { "id": "db-to-realtime", "from": "postgres_db", "to": "supabase_realtime", "label": "CDC Postgres Changes", "variant": "emphasis" },
+    { "id": "realtime-to-pos", "from": "supabase_realtime", "to": "pos_cashier", "label": "Đồng bộ giỏ & chuông báo", "variant": "dashed" },
+    { "id": "realtime-to-kds", "from": "supabase_realtime", "to": "kds_screen", "label": "Đẩy thẻ món bếp", "variant": "dashed" }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Client & Giao Diện Người Dùng",
+      "items": [
+        "POS Thu ngân Next.js 15: Thao tác bán hàng siêu tốc, hỗ trợ phím tắt và tìm kiếm thông minh.",
+        "Màn hình Bếp KDS: Theo dõi trạng thái đơn hàng thời gian thực, đếm ngược thời gian pha chế.",
+        "Web App QR Khách hàng: Gọi món tự phục vụ tại bàn, tự động cập nhật giỏ hàng theo phân bàn."
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Kiến Trúc AI Kép (Hybrid Dual-Tier AI)",
+      "items": [
+        "Tầng 1 - Local Intent Matcher: Phản hồi tức thì trong 0.01s (p50 = 0.31ms), 0 token cost, xử lý 100% lệnh POS cốt lõi.",
+        "Tầng 2 - Google Gemini API: Tự động phân luồng xử lý các câu hỏi mở, gợi ý đồ uống và phân tích xu hướng."
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Bảo Mật Đa Khách Thuê & Realtime",
+      "items": [
+        "PostgreSQL Row-Level Security: Mọi dữ liệu phân lập tuyệt đối theo `store_id UUID`.",
+        "Supabase WebSocket: Đồng bộ giỏ nháp toàn chuỗi, loại trừ lặp tín hiệu (Echo-Loop Suppression)."
+      ]
+    }
+  ]
+}

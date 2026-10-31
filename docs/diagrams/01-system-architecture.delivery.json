@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "8d6d0981-42d7-481b-9354-7a9ea7b6ff78",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\candidates\\01-system-architecture.json",
+  "output": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\01-system-architecture.html",
+  "specification": {
+    "sha256": "61e2b5001acc555aa433ef1686e018b0d97c7ad4a7dd4a68fd821bcaee7ab8aa",
+    "bytes": 5874
+  },
+  "artifact": {
+    "sha256": "b24e21ba8a5b3d70b2f2426f6a70ac97e9a75c9d4bcf8287859e5fbc283ba77d",
+    "bytes": 862743
+  }
+}

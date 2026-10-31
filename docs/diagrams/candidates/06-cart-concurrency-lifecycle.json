@@ -1,0 +1,53 @@
+{
+  "schema_version": 3,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "Vòng Đời Đồng Bộ Giỏ Hàng Đa Thiết Bị & Cơ Chế Khử Xung Đột (OCC)",
+    "output": "06-cart-concurrency-lifecycle.html",
+    "animation": "trace",
+    "quality_profile": "showcase"
+  },
+  "mainPath": ["user_click", "debounce_guard", "broadcast_sync", "version_check", "cart_synced"],
+  "states": [
+    { "id": "user_click", "type": "start", "label": "Click Món Liên Tục", "sublabel": "Thao tác trên UI", "tag": "Local Event", "step": "01" },
+    { "id": "debounce_guard", "type": "active", "label": "In-Flight Guard", "sublabel": "Debounce 400ms", "tag": "Bảo Toàn Click", "step": "02" },
+    { "id": "broadcast_sync", "type": "active", "label": "Bắn Gói Realtime", "sublabel": "Supabase Channel", "tag": "WebSocket Hub", "step": "03" },
+    { "id": "version_check", "type": "decision", "label": "So Khớp Version", "sublabel": "Kiểm tra phiên bản giỏ", "tag": "OCC Validator", "step": "04" },
+    { "id": "cart_synced", "type": "success", "label": "Đồng Bộ Hoàn Tất", "sublabel": "State nhất quán toàn máy", "tag": "Synced State", "step": "05" },
+
+    { "id": "self_echo_drop", "type": "waiting", "label": "Lọc isSelfDevice", "sublabel": "Trùng device UUID", "tag": "Khử 100% Echo" },
+    { "id": "conflict_detected", "type": "failure", "label": "Lệch Phiên Bản", "sublabel": "Máy khác đã sửa trước", "tag": "Version Mismatch" },
+    { "id": "smart_merge_modal", "type": "waiting", "label": "Modal Xử Lý Xung Đột", "sublabel": "Tự Merge hoặc Giữ/Gộp", "tag": "Smart Resolution" }
+  ],
+  "transitions": [
+    { "id": "t1", "from": "user_click", "to": "debounce_guard", "label": "Gom click", "variant": "emphasis" },
+    { "id": "t2", "from": "debounce_guard", "to": "broadcast_sync", "label": "Hết 400ms", "variant": "emphasis" },
+    { "id": "t3", "from": "broadcast_sync", "to": "version_check", "label": "Nhận gói", "variant": "emphasis" },
+    { "id": "t4", "from": "version_check", "to": "cart_synced", "label": "Khớp version", "variant": "emphasis" },
+
+    { "id": "t5", "from": "broadcast_sync", "to": "self_echo_drop", "label": "Gói từ chính máy", "variant": "security" },
+    { "id": "t6", "from": "self_echo_drop", "to": "cart_synced", "label": "Bỏ qua an toàn", "variant": "dashed" },
+
+    { "id": "t7", "from": "version_check", "to": "conflict_detected", "label": "Lệch version", "variant": "security" },
+    { "id": "t8", "from": "conflict_detected", "to": "smart_merge_modal", "label": "Mở modal", "variant": "emphasis" },
+    { "id": "t9", "from": "smart_merge_modal", "to": "cart_synced", "label": "Duyệt gộp", "variant": "emphasis" }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Chống Lặp Tín Hiệu & Bảo Toàn Click Cục Bộ",
+      "items": [
+        "In-Flight Debounce Guard 400ms gom toàn bộ click dồn dập vào một payload duy nhất, bảo đảm không rớt click khi nhân viên thao tác nhanh.",
+        "Bộ lọc `isSelfDevice` đối chiếu `updated_by_device UUID`, loại bỏ 100% hiện tượng tự dội ngược gói tin (Echo Loop) gây giật lag giao diện."
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Kiểm Soát Xung Đột Lạc Quan (Optimistic Concurrency Control)",
+      "items": [
+        "Mỗi lượt cập nhật giỏ đều tăng biến số `version`. Nếu 2 máy thu ngân cùng chỉnh sửa một bàn ăn tại cùng thời điểm, hệ thống phát hiện chênh lệch version ngay lập tức.",
+        "Modal thông minh cho phép tự động Merge các món đồ uống không trùng lặp hoặc trao quyền cho thu ngân bấm 'Gộp đơn' hay 'Giữ bản mới nhất'."
+      ]
+    }
+  ]
+}

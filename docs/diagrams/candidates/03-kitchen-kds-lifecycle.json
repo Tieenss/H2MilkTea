@@ -1,0 +1,53 @@
+{
+  "schema_version": 3,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "Vòng Đời Thẻ Bếp KDS & Cơ Chế Dọn Rác Đơn Thông Minh",
+    "output": "03-kitchen-kds-lifecycle.html",
+    "animation": "trace",
+    "quality_profile": "showcase"
+  },
+  "mainPath": ["pending", "cooking", "ready", "completed"],
+  "states": [
+    { "id": "pending", "type": "start", "label": "Chờ Pha Chế", "sublabel": "Hàng đợi KDS", "tag": "Màu Đỏ", "step": "01" },
+    { "id": "cooking", "type": "active", "label": "Đang Pha Chế", "sublabel": "Barista làm món", "tag": "Màu Cam", "step": "02" },
+    { "id": "ready", "type": "waiting", "label": "Chờ Phục Vụ", "sublabel": "Đã pha xong", "tag": "Màu Xanh", "step": "03" },
+    { "id": "completed", "type": "success", "label": "Đã Giao Khách", "sublabel": "Bàn nhận đủ", "tag": "Hoàn Tất", "step": "04" },
+    { "id": "stale_cleanup", "type": "decision", "label": "Dọn Rác Bếp", "sublabel": "/api/kitchen/clear-stale", "tag": "Bảo Vệ Đơn Làm" },
+    { "id": "purged", "type": "success", "label": "Lưu Trữ Sạch", "sublabel": "Giải phóng KDS", "tag": "Đã Dọn" },
+
+    { "id": "overdue", "type": "failure", "label": "Quá Hạn Định Mức", "sublabel": "Đổi mốc HH:mm", "tag": "Cảnh Báo" },
+    { "id": "cancelled", "type": "failure", "label": "Hủy Món", "sublabel": "Khách/Thu ngân hủy", "tag": "Đóng Thẻ" }
+  ],
+  "transitions": [
+    { "id": "t1", "from": "pending", "to": "cooking", "label": "Nhận làm", "variant": "emphasis" },
+    { "id": "t2", "from": "cooking", "to": "ready", "label": "Làm xong", "variant": "emphasis" },
+    { "id": "t3", "from": "ready", "to": "completed", "label": "Trả khách", "variant": "emphasis" },
+    { "id": "t4", "from": "completed", "to": "stale_cleanup", "label": "> 60 phút", "variant": "dashed" },
+    { "id": "t5", "from": "stale_cleanup", "to": "purged", "label": "Dọn đơn cũ", "variant": "emphasis" },
+
+    { "id": "t6", "from": "pending", "to": "overdue", "label": "> 15 phút", "variant": "security" },
+    { "id": "t7", "from": "overdue", "to": "cooking", "label": "Làm gấp", "variant": "emphasis" },
+    { "id": "t8", "from": "pending", "to": "cancelled", "label": "Thu ngân hủy", "variant": "security" },
+    { "id": "t9", "from": "cooking", "to": "cancelled", "label": "Hủy gấp", "variant": "security" },
+    { "id": "t10", "from": "cancelled", "to": "stale_cleanup", "label": "Đơn mồ côi", "variant": "dashed" }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Mã Hóa Trực Quan & Trạng Thái Thẻ KDS",
+      "items": [
+        "Màu Đỏ (Chờ làm): Báo động đơn mới tới. Nếu vượt 15 phút, bộ đếm giây tự động đổi sang định dạng mốc giờ (HH:mm) nhấp nháy.",
+        "Màu Cam (Đang làm) & Màu Xanh (Chờ phục vụ): Giúp nhân viên phục vụ nhận diện ngay ly nào đã sẵn sàng mang ra bàn."
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Thuật Toán Dọn Rác An Toàn (/api/kitchen/clear-stale)",
+      "items": [
+        "Chỉ quét dọn các thẻ ở trạng thái ĐÃ HOÀN TẤT hoặc ĐÃ HỦY tồn tại trên 60 phút.",
+        "BẢO VỆ TUYỆT ĐỐI các thẻ Đang làm hoặc Chờ làm, ngăn ngừa hoàn toàn tình trạng mất đơn khi nhân viên bấm dọn bếp."
+      ]
+    }
+  ]
+}

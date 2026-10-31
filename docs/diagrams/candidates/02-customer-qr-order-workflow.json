@@ -1,0 +1,75 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Quy Trình Đặt Món QR Tại Bàn & Tự Động Phân Luồng KDS",
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "output": "02-customer-qr-order-workflow.html"
+  },
+  "lanes": [
+    { "id": "customer", "label": "Khách Hàng (Mobile Web)" },
+    { "id": "server", "label": "Máy Chủ & API Gateway" },
+    { "id": "cashier", "label": "Thu Ngân POS (Quầy Bar)" },
+    { "id": "kitchen", "label": "Bếp Pha Chế (KDS)" }
+  ],
+  "phases": [
+    { "id": "phase_ordering", "label": "Giai đoạn 1: Khách Chọn & Gửi Món", "fromCol": 0, "toCol": 2 },
+    { "id": "phase_validation", "label": "Giai đoạn 2: Thẩm Định & Báo POS", "fromCol": 3, "toCol": 3, "variant": "emphasis" },
+    { "id": "phase_approval", "label": "Giai đoạn 3: Thu Ngân Duyệt", "fromCol": 4, "toCol": 4, "variant": "security" },
+    { "id": "phase_dispatch", "label": "Giai đoạn 4: Chế Biến & Trả Khách", "fromCol": 5, "toCol": 5, "variant": "emphasis" }
+  ],
+  "mainPath": [
+    "qr_scan",
+    "customize_item",
+    "submit_order",
+    "validate_pricing",
+    "pos_popup_alert",
+    "accept_order",
+    "merge_cart_kds",
+    "kitchen_ticket"
+  ],
+  "nodes": [
+    { "id": "qr_scan", "lane": "customer", "col": 0, "type": "frontend", "label": "Quét VietQR Bàn", "sublabel": "Mở /order/menu", "tag": "Tự Động Nhận Bàn", "width": 150 },
+    { "id": "customize_item", "lane": "customer", "col": 1, "type": "frontend", "label": "Tùy Biến Đồ Uống", "sublabel": "Size / Đường / Đá / Topping", "tag": "Chọn Món Reactive", "width": 150 },
+    { "id": "submit_order", "lane": "customer", "col": 2, "type": "frontend", "label": "Gửi Đơn Gọi Món", "sublabel": "POST /api/orders", "tag": "Idempotent Request", "width": 150 },
+
+    { "id": "validate_pricing", "lane": "server", "col": 3, "type": "backend", "label": "Thẩm Định Đơn Giá", "sublabel": "Kiểm tra giá & Chống spam", "tag": "awaiting_confirm", "width": 150 },
+    { "id": "pos_popup_alert", "lane": "cashier", "col": 3, "type": "frontend", "label": "Chuông & Popup POS", "sublabel": "Âm thanh Ting-Ting", "tag": "WebSocket Alert", "width": 150 },
+
+    { "id": "accept_order", "lane": "cashier", "col": 4, "type": "security", "label": "Bấm Chấp Nhận Đơn", "sublabel": "Thu ngân bấm duyệt món", "tag": "Nhân Viên Xác Nhận", "width": 150 },
+
+    { "id": "merge_cart_kds", "lane": "server", "col": 5, "type": "database", "label": "Gộp Giỏ & Phân KDS", "sublabel": "pos_cart_drafts & pos_orders", "tag": "Atomic Transaction", "width": 150 },
+    { "id": "kitchen_ticket", "lane": "kitchen", "col": 5, "type": "frontend", "label": "Thẻ Pha Chế KDS", "sublabel": "Hiển thị món cần pha", "tag": "Màn Hình Bếp", "width": 150 },
+    { "id": "track_realtime", "lane": "customer", "col": 5, "type": "frontend", "label": "Theo Dõi Trạng Thái", "sublabel": "Tiến độ /order/status", "tag": "Khách Theo Dõi", "width": 150 }
+  ],
+  "edges": [
+    { "id": "e1", "from": "qr_scan", "to": "customize_item", "variant": "default" },
+    { "id": "e2", "from": "customize_item", "to": "submit_order", "variant": "emphasis" },
+    { "id": "e3", "from": "submit_order", "to": "validate_pricing", "label": "Gửi đơn gọi", "variant": "emphasis" },
+    { "id": "e4", "from": "validate_pricing", "to": "pos_popup_alert", "label": "Báo chuông quầy", "variant": "emphasis" },
+    { "id": "e5", "from": "pos_popup_alert", "to": "accept_order", "variant": "default" },
+    { "id": "e6", "from": "accept_order", "to": "merge_cart_kds", "label": "Xác nhận duyệt", "variant": "emphasis" },
+    { "id": "e7", "from": "merge_cart_kds", "to": "kitchen_ticket", "label": "Đẩy thẻ bếp", "variant": "emphasis" },
+    { "id": "e8", "from": "merge_cart_kds", "to": "track_realtime", "label": "Báo khách đang làm", "variant": "dashed" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Bảo Mật & Chống Gian Lận Đơn Hàng",
+      "items": [
+        "Server luôn tính lại 100% tổng tiền từ DB mã món `DMHH`, loại bỏ mọi payload giá can thiệp từ client.",
+        "Bộ lọc Rate-Limit kết hợp Signature phiên bàn ngăn chặn spam đơn rác liên tục."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Tự Động Hóa Đồng Bộ Bếp & Thu Ngân",
+      "items": [
+        "Sau khi thu ngân bấm chấp nhận, hệ thống gộp giỏ nháp `pos_cart_drafts` và phát tín hiệu KDS trong một giao dịch nguyên tử.",
+        "Khách hàng xem trực tiếp trạng thái đồ uống chuyển từ 'Đã nhận đơn' sang 'Đang pha chế' mà không cần reload trang."
+      ]
+    }
+  ]
+}

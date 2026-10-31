@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "d7d9c5bd-7c2b-4ae4-8123-b9c4c37e4708",
+  "status": "current",
+  "command": "deliver",
+  "type": "sequence",
+  "input": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\candidates\\05-sepay-payment-sequence.json",
+  "output": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\05-sepay-payment-sequence.html",
+  "specification": {
+    "sha256": "e9b3686ebc0bb50ababc6f1649563aeebac75d27c78123dfb173ab0e6fb7bbcd",
+    "bytes": 4584
+  },
+  "artifact": {
+    "sha256": "c332df64a03bca71171edfc5e7dcae164694e22cab12c6d7e7b6f43f0af60613",
+    "bytes": 841311
+  }
+}

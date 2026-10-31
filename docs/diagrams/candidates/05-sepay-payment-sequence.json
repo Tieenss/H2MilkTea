@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Trình Tự Thanh Toán Tự Động VietQR NAPAS247 & Xử Lý SePay Webhook",
+    "output": "05-sepay-payment-sequence.html",
+    "viewBox": [1085, 700],
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase"
+  },
+  "participants": [
+    { "id": "customer", "type": "external", "label": "Khách Hàng", "sublabel": "App Ngân Hàng" },
+    { "id": "pos_screen", "type": "frontend", "label": "Màn Hình POS", "sublabel": "Next.js Thu Ngân" },
+    { "id": "vietqr_napas", "type": "cloud", "label": "NAPAS247", "sublabel": "Mạng Lưới VietQR" },
+    { "id": "sepay", "type": "cloud", "label": "SePay Gateway", "sublabel": "Cổng Báo Biến Động" },
+    { "id": "api_webhook", "type": "backend", "label": "Webhook API", "sublabel": "/api/payment/sepay" },
+    { "id": "postgres_db", "type": "database", "label": "PostgreSQL", "sublabel": "Atomic 4 Tables" },
+    { "id": "realtime_hub", "type": "messagebus", "label": "Supabase Hub", "sublabel": "WebSocket Broadcast" }
+  ],
+  "segments": [
+    { "from": 145, "to": 250, "label": "Khởi Tạo & Quét VietQR Động" },
+    { "from": 270, "to": 460, "label": "Bắn Webhook & Kiểm Thẩm Idempotency" },
+    { "from": 480, "to": 600, "label": "Cập Nhật Nguyên Tử & Chuông Ting-Ting" }
+  ],
+  "messages": [
+    { "from": "pos_screen", "to": "customer", "y": 160, "label": "Hiện mã QR 'H2 <MãBàn>'", "variant": "default" },
+    { "from": "customer", "to": "vietqr_napas", "y": 190, "label": "Chuyển khoản NAPAS247", "variant": "emphasis" },
+    { "from": "vietqr_napas", "to": "sepay", "y": 220, "label": "Báo có số dư ngân hàng", "variant": "emphasis" },
+
+    { "from": "sepay", "to": "api_webhook", "y": 285, "label": "POST Webhook + Apikey Header", "variant": "security" },
+    { "from": "api_webhook", "to": "postgres_db", "y": 315, "label": "Kiểm tra trùng mã giao dịch (Idempotency)", "variant": "security" },
+    { "from": "postgres_db", "to": "api_webhook", "y": 345, "label": "Chưa ghi nhận (Hợp lệ xử lý)", "variant": "return" },
+    { "from": "api_webhook", "to": "postgres_db", "y": 375, "label": "Cập nhật nguyên tử 4 bảng trong 1 Transaction", "variant": "emphasis" },
+    { "from": "postgres_db", "to": "api_webhook", "y": 405, "label": "Commit thành công (200 OK)", "variant": "return" },
+    { "from": "api_webhook", "to": "sepay", "y": 435, "label": "Phản hồi SePay 200 OK", "variant": "return" },
+
+    { "from": "postgres_db", "to": "realtime_hub", "y": 495, "label": "Phát Realtime Event bàn đã trả tiền", "variant": "emphasis" },
+    { "from": "realtime_hub", "to": "pos_screen", "y": 525, "label": "Chuông C-E-G Ting-Ting & Đóng bàn", "variant": "emphasis" },
+    { "from": "pos_screen", "to": "customer", "y": 560, "label": "In hóa đơn & Bàn chuyển sang Trống", "variant": "default" }
+  ],
+  "activations": [
+    { "participant": "pos_screen", "from": 155, "to": 170, "type": "frontend" },
+    { "participant": "customer", "from": 185, "to": 200, "type": "external" },
+    { "participant": "vietqr_napas", "from": 215, "to": 230, "type": "cloud" },
+    { "participant": "sepay", "from": 220, "to": 295, "type": "cloud" },
+    { "participant": "api_webhook", "from": 280, "to": 445, "type": "backend" },
+    { "participant": "postgres_db", "from": 310, "to": 505, "type": "database" },
+    { "participant": "realtime_hub", "from": 490, "to": 535, "type": "messagebus" },
+    { "participant": "pos_screen", "from": 520, "to": 570, "type": "frontend" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Bảo Mật & Idempotency Tuyệt Đối",
+      "items": [
+        "Mọi Webhook từ SePay bắt buộc gửi kèm secret `Apikey` trên Header; sai key từ chối ngay lập tức.",
+        "Kiểm tra tính duy nhất (Idempotency Key): Nếu mã giao dịch SePay đã ghi nhận trước đó, server lập tức trả 200 OK mà không chạy lại phép cộng tiền tránh nạp đúp."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Cập Nhật Nguyên Tử 4 Bảng (Atomic Update)",
+      "items": [
+        "Đồng bộ tức thì 4 bảng: `HOADON` (đổi Trạng thái = Đã thanh toán), `DSBAN` (đổi Bàn = Trống), `pos_cart_drafts` (xóa giỏ nháp), `pos_orders` (cập nhật KDS).",
+        "Kích hoạt chuông âm thanh Ting-Ting (hợp âm C-E-G) ngay trên loa máy thu ngân báo hiệu tiền đã vào tài khoản."
+      ]
+    }
+  ]
+}

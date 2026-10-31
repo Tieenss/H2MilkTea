@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "command": "finalize",
+  "status": "fail",
+  "type": "architecture",
+  "quality": "showcase",
+  "specification": {
+    "path": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\candidates\\01-system-architecture.json",
+    "sha256": "61e2b5001acc555aa433ef1686e018b0d97c7ad4a7dd4a68fd821bcaee7ab8aa",
+    "bytes": 5874
+  },
+  "artifact": {
+    "path": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\01-system-architecture.html",
+    "sha256": "b24e21ba8a5b3d70b2f2426f6a70ac97e9a75c9d4bcf8287859e5fbc283ba77d",
+    "bytes": 862743
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "fail"
+  },
+  "failedStage": "browser-check",
+  "diagnostics": [
+    {
+      "code": "viewer/temp-cleanup-incomplete",
+      "severity": "error",
+      "message": "Browser cleanup could not safely finish; inspect the reported retained path.",
+      "subject": {
+        "artifact": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\01-system-architecture.html"
+      },
+      "evidence": {
+        "reason": "Chrome did not exit; retained temporary profile \"C:\\Users\\Gaming\\AppData\\Local\\Temp\\archify-visual-check-profile-Uebadi\".",
+        "retainedDirectory": "C:\\Users\\Gaming\\AppData\\Local\\Temp\\archify-visual-check-profile-Uebadi"
+      },
+      "supportedFixes": [
+        "resolve the reported process or filesystem failure; verify directory ownership before manual cleanup"
+      ]
+    }
+  ],
+  "diagnosticSummary": {
+    "total": 1,
+    "shown": 1,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\01-system-architecture.finalize.json",
+    "summaryReceipt": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\01-system-architecture.finalize-summary.json",
+    "browserCheckReceipt": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\01-system-architecture.browser-check.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.2.0",
+    "availableVersion": "3.2.0",
+    "releaseNotes": null,
+    "checkedAt": "2026-10-31T09:52:02.649Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 7731,
+  "browserCheck": {
+    "requested": true,
+    "ran": false
+  }
+}

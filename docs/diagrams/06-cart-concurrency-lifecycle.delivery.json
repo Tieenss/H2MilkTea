@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "2cc178c4-cd9a-467f-8669-b0bfcdd85273",
+  "status": "current",
+  "command": "deliver",
+  "type": "lifecycle",
+  "input": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\candidates\\06-cart-concurrency-lifecycle.json",
+  "output": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\06-cart-concurrency-lifecycle.html",
+  "specification": {
+    "sha256": "b9da3762500864dab658a8706021c1b9b18a7f02fe872063cba64d2c262ec84e",
+    "bytes": 3820
+  },
+  "artifact": {
+    "sha256": "12e3ae154e630d7955128a595afa826fc698eb53aba0500e846e980b053fd170",
+    "bytes": 843959
+  }
+}

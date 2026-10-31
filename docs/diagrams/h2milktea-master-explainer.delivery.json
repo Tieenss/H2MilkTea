@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "c61eaf59-6bba-4317-aff8-e137cd660a25",
+  "status": "current",
+  "command": "deliver",
+  "type": "explainer",
+  "input": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\candidates\\h2milktea-master-explainer.json",
+  "output": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\h2milktea-master-explainer.html",
+  "specification": {
+    "sha256": "9390649d814da674c0cacec5014d61ea7536ec62e06e6ab888da305456fa1499",
+    "bytes": 6572
+  },
+  "artifact": {
+    "sha256": "10bbdbbb084f6b719c016d1f6a6969f19c115322bd087fe54bd80d1e28e3bf92",
+    "bytes": 157851
+  },
+  "explainer": {
+    "preparedSha256": "f1bf82b56b7076cbf2a2994752548bd9cc7e831750bdcc11faeb1f9e53d8776a",
+    "dependencies": []
+  }
+}

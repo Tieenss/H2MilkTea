@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "4b325f74-c947-4ff5-87d6-b09d2d9f712f",
+  "status": "current",
+  "command": "deliver",
+  "type": "erd",
+  "input": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\candidates\\07-database-erd-softdelete.json",
+  "output": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\07-database-erd-softdelete.html",
+  "specification": {
+    "sha256": "0e8856cdafd39ba31287e86bce6c78481e36ed75595bccf84101717ec1644f53",
+    "bytes": 8262
+  },
+  "artifact": {
+    "sha256": "a5b4e20b9f6f114afb81ca730f919a24abcbf7c6fe6c9af9e8e165e2ced76906",
+    "bytes": 878436
+  }
+}

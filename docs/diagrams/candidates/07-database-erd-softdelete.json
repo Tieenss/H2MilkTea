@@ -1,0 +1,253 @@
+{
+  "schema_version": 1,
+  "diagram_type": "erd",
+  "meta": {
+    "title": "Sơ Đồ Thực Thể ERD, Cơ Chế Soft Delete & Phân Vùng Multi-Tenant",
+    "locale": "en",
+    "output": "07-database-erd-softdelete.html",
+    "quality_profile": "standard",
+    "views": [
+      {
+        "id": "sales_core",
+        "label": "Bán Hàng & Hóa Đơn",
+        "focus": ["HOADON", "HOADONDETAIL", "DSBAN", "KHACHHANG"],
+        "note": "Trung tâm giao dịch bán hàng POS và quản lý bàn ăn."
+      },
+      {
+        "id": "realtime_kitchen",
+        "label": "Giỏ Nháp & KDS Bếp",
+        "focus": ["pos_cart_drafts", "pos_orders", "DSBAN"],
+        "note": "Đồng bộ WebSocket realtime giữa quầy và bếp."
+      },
+      {
+        "id": "inventory_cogs",
+        "label": "Kho & Định Mức BOM",
+        "focus": ["nguyenlieu", "inventory_transactions", "HOADON", "DMHH"],
+        "note": "Khấu trừ nguyên liệu và ghi vết kiểm toán tồn kho."
+      }
+    ]
+  },
+  "layout": {
+    "mode": "grid",
+    "gapY": 40,
+    "gapX": 60
+  },
+  "entities": [
+    {
+      "id": "DSBAN",
+      "label": "DSBAN (Bàn Ăn)",
+      "row": 0,
+      "col": 0,
+      "width": 250,
+      "attributes": [
+        { "name": "id", "type": "bigint", "key": "pk" },
+        { "name": "store_id", "type": "uuid" },
+        { "name": "MaBan", "type": "varchar(20)", "key": "uk" },
+        { "name": "TenBan", "type": "varchar(50)" },
+        { "name": "TrangThai", "type": "varchar(20)" }
+      ]
+    },
+    {
+      "id": "HOADON",
+      "label": "HOADON (Hóa Đơn)",
+      "row": 0,
+      "col": 1,
+      "width": 270,
+      "attributes": [
+        { "name": "id", "type": "bigint", "key": "pk" },
+        { "name": "store_id", "type": "uuid" },
+        { "name": "MaHD", "type": "varchar(30)", "key": "uk" },
+        { "name": "MaBan", "type": "varchar(20)", "key": "fk", "references": "DSBAN.MaBan" },
+        { "name": "MaKH", "type": "varchar(20)", "key": "fk", "references": "KHACHHANG.MaKH" },
+        { "name": "TongTien", "type": "numeric(15,2)" },
+        { "name": "TrangThai", "type": "varchar(30)" },
+        { "name": "GhiChu", "type": "text" }
+      ]
+    },
+    {
+      "id": "KHACHHANG",
+      "label": "KHACHHANG (Khách)",
+      "row": 0,
+      "col": 2,
+      "width": 240,
+      "attributes": [
+        { "name": "id", "type": "bigint", "key": "pk" },
+        { "name": "store_id", "type": "uuid" },
+        { "name": "MaKH", "type": "varchar(20)", "key": "uk" },
+        { "name": "TenKH", "type": "varchar(100)" },
+        { "name": "DienThoai", "type": "varchar(15)" },
+        { "name": "DiemTichLuy", "type": "int" }
+      ]
+    },
+    {
+      "id": "pos_cart_drafts",
+      "label": "pos_cart_drafts (Giỏ)",
+      "row": 1,
+      "col": 0,
+      "width": 250,
+      "attributes": [
+        { "name": "id", "type": "uuid", "key": "pk" },
+        { "name": "store_id", "type": "uuid" },
+        { "name": "table_id", "type": "varchar(20)", "key": "fk", "references": "DSBAN.MaBan" },
+        { "name": "items", "type": "jsonb" },
+        { "name": "version", "type": "int" },
+        { "name": "updated_by_device", "type": "uuid" }
+      ]
+    },
+    {
+      "id": "HOADONDETAIL",
+      "label": "HOADONDETAIL (Chi Tiết)",
+      "row": 1,
+      "col": 1,
+      "width": 270,
+      "attributes": [
+        { "name": "id", "type": "bigint", "key": "pk" },
+        { "name": "store_id", "type": "uuid" },
+        { "name": "MaHD", "type": "varchar(30)", "key": "fk", "references": "HOADON.MaHD" },
+        { "name": "MaHH", "type": "varchar(20)", "key": "fk", "references": "DMHH.MaHH" },
+        { "name": "SoLuong", "type": "int" },
+        { "name": "DonGia", "type": "numeric(12,2)" },
+        { "name": "ThanhTien", "type": "numeric(15,2)" },
+        { "name": "GhiChuTopping", "type": "text" }
+      ]
+    },
+    {
+      "id": "DMHH",
+      "label": "DMHH (Món Ăn / Đồ Uống)",
+      "row": 1,
+      "col": 2,
+      "width": 240,
+      "attributes": [
+        { "name": "id", "type": "bigint", "key": "pk" },
+        { "name": "store_id", "type": "uuid" },
+        { "name": "MaHH", "type": "varchar(20)", "key": "uk" },
+        { "name": "TenHH", "type": "varchar(100)" },
+        { "name": "GiaBan", "type": "numeric(12,2)" },
+        { "name": "DVT", "type": "varchar(20)" }
+      ]
+    },
+    {
+      "id": "pos_orders",
+      "label": "pos_orders (Bếp KDS)",
+      "row": 2,
+      "col": 0,
+      "width": 250,
+      "attributes": [
+        { "name": "id", "type": "uuid", "key": "pk" },
+        { "name": "store_id", "type": "uuid" },
+        { "name": "table_number", "type": "varchar(20)" },
+        { "name": "status", "type": "varchar(20)" },
+        { "name": "items", "type": "jsonb" },
+        { "name": "created_at", "type": "timestamptz" }
+      ]
+    },
+    {
+      "id": "inventory_transactions",
+      "label": "inventory_transactions",
+      "row": 2,
+      "col": 1,
+      "width": 270,
+      "attributes": [
+        { "name": "id", "type": "bigint", "key": "pk" },
+        { "name": "store_id", "type": "uuid" },
+        { "name": "MaNL", "type": "varchar(20)", "key": "fk", "references": "nguyenlieu.MaNL" },
+        { "name": "MaHD", "type": "varchar(30)", "key": "fk", "references": "HOADON.MaHD" },
+        { "name": "SoLuong", "type": "numeric(10,2)" },
+        { "name": "TonTruoc", "type": "numeric(10,2)" },
+        { "name": "TonSau", "type": "numeric(10,2)" }
+      ]
+    },
+    {
+      "id": "nguyenlieu",
+      "label": "nguyenlieu (Kho)",
+      "row": 2,
+      "col": 2,
+      "width": 240,
+      "attributes": [
+        { "name": "id", "type": "bigint", "key": "pk" },
+        { "name": "store_id", "type": "uuid" },
+        { "name": "MaNL", "type": "varchar(20)", "key": "uk" },
+        { "name": "TenNL", "type": "varchar(100)" },
+        { "name": "TonKho", "type": "numeric(10,2)" },
+        { "name": "MinStock", "type": "numeric(10,2)" }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "rel_hoadon_ban",
+      "from": "HOADON",
+      "to": "DSBAN",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "label": "tại bàn"
+    },
+    {
+      "id": "rel_hoadon_kh",
+      "from": "HOADON",
+      "to": "KHACHHANG",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "fromOptional": true,
+      "label": "thuộc khách"
+    },
+    {
+      "id": "rel_detail_hoadon",
+      "from": "HOADONDETAIL",
+      "to": "HOADON",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "label": "chi tiết đơn"
+    },
+    {
+      "id": "rel_detail_hanghoa",
+      "from": "HOADONDETAIL",
+      "to": "DMHH",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "label": "mã món"
+    },
+    {
+      "id": "rel_cart_ban",
+      "from": "pos_cart_drafts",
+      "to": "DSBAN",
+      "fromCardinality": "one",
+      "toCardinality": "one",
+      "label": "giỏ bàn"
+    },
+    {
+      "id": "rel_inv_nl",
+      "from": "inventory_transactions",
+      "to": "nguyenlieu",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "label": "trừ kho"
+    },
+    {
+      "id": "rel_inv_hd",
+      "from": "inventory_transactions",
+      "to": "HOADON",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "label": "theo đơn"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "rose",
+      "title": "Chiến Lược Soft Delete & Bảo Toàn Dữ Liệu Thất Thoát",
+      "items": [
+        "Khi hủy hóa đơn, trường `TrangThai` đổi thành `'Đã hủy'` và `GhiChu` cập nhật: `[ĐÃ HỦY] <Lý do> (Bởi: <Nhân viên> lúc <Thời gian>)`.",
+        "Toàn bộ các dòng `HOADONDETAIL` được GIỮ NGUYÊN 100%, không bao giờ dùng lệnh DELETE vật lý, giúp kiểm toán doanh thu tiềm năng và phân tích hao phí pha chế."
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Kiến Trúc Multi-Tenant & Supabase RLS",
+      "items": [
+        "Cột `store_id UUID` xuất hiện trên tất cả 9 thực thể cơ sở dữ liệu.",
+        "Chính sách Row-Level Security (RLS) của PostgreSQL tự động lọc theo `store_id`, ngăn chặn hoàn toàn rò rỉ dữ liệu giữa các cửa hàng."
+      ]
+    }
+  ]
+}

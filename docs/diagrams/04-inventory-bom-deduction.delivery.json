@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "4d91288e-5e70-4670-bbf6-c2184e1432e3",
+  "status": "current",
+  "command": "deliver",
+  "type": "dataflow",
+  "input": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\candidates\\04-inventory-bom-deduction.json",
+  "output": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\04-inventory-bom-deduction.html",
+  "specification": {
+    "sha256": "b58570e4e8f61e1b96c84d1aeed22b23a766f00b73e89c602feaa9d60b655f98",
+    "bytes": 4089
+  },
+  "artifact": {
+    "sha256": "7bfa114263303de587dc8bdf3a66fe4acd209833afe95944bf7136a2c3e0b9ba",
+    "bytes": 840148
+  }
+}

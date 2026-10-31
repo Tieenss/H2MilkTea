@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "bb8c2589-2b36-49ea-9b43-f26eff0c49dc",
+  "status": "current",
+  "command": "deliver",
+  "type": "workflow",
+  "input": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\candidates\\02-customer-qr-order-workflow.json",
+  "output": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\02-customer-qr-order-workflow.html",
+  "specification": {
+    "sha256": "f29209ed262ba0899753d2c52bd7b61e2a54c7e8a769b8469193e5fab61a70fe",
+    "bytes": 4844
+  },
+  "artifact": {
+    "sha256": "ac077c94f6f4c93ff1ba6c549d0c6bdd00e678141c2f9cc3c5dcf2fc9f22e368",
+    "bytes": 848294
+  }
+}

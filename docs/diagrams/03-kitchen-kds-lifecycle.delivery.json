@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "a20042f8-7c07-480a-8acd-9eb48d20c9b5",
+  "status": "current",
+  "command": "deliver",
+  "type": "lifecycle",
+  "input": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\candidates\\03-kitchen-kds-lifecycle.json",
+  "output": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\03-kitchen-kds-lifecycle.html",
+  "specification": {
+    "sha256": "5feb7f797e8deea64da988d1a2cd5c073e868463e4cac00986b4b9a83b1e3ef1",
+    "bytes": 3429
+  },
+  "artifact": {
+    "sha256": "cf883688c15e4e3b61bca73c84208192123103dbb35c6232b220bdd1adf8db3c",
+    "bytes": 843732
+  }
+}

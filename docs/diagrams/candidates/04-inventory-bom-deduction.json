@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Luồng Dữ Liệu Khấu Trừ Nguyên Liệu (BOM) & Cảnh Báo Tồn Kho",
+    "output": "04-inventory-bom-deduction.html",
+    "viewBox": [1080, 520],
+    "animation": "trace",
+    "quality_profile": "showcase"
+  },
+  "stages": [
+    { "label": "Kích Hoạt POS" },
+    { "label": "Phân Rã BOM" },
+    { "label": "Khấu Trừ Kho" },
+    { "label": "Kiểm Soát & Log" },
+    { "label": "Cảnh Báo & Báo Cáo" }
+  ],
+  "nodes": [
+    { "id": "pos_checkout", "type": "frontend", "label": "Thanh Toán POS", "sublabel": "2 Ly Trà Sữa Size L", "stage": 0, "row": 1, "tag": "Đơn #HD-102" },
+
+    { "id": "bom_lookup", "type": "backend", "label": "Định Mức BOM", "sublabel": "cauhinhnguyenlieu", "stage": 1, "row": 1, "tag": "Công thức x2" },
+
+    { "id": "stock_tea_milk", "type": "database", "label": "Trà & Sữa Tươi", "sublabel": "Trừ 60g trà, 300ml sữa", "stage": 2, "row": 0, "tag": "NL-01 & NL-02" },
+    { "id": "stock_pearl_sugar", "type": "database", "label": "Trân Châu, Đường", "sublabel": "Trừ 100g tc, 40ml đường", "stage": 2, "row": 2, "tag": "NL-03 & NL-04" },
+
+    { "id": "inv_tx_log", "type": "database", "label": "Sổ Nhật Ký Kho", "sublabel": "inventory_transactions", "stage": 3, "row": 0, "tag": "Immutable Log" },
+    { "id": "threshold_check", "type": "security", "label": "Kiểm Tra Min-Stock", "sublabel": "So khớp mức tối thiểu", "stage": 3, "row": 2, "tag": "Safety Guard" },
+
+    { "id": "cost_report", "type": "backend", "label": "Báo Cáo Giá Vốn", "sublabel": "Tính COGS tự động", "stage": 4, "row": 0, "tag": "Thống Kê Lãi" },
+    { "id": "low_stock_alert", "type": "messagebus", "label": "Cảnh Báo Tồn Kho", "sublabel": "Popup POS & Telegram", "stage": 4, "row": 2, "tag": "Low Stock Alert" }
+  ],
+  "flows": [
+    { "id": "f1", "from": "pos_checkout", "to": "bom_lookup", "label": "Phân rã đơn món", "classification": "order-event", "variant": "emphasis" },
+
+    { "id": "f2", "from": "bom_lookup", "to": "stock_tea_milk", "label": "Trừ 60g trà & 300ml sữa", "classification": "inventory-deduct", "variant": "emphasis" },
+    { "id": "f3", "from": "bom_lookup", "to": "stock_pearl_sugar", "label": "Trừ 100g trân châu & 40ml đường", "classification": "inventory-deduct", "variant": "emphasis" },
+
+    { "id": "f4", "from": "stock_tea_milk", "to": "inv_tx_log", "label": "Ghi phiếu trừ trà sữa", "classification": "audit", "variant": "default" },
+    { "id": "f5", "from": "stock_pearl_sugar", "to": "threshold_check", "label": "So sánh mức tồn kho", "classification": "safety", "variant": "security" },
+
+    { "id": "f6", "from": "inv_tx_log", "to": "cost_report", "label": "Tính giá vốn COGS", "classification": "analytics", "variant": "default" },
+    { "id": "f7", "from": "threshold_check", "to": "low_stock_alert", "label": "Tồn kho < Min-Stock", "classification": "alert", "variant": "security" }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Cơ Chế Phân Rã BOM Tự Động (Bill of Materials)",
+      "items": [
+        "Mỗi món đồ uống khi thanh toán (ví dụ: 2 Ly Trà sữa Trân châu đường đen Size L) sẽ tự động kích hoạt truy vấn bảng định mức `cauhinhnguyenlieu` theo đúng Size và Topping.",
+        "Toàn bộ phép trừ tồn kho: Trà đen (60g), Sữa tươi (300ml), Trân châu đen (100g), Đường đen (40ml) được thực thi trong một Database Transaction duy nhất (ACID)."
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Kiểm Soát Thất Thoát & Cảnh Báo An Toàn",
+      "items": [
+        "Mọi biến động kho đều ghi nhận vào bảng `inventory_transactions` với mã tham chiếu hóa đơn, ngăn chặn sửa xóa gian lận.",
+        "Hệ thống tự động so khớp tồn kho thực tế với ngưỡng tối thiểu (Safety Stock), kích hoạt cảnh báo tức thì khi nguyên liệu sắp cạn."
+      ]
+    }
+  ]
+}

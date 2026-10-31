@@ -1,0 +1,599 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "command": "finalize",
+  "status": "fail",
+  "type": "architecture",
+  "quality": "showcase",
+  "startedAt": "2026-10-31T09:52:17.118Z",
+  "specification": {
+    "path": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\candidates\\01-system-architecture.json",
+    "sha256": "61e2b5001acc555aa433ef1686e018b0d97c7ad4a7dd4a68fd821bcaee7ab8aa",
+    "bytes": 5874
+  },
+  "artifact": {
+    "path": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\01-system-architecture.html",
+    "sha256": "b24e21ba8a5b3d70b2f2426f6a70ac97e9a75c9d4bcf8287859e5fbc283ba77d",
+    "bytes": 862743
+  },
+  "stages": {
+    "validate": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": null,
+      "execution": "embedded-in-deliver",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "C:\\Users\\Gaming\\.gemini\\antigravity\\worktrees\\H2MilkTea\\add_archify_skill_agent\\.agents\\skills\\archify\\bin\\archify.mjs",
+        "deliver",
+        "architecture",
+        "D:\\Documents\\H2MilkTea\\docs\\diagrams\\candidates\\01-system-architecture.json",
+        "D:\\Documents\\H2MilkTea\\docs\\diagrams\\01-system-architecture.html",
+        "--quality",
+        "showcase",
+        "--repo-root",
+        "D:\\Documents\\H2MilkTea",
+        "--json"
+      ],
+      "receipt": {
+        "schemaVersion": 1,
+        "ok": true,
+        "command": "validate",
+        "specification": {
+          "sha256": "61e2b5001acc555aa433ef1686e018b0d97c7ad4a7dd4a68fd821bcaee7ab8aa",
+          "bytes": 5874
+        },
+        "validation": {
+          "checksPassed": 9,
+          "checkCount": 9,
+          "compositionProfile": "showcase",
+          "compositionStatus": "pass",
+          "errors": 0,
+          "warnings": 0
+        }
+      }
+    },
+    "deliver": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": 958,
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "C:\\Users\\Gaming\\.gemini\\antigravity\\worktrees\\H2MilkTea\\add_archify_skill_agent\\.agents\\skills\\archify\\bin\\archify.mjs",
+        "deliver",
+        "architecture",
+        "D:\\Documents\\H2MilkTea\\docs\\diagrams\\candidates\\01-system-architecture.json",
+        "D:\\Documents\\H2MilkTea\\docs\\diagrams\\01-system-architecture.html",
+        "--quality",
+        "showcase",
+        "--repo-root",
+        "D:\\Documents\\H2MilkTea",
+        "--json"
+      ],
+      "receipt": {
+        "schemaVersion": 1,
+        "receiptId": "8d6d0981-42d7-481b-9354-7a9ea7b6ff78",
+        "ok": true,
+        "command": "deliver",
+        "type": "architecture",
+        "input": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\candidates\\01-system-architecture.json",
+        "output": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\01-system-architecture.html",
+        "specification": {
+          "sha256": "61e2b5001acc555aa433ef1686e018b0d97c7ad4a7dd4a68fd821bcaee7ab8aa",
+          "bytes": 5874
+        },
+        "artifact": {
+          "sha256": "b24e21ba8a5b3d70b2f2426f6a70ac97e9a75c9d4bcf8287859e5fbc283ba77d",
+          "bytes": 862743
+        },
+        "validation": {
+          "checksPassed": 9,
+          "checkCount": 9,
+          "compositionProfile": "showcase",
+          "compositionStatus": "pass",
+          "errors": 0,
+          "warnings": 0
+        },
+        "update": {
+          "status": "unavailable",
+          "installedVersion": null,
+          "availableVersion": null,
+          "releaseNotes": null,
+          "checkedAt": null,
+          "source": null,
+          "noticeRequired": false,
+          "noticeText": null,
+          "reason": "disabled"
+        }
+      }
+    },
+    "check": {
+      "status": "pass",
+      "exitCode": 0,
+      "durationMs": 505,
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "C:\\Users\\Gaming\\.gemini\\antigravity\\worktrees\\H2MilkTea\\add_archify_skill_agent\\.agents\\skills\\archify\\bin\\archify.mjs",
+        "check",
+        "D:\\Documents\\H2MilkTea\\docs\\diagrams\\01-system-architecture.html",
+        "--require-provenance"
+      ],
+      "receipt": {
+        "ok": true,
+        "file": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\01-system-architecture.html",
+        "artifact": {
+          "sha256": "b24e21ba8a5b3d70b2f2426f6a70ac97e9a75c9d4bcf8287859e5fbc283ba77d",
+          "bytes": 862743
+        },
+        "checks": [
+          {
+            "name": "single_svg",
+            "ok": true,
+            "details": [
+              "found 1 <svg> block(s)"
+            ]
+          },
+          {
+            "name": "finite_svg",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "orthogonal_arrows",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "label_route_clearance",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "relationship_crossings",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "relationship_corridors",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "container_border_runs",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "route_rhythm",
+            "ok": true,
+            "details": []
+          },
+          {
+            "name": "legend_clearance",
+            "ok": true,
+            "details": []
+          }
+        ],
+        "composition": {
+          "schemaVersion": 1,
+          "profile": "showcase",
+          "status": "pass",
+          "summary": {
+            "errors": 0,
+            "warnings": 0
+          },
+          "metrics": {
+            "properCrossings": 0,
+            "resolvedCrossovers": 5,
+            "ambiguousCorridors": 0,
+            "arrowheadCollisions": 0,
+            "containerBorderRuns": 0,
+            "labelRouteClearanceIssues": 0,
+            "labelCanvasOverflowIssues": 0,
+            "minLabelRouteClearance": 5.5,
+            "desktopReadabilityIssues": 0,
+            "viewportHeightIssues": 0,
+            "minProjectedNodeTextPx": 6.838710677419355,
+            "maxBends": 4,
+            "routesOverSuggestedBends": 7,
+            "maxStretch": 1.188,
+            "routesOverSuggestedStretch": 0,
+            "minSegmentPx": 21.5,
+            "minInteriorSegmentPx": 21.5,
+            "shortSegmentCount": 0,
+            "shortEndpointSegmentCount": 0,
+            "shortInteriorSegmentCount": 0,
+            "microSegmentCount": 0
+          },
+          "suggestedLimits": {
+            "bendsPerRelationship": 2,
+            "stretch": 1.35,
+            "segmentPx": 16,
+            "microSegmentPx": 8
+          },
+          "routeReview": {
+            "crossings": [
+              {
+                "left": {
+                  "id": "pos-to-ai1",
+                  "from": "pos_cashier",
+                  "to": "ai_tier1",
+                  "label": "Khớp lệnh nội bộ (0.3ms)",
+                  "collectionIndex": 1,
+                  "artifactIndex": 2
+                },
+                "right": {
+                  "id": "checkout-to-db",
+                  "from": "api_checkout",
+                  "to": "postgres_db",
+                  "label": "Lưu hóa đơn &amp; Trừ BOM kho",
+                  "collectionIndex": 6,
+                  "artifactIndex": 7
+                },
+                "point": [
+                  537,
+                  129.1
+                ]
+              },
+              {
+                "left": {
+                  "id": "kds-to-orders",
+                  "from": "kds_screen",
+                  "to": "api_orders",
+                  "label": "Cập nhật pha chế",
+                  "collectionIndex": 3,
+                  "artifactIndex": 4
+                },
+                "right": {
+                  "id": "realtime-to-pos",
+                  "from": "supabase_realtime",
+                  "to": "pos_cashier",
+                  "label": "Đồng bộ giỏ &amp; chuông báo",
+                  "collectionIndex": 10,
+                  "artifactIndex": 11
+                },
+                "point": [
+                  361,
+                  356
+                ]
+              },
+              {
+                "left": {
+                  "id": "sepay-to-webhook",
+                  "from": "api_sepay",
+                  "to": "postgres_db",
+                  "label": "Xác nhận giao dịch NAPAS247",
+                  "collectionIndex": 5,
+                  "artifactIndex": 6
+                },
+                "right": {
+                  "id": "db-to-realtime",
+                  "from": "postgres_db",
+                  "to": "supabase_realtime",
+                  "label": "CDC Postgres Changes",
+                  "collectionIndex": 9,
+                  "artifactIndex": 10
+                },
+                "point": [
+                  723,
+                  308
+                ],
+                "sharedNode": "postgres_db"
+              },
+              {
+                "left": {
+                  "id": "checkout-to-db",
+                  "from": "api_checkout",
+                  "to": "postgres_db",
+                  "label": "Lưu hóa đơn &amp; Trừ BOM kho",
+                  "collectionIndex": 6,
+                  "artifactIndex": 7
+                },
+                "right": {
+                  "id": "db-to-realtime",
+                  "from": "postgres_db",
+                  "to": "supabase_realtime",
+                  "label": "CDC Postgres Changes",
+                  "collectionIndex": 9,
+                  "artifactIndex": 10
+                },
+                "point": [
+                  758,
+                  216
+                ],
+                "sharedNode": "postgres_db"
+              },
+              {
+                "left": {
+                  "id": "realtime-to-pos",
+                  "from": "supabase_realtime",
+                  "to": "pos_cashier",
+                  "label": "Đồng bộ giỏ &amp; chuông báo",
+                  "collectionIndex": 10,
+                  "artifactIndex": 11
+                },
+                "right": {
+                  "id": "realtime-to-kds",
+                  "from": "supabase_realtime",
+                  "to": "kds_screen",
+                  "label": "Đẩy thẻ món bếp",
+                  "collectionIndex": 11,
+                  "artifactIndex": 12
+                },
+                "point": [
+                  452.99999999999994,
+                  356
+                ],
+                "sharedNode": "supabase_realtime"
+              }
+            ],
+            "crowdedSides": [
+              {
+                "node": "postgres_db",
+                "label": "PostgreSQL Cloud",
+                "side": "left",
+                "relationships": 4,
+                "sidePx": 70,
+                "neededPx": 74
+              }
+            ],
+            "detours": [
+              {
+                "relationship": {
+                  "id": "pos-to-ai1",
+                  "from": "pos_cashier",
+                  "to": "ai_tier1",
+                  "label": "Khớp lệnh nội bộ (0.3ms)",
+                  "collectionIndex": 1,
+                  "artifactIndex": 2
+                },
+                "bends": 4,
+                "stretch": 1.112,
+                "directCorridorBlockers": [
+                  {
+                    "id": "api_checkout",
+                    "label": "API Checkout &amp; Giỏ",
+                    "box": [
+                      300,
+                      100,
+                      150,
+                      65
+                    ]
+                  }
+                ]
+              },
+              {
+                "relationship": {
+                  "id": "sepay-to-webhook",
+                  "from": "api_sepay",
+                  "to": "postgres_db",
+                  "label": "Xác nhận giao dịch NAPAS247",
+                  "collectionIndex": 5,
+                  "artifactIndex": 6
+                },
+                "bends": 4,
+                "stretch": 1.122
+              },
+              {
+                "relationship": {
+                  "id": "checkout-to-db",
+                  "from": "api_checkout",
+                  "to": "postgres_db",
+                  "label": "Lưu hóa đơn &amp; Trừ BOM kho",
+                  "collectionIndex": 6,
+                  "artifactIndex": 7
+                },
+                "bends": 4,
+                "stretch": 1.142
+              },
+              {
+                "relationship": {
+                  "id": "orders-to-db",
+                  "from": "api_orders",
+                  "to": "postgres_db",
+                  "label": "Truy vấn CRUD",
+                  "collectionIndex": 7,
+                  "artifactIndex": 8
+                },
+                "bends": 3,
+                "stretch": 1.122
+              },
+              {
+                "relationship": {
+                  "id": "db-to-realtime",
+                  "from": "postgres_db",
+                  "to": "supabase_realtime",
+                  "label": "CDC Postgres Changes",
+                  "collectionIndex": 9,
+                  "artifactIndex": 10
+                },
+                "bends": 4,
+                "stretch": 1.117
+              },
+              {
+                "relationship": {
+                  "id": "realtime-to-pos",
+                  "from": "supabase_realtime",
+                  "to": "pos_cashier",
+                  "label": "Đồng bộ giỏ &amp; chuông báo",
+                  "collectionIndex": 10,
+                  "artifactIndex": 11
+                },
+                "bends": 3,
+                "stretch": 1.058
+              },
+              {
+                "relationship": {
+                  "id": "realtime-to-kds",
+                  "from": "supabase_realtime",
+                  "to": "kds_screen",
+                  "label": "Đẩy thẻ món bếp",
+                  "collectionIndex": 11,
+                  "artifactIndex": 12
+                },
+                "bends": 4,
+                "stretch": 1
+              }
+            ]
+          },
+          "leadingSpace": {
+            "measured": true,
+            "emptyTopPx": 59.8,
+            "emptyTopRatio": 0.111,
+            "occupiedTop": 59.8,
+            "viewBoxTop": 0,
+            "canvasHeight": 537,
+            "typicalNodeHeight": 65,
+            "reviewSuggested": false
+          },
+          "desktopReadability": {
+            "budgetBasis": "recognized-declared-wide",
+            "readerContract": "declared-wide-v1",
+            "availableDiagramWidth": 1060,
+            "actualBudgetPx": 1060,
+            "actualReaderWidth": 1090,
+            "desiredReaderWidth": 1090,
+            "viewportCap": 1376,
+            "limit": "source-size",
+            "requestedTargetPx": 7.5,
+            "requestedTargetMet": false,
+            "hardFloorPx": 6,
+            "hardFloorMet": true,
+            "minimumOwner": {
+              "kind": "boundary",
+              "id": null
+            },
+            "minimumSourceTextPx": 6.838710677419355,
+            "minimumProjectedTextPx": 6.838710677419355,
+            "semanticTextCount": 38
+          },
+          "issues": []
+        },
+        "provenance": "current",
+        "deliveryReceiptId": "8d6d0981-42d7-481b-9354-7a9ea7b6ff78"
+      }
+    },
+    "browser-check": {
+      "status": "fail",
+      "exitCode": 1,
+      "durationMs": 5796,
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "C:\\Users\\Gaming\\.gemini\\antigravity\\worktrees\\H2MilkTea\\add_archify_skill_agent\\.agents\\skills\\archify\\bin\\archify.mjs",
+        "browser-check",
+        "D:\\Documents\\H2MilkTea\\docs\\diagrams\\01-system-architecture.html",
+        "--json",
+        "--require-provenance"
+      ],
+      "execution": "in-process",
+      "receipt": {
+        "schemaVersion": 1,
+        "ok": false,
+        "command": "browser-check",
+        "evidenceKind": "automated-browser",
+        "status": "fail",
+        "visualReview": "not-requested",
+        "provenance": "current",
+        "deliveryReceiptId": "8d6d0981-42d7-481b-9354-7a9ea7b6ff78",
+        "artifact": {
+          "path": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\01-system-architecture.html",
+          "sha256": "b24e21ba8a5b3d70b2f2426f6a70ac97e9a75c9d4bcf8287859e5fbc283ba77d",
+          "bytes": 862743
+        },
+        "state": {
+          "detail": "read",
+          "motion": "still"
+        },
+        "chrome": {
+          "status": "available",
+          "executable": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+        },
+        "diagnostics": [
+          {
+            "code": "viewer/temp-cleanup-incomplete",
+            "severity": "error",
+            "message": "Browser cleanup could not safely finish; inspect the reported retained path.",
+            "subject": {
+              "artifact": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\01-system-architecture.html"
+            },
+            "evidence": {
+              "reason": "Chrome did not exit; retained temporary profile \"C:\\Users\\Gaming\\AppData\\Local\\Temp\\archify-visual-check-profile-Uebadi\".",
+              "retainedDirectory": "C:\\Users\\Gaming\\AppData\\Local\\Temp\\archify-visual-check-profile-Uebadi"
+            },
+            "supportedFixes": [
+              "resolve the reported process or filesystem failure; verify directory ownership before manual cleanup"
+            ]
+          }
+        ],
+        "containment": {
+          "status": "fail",
+          "policy": "fit-or-reader-declared-readable-vertical-scroll",
+          "viewports": []
+        },
+        "themeStates": {
+          "status": "fail",
+          "viewports": []
+        },
+        "readability": {
+          "status": "fail",
+          "minimumProjectedNodeTextPx": 6,
+          "viewports": []
+        },
+        "viewerChrome": {
+          "status": "fail",
+          "viewports": []
+        },
+        "captures": {
+          "status": "not-requested",
+          "screenshots": [],
+          "contactSheet": null
+        },
+        "sidecars": {
+          "receipt": "01-system-architecture.browser-check.json",
+          "files": []
+        },
+        "error": "Chrome did not exit; retained temporary profile \"C:\\Users\\Gaming\\AppData\\Local\\Temp\\archify-visual-check-profile-Uebadi\"."
+      }
+    }
+  },
+  "browserCheck": {
+    "requested": true,
+    "ran": false
+  },
+  "diagnostics": [
+    {
+      "code": "viewer/temp-cleanup-incomplete",
+      "severity": "error",
+      "message": "Browser cleanup could not safely finish; inspect the reported retained path.",
+      "subject": {
+        "artifact": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\01-system-architecture.html"
+      },
+      "evidence": {
+        "reason": "Chrome did not exit; retained temporary profile \"C:\\Users\\Gaming\\AppData\\Local\\Temp\\archify-visual-check-profile-Uebadi\".",
+        "retainedDirectory": "C:\\Users\\Gaming\\AppData\\Local\\Temp\\archify-visual-check-profile-Uebadi"
+      },
+      "supportedFixes": [
+        "resolve the reported process or filesystem failure; verify directory ownership before manual cleanup"
+      ]
+    }
+  ],
+  "evidence": {
+    "receipt": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\01-system-architecture.finalize.json",
+    "summaryReceipt": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\01-system-architecture.finalize-summary.json",
+    "browserCheckReceipt": "D:\\Documents\\H2MilkTea\\docs\\diagrams\\01-system-architecture.browser-check.json"
+  },
+  "visualReview": "not-requested",
+  "failedStage": "browser-check",
+  "finishedAt": "2026-10-31T09:52:24.849Z",
+  "durationMs": 7731,
+  "update": {
+    "status": "current",
+    "installedVersion": "3.2.0",
+    "availableVersion": "3.2.0",
+    "releaseNotes": null,
+    "checkedAt": "2026-10-31T09:52:02.649Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  }
+}
