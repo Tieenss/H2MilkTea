@@ -13,6 +13,7 @@ import { printReceipt } from '../utils/receipt';
 import authUtils from '@/utils/authUtils';
 import { resolveCartConflict } from '@/lib/cart/mergeCart';
 import { Customer } from '@/app/(dashboard)/khachhang/types/customer';
+import { queueOfflineCheckout, initAutoOfflineSync } from '@/lib/offline/offlineSyncQueue';
 
 function playPosChimeSound() {
   try {
@@ -376,6 +377,11 @@ export const usePOS = () => {
 
   const showLoading = useCallback((message = 'Đang tải dữ liệu...') => {
     setLoadingText(message);
+  }, []);
+
+      // Khởi tạo trình lắng nghe tự động đồng bộ khi có kết nối Internet
+  useEffect(() => {
+    initAutoOfflineSync();
   }, []);
 
   // Nạp toàn bộ giỏ hàng nháp của tất cả các bàn ngay khi vào POS (Mục #18)
@@ -1048,38 +1054,59 @@ export const usePOS = () => {
         'Ghi chú': item.note || ''
       }));
 
-      // P0-BIZ-04: Lưu hóa đơn nguyên tử và hoàn tất đơn qua API Server / RPC pos_pay_order
-      const checkoutRes = await fetch('/api/pos/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          invoiceId,
-          tableId: selectedTableId,
-          tableName: selectedTableName,
-          cart,
-          items: cart,
-          invoice,
-          details,
-          linkedOrderIds: activePOSOrderIds,
-          orderIds: activePOSOrderIds,
+      const checkoutPayload = {
+        invoiceId,
+        tableId: selectedTableId,
+        tableName: selectedTableName,
+        cart,
+        items: cart,
+        invoice,
+        details,
+        linkedOrderIds: activePOSOrderIds,
+        orderIds: activePOSOrderIds,
+        totalAmount: paymentData.total,
+        employee: nhanvien,
+        idempotencyKey: invoiceId,
+        paymentForm: {
+          customer: selectedCustomer ? selectedCustomer['Tên khách hàng'] : 'Khách lẻ',
+          discount: paymentData.customerDiscount || 0,
+          paidAmount,
+          note: paymentData.note || '',
+          paymentType: payType,
+          debtAmount,
           totalAmount: paymentData.total,
-          employee: nhanvien,
-          idempotencyKey: invoiceId,
-          paymentForm: {
-            customer: selectedCustomer ? selectedCustomer['Tên khách hàng'] : 'Khách lẻ',
-            discount: paymentData.customerDiscount || 0,
-            paidAmount,
-            note: paymentData.note || '',
-            paymentType: payType,
-            debtAmount,
-            totalAmount: paymentData.total,
-          },
-        }),
-      });
+        },
+      };
 
-      const checkoutData = await checkoutRes.json();
-      if (!checkoutRes.ok || !checkoutData.success) {
-        throw new Error(checkoutData.error || 'Lỗi xử lý thanh toán trên máy chủ!');
+      let isOfflineTransaction = false;
+
+      // P0-BIZ-04 & Offline Resilience: Lưu hóa đơn nguyên tử qua API Server hoặc xếp vào Offline Queue khi mất mạng
+      try {
+        const checkoutRes = await fetch('/api/pos/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(checkoutPayload),
+        });
+
+        const checkoutData = await checkoutRes.json();
+        if (!checkoutRes.ok || !checkoutData.success) {
+          throw new Error(checkoutData.error || 'Lỗi xử lý thanh toán trên máy chủ!');
+        }
+      } catch (checkoutErr: any) {
+        const isNetworkFailure =
+          (typeof navigator !== 'undefined' && !navigator.onLine) ||
+          checkoutErr?.name === 'TypeError' ||
+          String(checkoutErr?.message).includes('fetch') ||
+          String(checkoutErr?.message).includes('Failed to fetch') ||
+          String(checkoutErr?.message).includes('NetworkError');
+
+        if (isNetworkFailure) {
+          console.warn('[Offline Mode] Mất kết nối mạng, chuyển sang lưu hóa đơn ngoại tuyến:', checkoutErr);
+          queueOfflineCheckout(checkoutPayload);
+          isOfflineTransaction = true;
+        } else {
+          throw checkoutErr;
+        }
       }
 
       // Cập nhật đồng bộ cache offline / in-memory để báo cáo đọc mượt
@@ -1149,7 +1176,14 @@ export const usePOS = () => {
       if (typeof window !== 'undefined' && activePOSOrderIds.length > 0) {
         window.dispatchEvent(new CustomEvent('pos_order_settled', { detail: { orderIds: activePOSOrderIds } }));
       }
-      showNotification(isDebt ? `Ghi nợ đơn hàng thành công! (Nợ: ${new Intl.NumberFormat('vi-VN').format(debtAmount)}đ)` : 'Thanh toán thành công!');
+      if (isOfflineTransaction) {
+        showNotification(
+          'Đã lưu thanh toán ngoại tuyến thành công! Đơn sẽ tự động đồng bộ khi có kết nối mạng.',
+          'info'
+        );
+      } else {
+        showNotification(isDebt ? `Ghi nợ đơn hàng thành công! (Nợ: ${new Intl.NumberFormat('vi-VN').format(debtAmount)}đ)` : 'Thanh toán thành công!');
+      }
     } catch (error: any) {
       console.error('Lỗi thanh toán:', error);
       showNotification(error.message || 'Lỗi khi xử lý thanh toán!', 'error');

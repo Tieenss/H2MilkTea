@@ -16,6 +16,9 @@ export interface SuggestedProduct {
   category?: string;
   quantity?: number;
   size?: 'M' | 'L';
+  sugar?: string;
+  ice?: string;
+  note?: string;
   isOrderMatch?: boolean;
 }
 
@@ -44,14 +47,27 @@ export function CustomerChatbot({
   const [isOpen, setIsOpen] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      role: 'assistant',
-      content: tableName
-        ? `Xin chào bạn tại ${tableName}! Mình là Trợ lý ảo H2 MilkTea. Bạn muốn gọi thêm món gì hay cần tư vấn menu không? 🧋`
-        : 'Xin chào bạn! Mình là Trợ lý ảo H2 MilkTea. Bạn muốn tìm món gì hôm nay? (ít ngọt, thanh mát, cà phê, ăn vặt...) 🧋',
-    },
-  ]);
+  const defaultWelcomeMessage: ChatMessage = {
+    role: 'assistant',
+    content: tableName
+      ? `Xin chào bạn tại ${tableName}! Mình là Trợ lý ảo H2 MilkTea. Bạn muốn gọi thêm món gì hay cần tư vấn menu không? 🧋`
+      : 'Xin chào bạn! Mình là Trợ lý ảo H2 MilkTea. Bạn muốn tìm món gì hôm nay? (ít ngọt, thanh mát, cà phê, ăn vặt...) 🧋',
+  };
+
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const key = `h2_customer_chat_${tableId || 'default'}`;
+        const saved = sessionStorage.getItem(key);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return [defaultWelcomeMessage];
+  });
+
   const [isRecording, setIsRecording] = useState(false);
   const [addedItemIds, setAddedItemIds] = useState<Record<string, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -65,6 +81,16 @@ export function CustomerChatbot({
       scrollToBottom();
     }
   }, [messages, isOpen]);
+
+  // Tự động lưu phiên chat để không bị mất khi F5 tải lại trang
+  useEffect(() => {
+    if (typeof window !== 'undefined' && messages.length > 1) {
+      try {
+        const key = `h2_customer_chat_${tableId || 'default'}`;
+        sessionStorage.setItem(key, JSON.stringify(messages.slice(-20)));
+      } catch {}
+    }
+  }, [messages, tableId]);
 
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend || inputMessage).trim();
@@ -158,9 +184,9 @@ export function CustomerChatbot({
 
     addItem(fullProd as Product, {
       size: isFood ? 'M' : (suggested.size || 'M'),
-      sugar: '100% đường',
-      ice: '100% đá',
-      note: '',
+      sugar: isFood ? '' : (suggested.sugar || '100% đường'),
+      ice: isFood ? '' : (suggested.ice || '100% đá'),
+      note: suggested.note || '',
       quantity: qty,
     });
 
@@ -194,9 +220,9 @@ export function CustomerChatbot({
 
       addItem(fullProd as Product, {
         size: isFood ? 'M' : (suggested.size || 'M'),
-        sugar: '100% đường',
-        ice: '100% đá',
-        note: '',
+        sugar: isFood ? '' : (suggested.sugar || '100% đường'),
+        ice: isFood ? '' : (suggested.ice || '100% đá'),
+        note: suggested.note || '',
         quantity: qty,
       });
       totalAdded += qty;
@@ -382,14 +408,21 @@ export function CustomerChatbot({
                                       </span>
                                     )}
                                   </h4>
-                                  <p className="text-xs font-semibold text-orange-600 mt-0.5">
-                                    {prod.price.toLocaleString('vi-VN')}đ
-                                    {qty > 1 && (
-                                      <span className="text-[10px] text-slate-400 font-normal ml-1">
-                                        (Tổng: {(prod.price * qty).toLocaleString('vi-VN')}đ)
+                                  <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                                    <p className="text-xs font-semibold text-orange-600">
+                                      {prod.price.toLocaleString('vi-VN')}đ
+                                      {qty > 1 && (
+                                        <span className="text-[10px] text-slate-400 font-normal ml-1">
+                                          (Tổng: {(prod.price * qty).toLocaleString('vi-VN')}đ)
+                                        </span>
+                                      )}
+                                    </p>
+                                    {((prod.sugar && prod.sugar !== '100% đường') || (prod.ice && prod.ice !== '100% đá')) && (
+                                      <span className="text-[10px] px-1.5 py-0.2 bg-teal-50 text-teal-700 rounded-md border border-teal-200 font-medium">
+                                        {[prod.sugar && prod.sugar !== '100% đường' ? prod.sugar : null, prod.ice && prod.ice !== '100% đá' ? prod.ice : null].filter(Boolean).join(' · ')}
                                       </span>
                                     )}
-                                  </p>
+                                  </div>
                                 </div>
                               </div>
 
