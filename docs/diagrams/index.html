@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="vi" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>H2MilkTea POS - Trung Tâm Trực Quan Hóa Kiến Trúc & Sơ Đồ Đồ Án</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    .tab-active {
+      background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+      color: #ffffff !important;
+      box-shadow: 0 4px 12px rgba(22, 163, 74, 0.25);
+    }
+    .tab-active .tab-icon { color: #ffffff !important; }
+    .tab-active .tab-badge { background: rgba(255, 255, 255, 0.25) !important; color: #ffffff !important; }
+    .tab-active .tab-desc { color: rgba(255, 255, 255, 0.85) !important; }
+  </style>
+</head>
+<body class="h-full bg-slate-900 text-slate-100 flex flex-col font-sans overflow-hidden antialiased">
+
+  <!-- TOP HEADER -->
+  <header class="h-16 border-b border-slate-800 bg-slate-950/80 backdrop-blur-md px-5 flex items-center justify-between shrink-0 z-20">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-500/20 text-white font-black text-xl">
+        H2
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-base font-bold text-white tracking-tight">H2MilkTea POS Architecture Portal</h1>
+          <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
+            v2.0 • EXP/THESIS-PERFECT
+          </span>
+        </div>
+        <p class="text-xs text-slate-400">Trung Tâm Trực Quan Hóa Kiến Trúc Đồ Án Tốt Nghiệp</p>
+      </div>
+    </div>
+
+    <!-- METRICS STRIP -->
+    <div class="hidden md:flex items-center gap-2">
+      <div class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span class="text-slate-400">Kiểm thử:</span>
+        <span class="font-bold text-white font-mono">171/171 PASS (100%)</span>
+      </div>
+      <div class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs flex items-center gap-2">
+        <span class="text-slate-400">AI Copilot:</span>
+        <span class="font-bold text-emerald-400 font-mono">0.01s (0đ Token)</span>
+      </div>
+      <div class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs flex items-center gap-2">
+        <span class="text-slate-400">Thanh toán:</span>
+        <span class="font-bold text-blue-400 font-mono">SePay VietQR Realtime</span>
+      </div>
+    </div>
+
+    <!-- HEADER ACTIONS -->
+    <div class="flex items-center gap-2">
+      <button id="fullscreenBtn" onclick="toggleFullscreen()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 transition-colors flex items-center gap-1.5 border border-slate-700">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
+        <span>Toàn màn hình</span>
+      </button>
+      <a id="openTabBtn" href="./h2milktea-master-explainer.html" target="_blank" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white transition-all shadow-md shadow-emerald-600/20 flex items-center gap-1.5">
+        <span>Mở tab riêng</span>
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+      </a>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER (SPLIT PANE) -->
+  <div class="flex-1 flex min-h-0 overflow-hidden">
+    
+    <!-- LEFT SIDEBAR: DIAGRAM NAVIGATOR -->
+    <aside class="w-80 sm:w-96 border-r border-slate-800 bg-slate-950/50 flex flex-col shrink-0 min-h-0">
+      
+      <!-- SEARCH / FILTER -->
+      <div class="p-3 border-b border-slate-800">
+        <div class="relative">
+          <input 
+            type="text" 
+            id="searchInput" 
+            placeholder="Tìm kiếm sơ đồ, luồng nghiệp vụ..." 
+            onkeyup="filterTabs()"
+            class="w-full bg-slate-900 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors"
+          >
+          <svg class="w-4 h-4 text-slate-500 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+          </svg>
+        </div>
+      </div>
+
+      <!-- NAVIGATION LIST -->
+      <div id="tabList" class="flex-1 overflow-y-auto p-3 space-y-4">
+
+        <!-- NHÓM 0: TRANG CHỦ TỔNG HỢP -->
+        <div class="space-y-1">
+          <div class="text-[10px] font-bold tracking-wider text-slate-500 uppercase px-2 mb-1.5 flex items-center justify-between">
+            <span>Bảng Điều Hành Tổng Thể</span>
+            <span class="text-[9px] bg-slate-800 px-1.5 py-0.2 rounded text-slate-400">1</span>
+          </div>
+
+          <button 
+            onclick="switchDiagram(this, './h2milktea-master-explainer.html', 'Bảng Điều Hành & Báo Cáo Tổng Hợp', 'Toàn cảnh giải pháp F&B, 4 trụ cột công nghệ và số liệu thực nghiệm bảo vệ đồ án trong 3 phút.', 'Trình chiếu trang này đầu tiên khi bước vào bảo vệ đồ án. Giới thiệu cấu trúc 3 tầng và 4 trụ cột công nghệ để ghi điểm ấn tượng ngay với Hội đồng.')"
+            class="tab-btn tab-active w-full text-left p-3 rounded-xl border border-transparent transition-all flex items-start gap-3 group"
+          >
+            <div class="tab-icon text-emerald-400 mt-0.5 text-lg shrink-0">🌟</div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-1">
+                <span class="font-bold text-xs truncate">Master Explainer Dashboard</span>
+                <span class="tab-badge text-[9px] px-1.5 py-0.5 rounded bg-slate-800 font-mono text-emerald-400 shrink-0">Tổng quan</span>
+              </div>
+              <p class="tab-desc text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                Tóm tắt toàn bộ đề tài, số liệu 171 tests, chỉ số AI 0.01s và các điểm cải tiến cốt lõi.
+              </p>
+            </div>
+          </button>
+        </div>
+
+        <!-- NHÓM 1: KIẾN TRÚC & DỮ LIỆU -->
+        <div class="space-y-1">
+          <div class="text-[10px] font-bold tracking-wider text-slate-500 uppercase px-2 mb-1.5 flex items-center justify-between">
+            <span>Kiến Trúc & Cơ Sở Dữ Liệu</span>
+            <span class="text-[9px] bg-slate-800 px-1.5 py-0.2 rounded text-slate-400">2</span>
+          </div>
+
+          <button 
+            onclick="switchDiagram(this, './01-system-architecture.html', '01. Kiến Trúc Tổng Thể Hệ Thống', 'Phân rã 4 lớp: Client Apps (POS, KDS, QR), Gateway API, Dual-tier AI, Supabase Realtime Hub và PostgreSQL Multi-Tenant.', 'Nhấn mạnh kiến trúc AI 2 tầng: Tầng 1 Local Intent 0.01s xử lý 87% lệnh bán hàng không tốn token, chỉ chuyển câu hỏi phức tạp lên Gemini Pro Tầng 2.')"
+            class="tab-btn w-full text-left p-3 rounded-xl border border-slate-800/80 hover:bg-slate-900 transition-all flex items-start gap-3 group text-slate-300"
+          >
+            <div class="tab-icon text-blue-400 mt-0.5 text-lg shrink-0">🏛️</div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-1">
+                <span class="font-bold text-xs truncate">01. Kiến Trúc Tổng Thể</span>
+                <span class="tab-badge text-[9px] px-1.5 py-0.5 rounded bg-slate-800 font-mono text-blue-400 shrink-0">Architecture</span>
+              </div>
+              <p class="tab-desc text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                Phân vùng Client, Serverless Gateway, AI Kép 0.01s và Database RLS.
+              </p>
+            </div>
+          </button>
+
+          <button 
+            onclick="switchDiagram(this, './07-database-erd-softdelete.html', '07. Thực Thể CSDL (ERD) & Soft Delete', 'Cấu trúc 9 bảng thực thể cốt lõi, cơ chế Soft Delete chống thất thoát và phân vùng CSDL đa doanh nghiệp Multi-Tenant RLS.', 'Giải thích: Tuyệt đối không xóa cứng HOADON. Chuyển sang Đã hủy và bắt buộc lưu vết kiểm toán, giữ nguyên HOADONDETAIL để kế toán tính chính xác số tiền thất thoát.')"
+            class="tab-btn w-full text-left p-3 rounded-xl border border-slate-800/80 hover:bg-slate-900 transition-all flex items-start gap-3 group text-slate-300"
+          >
+            <div class="tab-icon text-indigo-400 mt-0.5 text-lg shrink-0">🛡️</div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-1">
+                <span class="font-bold text-xs truncate">07. Sơ Đồ Thực Thể (ERD)</span>
+                <span class="tab-badge text-[9px] px-1.5 py-0.5 rounded bg-slate-800 font-mono text-indigo-400 shrink-0">ERD Data</span>
+              </div>
+              <p class="tab-desc text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                9 bảng CSDL, Soft Delete lưu vết kiểm toán và khóa ngoại phân vùng store_id.
+              </p>
+            </div>
+          </button>
+        </div>
+
+        <!-- NHÓM 2: VẬN HÀNH BÁN HÀNG & KHO -->
+        <div class="space-y-1">
+          <div class="text-[10px] font-bold tracking-wider text-slate-500 uppercase px-2 mb-1.5 flex items-center justify-between">
+            <span>Quy Trình Nghiệp Vụ Bán Hàng</span>
+            <span class="text-[9px] bg-slate-800 px-1.5 py-0.2 rounded text-slate-400">3</span>
+          </div>
+
+          <button 
+            onclick="switchDiagram(this, './02-customer-qr-order-workflow.html', '02. Quy Trình Khách Đặt Món QR Tại Bàn', 'Luồng 4 giai đoạn từ lúc khách quét QR bàn, chọn Size/Đường/Đá, server tính giá an toàn, thu ngân duyệt và tự động gộp KDS.', 'Nhấn mạnh: Đơn giá do máy chủ tự động tính lại dựa trên DMHH, khách hàng không thể can thiệp sửa giá mã nguồn trên trình duyệt điện thoại.')"
+            class="tab-btn w-full text-left p-3 rounded-xl border border-slate-800/80 hover:bg-slate-900 transition-all flex items-start gap-3 group text-slate-300"
+          >
+            <div class="tab-icon text-purple-400 mt-0.5 text-lg shrink-0">📱</div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-1">
+                <span class="font-bold text-xs truncate">02. Khách Đặt Món QR</span>
+                <span class="tab-badge text-[9px] px-1.5 py-0.5 rounded bg-slate-800 font-mono text-purple-400 shrink-0">Workflow</span>
+              </div>
+              <p class="tab-desc text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                Quét mã tại bàn, xác thực giá server, thu ngân duyệt và gộp đơn KDS.
+              </p>
+            </div>
+          </button>
+
+          <button 
+            onclick="switchDiagram(this, './03-kitchen-kds-lifecycle.html', '03. Vòng Đời Thẻ Bếp KDS & Dọn Rác Đơn', 'Trực quan hóa 4 trạng thái thẻ chế biến bếp, cơ chế cảnh báo quá giờ HH:mm và thuật toán dọn rác bếp thông minh.', 'Giải thích: API clear-stale chỉ xóa các đơn mồ côi đã hoàn tất hoặc đã hủy trên 60 phút, bảo vệ tuyệt đối các đơn đang chờ làm để không bị thất lạc.')"
+            class="tab-btn w-full text-left p-3 rounded-xl border border-slate-800/80 hover:bg-slate-900 transition-all flex items-start gap-3 group text-slate-300"
+          >
+            <div class="tab-icon text-amber-400 mt-0.5 text-lg shrink-0">🍳</div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-1">
+                <span class="font-bold text-xs truncate">03. Vận Hành Bếp KDS</span>
+                <span class="tab-badge text-[9px] px-1.5 py-0.5 rounded bg-slate-800 font-mono text-amber-400 shrink-0">Lifecycle</span>
+              </div>
+              <p class="tab-desc text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                Chờ làm -> Pha chế -> Chờ phục vụ -> Hoàn tất. Dọn rác an toàn.
+              </p>
+            </div>
+          </button>
+
+          <button 
+            onclick="switchDiagram(this, './04-inventory-bom-deduction.html', '04. Khấu Trừ Kho Định Mức (BOM) Tự Động', 'Luồng 5 chặng bóc tách công thức nguyên vật liệu (Trà, Sữa, Trân châu) khi thanh toán và cảnh báo chạm ngưỡng an toàn.', 'Khi thanh toán 1 ly trà sữa, hệ thống tự động nhân hệ số Size (M/L) và trừ đúng số gram nguyên liệu trong bảng nguyenlieu, đồng thời ghi log kiểm toán.')"
+            class="tab-btn w-full text-left p-3 rounded-xl border border-slate-800/80 hover:bg-slate-900 transition-all flex items-start gap-3 group text-slate-300"
+          >
+            <div class="tab-icon text-teal-400 mt-0.5 text-lg shrink-0">📦</div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-1">
+                <span class="font-bold text-xs truncate">04. Khấu Trừ Kho BOM</span>
+                <span class="tab-badge text-[9px] px-1.5 py-0.5 rounded bg-slate-800 font-mono text-teal-400 shrink-0">Dataflow</span>
+              </div>
+              <p class="tab-desc text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                Định mức nguyên liệu, trừ tồn kho thời gian thực và cảnh báo Low Stock.
+              </p>
+            </div>
+          </button>
+        </div>
+
+        <!-- NHÓM 3: ĐỒNG BỘ REALTIME & THANH TOÁN -->
+        <div class="space-y-1">
+          <div class="text-[10px] font-bold tracking-wider text-slate-500 uppercase px-2 mb-1.5 flex items-center justify-between">
+            <span>Đồng Bộ Realtime & Thanh Toán</span>
+            <span class="text-[9px] bg-slate-800 px-1.5 py-0.2 rounded text-slate-400">2</span>
+          </div>
+
+          <button 
+            onclick="switchDiagram(this, './05-sepay-payment-sequence.html', '05. Tuần Tự Thanh Toán SePay VietQR', 'Chuỗi tương tác 7 tác nhân: Sinh VietQR động, SePay Webhook đối soát tự động, cập nhật nguyên tử 4 bảng và chuông báo realtime.', 'Nhấn mạnh: Tính Idempotency chống nhân đôi hóa đơn khi SePay retry webhook, và chuỗi cập nhật nguyên tử (Atomic Update) bảo đảm tính toàn vẹn tài chính.')"
+            class="tab-btn w-full text-left p-3 rounded-xl border border-slate-800/80 hover:bg-slate-900 transition-all flex items-start gap-3 group text-slate-300"
+          >
+            <div class="tab-icon text-rose-400 mt-0.5 text-lg shrink-0">💳</div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-1">
+                <span class="font-bold text-xs truncate">05. Thanh Toán SePay VietQR</span>
+                <span class="tab-badge text-[9px] px-1.5 py-0.5 rounded bg-slate-800 font-mono text-rose-400 shrink-0">Sequence</span>
+              </div>
+              <p class="tab-desc text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                NAPAS247, xác thực Apikey, Regex mã bàn và cập nhật nguyên tử 4 bảng.
+              </p>
+            </div>
+          </button>
+
+          <button 
+            onclick="switchDiagram(this, './06-cart-concurrency-lifecycle.html', '06. Đồng Bộ Concurrency Giỏ Hàng', 'Phòng thủ 3 tầng: In-Flight Debounce Guard 400ms chống nuốt click, Device-ID filter khử 100% Echo Loop và khóa lạc quan OCC.', 'Thực nghiệm Stress Test 50 click liên tục không phát sinh modal xung đột giả nhờ cơ chế lọc Device-ID và tạm hoãn cập nhật in-flight.')"
+            class="tab-btn w-full text-left p-3 rounded-xl border border-slate-800/80 hover:bg-slate-900 transition-all flex items-start gap-3 group text-slate-300"
+          >
+            <div class="tab-icon text-amber-300 mt-0.5 text-lg shrink-0">⚡</div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-1">
+                <span class="font-bold text-xs truncate">06. Concurrency Giỏ Hàng</span>
+                <span class="tab-badge text-[9px] px-1.5 py-0.5 rounded bg-slate-800 font-mono text-amber-300 shrink-0">Concurrency</span>
+              </div>
+              <p class="tab-desc text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                Chống xung đột khi bấm nhanh, triệt tiêu Echo Loop và merge giỏ thông minh.
+              </p>
+            </div>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- FOOTER NOTE -->
+      <div class="p-3 border-t border-slate-800 bg-slate-950/90 text-[11px] text-slate-400 flex items-center justify-between">
+        <span>Đồ Án Tốt Nghiệp H2MilkTea POS</span>
+        <span class="font-mono text-emerald-400">Archify SVG</span>
+      </div>
+    </aside>
+
+    <!-- RIGHT WORKSPACE: ACTIVE DIAGRAM VIEWER -->
+    <main class="flex-1 flex flex-col min-w-0 min-h-0 bg-slate-950 relative">
+      
+      <!-- SUBHEADER: TITLE & DEFENSE TALKING POINTS -->
+      <div class="px-5 py-3 border-b border-slate-800 bg-slate-900/60 flex items-center justify-between gap-4 shrink-0">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2">
+            <h2 id="currentTitle" class="text-sm font-bold text-white truncate">
+              Bảng Điều Hành & Báo Cáo Tổng Hợp
+            </h2>
+            <span id="currentStatusBadge" class="px-2 py-0.5 text-[10px] font-semibold rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              Đang hiển thị
+            </span>
+          </div>
+          <p id="currentDesc" class="text-xs text-slate-400 mt-0.5 truncate">
+            Toàn cảnh giải pháp F&B, 4 trụ cột công nghệ và số liệu thực nghiệm bảo vệ đồ án trong 3 phút.
+          </p>
+        </div>
+
+        <!-- DEFENSE TIP PILL -->
+        <div class="hidden lg:flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-lg max-w-md shrink-0">
+          <span class="text-amber-400 text-sm">💡</span>
+          <div class="text-[11px] text-amber-300/90 leading-tight">
+            <strong class="text-amber-200">Điểm cốt lõi bảo vệ:</strong> 
+            <span id="defenseTip">Trình chiếu trang này đầu tiên khi bước vào bảo vệ đồ án. Giới thiệu cấu trúc 3 tầng và 4 trụ cột công nghệ để ghi điểm ấn tượng ngay với Hội đồng.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- IFRAME VIEWER CONTAINER -->
+      <div class="flex-1 min-h-0 p-2 sm:p-3 relative">
+        <iframe 
+          id="diagramFrame" 
+          src="./h2milktea-master-explainer.html" 
+          class="w-full h-full rounded-xl border border-slate-800 bg-slate-900 shadow-2xl transition-all"
+        ></iframe>
+
+        <!-- LOADING INDICATOR -->
+        <div id="loadingOverlay" class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3 transition-opacity duration-300 opacity-0 pointer-events-none">
+          <div class="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+          <span class="text-xs text-slate-300 font-medium">Đang tải sơ đồ tương tác...</span>
+        </div>
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- JAVASCRIPT LOGIC -->
+  <script>
+    const iframe = document.getElementById('diagramFrame');
+    const openTabBtn = document.getElementById('openTabBtn');
+    const currentTitle = document.getElementById('currentTitle');
+    const currentDesc = document.getElementById('currentDesc');
+    const defenseTip = document.getElementById('defenseTip');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+
+    function switchDiagram(btn, fileUrl, title, desc, tip) {
+      // 1. Update active tab UI
+      document.querySelectorAll('.tab-btn').forEach(b => {
+        b.classList.remove('tab-active');
+        b.classList.add('text-slate-300');
+      });
+      btn.classList.add('tab-active');
+      btn.classList.remove('text-slate-300');
+
+      // 2. Show loading animation
+      loadingOverlay.classList.remove('opacity-0', 'pointer-events-none');
+
+      // 3. Update header info
+      currentTitle.innerText = title;
+      currentDesc.innerText = desc;
+      defenseTip.innerText = tip;
+      openTabBtn.href = fileUrl;
+
+      // 4. Switch iframe
+      iframe.src = fileUrl;
+      iframe.onload = () => {
+        setTimeout(() => {
+          loadingOverlay.classList.add('opacity-0', 'pointer-events-none');
+        }, 150);
+      };
+    }
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+          alert(`Không thể mở toàn màn hình: ${err.message}`);
+        });
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        }
+      }
+    }
+
+    function filterTabs() {
+      const q = document.getElementById('searchInput').value.toLowerCase();
+      const buttons = document.querySelectorAll('.tab-btn');
+      buttons.forEach(btn => {
+        const text = btn.innerText.toLowerCase();
+        if (text.includes(q)) {
+          btn.style.display = 'flex';
+        } else {
+          btn.style.display = 'none';
+        }
+      });
+    }
+  </script>
+</body>
+</html>
