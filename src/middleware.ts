@@ -78,6 +78,7 @@ export function middleware(request: NextRequest) {
     '/settings/store-info',
     '/settingdata',
     '/settings/ai',
+    '/settings/features',
     '/user-guide',
     // Customer QR Order (public)
     '/order',
