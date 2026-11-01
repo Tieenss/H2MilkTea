@@ -72,7 +72,13 @@ export const useInvoices = () => {
       ),
       pendingInvoices: invoiceList.filter(inv => inv['Trạng thái'] === 'Chờ xác nhận').length,
       completedInvoices: invoiceList.filter(inv => inv['Trạng thái'] === 'Đã thanh toán').length,
-      cancelledInvoices: invoiceList.filter(inv => inv['Trạng thái'] === 'Đã hủy').length
+      cancelledInvoices: invoiceList.filter(inv => inv['Trạng thái'] === 'Đã hủy').length,
+      cancelledLossRevenue: invoiceList.reduce((sum, inv) =>
+        inv['Trạng thái'] === 'Đã hủy'
+          ? sum + (Number(inv['Tổng tiền'] || 0) + Number(inv['VAT'] || 0) - Number(inv['Giảm giá'] || 0))
+          : sum,
+        0
+      )
     };
     
     setStats(stats);
@@ -124,27 +130,35 @@ export const useInvoices = () => {
     }
   }, []);
 
-  // Update invoice status (hỗ trợ cả các đơn có bàn đã bị xóa)
-  const updateInvoiceStatus = useCallback(async (invoiceId: string, status: string) => {
+  // Update invoice status (hỗ trợ cả các đơn có bàn đã bị xóa và lưu vết kiểm toán khi hủy)
+  const updateInvoiceStatus = useCallback(async (invoiceId: string, status: string, reason?: string, staffName?: string) => {
     try {
       const invoice = invoices.find(inv => inv.IDHOADON === invoiceId);
+      const auditNote = status === 'Đã hủy' && reason
+        ? `[ĐÃ HỦY] ${reason} (Bởi: ${staffName || 'Quản lý'} lúc ${new Date().toLocaleString('vi-VN')})`
+        : invoice?.['Ghi chú'];
+
       const updatedInvoice = invoice
-        ? { ...invoice, 'Trạng thái': status }
-        : { IDHOADON: invoiceId, 'Trạng thái': status };
+        ? { ...invoice, 'Trạng thái': status, ...(auditNote ? { 'Ghi chú': auditNote } : {}) }
+        : { IDHOADON: invoiceId, 'Trạng thái': status, ...(auditNote ? { 'Ghi chú': auditNote } : {}) };
       
       const result = await authUtils.apiRequest('HOADON', 'update', { 
         ...updatedInvoice 
       });
 
       if (!Array.isArray(result) && result.success) {
-        setInvoices(prev => prev.map(inv => 
-          inv.IDHOADON === invoiceId ? { ...inv, 'Trạng thái': status } : inv
-        ));
+        setInvoices(prev => {
+          const next = prev.map(inv => 
+            inv.IDHOADON === invoiceId ? { ...inv, 'Trạng thái': status, ...(auditNote ? { 'Ghi chú': auditNote } : {}) } : inv
+          );
+          calculateStats(next);
+          return next;
+        });
 
         const statusMessages = {
           'Đã xác nhận': 'Xác nhận hóa đơn thành công!',
           'Đã thanh toán': 'Xác nhận thanh toán thành công!',
-          'Đã hủy': 'Hủy hóa đơn thành công!'
+          'Đã hủy': 'Hủy hóa đơn và lưu vết kiểm toán thành công!'
         };
 
         toast.success(statusMessages[status as keyof typeof statusMessages] || 'Cập nhật trạng thái thành công!');
@@ -158,7 +172,7 @@ export const useInvoices = () => {
       toast.error(error.message || 'Có lỗi xảy ra khi cập nhật trạng thái');
       throw error;
     }
-  }, [invoices]);
+  }, [invoices, calculateStats]);
 
   // Settle invoice debt
   const settleInvoiceDebt = useCallback(async (invoiceId: string) => {
@@ -220,57 +234,37 @@ export const useInvoices = () => {
     }
   }, [invoices]);
 
-  // Delete invoice (xóa sạch chi tiết HOADONDETAIL trước, kể cả đơn mồ côi)
-  const deleteInvoice = useCallback(async (invoiceId: string) => {
-    const originalInvoices = invoices;
-    
+  // Delete invoice -> Chuyển thành Soft Delete có lưu vết kiểm toán chống thất thoát
+  const deleteInvoice = useCallback(async (invoiceId: string, reason?: string, staffName?: string) => {
     try {
-      // Optimistic update
-      setInvoices(prev => prev.filter(inv => inv.IDHOADON !== invoiceId));
-      setInvoiceDetails(prev => {
-        const newMap = new Map(prev);
-        newMap.delete(invoiceId);
-        return newMap;
-      });
+      const toastId = toast.loading('Đang chuyển trạng thái hóa đơn sang Đã hủy...');
+      const cancelReason = reason || 'Quản lý yêu cầu xóa/hủy';
+      const cancelledBy = staffName || 'Quản lý';
 
-      const toastId = toast.loading('Đang xóa hóa đơn...');
-
-      // 1. Luôn truy vấn và xóa sạch tất cả chi tiết trong HOADONDETAIL trước
-      try {
-        const details = await authUtils.apiRequest('HOADONDETAIL', 'find', {
-          filter: { IDHOADON: invoiceId }
-        });
-        if (Array.isArray(details) && details.length > 0) {
-          for (const d of details) {
-            const detailPk = d.IDHOADONDETAIL || d.id;
-            if (detailPk) {
-              await authUtils.apiRequest('HOADONDETAIL', 'delete', { IDHOADONDETAIL: detailPk });
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('Lỗi khi dọn dẹp chi tiết hóa đơn cũ:', err);
-      }
-
-      // 2. Xóa bản ghi hóa đơn chính trong HOADON
       const result = await authUtils.apiRequest('HOADON', 'delete', {
-        IDHOADON: invoiceId
+        IDHOADON: invoiceId,
+        cancel_reason: cancelReason,
+        cancelled_by: cancelledBy
       });
 
       if (!Array.isArray(result) && result.success) {
-        toast.success('Xóa hóa đơn thành công!', { id: toastId });
+        const auditNote = `[ĐÃ HỦY] ${cancelReason} (Bởi: ${cancelledBy} lúc ${new Date().toLocaleString('vi-VN')})`;
+        setInvoices(prev => {
+          const next = prev.map(inv =>
+            inv.IDHOADON === invoiceId ? { ...inv, 'Trạng thái': 'Đã hủy', 'Ghi chú': auditNote } : inv
+          );
+          calculateStats(next);
+          return next;
+        });
+        toast.success('Hóa đơn đã được chuyển sang Đã hủy (Lưu vết kiểm toán chống thất thoát)', { id: toastId });
       } else {
-        // Rollback on error
-        setInvoices(originalInvoices);
-        throw new Error((!Array.isArray(result) && result.message) || 'Lỗi khi xóa hóa đơn');
+        throw new Error((!Array.isArray(result) && result.message) || 'Lỗi khi hủy hóa đơn');
       }
     } catch (error: any) {
-      // Rollback on error
-      setInvoices(originalInvoices);
-      console.error('Error deleting invoice:', error);
-      toast.error(error.message || 'Có lỗi xảy ra khi xóa hóa đơn');
+      console.error('Error soft-deleting invoice:', error);
+      toast.error(error.message || 'Có lỗi xảy ra khi hủy hóa đơn');
     }
-  }, [invoices]);
+  }, [calculateStats]);
 
   // Initialize
   useEffect(() => {

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useRef, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -142,7 +142,7 @@ function CartPageContent() {
             <button
               onClick={() => router.push(`/order/menu?table=${encodeURIComponent(tableParam || '')}`)}
               className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-red-500 to-orange-500 text-white font-bold
-                         shadow-lg shadow-red-200/50 active:scale-[0.98] transition-transform"
+                         shadow-lg shadow-orange-600/25 active:scale-[0.98] transition-transform"
             >
               Đặt thêm món 🍹
             </button>
@@ -276,20 +276,20 @@ function CartPageContent() {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                      className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center active:scale-90 transition-transform"
+                      className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center active:scale-90 transition-transform text-slate-700"
                     >
                       {item.quantity === 1 ? (
-                        <Trash2 className="w-3 h-3 text-red-500" />
+                        <Trash2 className="w-4 h-4 text-red-500" />
                       ) : (
-                        <Minus className="w-3 h-3 text-gray-600" />
+                        <Minus className="w-4 h-4 text-slate-700" />
                       )}
                     </button>
                     <span className="text-sm font-bold text-gray-900 w-5 text-center">{item.quantity}</span>
                     <button
                       onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                      className="w-7 h-7 rounded-full bg-gradient-to-br from-red-500 to-orange-500 flex items-center justify-center text-white shadow-sm active:scale-90 transition-transform"
+                      className="w-10 h-10 rounded-xl bg-orange-600 hover:bg-orange-700 flex items-center justify-center text-white shadow-sm active:scale-90 transition-transform"
                     >
-                      <Plus className="w-3 h-3" />
+                      <Plus className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -325,12 +325,12 @@ function CartPageContent() {
 
       {/* Fixed Bottom: Summary & Checkout */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] z-50">
-        <div className="max-w-lg mx-auto px-4 py-4">
+        <div className="max-w-lg mx-auto px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           {/* Price Summary */}
           <div className="flex items-center justify-between mb-3">
             <div>
               <span className="text-xs text-gray-500">Tổng cộng ({totalItems} món)</span>
-              <div className="text-xl font-bold bg-gradient-to-r from-red-600 to-orange-600 bg-clip-text text-transparent">
+              <div className="text-xl font-black text-orange-600">
                 {totalAmount.toLocaleString('vi-VN')}đ
               </div>
             </div>
@@ -343,8 +343,8 @@ function CartPageContent() {
           <button
             onClick={handleSubmitOrder}
             disabled={isSubmitting}
-            className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-red-500 to-orange-500 text-white font-bold text-base
-                       shadow-lg shadow-red-200/50 active:scale-[0.98] transition-transform
+            className="w-full py-3.5 rounded-2xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-base
+                       shadow-lg shadow-orange-600/25 active:scale-[0.98] transition-transform
                        disabled:opacity-60 disabled:cursor-not-allowed
                        flex items-center justify-center gap-2"
           >

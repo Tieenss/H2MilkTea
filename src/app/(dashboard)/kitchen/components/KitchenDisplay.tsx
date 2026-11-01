@@ -23,6 +23,8 @@ import {
   Sparkles,
   Trash2,
   AlertTriangle,
+  FlaskConical,
+  ChevronDown,
 } from 'lucide-react';
 
 export interface KitchenOrderItem {
@@ -180,6 +182,8 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
   const [isConnected, setIsConnected] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [stationFilter, setStationFilter] = useState<'all' | 'bar' | 'kitchen'>('all');
+  const [showDemoMenu, setShowDemoMenu] = useState(false);
+  const [isClearingStale, setIsClearingStale] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'active' | 'pending' | 'preparing' | 'ready'>('active');
   const [completedItemsMap, setCompletedItemsMap] = useState<Record<string, boolean>>({});
   const [isSyncing, setIsSyncing] = useState(false);
@@ -223,14 +227,13 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
     try {
       const raw = localStorage.getItem(LOCAL_KDS_ORDERS_KEY);
       if (!raw) {
-        const defaults = getDefaultSeedKitchenOrders();
-        localStorage.setItem(LOCAL_KDS_ORDERS_KEY, JSON.stringify(defaults));
-        return defaults;
+        // Mặc định màn hình bếp trống, chỉ hiển thị khi có đơn thực tế hoặc người dùng bấm Tạo đơn mẫu
+        return [];
       }
       const parsed = JSON.parse(raw);
       return Array.isArray(parsed) ? parsed : [];
     } catch {
-      return getDefaultSeedKitchenOrders();
+      return [];
     }
   };
 
@@ -306,8 +309,8 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
     const channel = supabase
       .channel('staff-pos-orders')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pos_orders' }, (payload) => {
-        const row = payload.new as Partial<KitchenOrder> & { order_status?: string };
-        const id = String(row.id || '');
+        const row = payload.new as any;
+        const id = String(row?.id || '');
         if (
           payload.eventType === 'INSERT' &&
           row.order_status === 'accepted' &&
@@ -317,17 +320,50 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
         ) {
           playNotificationSound();
         }
+
+        // Tự động dọn đơn khỏi màn hình bếp khi đơn đã thanh toán hoặc hoàn thành phục vụ
+        if (
+          payload.eventType === 'UPDATE' &&
+          (row.kitchen_status === 'served' || row.order_status === 'completed' || row.payment_status === 'paid')
+        ) {
+          setOrders((prev) => prev.filter((o) => o.id !== id));
+        }
+
         fetchOrders();
       })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') setIsConnected(true);
       });
 
+    // Lắng nghe sự kiện thanh toán dọn bàn từ quầy POS
+    const handleTableCleared = (event: any) => {
+      const { tableId, tableName, orderIds } = event.detail || {};
+      setOrders((prev) =>
+        prev.filter((o) => {
+          // Ngoại trừ đơn mẫu do bấm nút tạo mẫu
+          if (o.id && (String(o.id).startsWith('KDS-') || String(o.id).startsWith('demo-kds-'))) return true;
+          if (orderIds && Array.isArray(orderIds) && orderIds.includes(o.id)) return false;
+          if (tableId && (o.tableId === tableId || o.tableName === tableName)) return false;
+          return true;
+        })
+      );
+      fetchOrders(false);
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('pos_table_cleared', handleTableCleared);
+      window.addEventListener('pos_order_settled', handleTableCleared);
+    }
+
     const interval = setInterval(() => fetchOrders(false), 15000);
 
     return () => {
       clearInterval(interval);
       void supabase.removeChannel(channel);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('pos_table_cleared', handleTableCleared);
+        window.removeEventListener('pos_order_settled', handleTableCleared);
+      }
     };
   }, [fetchOrders]);
 
@@ -485,6 +521,52 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
     }
   };
 
+  const formatOrderAge = (orderTime: string, ageMinutes: number): string => {
+    if (ageMinutes === 0) return 'Vừa xong';
+    if (ageMinutes < 60) return `${ageMinutes} phút trước`;
+    try {
+      const d = new Date(orderTime);
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      if (ageMinutes < 1440) {
+        const hours = Math.floor(ageMinutes / 60);
+        const mins = ageMinutes % 60;
+        return `${hours}h ${mins}p (${hh}:${mm})`;
+      }
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      return `${day}/${month} ${hh}:${mm}`;
+    } catch {
+      return `${ageMinutes} phút trước`;
+    }
+  };
+
+  const handleClearAllOrders = async () => {
+    const confirmed = window.confirm(
+      'Bạn có chắc chắn muốn dọn sạch tất cả đơn tồn đọng trên màn hình bếp? Các đơn này sẽ được cập nhật trạng thái đã phục vụ trên cơ sở dữ liệu hệ thống.'
+    );
+    if (!confirmed) return;
+
+    setIsClearingStale(true);
+    try {
+      const res = await fetch('/api/kitchen/clear-stale', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (data && data.success) {
+        toast.success(data.message || `Đã dọn sạch ${data.clearedCount || 0} đơn bếp trên hệ thống!`);
+      }
+    } catch (err) {
+      console.error('Lỗi khi gọi clear-stale:', err);
+    } finally {
+      localStorage.removeItem(LOCAL_KDS_ORDERS_KEY);
+      localStorage.removeItem(LOCAL_KDS_STATUS_MAP_KEY);
+      localStorage.removeItem(LOCAL_KDS_COMPLETED_ITEMS_KEY);
+      setCompletedItemsMap({});
+      setOrders([]);
+      setIsClearingStale(false);
+      await fetchOrders(false);
+    }
+  };
+
   const handleResetDemoOrders = () => {
     const defaults = getDefaultSeedKitchenOrders();
     saveLocalOrders(defaults);
@@ -599,46 +681,87 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
           </div>
 
           {/* Action Controls */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            <Button
-              onClick={handleGenerateSampleOrder}
-              className="bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white shadow-sm"
-              size="sm"
-            >
-              <PlusCircle className="w-4 h-4 mr-1.5" />
-              + Tạo đơn mẫu KDS
-            </Button>
-
+          <div className="flex flex-wrap items-center gap-2.5 relative">
             <Button
               onClick={() => fetchOrders(true)}
               variant="outline"
               size="sm"
               disabled={isSyncing}
-              className="border-slate-300 text-slate-700"
+              className="border-slate-300 text-slate-700 font-medium"
             >
               <RefreshCw className={`w-4 h-4 mr-1.5 ${isSyncing ? 'animate-spin' : ''}`} />
               Đồng bộ đơn
             </Button>
 
             <Button
-              onClick={handleResetDemoOrders}
+              onClick={handleClearAllOrders}
               variant="outline"
               size="sm"
-              className="border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+              disabled={isClearingStale}
+              className="border-red-300 text-red-700 hover:bg-red-50 hover:border-red-400 font-medium"
+              title="Dọn sạch các đơn tồn đọng để làm gọn màn hình bếp"
             >
-              <Sparkles className="w-4 h-4 mr-1.5" />
-              Khôi phục 3 đơn mẫu
+              <Trash2 className="w-4 h-4 mr-1.5 text-red-600" />
+              {isClearingStale ? 'Đang dọn dẹp...' : 'Làm sạch bếp'}
             </Button>
 
             <Button
               onClick={() => setSoundEnabled(!soundEnabled)}
               variant={soundEnabled ? 'default' : 'outline'}
               size="sm"
-              className={soundEnabled ? 'bg-slate-800 hover:bg-slate-900 text-white' : ''}
+              className={soundEnabled ? 'bg-slate-800 hover:bg-slate-900 text-white font-medium' : 'font-medium'}
             >
               {soundEnabled ? <Volume2 className="w-4 h-4 mr-1.5" /> : <VolumeX className="w-4 h-4 mr-1.5" />}
               {soundEnabled ? 'Chuông báo: BẬT' : 'Chuông báo: TẮT'}
             </Button>
+
+            {/* Menu công cụ thử nghiệm (Demo) ẩn tách biệt khỏi thao tác vận hành */}
+            <div className="relative">
+              <Button
+                onClick={() => setShowDemoMenu(!showDemoMenu)}
+                variant="outline"
+                size="sm"
+                className="border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-800 text-xs"
+                title="Các công cụ tạo đơn mẫu dùng để kiểm thử hệ thống"
+              >
+                <FlaskConical className="w-3.5 h-3.5 mr-1 text-amber-600" />
+                Demo / Thử nghiệm
+                <ChevronDown className="w-3 h-3 ml-1 text-slate-400" />
+              </Button>
+
+              {showDemoMenu && (
+                <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-200 p-2 z-50 space-y-1.5">
+                  <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-2 py-1">
+                    Công cụ thử nghiệm KDS
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowDemoMenu(false);
+                      handleGenerateSampleOrder();
+                    }}
+                    className="w-full text-left px-2.5 py-2 text-xs font-medium text-slate-700 hover:bg-orange-50 hover:text-orange-700 rounded-lg flex items-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <PlusCircle className="w-4 h-4 text-orange-500 shrink-0" />
+                    + Tạo 1 đơn mẫu KDS
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowDemoMenu(false);
+                      handleResetDemoOrders();
+                    }}
+                    className="w-full text-left px-2.5 py-2 text-xs font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 rounded-lg flex items-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <Sparkles className="w-4 h-4 text-indigo-500 shrink-0" />
+                    Khôi phục 3 đơn mẫu chuẩn
+                  </button>
+                  <div className="text-[10px] text-slate-400 px-2 pt-1 border-t border-slate-100 italic">
+                    * Chỉ dùng để test khi không có khách gọi món thực tế.
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -762,7 +885,7 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-5">
             {filteredOrders.map((order) => {
               const age = getOrderAge(order.orderTime);
               const priorityColor = getPriorityColor(order.priority, age, order.status);
@@ -780,7 +903,7 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
                     <div className="flex justify-between items-start gap-2 mb-3 pb-3 border-b border-slate-200/80">
                       <div>
                         <div className="flex items-center gap-2">
-                          <h3 className="font-bold text-lg text-slate-900">{order.tableName}</h3>
+                          <h3 className="font-black text-xl sm:text-2xl text-slate-950 tracking-tight">{order.tableName}</h3>
                           {(order.priority === 'urgent' || age > 15) && (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-600 text-white">
                               <AlertTriangle className="w-3 h-3" />
@@ -791,7 +914,7 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
                         <p className="text-xs text-slate-500 mt-0.5">
                           Mã: <span className="font-mono font-semibold text-slate-700">#{order.id.slice(-6)}</span> • {order.employee}
                         </p>
-                        <div className="flex items-center gap-1.5 mt-1.5">
+                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                           <Badge
                             className={`text-[11px] px-2 py-0.5 ${
                               order.source === 'QR_TABLE'
@@ -817,7 +940,7 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
                           }`}
                         >
                           <Clock className="w-3 h-3" />
-                          {age === 0 ? 'Vừa xong' : `${age} phút trước`}
+                          {formatOrderAge(order.orderTime, age)}
                         </div>
                       </div>
                     </div>
@@ -853,7 +976,7 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
                               </button>
                               <div className="flex-1">
                                 <div
-                                  className={`font-semibold text-sm leading-snug ${
+                                  className={`font-bold text-base sm:text-lg leading-snug tracking-tight break-words ${
                                     isItemDone ? 'line-through text-slate-500' : 'text-slate-800'
                                   }`}
                                 >
@@ -869,17 +992,13 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
                                   >
                                     {itemStation === 'kitchen' ? '🍰 Bếp/Bánh' : '🧋 Pha chế'}
                                   </span>
-                                  {item.note && (
-                                    <span className="text-xs text-blue-600 font-medium italic">
-                                      📝 {item.note}
-                                    </span>
-                                  )}
+                                  {item.note && (<span className="inline-flex items-center gap-1 bg-amber-100 text-amber-950 font-bold text-xs sm:text-sm px-2.5 py-1 rounded-md border border-amber-300 shadow-2xs break-words max-w-full"><span>⚡</span> {item.note}</span>)}
                                 </div>
                               </div>
                             </div>
                             <div className="text-right shrink-0">
                               <span
-                                className={`inline-block font-bold text-base px-2.5 py-0.5 rounded-lg ${
+                                className={`inline-block font-black text-lg sm:text-xl px-3 py-1 rounded-lg ${
                                   isItemDone
                                     ? 'bg-emerald-100 text-emerald-800'
                                     : 'bg-orange-100 text-orange-900'
@@ -897,7 +1016,7 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
                     {order.notes && (
                       <div className="mb-4 p-2.5 bg-amber-50 border border-amber-200 rounded-xl">
                         <div className="text-xs font-bold text-amber-900">📋 Ghi chú đơn hàng:</div>
-                        <div className="text-xs text-amber-800 mt-0.5">{order.notes}</div>
+                        <div className="text-xs text-amber-800 mt-0.5 break-words leading-relaxed">{order.notes}</div>
                       </div>
                     )}
                   </div>

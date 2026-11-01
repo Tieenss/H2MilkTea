@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>H2MilkTea - Sơ Đồ Kiến Trúc Hệ Thống Tương Tác (Thesis Defense Architecture)</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #38bdf8;
+      --primary-glow: rgba(56, 189, 248, 0.25);
+      --accent-green: #34d399;
+      --accent-amber: #fbbf24;
+      --accent-purple: #c084fc;
+      --accent-rose: #fb7185;
+      --accent-indigo: #818cf8;
+      --panel-width: 440px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Header */
+    header {
+      background-color: rgba(30, 41, 59, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--card-border);
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 20;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-badge {
+      background: linear-gradient(135deg, #0284c7, #6366f1);
+      color: white;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .brand h1 {
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .brand p {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .filter-btn {
+      background: #334155;
+      color: #cbd5e1;
+      border: 1px solid #475569;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .filter-btn:hover {
+      background: #475569;
+      color: #fff;
+    }
+
+    .filter-btn.active {
+      background: #0284c7;
+      color: #fff;
+      border-color: #38bdf8;
+      box-shadow: 0 0 12px var(--primary-glow);
+    }
+
+    /* Main layout */
+    .workspace {
+      display: flex;
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .diagram-container {
+      flex: 1;
+      height: 100%;
+      overflow: auto;
+      padding: 30px;
+      background: radial-gradient(circle at 50% 50%, #1e293b 0%, #0f172a 100%);
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+      min-width: 950px;
+    }
+
+    /* Layer container */
+    .arch-layer {
+      border: 1px dashed rgba(148, 163, 184, 0.25);
+      border-radius: 12px;
+      padding: 18px 20px 20px 20px;
+      position: relative;
+      background: rgba(15, 23, 42, 0.4);
+    }
+
+    .layer-label {
+      position: absolute;
+      top: -11px;
+      left: 20px;
+      background: #1e293b;
+      padding: 2px 12px;
+      border-radius: 20px;
+      border: 1px solid var(--card-border);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--primary);
+    }
+
+    .nodes-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin-top: 6px;
+    }
+
+    /* Node Card */
+    .arch-node {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 16px;
+      cursor: pointer;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .arch-node:hover {
+      transform: translateY(-3px);
+      border-color: var(--primary);
+      box-shadow: 0 8px 20px -4px var(--primary-glow);
+    }
+
+    .arch-node.selected {
+      border-color: #38bdf8;
+      background: #1e3a5f;
+      box-shadow: 0 0 0 2px #38bdf8, 0 10px 25px -5px var(--primary-glow);
+    }
+
+    .arch-node.dimmed {
+      opacity: 0.25;
+      filter: grayscale(80%);
+    }
+
+    .node-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .node-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #f1f5f9;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .node-tag {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+
+    .tag-client { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); }
+    .tag-gateway { background: rgba(192, 132, 252, 0.15); color: #c084fc; border: 1px solid rgba(192, 132, 252, 0.3); }
+    .tag-server { background: rgba(251, 191, 36, 0.15); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3); }
+    .tag-ai { background: rgba(251, 113, 133, 0.15); color: #fb7185; border: 1px solid rgba(251, 113, 133, 0.3); }
+    .tag-db { background: rgba(52, 211, 153, 0.15); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.3); }
+
+    .node-file {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+      color: #94a3b8;
+      background: rgba(15, 23, 42, 0.6);
+      padding: 4px 8px;
+      border-radius: 4px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .node-desc {
+      font-size: 12px;
+      color: #cbd5e1;
+      line-height: 1.45;
+    }
+
+    /* Inspector Panel */
+    .inspector-panel {
+      width: var(--panel-width);
+      background: #111827;
+      border-left: 1px solid var(--card-border);
+      height: 100%;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
+      z-index: 15;
+      transition: transform 0.3s ease;
+    }
+
+    .inspector-header {
+      padding: 20px;
+      border-bottom: 1px solid var(--card-border);
+      background: #1f2937;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .inspector-header h2 {
+      font-size: 16px;
+      font-weight: 700;
+      color: #f9fafb;
+    }
+
+    .inspector-header .subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .close-inspector {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 18px;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+
+    .close-inspector:hover {
+      background: #374151;
+      color: #fff;
+    }
+
+    .inspector-body {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .detail-section {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 14px;
+    }
+
+    .detail-section h3 {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--primary);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .data-pill {
+      display: inline-block;
+      background: rgba(56, 189, 248, 0.1);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.2);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: monospace;
+      margin: 2px 4px 2px 0;
+    }
+
+    .qa-box {
+      background: rgba(251, 191, 36, 0.08);
+      border: 1px solid rgba(251, 191, 36, 0.3);
+      border-radius: 8px;
+      padding: 14px;
+    }
+
+    .qa-box h4 {
+      color: #fbbf24;
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+
+    .qa-box p {
+      color: #fde68a;
+      font-size: 12px;
+    }
+
+    .flow-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #10b981;
+    }
+
+    /* Footer status */
+    footer {
+      background: #0f172a;
+      border-top: 1px solid var(--card-border);
+      padding: 8px 24px;
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .legend {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <span class="brand-badge">Archify Interactive</span>
+      <div>
+        <h1>H2MilkTea - Kiến Trúc Hệ Thống & Luồng Dữ Liệu Thực Tế</h1>
+        <p>Khoa CNTT - ĐH Công nghệ Giao thông Vận tải (UTT) | Phục vụ Vấn đáp Bảo vệ Đồ án</p>
+      </div>
+    </div>
+    <div class="toolbar">
+      <span style="font-size: 12px; color: #94a3b8; margin-right: 6px;">Lọc chuyên đề:</span>
+      <button class="filter-btn active" data-filter="all">Tất cả (Full)</button>
+      <button class="filter-btn" data-filter="cart">Giỏ & Đơn hàng (OCC)</button>
+      <button class="filter-btn" data-filter="ai">Trợ lý AI POS</button>
+      <button class="filter-btn" data-filter="auth">Bảo mật & Phân quyền</button>
+    </div>
+  </header>
+
+  <div class="workspace">
+    <div class="diagram-container" id="diagramContainer">
+
+      <!-- TẦNG 1: CLIENT TIER (TRÌNH DUYỆT THU NGÂN / KHÁCH HÀNG / KDS) -->
+      <div class="arch-layer" data-layer="client">
+        <span class="layer-label">1. Client Tier (Trình duyệt Người dùng - CSR)</span>
+        <div class="nodes-grid">
+          
+          <div class="arch-node" data-id="pos-client" data-category="cart auth">
+            <div class="node-header">
+              <span class="node-title">💻 Thu Ngân POS UI</span>
+              <span class="node-tag tag-client">Client Comp</span>
+            </div>
+            <div class="node-file">src/app/(dashboard)/pos/page.tsx</div>
+            <div class="node-desc">Giao diện bán hàng trực tiếp, chọn bàn, chọn món, nhận thông báo realtime đơn QR từ khách, kết nối máy in và tạo đơn tại quầy.</div>
+          </div>
+
+          <div class="arch-node" data-id="use-shared-cart" data-category="cart">
+            <div class="node-header">
+              <span class="node-title">🔄 useSharedCartDraft Hook</span>
+              <span class="node-tag tag-client">React Hook</span>
+            </div>
+            <div class="node-file">src/app/(dashboard)/pos/hooks/useSharedCartDraft.ts</div>
+            <div class="node-desc">Quản lý đồng bộ giỏ hàng dùng chung giữa nhiều tablet. Xử lý WebSocket Realtime, Fallback Polling (3.5s) và OCC resolution.</div>
+          </div>
+
+          <div class="arch-node" data-id="pos-ai-assistant" data-category="ai">
+            <div class="node-header">
+              <span class="node-title">🎙️ POS Assistant (Trợ lý AI)</span>
+              <span class="node-tag tag-client">Client Comp</span>
+            </div>
+            <div class="node-file">src/app/(dashboard)/pos/components/POSAssistant.tsx</div>
+            <div class="node-desc">Nhận lệnh thoại qua Web Speech API (vi-VN), auto-submit, hiển thị khung duyệt món Human-in-the-Loop trước khi nạp vào giỏ.</div>
+          </div>
+
+          <div class="arch-node" data-id="qr-order-client" data-category="cart auth">
+            <div class="node-header">
+              <span class="node-title">📱 Khách Quét QR Bàn</span>
+              <span class="node-tag tag-client">Client Comp</span>
+            </div>
+            <div class="node-file">src/app/order/page.tsx</div>
+            <div class="node-desc">Giao diện khách tự order tại bàn trên điện thoại di động. Không cần đăng nhập, bảo vệ bằng mã hóa QR Token và Idempotency Key.</div>
+          </div>
+
+          <div class="arch-node" data-id="kitchen-kds" data-category="cart">
+            <div class="node-header">
+              <span class="node-title">🍳 Màn Hình Bếp (KDS)</span>
+              <span class="node-tag tag-client">Client Comp</span>
+            </div>
+            <div class="node-file">src/app/kitchen/page.tsx</div>
+            <div class="node-desc">Hiển thị danh sách vé chế biến theo thời gian thực (queued -> making -> completed), âm báo khi có đơn mới từ thu ngân hoặc khách QR.</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- TẦNG 2: EDGE GATEWAY & MIDDLEWARE -->
+      <div class="arch-layer" data-layer="gateway">
+        <span class="layer-label">2. Edge Gateway & Middleware Tier</span>
+        <div class="nodes-grid">
+
+          <div class="arch-node" data-id="edge-middleware" data-category="auth">
+            <div class="node-header">
+              <span class="node-title">🛡️ Next.js Edge Middleware</span>
+              <span class="node-tag tag-gateway">Edge Runtime</span>
+            </div>
+            <div class="node-file">src/middleware.ts</div>
+            <div class="node-desc">Kiểm soát truy cập toàn bộ route nội bộ, cấp Correlation ID (x-correlation-id) phục vụ truy vết lỗi, bảo vệ trang bằng JWT/Cookie.</div>
+          </div>
+
+          <div class="arch-node" data-id="realtime-gateway" data-category="cart">
+            <div class="node-header">
+              <span class="node-title">⚡ Supabase Realtime Gateway</span>
+              <span class="node-tag tag-gateway">WebSocket PubSub</span>
+            </div>
+            <div class="node-file">Kênh: pos_cart_drafts & pos_orders</div>
+            <div class="node-desc">Kênh WebSocket phát tín hiệu tức thời khi thu ngân sửa giỏ, khách gửi đơn hoặc trạng thái bàn thay đổi.</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- TẦNG 3: SERVERLESS API ROUTE HANDLERS -->
+      <div class="arch-layer" data-layer="server">
+        <span class="layer-label">3. Serverless API Route Handlers Tier (Node.js Server)</span>
+        <div class="nodes-grid">
+
+          <div class="arch-node" data-id="api-cart-draft" data-category="cart">
+            <div class="node-header">
+              <span class="node-title">🛒 Cart Draft API</span>
+              <span class="node-tag tag-server">API Route</span>
+            </div>
+            <div class="node-file">src/app/api/pos/cart-draft/route.ts</div>
+            <div class="node-desc">Thực thi Optimistic Concurrency Control (OCC) với phiên bản số nguyên `version`. Trả về HTTP 409 Conflict khi phát hiện sửa đè.</div>
+          </div>
+
+          <div class="arch-node" data-id="api-orders" data-category="cart auth">
+            <div class="node-header">
+              <span class="node-title">📝 Orders Processing API</span>
+              <span class="node-tag tag-server">API Route</span>
+            </div>
+            <div class="node-file">src/app/api/orders/route.ts</div>
+            <div class="node-desc">Tiếp nhận đơn hàng, chống gửi trùng bằng Idempotency Key (UUID), xác thực giá phía server (Server-side Price Validation) qua DMHH.</div>
+          </div>
+
+          <div class="arch-node" data-id="api-ai-chat" data-category="ai auth">
+            <div class="node-header">
+              <span class="node-title">🤖 AI Chat Endpoint</span>
+              <span class="node-tag tag-server">API Route</span>
+            </div>
+            <div class="node-file">src/app/api/ai/chat/route.ts</div>
+            <div class="node-desc">Xác thực nhân viên, tải cấu hình cài đặt AI (bật/tắt, alias, FAQ tùy biến), tải DMHH & DSBAN kích hoạt và đẩy vào Pipeline xử lý.</div>
+          </div>
+
+          <div class="arch-node" data-id="auth-server-lib" data-category="auth">
+            <div class="node-header">
+              <span class="node-title">🔐 Server Auth & RBAC Resolver</span>
+              <span class="node-tag tag-server">Server Utility</span>
+            </div>
+            <div class="node-file">src/lib/supabase/server.ts</div>
+            <div class="node-desc">Quản lý Service Role Key bí mật, đọc phiên đăng nhập staff, tra cứu vai trò Admin / Nhân viên từ bảng DSNV.</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- TẦNG 4: AI REASONING & PIPELINE ENGINE -->
+      <div class="arch-layer" data-layer="ai">
+        <span class="layer-label">4. AI Intelligence & Pipeline Engine</span>
+        <div class="nodes-grid">
+
+          <div class="arch-node" data-id="ai-pipeline" data-category="ai">
+            <div class="node-header">
+              <span class="node-title">⚙️ AI Pipeline 3 Lớp</span>
+              <span class="node-tag tag-ai">Core Engine</span>
+            </div>
+            <div class="node-file">src/lib/ai/pipeline.ts</div>
+            <div class="node-desc">Điều phối 3 lớp: Rate Limiting (20 req/phút) -> Rule Engine / Security Guardrails -> LLM NLU (Gemini) -> Schema Validation & Audit.</div>
+          </div>
+
+          <div class="arch-node" data-id="catalog-matcher" data-category="ai">
+            <div class="node-header">
+              <span class="node-title">🎯 Catalog NFD & Token Scorer</span>
+              <span class="node-tag tag-ai">NLU Utility</span>
+            </div>
+            <div class="node-file">src/lib/ai/catalog.ts</div>
+            <div class="node-desc">Chuẩn hóa tiếng Việt bỏ dấu (NFD), thay thế từ viết tắt (ts -> trà sữa), tính điểm F1-Score (Precision & Recall) để bắt đúng món.</div>
+          </div>
+
+          <div class="arch-node" data-id="llm-gemini" data-category="ai">
+            <div class="node-header">
+              <span class="node-title">🧠 Google Gemini 2.5 Flash</span>
+              <span class="node-tag tag-ai">Cloud LLM</span>
+            </div>
+            <div class="node-file">External API / Google AI Studio</div>
+            <div class="node-desc">Đọc hiểu ngôn ngữ tự nhiên phức tạp, ép khuôn đầu ra dạng JSON có cấu trúc (Strict Structured JSON Schema) không sinh văn bản thừa.</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- TẦNG 5: PERSISTENCE & DATA STORAGE -->
+      <div class="arch-layer" data-layer="db">
+        <span class="layer-label">5. Persistence & Supabase Database Tier (PostgreSQL)</span>
+        <div class="nodes-grid">
+
+          <div class="arch-node" data-id="table-pos-orders" data-category="cart">
+            <div class="node-header">
+              <span class="node-title">📦 pos_orders Table</span>
+              <span class="node-tag tag-db">PostgreSQL</span>
+            </div>
+            <div class="node-file">Supabase Schema: pos_orders</div>
+            <div class="node-desc">Lưu toàn bộ đơn hàng, cột `idempotency_key` unique chống duplicate, `tracking_token` cho khách tra cứu, trạng thái đơn và bếp.</div>
+          </div>
+
+          <div class="arch-node" data-id="table-pos-drafts" data-category="cart">
+            <div class="node-header">
+              <span class="node-title">📑 pos_cart_drafts Table</span>
+              <span class="node-tag tag-db">PostgreSQL</span>
+            </div>
+            <div class="node-file">Supabase Schema: pos_cart_drafts</div>
+            <div class="node-desc">Lưu giỏ hàng nháp theo từng bàn (`table_id` primary key), cột `version` kiểu integer phục vụ cơ chế khóa lạc quan (OCC).</div>
+          </div>
+
+          <div class="arch-node" data-id="table-catalog-dsnv" data-category="auth ai">
+            <div class="node-header">
+              <span class="node-title">🗄️ DMHH, DSBAN, DSNV Tables</span>
+              <span class="node-tag tag-db">Master Data</span>
+            </div>
+            <div class="node-file">Bảng: DMHH | DSBAN | DSNV</div>
+            <div class="node-desc">Bảng giá gốc (DMHH), sơ đồ phòng bàn (DSBAN), danh sách nhân viên và cột `Phân quyền` Admin/Nhân viên (DSNV).</div>
+          </div>
+
+          <div class="arch-node" data-id="table-ai-audit" data-category="ai">
+            <div class="node-header">
+              <span class="node-title">📜 ai_audit_logs Table</span>
+              <span class="node-tag tag-db">Audit & Trace</span>
+            </div>
+            <div class="node-file">Supabase Schema: ai_audit_logs</div>
+            <div class="node-desc">Ghi nhật ký mọi khẩu lệnh AI: câu thoại gốc, thời gian phản hồi (latency), kết quả phân tích, trạng thái xác nhận (previewed/confirmed/rejected).</div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- CỘT BÊN PHẢI: INSPECTOR CHI TIẾT -->
+    <div class="inspector-panel" id="inspectorPanel">
+      <div class="inspector-header">
+        <div>
+          <h2 id="insTitle">Chi tiết Thành phần</h2>
+          <div class="subtitle" id="insSubtitle">Bấm vào bất kỳ khối nào bên trái để xem giải thích</div>
+        </div>
+        <button class="close-inspector" id="closeInspectorBtn" title="Đóng bảng">✕</button>
+      </div>
+      
+      <div class="inspector-body" id="insBody">
+        <div style="text-align: center; color: #94a3b8; padding: 40px 10px;">
+          <p style="font-size: 32px; margin-bottom: 12px;">👆</p>
+          <p style="font-weight: 600; color: #f1f5f9;">Chọn một khối kiến trúc để bắt đầu</p>
+          <p style="font-size: 12px; margin-top: 6px;">Bảng điều khiển sẽ hiển thị vai trò, dữ liệu vào/ra, file code liên quan và câu hỏi vấn đáp bảo vệ đồ án tương ứng.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background: #38bdf8;"></div><span>Client (CSR)</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background: #c084fc;"></div><span>Edge & Realtime</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background: #fbbf24;"></div><span>Serverless API (Next.js)</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background: #fb7185;"></div><span>AI Intelligence Engine</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background: #34d399;"></div><span>PostgreSQL DB (Supabase)</span></div>
+    </div>
+    <div>H2MilkTea Thesis Defense Ready © 2026 UTT</div>
+  </footer>
+
+  <script>
+    // Dữ liệu mô tả chi tiết của từng khối trong hệ thống
+    const nodeDetails = {
+      "pos-client": {
+        title: "Giao diện Bán hàng POS Thu Ngân",
+        file: "src/app/(dashboard)/pos/page.tsx",
+        badge: "Client Component ('use client')",
+        layer: "Client Tier",
+        desc: "Màn hình bán hàng chính tại quầy dành cho thu ngân. Cho phép chọn bàn, tìm món, tùy chỉnh topping/đường/đá, xem trạng thái bàn và thu tiền in hóa đơn.",
+        ingress: ["Thao tác click/chạm của thu ngân", "WebSocket event từ Supabase", "Polling draft từ /api/pos/cart-draft"],
+        egress: ["Gọi API /api/pos/cart-draft (PUT/DELETE)", "Gọi API /api/orders (POST tạo đơn)", "Broadcast tín hiệu giỏ hàng qua Realtime channel"],
+        mechanisms: "Quản lý state cục bộ với React Hooks; nếu mất mạng tạm thời vẫn giữ được giỏ hàng trên UI và đồng bộ lại ngay khi có mạng.",
+        qa: "Thầy/Cô hỏi: 'Tại sao file này phải dùng 'use client'?' -> Đáp: 'Vì màn hình POS cần tương tác trực tiếp với DOM, lắng nghe sự kiện chuột/chạm, lưu State động (useState, useEffect) và gọi Web APIs như localStorage, SpeechRecognition mà server không thể chạy được.'"
+      },
+      "use-shared-cart": {
+        title: "Hook Đồng Bộ Giỏ Hàng Dùng Chung (useSharedCartDraft)",
+        file: "src/app/(dashboard)/pos/hooks/useSharedCartDraft.ts",
+        badge: "React Custom Hook",
+        layer: "Client State & Sync",
+        desc: "Trái tim của tính năng đồng bộ giỏ hàng nhiều máy (Ví dụ: Thu ngân A và Thu ngân B cùng mở bàn số 3 trên 2 tablet khác nhau).",
+        ingress: ["tableId hiện tại", "cart local state", "Broadcast message từ máy khác", "Dữ liệu trả về từ GET /api/pos/cart-draft"],
+        egress: ["PUT /api/pos/cart-draft kèm expectedVersion", "Broadcast event 'cart_sync' qua Supabase Channel", "Cập nhật setCart() khi gộp món thành công"],
+        mechanisms: "1. Realtime WebSocket ưu tiên cao. 2. Fallback Polling chu kỳ 3.5s (tối đa backoff 10s). 3. Tự động gộp giỏ hàng bằng diffCartItems() nếu 2 máy bấm món khác nhau. 4. Bật Modal giải quyết xung đột nếu 2 máy sửa cùng 1 món.",
+        qa: "Thầy/Cô hỏi: 'Nếu mạng quán trà sữa bị chập chờn, WebSocket đứt kết nối thì hệ thống xử lý thế nào?' -> Đáp: 'Hook có cơ chế Fallback Polling chạy nền với chu kỳ 3.5s tự động truy vấn lại giỏ hàng từ máy chủ, đảm bảo dữ liệu không bị nghẽn.'"
+      },
+      "pos-ai-assistant": {
+        title: "Trợ lý AI POS Nhận diện Giọng nói",
+        file: "src/app/(dashboard)/pos/components/POSAssistant.tsx",
+        badge: "Voice & AI Component",
+        layer: "Client AI Interaction",
+        desc: "Thành phần nhận lệnh đặt món bằng giọng nói tiếng Việt cho thu ngân vào giờ cao điểm (ví dụ: '3 trà sữa nướng 50 đường vào bàn 2').",
+        ingress: ["Âm thanh qua Microphone người dùng", "Web Speech API (SpeechRecognition)", "Settings từ /api/ai/settings"],
+        egress: ["POST /api/ai/chat (gửi câu lệnh văn bản)", "Kích hoạt onAddToCart / onAdjustQuantity sau khi thu ngân bấm Duyệt (Confirm)"],
+        mechanisms: "Human-in-the-Loop (Người kiểm duyệt): AI chỉ phân tích và hiển thị bản xem trước (Preview). Tuyệt đối không tự ý thanh toán hay trừ tiền mà bắt buộc thu ngân phải bấm nút 'Xác nhận' bằng tay.",
+        qa: "Thầy/Cô hỏi: 'Tại sao AI không tự thêm thẳng món vào hóa đơn mà phải qua bước Preview?' -> Đáp: 'Đây là nguyên lý Human-in-the-Loop trong hệ thống thương mại, giúp loại bỏ 100% rủi ro do AI nghe nhầm giọng nói vùng miền hoặc quán ồn ào.'"
+      },
+      "qr-order-client": {
+        title: "Trang Đặt Món Khách Quét QR Bàn",
+        file: "src/app/order/page.tsx",
+        badge: "Public Client Component",
+        layer: "Client Tier",
+        desc: "Trang web dành riêng cho khách ngồi tại bàn dùng điện thoại quét mã QR dán trên mặt bàn để tự đặt món.",
+        ingress: ["Tham số URL: ?table=B01&token=xyz", "Danh mục món từ /api/orders?catalog=1"],
+        egress: ["POST /api/orders với source: 'QR_TABLE', idempotencyKey UUID và qrToken"],
+        mechanisms: "Bảo vệ bởi Rate Limit theo IP khách + ID bàn (lib/qr/token.ts). Đơn QR tạo xong sẽ ở trạng thái 'awaiting_confirmation' và tự hủy sau 15 phút nếu thu ngân không bấm nhận.",
+        qa: "Thầy/Cô hỏi: 'Khách ở nhà có quét lén mã QR để đặt đơn ảo phá quán được không?' -> Đáp: 'Hệ thống có cơ chế xác thực QR Token có hạn giờ, kiểm tra Rate Limit theo IP và đơn chỉ được bếp nấu khi thu ngân tại quầy bấm duyệt.'"
+      },
+      "kitchen-kds": {
+        title: "Màn hình Hiển thị Bếp (KDS)",
+        file: "src/app/kitchen/page.tsx",
+        badge: "KDS Screen Component",
+        layer: "Kitchen Operations",
+        desc: "Màn hình đặt tại quầy pha chế/bếp để nhân viên nhìn thấy thứ tự các món cần làm ngay khi thu ngân tạo đơn hoặc duyệt đơn QR.",
+        ingress: ["WebSocket Event thông báo đơn mới từ Supabase pos_orders"],
+        egress: ["PATCH cập nhật trạng thái món: queued -> making -> completed"],
+        mechanisms: "Có âm thanh 'ting ting' cảnh báo khi có đơn mới; tự động phân loại ghi chú (đường, đá, topping) màu nổi bật để thợ pha chế không nhầm lẫn.",
+        qa: "Thầy/Cô hỏi: 'Làm sao bếp nhận được đơn tức thì mà không cần bấm F5 lại trang?' -> Đáp: 'KDS đăng ký kênh Supabase Realtime channel lắng nghe sự kiện INSERT trên bảng pos_orders để cập nhật danh sách vé ngay lập tức.'"
+      },
+      "edge-middleware": {
+        title: "Next.js Edge Middleware Kiểm Soát Route",
+        file: "src/middleware.ts",
+        badge: "Edge Runtime Handler",
+        layer: "Gateway & Routing",
+        desc: "Chạy tại Edge trước khi request chạm vào Serverless Function. Đảm nhiệm phân luồng, cấp mã truy vết lỗi và bảo vệ route.",
+        ingress: ["Mọi HTTP Request gửi tới ứng dụng"],
+        egress: ["Chuyển tiếp kèm Header x-correlation-id", "Rewrite về /not-found nếu route ảo", "Redirect về trang login / nếu chưa đăng nhập"],
+        mechanisms: "1. Tự động sinh `crypto.randomUUID()` gán vào `x-correlation-id` để dễ dàng tra cứu log khi có sự cố. 2. Bảo vệ tất cả route quản trị, chỉ cho phép mở các route công khai như `/`, `/order/*`.",
+        qa: "Thầy/Cô hỏi: 'Middleware chạy ở đâu và tại sao lại dùng Correlation ID?' -> Đáp: 'Middleware chạy tại tầng Edge trước khi vào máy chủ. Correlation ID giúp kết nối toàn bộ vết log từ lúc client gửi request tới khi database xử lý, giúp định vị lỗi trong 1 giây.'"
+      },
+      "realtime-gateway": {
+        title: "Supabase Realtime PubSub Engine",
+        file: "Kênh WebSocket: pos_cart_drafts & pos_orders",
+        badge: "Managed WebSocket",
+        layer: "Realtime Gateway",
+        desc: "Hệ thống máy chủ WebSocket của Supabase bắt sự kiện thay đổi dữ liệu từ PostgreSQL WAL (Write-Ahead Logging) và phát sóng cho các client đang kết nối.",
+        ingress: ["Thay đổi bản ghi (INSERT, UPDATE, DELETE) trong DB", "Broadcast event do client gửi lên"],
+        egress: ["Đẩy message WebSocket JSON xuống toàn bộ các trình duyệt đang subscribe"],
+        mechanisms: "Sử dụng giao thức WebSocket hai chiều; hỗ trợ Presence (biết máy nào đang mở bàn) và Broadcast (truyền trạng thái giỏ mà không cần ép ghi vào ổ cứng liên tục).",
+        qa: "Thầy/Cô hỏi: 'Supabase Realtime lấy dữ liệu từ đâu để bắn về trình duyệt?' -> Đáp: 'Supabase sử dụng tính năng Logical Replication của PostgreSQL đọc luồng WAL (Write-Ahead Log), khi có bản ghi thay đổi nó sẽ chuyển thành gói tin WebSocket phát cho client.'"
+      },
+      "api-cart-draft": {
+        title: "Cart Draft API - Khóa Lạc Quan OCC",
+        file: "src/app/api/pos/cart-draft/route.ts",
+        badge: "API Route Handler",
+        layer: "Serverless Backend",
+        desc: "Xử lý lưu trữ và đồng bộ giỏ hàng nháp giữa các thiết bị POS. Áp dụng kỹ thuật Optimistic Concurrency Control (OCC).",
+        ingress: ["PUT request chứa tableId, cart, expectedVersion, selectedCustomer"],
+        egress: ["200 OK kèm draft mới và nextVersion (expectedVersion + 1)", "409 Conflict nếu version trong DB khác expectedVersion"],
+        mechanisms: "OCC Query: `.update({... version: expectedVersion + 1 }).eq('table_id', tableId).eq('version', expectedVersion)`. Nếu bản ghi bị máy khác sửa trước, câu lệnh update không tìm thấy dòng nào -> phát hiện xung đột và trả về HTTP 409.",
+        qa: "Thầy/Cô hỏi: 'Tại sao em dùng Optimistic Concurrency Control (OCC) thay vì Pessimistic Locking (Khóa bi quan)?' -> Đáp: 'Khóa bi quan sẽ khóa cứng bàn lại khiến nhân viên khác không xem được giỏ hàng. OCC cho phép mọi người cùng thao tác thoải mái, chỉ chặn lại và thông báo khi có người ghi đè dữ liệu, rất phù hợp với nhịp độ quán đông khách.'"
+      },
+      "api-orders": {
+        title: "Orders API - Lũy Đẳng & Xác Thực Giá",
+        file: "src/app/api/orders/route.ts",
+        badge: "Critical Business API",
+        layer: "Serverless Backend",
+        desc: "Tạo đơn hàng chính thức từ thu ngân hoặc khách QR. Có 2 lớp bảo vệ sống còn: Tính lũy đẳng (Idempotency) và Xác thực giá phía máy chủ.",
+        ingress: ["POST body chứa items, tableId, source, idempotencyKey (UUID)"],
+        egress: ["200 OK với orderId, totalAmount, trackingToken", "400 Bad Request nếu cố tình hack sửa giá món"],
+        mechanisms: "1. Idempotency: Kiểm tra idempotency_key đã có trong bảng pos_orders chưa, nếu có trả lại ngay order cũ mà không tạo đơn mới. 2. Price Validation: Bỏ qua giá tiền do điện thoại gửi lên, tự động SELECT giá gốc từ bảng DMHH + cộng 5.000đ nếu chọn Size L.",
+        qa: "Thầy/Cô hỏi: 'Nếu khách hàng dùng F12 trên trình duyệt sửa giá ly trà sữa từ 40k về 1k rồi gửi lên thì sao?' -> Đáp: 'Máy chủ không bao giờ tin giá client gửi lên. Hàm POST trong orders/route.ts sẽ tự tra cứu IDSP trong bảng DMHH trên DB để lấy giá chuẩn rồi mới tính tổng tiền.'"
+      },
+      "api-ai-chat": {
+        title: "AI Chat Endpoint Điều Phối Trợ Lý",
+        file: "src/app/api/ai/chat/route.ts",
+        badge: "AI Gateway API",
+        layer: "AI Backend",
+        desc: "Tiếp nhận câu thoại của nhân viên, kiểm tra quyền hạn, chuẩn bị ngữ cảnh menu DMHH/DSBAN và chuyển vào AI Pipeline.",
+        ingress: ["POST body: message (văn bản khẩu lệnh), history, table hiện tại"],
+        egress: ["JSON kết quả: action ('add'|'remove'|'select_table'), items, targetTable, message"],
+        mechanisms: "Kiểm tra quyền hạn qua `getStaffRole()` (chỉ nhân viên/admin có phiên mới được gọi). Kiểm tra công tắc tắt/bật Chatbot trong bảng `app_settings` (key: ai_assistant_enabled).",
+        qa: "Thầy/Cô hỏi: 'Nếu quán muốn tạm tắt tính năng Chatbot AI vì hết kinh phí API thì làm thế nào?' -> Đáp: 'Admin vào trang /settings/ai tắt công tắc, bảng app_settings sẽ lưu key ai_assistant_enabled = false. API sẽ lập tức chặn mọi yêu cầu AI mà không cần sửa code deploy lại.'"
+      },
+      "auth-server-lib": {
+        title: "Server Auth & RBAC Security Resolver",
+        file: "src/lib/supabase/server.ts",
+        badge: "Security Core",
+        layer: "Security & Auth",
+        desc: "Chứa các hàm bảo mật tối cao của hệ thống: khởi tạo kết nối Admin Supabase Client và xác định vai trò nhân sự.",
+        ingress: ["Cookie Header từ request"],
+        egress: ["Object staff: { id, email, user_metadata }", "Object role: { role: 'Admin'|'Nhân viên', isAdmin: boolean }"],
+        mechanisms: "Sử dụng SUPABASE_SERVICE_ROLE_KEY bí mật (chỉ chạy trên Node.js server, không lộ ra browser) để bypass RLS khi thực hiện nghiệp vụ ghi sổ quan trọng.",
+        qa: "Thầy/Cô hỏi: 'Phân biệt Anon Key và Service Role Key trong đồ án của em?' -> Đáp: 'Anon Key công khai trên trình duyệt và bị kiểm soát bởi RLS. Service Role Key là khóa quyền tối cao chỉ nằm trên máy chủ Node.js bí mật, dùng để thực thi các tác vụ admin như tạo tài khoản nhân viên, ghi log kiểm toán.'"
+      },
+      "ai-pipeline": {
+        title: "AI Intelligence Pipeline 3 Lớp",
+        file: "src/lib/ai/pipeline.ts",
+        badge: "Hybrid AI Engine",
+        layer: "AI Processing",
+        desc: "Quy trình xử lý khẩu lệnh thông minh kết hợp giữa Luật chính xác (Rule-based) và Mô hình ngôn ngữ lớn (LLM).",
+        ingress: ["Khẩu lệnh thô từ nhân viên", "Danh mục món đang hoạt động (active catalog)", "Danh sách bàn thực tế"],
+        egress: ["PipelineResult: action, items, targetTable, message, source ('rule'|'llm')"],
+        mechanisms: "Lớp 1: Rate limit (20 req/phút) + Chống Prompt Injection. Lớp 2: Bộ luật từ điển (Rule Engine) cho các câu lệnh chuẩn (nhanh 10ms, 0đ tiền API). Lớp 3: Gọi Google Gemini 2.5 Flash ép khuôn JSON khi câu lệnh tự nhiên phức tạp. Lớp 4: Ghi log vào ai_audit_logs.",
+        qa: "Thầy/Cô hỏi: 'Tại sao em không gửi tất cả câu lệnh lên Gemini mà phải có Lớp Luật (Rule Engine)?' -> Đáp: 'Nhờ Rule Engine, các câu khẩu lệnh ngắn gọn phổ biến như 'bàn 3 thêm 2 trà sữa' được xử lý tức thì dưới 15 mili-giây, tiết kiệm chi phí gọi API và hệ thống vẫn chạy tốt kể cả khi mất kết nối tới máy chủ Google AI.'"
+      },
+      "catalog-matcher": {
+        title: "Bộ Chuẩn Hóa & So Khớp Món (Catalog Matcher)",
+        file: "src/lib/ai/catalog.ts",
+        badge: "Text Normalization",
+        layer: "NLU Processing",
+        desc: "Chịu trách nhiệm hiểu tiếng Việt nói tắt và so khớp tên món khách gọi với danh mục món chính xác trong cơ sở dữ liệu.",
+        ingress: ["Tên món thô do AI trích xuất (ví dụ: 'ts nướng', 'ô long', 'bạc xỉu')"],
+        egress: ["CatalogProduct chính xác từ DMHH (IDSP, Tên, Đơn giá) kèm F1 Score"],
+        mechanisms: "1. Chuẩn hóa NFD bỏ dấu tiếng Việt, đưa về chữ thường. 2. Từ điển Alias (ts -> tra sua, cf -> ca phe, dcs -> tra dao cam sa). 3. Thuật toán F1-Score tính độ tương đồng từ vựng: Precision & Recall, ngưỡng chấp nhận >= 0.6.",
+        qa: "Thầy/Cô hỏi: 'Làm sao hệ thống hiểu được khi nhân viên nói 'cho 2 cốc ts nướng'?' -> Đáp: 'Hàm expandAliases() sẽ dịch 'ts' thành 'tra sua', sau đó hàm scoreProduct() tính điểm tương đồng F1 giữa chuỗi 'tra sua nuong' với các món trong DMHH để gán chính xác mã IDSP của Trà sữa nướng.'"
+      },
+      "llm-gemini": {
+        title: "Mô hình Ngôn ngữ Lớn Google Gemini 2.5 Flash",
+        file: "External LLM Service",
+        badge: "Generative AI",
+        layer: "Cloud AI Tier",
+        desc: "Bộ não xử lý ngôn ngữ tự nhiên hiểu các câu nói phức tạp, tỉnh lược, nhiều điều kiện hoặc hỏi đáp FAQ về quán.",
+        ingress: ["System Prompt (quy tắc an toàn, danh sách món, bàn)", "Lịch sử hội thoại 6 lượt gần nhất", "Khẩu lệnh người dùng"],
+        egress: ["Chuỗi JSON tuân thủ AiOutputSchema (không bao giờ sinh văn bản lung tung)"],
+        mechanisms: "Sử dụng chế độ Structured JSON Output (`response_format: { type: 'json_object' }`). System prompt nghiêm cấm AI tự ý sửa giá hoặc xác nhận thanh toán.",
+        qa: "Thầy/Cô hỏi: 'Làm sao em ép được Gemini luôn trả về đúng cấu trúc JSON mà code đọc được?' -> Đáp: 'Em sử dụng cơ chế Structured JSON Mode của API kết hợp với Schema định nghĩa sẵn, đồng thời ở máy chủ có hàm extractLlmJson() dự phòng bóc tách chuỗi JSON an toàn.'"
+      },
+      "table-pos-orders": {
+        title: "Bảng Dữ Liệu Đơn Hàng (pos_orders)",
+        file: "Supabase PostgreSQL Table",
+        badge: "Relational Database",
+        layer: "Database Tier",
+        desc: "Lưu trữ toàn bộ đơn hàng của quán (cả đơn tại quầy và đơn khách quét QR).",
+        ingress: ["Bản ghi mới từ API /api/orders"],
+        egress: ["Cung cấp dữ liệu cho Báo cáo doanh thu, KDS Bếp, Lịch sử đơn"],
+        mechanisms: "Cột `idempotency_key` được đánh chỉ mục UNIQUE. Cột `tracking_token` giúp khách tra cứu tiến độ làm trà sữa mà không cần đăng nhập tài khoản.",
+        qa: "Thầy/Cô hỏi: 'Khóa chống trùng đơn (idempotency_key) hoạt động thế nào trong Database?' -> Đáp: 'Cột này có ràng buộc UNIQUE trong PostgreSQL. Nếu cùng 1 UUID gửi lên lần 2, database sẽ báo lỗi vi phạm khóa duy nhất (mã lỗi 23505), API sẽ bắt lỗi này và trả về đơn hàng cũ mà không cộng tiền 2 lần.'"
+      },
+      "table-pos-drafts": {
+        title: "Bảng Giỏ Hàng Nháp Từng Bàn (pos_cart_drafts)",
+        file: "Supabase PostgreSQL Table",
+        badge: "Relational Database",
+        layer: "Database Tier",
+        desc: "Lưu trạng thái giỏ hàng đang chọn dở của từng bàn phục vụ đồng bộ tức thời giữa các máy tính bảng của nhân viên.",
+        ingress: ["Bản ghi giỏ hàng từ /api/pos/cart-draft"],
+        egress: ["Cung cấp giỏ hàng hiện tại cho thu ngân khi mở bàn"],
+        mechanisms: "Khóa chính là `table_id`. Cột `version` (kiểu INT) tăng tuần tự +1 mỗi lần cập nhật thành công để phục vụ thuật toán OCC.",
+        qa: "Thầy/Cô hỏi: 'Tại sao không lưu giỏ hàng vào Redis mà lại lưu vào PostgreSQL?' -> Đáp: 'Bảng pos_cart_drafts tận dụng luôn tính năng Realtime CDC (Change Data Capture) sẵn có của Supabase PostgreSQL, giúp hệ thống không cần triển khai thêm cụm Redis tốn chi phí và phức tạp hạ tầng.'"
+      },
+      "table-catalog-dsnv": {
+        title: "Các Bảng Danh Mục Gốc (DMHH, DSBAN, DSNV)",
+        file: "Master Data Tables",
+        badge: "Master Tables",
+        layer: "Database Tier",
+        desc: "Chứa danh mục hàng hóa (DMHH), danh mục bàn (DSBAN) và danh sách nhân viên phân quyền (DSNV).",
+        ingress: ["Nhập liệu ban đầu hoặc cập nhật từ màn hình Quản lý của Admin"],
+        egress: ["Cung cấp bảng giá chuẩn cho Orders API và Catalog Matcher của AI"],
+        mechanisms: "Có cơ chế Fallback đọc file JSON tĩnh (`DMHH.json`, `DSBAN.json`, `DSNV.json`) nếu đường truyền cơ sở dữ liệu đám mây tạm thời gặp sự cố khởi động lạnh.",
+        qa: "Thầy/Cô hỏi: 'Nếu Supabase bị sập thì quán có đứng hình không?' -> Đáp: 'Hệ thống có cơ chế phòng vệ 2 lớp (Self-healing Fallback), nếu không tải được DB đám mây, server sẽ tự nạp dữ liệu menu từ file JSON cục bộ để thu ngân vẫn tiếp tục phục vụ khách.'"
+      },
+      "table-ai-audit": {
+        title: "Bảng Nhật Ký Kiểm Toán AI (ai_audit_logs)",
+        file: "Supabase PostgreSQL Table",
+        badge: "Audit Log Table",
+        layer: "Database Tier",
+        desc: "Lưu vết toàn bộ hoạt động của Trợ lý AI để quản lý chất lượng và giải quyết khiếu nại.",
+        ingress: ["Ghi tự động từ processAiPipeline() và POSAssistant.tsx"],
+        egress: ["Hiển thị trên giao diện Nhật ký kiểm toán AI (/settings/ai) cho Admin"],
+        mechanisms: "Ghi nhận: Mã nhân viên, Câu lệnh thô, Độ trễ (latency_ms), Trạng thái (previewed, confirmed, rejected, blocked), Lý do chặn nếu vi phạm bảo mật.",
+        qa: "Thầy/Cô hỏi: 'Làm sao chủ quán biết nhân viên có sử dụng AI hiệu quả và AI có bị lỗi không?' -> Đáp: 'Bảng ai_audit_logs lưu chi tiết mọi lượt tương tác, ghi nhận tỷ lệ nhân viên bấm duyệt (confirmed) hay hủy (rejected) và đo độ trễ mili-giây của từng câu lệnh.'"
+      }
+    };
+
+    // Quản lý tương tác DOM
+    const nodes = document.querySelectorAll('.arch-node');
+    const filterBtns = document.querySelectorAll('.filter-btn');
+    const insTitle = document.getElementById('insTitle');
+    const insSubtitle = document.getElementById('insSubtitle');
+    const insBody = document.getElementById('insBody');
+    const closeBtn = document.getElementById('closeInspectorBtn');
+
+    function selectNode(nodeId) {
+      nodes.forEach(n => {
+        if (n.getAttribute('data-id') === nodeId) {
+          n.classList.add('selected');
+          n.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } else {
+          n.classList.remove('selected');
+        }
+      });
+
+      const data = nodeDetails[nodeId];
+      if (!data) return;
+
+      insTitle.innerText = data.title;
+      insSubtitle.innerText = `${data.layer} • ${data.file}`;
+
+      insBody.innerHTML = `
+        <div class="detail-section">
+          <h3>📌 Nhiệm vụ cốt lõi (Core Role)</h3>
+          <p>${data.desc}</p>
+          <div style="margin-top: 8px;">
+            <span class="data-pill">${data.badge}</span>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h3>📥 Dữ liệu đi vào (Ingress)</h3>
+          <ul style="padding-left: 18px; margin-top: 4px;">
+            ${data.ingress.map(item => `<li>${item}</li>`).join('')}
+          </ul>
+        </div>
+
+        <div class="detail-section">
+          <h3>📤 Dữ liệu đi ra (Egress)</h3>
+          <ul style="padding-left: 18px; margin-top: 4px;">
+            ${data.egress.map(item => `<li>${item}</li>`).join('')}
+          </ul>
+        </div>
+
+        <div class="detail-section">
+          <h3>🛡️ Cơ chế Chịu lỗi & Bảo mật thực tế tại quán</h3>
+          <p>${data.mechanisms}</p>
+        </div>
+
+        <div class="qa-box">
+          <h4>🎓 Câu hỏi Vấn đáp Đồ án (Thường gặp)</h4>
+          <p>${data.qa}</p>
+        </div>
+      `;
+    }
+
+    // Gán sự kiện click cho từng khối
+    nodes.forEach(node => {
+      node.addEventListener('click', () => {
+        const id = node.getAttribute('data-id');
+        selectNode(id);
+      });
+    });
+
+    // Lọc theo chuyên đề
+    filterBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        filterBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        const filter = btn.getAttribute('data-filter');
+
+        nodes.forEach(node => {
+          const categories = (node.getAttribute('data-category') || '').split(' ');
+          if (filter === 'all' || categories.includes(filter)) {
+            node.classList.remove('dimmed');
+          } else {
+            node.classList.add('dimmed');
+          }
+        });
+      });
+    });
+
+    closeBtn.addEventListener('click', () => {
+      nodes.forEach(n => n.classList.remove('selected'));
+      insTitle.innerText = 'Chi tiết Thành phần';
+      insSubtitle.innerText = 'Bấm vào bất kỳ khối nào bên trái để xem giải thích';
+      insBody.innerHTML = `
+        <div style="text-align: center; color: #94a3b8; padding: 40px 10px;">
+          <p style="font-size: 32px; margin-bottom: 12px;">👆</p>
+          <p style="font-weight: 600; color: #f1f5f9;">Chọn một khối kiến trúc để bắt đầu</p>
+          <p style="font-size: 12px; margin-top: 6px;">Bảng điều khiển sẽ hiển thị vai trò, dữ liệu vào/ra, file code liên quan và câu hỏi vấn đáp bảo vệ đồ án tương ứng.</p>
+        </div>
+      `;
+    });
+
+    // Mặc định chọn ngay khối đầu tiên để sinh viên trải nghiệm
+    window.addEventListener('DOMContentLoaded', () => {
+      selectNode('use-shared-cart');
+    });
+  </script>
+</body>
+</html>

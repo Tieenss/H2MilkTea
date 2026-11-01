@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,7 +24,9 @@ import {
   Eye,
   Copy,
   Tag,
-  ChefHat
+  ChefHat,
+  Building,
+  CreditCard
 } from 'lucide-react';
 import useReceiptTemplate from '../pos/hooks/useReceiptTemplate';
 import { useReceiptSettings } from '@/hooks/useReceiptSettings';
@@ -606,6 +608,98 @@ export default function ReceiptSettingsPage() {
                         })}
                         placeholder="www.gigapos.com"
                       />
+                    </div>
+
+                    <Separator className="my-2" />
+                    
+                    {/* Bank Account for VietQR / SePay */}
+                    <div className="space-y-3 pt-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                          <CreditCard className="w-4 h-4 text-emerald-600" />
+                          Tài khoản Ngân hàng nhận tiền (SePay / VietQR)
+                        </Label>
+                        <Badge variant="outline" className="text-[11px] bg-emerald-50 text-emerald-700 border-emerald-200">
+                          Tự động báo có
+                        </Badge>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Ngân hàng thụ hưởng</Label>
+                          <Input
+                            value={templateSettings.pos.companyInfo.bankName || ''}
+                            onChange={(e) => updateTemplateSettings('pos', 'companyInfo', {
+                              ...templateSettings.pos.companyInfo,
+                              bankName: e.target.value
+                            })}
+                            placeholder="Ví dụ: MBBank, Vietcombank, TPBank"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Số tài khoản</Label>
+                          <Input
+                            value={templateSettings.pos.companyInfo.bankAccount || ''}
+                            onChange={(e) => updateTemplateSettings('pos', 'companyInfo', {
+                              ...templateSettings.pos.companyInfo,
+                              bankAccount: e.target.value
+                            })}
+                            placeholder="Ví dụ: 090123456789"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Tên chủ tài khoản (In hoa không dấu)</Label>
+                          <Input
+                            value={templateSettings.pos.companyInfo.bankAccountHolder || ''}
+                            onChange={(e) => updateTemplateSettings('pos', 'companyInfo', {
+                              ...templateSettings.pos.companyInfo,
+                              bankAccountHolder: e.target.value.toUpperCase()
+                            })}
+                            placeholder="TRAN VAN TIEN"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">SePay API Token (Tùy chọn)</Label>
+                          <Input
+                            type="password"
+                            value={templateSettings.pos.companyInfo.sepayApiKey || ''}
+                            onChange={(e) => updateTemplateSettings('pos', 'companyInfo', {
+                              ...templateSettings.pos.companyInfo,
+                              sepayApiKey: e.target.value
+                            })}
+                            placeholder="Nhập API Token từ my.sepay.vn"
+                          />
+                        </div>
+                      </div>
+
+                      {templateSettings.pos.companyInfo.bankAccount && templateSettings.pos.companyInfo.bankName && (
+                        <div className="pt-2 flex items-center gap-3 bg-white p-2.5 rounded-lg border border-slate-200">
+                          <div className="w-16 h-16 shrink-0 bg-slate-100 rounded-md overflow-hidden flex items-center justify-center border border-slate-200">
+                            <img
+                              src={`https://qr.sepay.vn/img?acc=${encodeURIComponent(templateSettings.pos.companyInfo.bankAccount)}&bank=${encodeURIComponent(templateSettings.pos.companyInfo.bankName)}&amount=10000&des=TEST_SEPAY`}
+                              alt="Mã QR VietQR mẫu"
+                              className="w-full h-full object-contain"
+                              onError={(e) => {
+                                (e.target as HTMLElement).style.display = 'none';
+                              }}
+                            />
+                          </div>
+                          <div className="text-xs text-slate-600">
+                            <span className="font-semibold text-slate-800">VietQR SePay sẵn sàng:</span>
+                            <div className="text-[11px] text-slate-500 mt-0.5">
+                              {templateSettings.pos.companyInfo.bankName} • {templateSettings.pos.companyInfo.bankAccount}
+                            </div>
+                            <div className="text-[10px] text-emerald-600 font-medium mt-0.5">
+                              ✓ Sẽ tự động hiện mã QR kèm số tiền trên hóa đơn khi thanh toán.
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 

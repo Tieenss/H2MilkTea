@@ -12,6 +12,7 @@ import { useInvoices } from './hooks/useInvoices';
 import { InvoiceStatsComponent } from './components/InvoiceStats';
 import { InvoiceDataTable } from './components/InvoiceDataTable';
 import { InvoiceDetailsModal } from './components/InvoiceDetailsModal';
+import { CancelInvoiceModal } from './components/CancelInvoiceModal';
 import { printReceipt } from './utils/invoicePrint';
 import { INVOICE_STATUS, PAYMENT_METHODS } from './utils/invoiceConstants';
 import type { Invoice } from './types/invoice';
@@ -45,6 +46,7 @@ export default function InvoiceManagementPage() {
 
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [cancelModalInvoice, setCancelModalInvoice] = useState<Invoice | null>(null);
 
   const filteredInvoices = useMemo(() => {
     return invoices.filter((invoice) => {
@@ -129,29 +131,20 @@ export default function InvoiceManagementPage() {
     }
   };
 
-  const handleCancelInvoice = async (invoiceId: string) => {
+  const handleRequestCancel = (invoice: Invoice) => {
     if (!isAdmin && !isManager) {
-      toast.error('Bạn không có quyền hủy hóa đơn!');
+      toast.error('Bạn không có quyền hủy hoặc xóa hóa đơn!');
       return;
     }
-
-    try {
-      await updateInvoiceStatus(invoiceId, 'Đã hủy');
-    } catch (error) {
-      console.error('Error cancelling invoice:', error);
-    }
+    setCancelModalInvoice(invoice);
   };
 
-  const handleDeleteInvoice = async (invoiceId: string) => {
-    if (!isAdmin && !isManager) {
-      toast.error('Bạn không có quyền xóa hóa đơn!');
-      return;
-    }
-
+  const handleConfirmCancel = async (invoiceId: string, reason: string, staffName: string) => {
     try {
-      await deleteInvoice(invoiceId);
+      await deleteInvoice(invoiceId, reason, staffName);
+      setCancelModalInvoice(null);
     } catch (error) {
-      console.error('Error deleting invoice:', error);
+      console.error('Error cancelling invoice:', error);
     }
   };
 
@@ -333,13 +326,22 @@ export default function InvoiceManagementPage() {
             onViewDetails={handleViewDetails}
             onPrintInvoice={handlePrintInvoice}
             onConfirmPayment={handleConfirmPayment}
-            onCancelInvoice={handleCancelInvoice}
-            onDeleteInvoice={handleDeleteInvoice}
+            onCancelInvoice={handleRequestCancel}
+            onDeleteInvoice={handleRequestCancel}
             isAdmin={isAdmin}
             isManager={isManager}
           />
         </CardContent>
       </Card>
+
+      {/* Cancel / Anti-loss Audit Modal */}
+      <CancelInvoiceModal
+        isOpen={!!cancelModalInvoice}
+        invoice={cancelModalInvoice}
+        onClose={() => setCancelModalInvoice(null)}
+        onConfirm={handleConfirmCancel}
+        currentStaffName={authUtils.getUserData()?.['Họ và Tên'] || authUtils.getUserData()?.username || 'Quản lý'}
+      />
 
       {/* Details Modal */}
       <InvoiceDetailsModal

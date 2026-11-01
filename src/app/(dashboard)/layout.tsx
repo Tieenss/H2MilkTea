@@ -122,11 +122,11 @@ export default function DashboardLayout({
           style={{ height: '100vh', overflow: 'hidden' }}
         >
           <main
-            className="h-full overflow-auto"
+            className={cn("h-full", pathname === '/pos' ? "overflow-hidden" : "overflow-auto")}
             style={{ height: 'calc(100vh - 64px)' }}
             data-scroll-container
           >
-            <div className="p-6">
+            <div className={cn(pathname === '/pos' ? "p-2 sm:p-3 h-full flex flex-col min-h-0 overflow-hidden" : "p-6")}>
               {children}
             </div>
           </main>

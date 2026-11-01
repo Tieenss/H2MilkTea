@@ -143,6 +143,29 @@ export default function POSPage() {
         toast.success(`Đã bớt món theo lệnh của Trợ lý AI!`);
       } else if (action === 'select_table') {
         toast.success(`Đã chuyển sang ${targetTable?.name || 'bàn'}!`);
+      } else if (action === 'send_kitchen') {
+        if (!selectedTableId) {
+          toast.error('Vui lòng chọn một bàn trước khi gửi bếp!');
+          return;
+        }
+        if (cart.length === 0) {
+          toast.error('Giỏ hàng đang trống, chưa có món để gửi bếp!');
+          return;
+        }
+        void sendToKitchen(selectedTableId);
+      } else if (action === 'checkout') {
+        if (cart.length === 0) {
+          toast.error('Giỏ hàng đang trống, không thể thanh toán!');
+          return;
+        }
+        setShowCheckoutModal(true);
+      } else if (action === 'clear_cart') {
+        clearCart();
+        toast.success('Đã dọn sạch giỏ hàng theo lệnh AI!');
+      } else if (action === 'print_labels') {
+        window.dispatchEvent(new CustomEvent('h2_pos_trigger_print_labels'));
+      } else if (action === 'print_receipt') {
+        window.dispatchEvent(new CustomEvent('h2_pos_trigger_print_receipt'));
       }
     };
 
@@ -253,7 +276,7 @@ export default function POSPage() {
   const currentTablePresence = selectedTableId ? presenceByTable?.get(selectedTableId) : undefined;
 
   return (
-    <div className="bg-background ">
+    <div className="bg-background h-full flex flex-col min-h-0 overflow-hidden">
       <div
         className={`h-7 px-3 flex items-center justify-between text-xs transition-colors duration-200 select-none ${sharedCartToneClass}`}
         role="status"
@@ -586,13 +609,13 @@ export default function POSPage() {
         </Card>
       </div>
 
-      {canUseQrInbox && <QROrderInbox onSettle={settleQrOrder} onAccept={acceptQrOrder} />}
+      {canUseQrInbox && <QROrderInbox onSettle={settleQrOrder} onAccept={acceptQrOrder} activeOrders={activeOrders} />}
 {/* Trợ lý AI GlobalAssistant đã được gắn ở DashboardLayout (Mục #16) */}
 
       {/* Main Content */}
-      <div className="flex flex-col lg:flex-row h-[calc(100vh-8rem)] lg:h-[calc(100vh-12rem)]">
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-2.5 overflow-hidden">
         {/* Product Grid - Full width on mobile */}
-        <div className="flex-1 lg:flex-grow">
+        <div className="flex-1 min-h-0 h-full flex flex-col overflow-hidden">
           <ProductGrid
             products={filteredProducts}
             enableOptionModal={canUseToppingModal}
@@ -601,7 +624,7 @@ export default function POSPage() {
         </div>
 
         {/* Desktop Cart Sidebar */}
-        <div className="hidden lg:block lg:w-1/3">
+        <div className="hidden lg:flex lg:flex-col lg:w-[380px] xl:w-[420px] 2xl:w-[450px] h-full min-h-0 shrink-0">
           <CartSidebar
             cart={cart}
             subtotal={subtotal}
@@ -657,7 +680,7 @@ export default function POSPage() {
               </Button>
             </div>
 
-            <div className="overflow-y-auto max-h-[calc(85vh-100px)]">
+            <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
               <CartSidebar
                 cart={cart}
                 subtotal={subtotal}

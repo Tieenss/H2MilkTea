@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -251,28 +251,28 @@ function MenuPageContent() {
         <button
           type="button"
           onClick={() => setIsGachaOpen(true)}
-          className="w-full relative overflow-hidden rounded-2xl bg-gradient-to-r from-gray-900 via-indigo-950 to-purple-950 border border-yellow-500/40 p-3 text-left shadow-lg shadow-purple-900/10 flex items-center justify-between group active:scale-98 transition-transform"
+          className="w-full relative overflow-hidden rounded-2xl bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 border border-orange-400 p-3 text-left shadow-md shadow-orange-500/20 flex items-center justify-between group active:scale-98 transition-transform"
         >
           <div className="flex items-center gap-3 z-10">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-yellow-500 text-black flex items-center justify-center font-black shadow-md shadow-yellow-500/30 shrink-0 group-hover:rotate-12 transition-transform">
+            <div className="w-10 h-10 rounded-xl bg-white text-orange-600 flex items-center justify-center font-black shadow-md shadow-yellow-500/30 shrink-0 group-hover:rotate-12 transition-transform">
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="text-xs font-black uppercase tracking-wider text-yellow-300">
+                <span className="text-xs font-black uppercase tracking-wider text-white">
                   Vòng Quay May Mắn
                 </span>
-                <span className="px-1.5 py-0.2 bg-red-600 text-white text-[9px] font-extrabold rounded-full uppercase">
+                <span className="px-1.5 py-0.2 bg-white/20 text-white text-[9px] font-extrabold rounded-full uppercase">
                   Hot
                 </span>
               </div>
-              <p className="text-[11px] text-gray-300 mt-0.5">
-                Không biết hôm nay uống gì? Thử vận may trúng đồ uống cực đỉnh ngay!
+              <p className="text-[11px] text-orange-50 mt-0.5 font-medium">
+                Chưa biết chọn món gì? Thử quay tìm đồ uống hợp khẩu vị ngay!
               </p>
             </div>
           </div>
-          <div className="z-10 px-3 py-1.5 rounded-xl bg-yellow-400 text-black text-xs font-extrabold shrink-0 group-hover:bg-yellow-300 transition-colors shadow-sm">
-            Quay ngay 🎰
+          <div className="z-10 px-3 py-1.5 rounded-xl bg-white text-orange-700 text-xs font-extrabold shrink-0 shadow-xs">
+            Thử ngay
           </div>
         </button>
       </div>
@@ -369,10 +369,10 @@ function MenuPageContent() {
 
       {/* Thanh nổi truy cập giỏ hàng & hóa đơn của bàn (Mục #13 & Patch 0.2210) */}
       {tableServingInfo && (
-        <div className="fixed bottom-20 left-4 right-4 z-40 max-w-lg mx-auto pointer-events-auto">
+        <div className={`fixed left-4 right-4 z-35 max-w-lg mx-auto pointer-events-auto transition-all duration-200 ${totalItems > 0 ? "bottom-[76px]" : "bottom-4"}`}>
           <button
             onClick={() => setIsServingDrawerOpen(true)}
-            className="w-full flex items-center justify-between px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-lg shadow-emerald-700/25 active:scale-[0.98] transition-all"
+            className="w-full flex items-center justify-between px-4 py-3 rounded-2xl bg-teal-800 hover:bg-teal-900 text-white shadow-lg shadow-teal-950/25 border border-teal-700 active:scale-[0.98] transition-all"
           >
             <div className="flex items-center gap-2">
               <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-300 animate-ping" />

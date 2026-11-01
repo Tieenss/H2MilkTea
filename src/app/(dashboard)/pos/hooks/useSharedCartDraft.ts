@@ -232,6 +232,23 @@ export function useSharedCartDraft({
     }
 
     // Với broadcast/poll thông thường:
+    const myDevId = getDeviceId();
+    const isSelfDevice = draft?.updated_by_device === myDevId;
+
+    // 1. Nếu bản draft dội về do chính thiết bị này vừa gửi lên -> Tuyệt đối không coi là xung đột
+    if (isSelfDevice) {
+      versionRef.current = Math.max(versionRef.current, remoteVersion);
+      setConflictData(null);
+      setStatus('connected');
+      return;
+    }
+
+    // 2. Bảo vệ thao tác click nhanh cục bộ (In-flight / Debounce Protection)
+    // Nếu thu ngân đang bấm chọn món liên tục, ưu tiên tuyệt đối thao tác cục bộ
+    if (writeInFlightRef.current || debounceTimerRef.current) {
+      return;
+    }
+
     // Chỉ bỏ qua nếu remoteVersion <= version hiện tại VÀ nội dung giỏ hàng giống hệt nhau
     const currentLocalCart = cartRef.current;
     const currentSnapshot = serializeCart(currentLocalCart);
@@ -429,7 +446,17 @@ export function useSharedCartDraft({
             setStatus('connected');
             return;
           }
-          applyDraft(payload.new as CartDraft, false);
+          const newDraft = payload.new as (CartDraft & { updated_by_device?: string });
+          // Bỏ qua sự kiện tự dội ngược từ chính thiết bị này vừa cập nhật lên database
+          if (newDraft?.updated_by_device && newDraft.updated_by_device === myDevId) {
+            if (newDraft.version) {
+              versionRef.current = Math.max(versionRef.current, newDraft.version);
+            }
+            setConflictData(null);
+            return;
+          }
+
+          applyDraft(newDraft, false);
         })
         .subscribe((connectionStatus) => {
           if (!active) return;

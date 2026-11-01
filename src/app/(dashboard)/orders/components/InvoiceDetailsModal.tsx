@@ -141,7 +141,7 @@ export const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
               <TableBody>
                 {details.map((detail) => (
                   <TableRow key={detail.IDHOADONDETAIL}>
-                    <TableCell className="font-medium">
+                    <TableCell className="font-medium break-words max-w-[220px]">
                       {detail['Tên sản phẩm']}
                     </TableCell>
                     <TableCell>{detail['Đơn vị tính']}</TableCell>
@@ -154,7 +154,7 @@ export const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                     <TableCell className="text-right font-medium">
                       {formatCurrency(detail['Thành tiền'])}
                     </TableCell>
-                    <TableCell className="text-sm text-gray-600">
+                    <TableCell className="text-sm text-gray-600 break-words max-w-[180px]">
                       {detail['Ghi chú'] || '-'}
                     </TableCell>
                   </TableRow>
