@@ -27,6 +27,8 @@ import { QROrderInbox } from './components/QROrderInbox';
 import type { Customer } from '@/app/(dashboard)/khachhang/types/customer';
 // POSAssistant moved to GlobalAssistant across all dashboard pages (Mục #16)
 import { CartConflictModal } from './components/CartConflictModal';
+import { getPendingOfflineCount, syncPendingCheckouts } from '@/lib/offline/offlineSyncQueue';
+import { useFeatureFlags } from '@/lib/settings/featureFlags';
 
 export default function POSPage() {
   const {
@@ -96,6 +98,11 @@ export default function POSPage() {
 
   const userData = authUtils.getUserData();
   const nhanvien = userData?.['Họ và Tên'] || userData?.username;
+  const { isFeatureEnabled } = useFeatureFlags();
+  const canUseBarcodeScanner = isFeatureEnabled('pos_barcode_scanner');
+  const canUseToppingModal = isFeatureEnabled('pos_topping_modal');
+  const canUseTransferTable = isFeatureEnabled('pos_transfer_table');
+  const canUseQrInbox = isFeatureEnabled('pos_qr_inbox');
   // Mobile state for showing/hiding cart
   const [showMobileCart, setShowMobileCart] = React.useState(false);
   const [isSearchExpanded, setIsSearchExpanded] = React.useState(false);
@@ -185,6 +192,39 @@ export default function POSPage() {
     };
   }, [selectTable, addToCart, adjustQuantity]);
 
+  // Quản lý hàng đợi hóa đơn ngoại tuyến (Local-First Offline Resilience)
+  const [pendingOfflineCount, setPendingOfflineCount] = useState<number>(0);
+  const [isSyncingOffline, setIsSyncingOffline] = useState(false);
+
+  useEffect(() => {
+    setPendingOfflineCount(getPendingOfflineCount());
+    const handler = (e: any) => {
+      setPendingOfflineCount(e.detail?.count ?? getPendingOfflineCount());
+    };
+    window.addEventListener('h2_offline_queue_changed', handler);
+    return () => window.removeEventListener('h2_offline_queue_changed', handler);
+  }, []);
+
+  const handleManualSyncOffline = async () => {
+    if (isSyncingOffline) return;
+    setIsSyncingOffline(true);
+    toast.loading('Đang đồng bộ đơn ngoại tuyến lên máy chủ...', { id: 'offline-sync' });
+    try {
+      const { successCount, remainingCount } = await syncPendingCheckouts();
+      if (successCount > 0) {
+        toast.success(`Đã đồng bộ thành công ${successCount} đơn hàng!`, { id: 'offline-sync' });
+      } else if (remainingCount > 0) {
+        toast.error(`Chưa thể đồng bộ ${remainingCount} đơn (mạng chưa ổn định).`, { id: 'offline-sync' });
+      } else {
+        toast.success('Hàng đợi ngoại tuyến đã được đồng bộ sạch!', { id: 'offline-sync' });
+      }
+    } catch {
+      toast.error('Lỗi khi đồng bộ đơn ngoại tuyến!', { id: 'offline-sync' });
+    } finally {
+      setIsSyncingOffline(false);
+    }
+  };
+
   const sharedCartLabel =
     sharedCartStatus === 'connected'
       ? `Đồng bộ giỏ hàng (${realtimeStatus})`
@@ -262,6 +302,17 @@ export default function POSPage() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          {pendingOfflineCount > 0 && (
+            <button
+              type="button"
+              onClick={handleManualSyncOffline}
+              disabled={isSyncingOffline}
+              className="px-2 py-0.5 rounded-full bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-[11px] flex items-center gap-1 shadow-xs transition-all animate-pulse"
+              title="Đang có hóa đơn được lưu ngoại tuyến khi mất mạng. Nhấn để đồng bộ lên máy chủ ngay."
+            >
+              <span>⚡ {pendingOfflineCount} đơn chờ đồng bộ</span>
+            </button>
+          )}
           {currentTablePresence && currentTablePresence.customerCount > 0 && (
             <span className="text-[11px] font-semibold text-amber-800 bg-amber-100 px-2 py-0.2 rounded-full border border-amber-300 animate-pulse hidden md:inline-flex items-center gap-1">
               <span>📱</span>
@@ -465,7 +516,7 @@ export default function POSPage() {
               </Button>
 
               {/* Nút hiển thị mã QR Bàn (Mục #11) */}
-              {selectedTableId && selectedTableName !== 'Khách mua về' && (
+              {canUseQrInbox && selectedTableId && selectedTableName !== 'Khách mua về' && (
                 <Button
                   onClick={() => setShowTableQRModal(true)}
                   variant="outline"
@@ -498,8 +549,8 @@ export default function POSPage() {
               <ReceiptSettings />
             </div>
 
-            {/* Barcode Scanner */}
-            <BarcodeScanner onBarcodeScanned={addToCart} />
+            {/* Barcode Scanner (Ẩn/hiện theo công tắc Admin tại /settings/features) */}
+            {canUseBarcodeScanner && <BarcodeScanner onBarcodeScanned={addToCart} />}
 
             {/* Search and Filters */}
             <div className="flex items-center gap-2 ml-auto w-full sm:w-auto">
@@ -558,7 +609,7 @@ export default function POSPage() {
         </Card>
       </div>
 
-      <QROrderInbox onSettle={settleQrOrder} onAccept={acceptQrOrder} activeOrders={activeOrders} />
+      {canUseQrInbox && <QROrderInbox onSettle={settleQrOrder} onAccept={acceptQrOrder} activeOrders={activeOrders} />}
 {/* Trợ lý AI GlobalAssistant đã được gắn ở DashboardLayout (Mục #16) */}
 
       {/* Main Content */}
@@ -567,6 +618,7 @@ export default function POSPage() {
         <div className="flex-1 min-h-0 h-full flex flex-col overflow-hidden">
           <ProductGrid
             products={filteredProducts}
+            enableOptionModal={canUseToppingModal}
             onAddToCart={addToCart}
           />
         </div>
@@ -699,7 +751,13 @@ export default function POSPage() {
           selectedTableId={selectedTableId}
           onSelectTable={selectTable}
           onClose={() => setShowTableModal(false)}
-          onShowTransfer={() => setShowTransferModal(true)}
+          onShowTransfer={() => {
+            if (!canUseTransferTable) {
+              toast.error('Chức năng chuyển bàn đang được tắt bởi Quản trị viên.');
+              return;
+            }
+            setShowTransferModal(true);
+          }}
           presenceByTable={presenceByTable}
         />
       )}

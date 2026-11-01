@@ -4,15 +4,58 @@ import { useState, useCallback } from 'react';
 import type { CartItem, Product } from '../types/pos';
 import { getLineItemKey } from '@/lib/cart/mergeCart';
 
+function normalizeSugarOption(sugar?: string): string {
+  const s = (sugar || '').trim().toLowerCase();
+  if (!s || s === '100%' || s === '100% đường' || s === '100% duong' || s === 'bình thường') {
+    return '';
+  }
+  return s;
+}
+
+function normalizeIceOption(ice?: string): string {
+  const i = (ice || '').trim().toLowerCase();
+  if (!i || i === '100%' || i === '100% đá' || i === '100% da' || i === 'bình thường') {
+    return '';
+  }
+  return i;
+}
+
+export function getNormalizedPosItemKey(item: Partial<CartItem> & { id: string }, forceIsFood?: boolean): string {
+  const category = item.category || '';
+  const isFood = forceIsFood !== undefined ? forceIsFood : ['Ăn vặt', 'Bánh ngọt'].includes(category);
+  const rawSize = (item.size || '').trim().toUpperCase();
+  const normalizedSize = isFood ? '' : (rawSize === 'L' ? 'L' : 'M');
+  const normalizedSugar = isFood ? '' : normalizeSugarOption(item.sugar);
+  const normalizedIce = isFood ? '' : normalizeIceOption(item.ice);
+
+  return getLineItemKey({
+    id: String(item.id || '').trim(),
+    note: (item.note || '').trim(),
+    size: normalizedSize,
+    sugar: normalizedSugar,
+    ice: normalizedIce,
+    toppings: item.toppings,
+  });
+}
+
 export const useCart = () => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [activeOrders, setActiveOrders] = useState<Map<string, CartItem[]>>(new Map());
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
 
-  // Add product to cart with options support (Size gốc M = +0đ, Size L = +5000đ)
+  // Add product to cart with options support (Size gốc M = +0đ, Size L = +5000đ + Topping price)
   const addToCart = useCallback((
     product: Product,
-    options?: { size?: string; sugar?: string; ice?: string; toppings?: string[]; note?: string }
+    options?: {
+      size?: string;
+      sugar?: string;
+      ice?: string;
+      toppings?: string[];
+      note?: string;
+      quantity?: number;
+      toppingPrice?: number;
+      priceAdjust?: number;
+    }
   ) => {
     setCart(prevCart => {
       const category = product['Loại sản phẩm'] || '';
@@ -21,15 +64,17 @@ export const useCart = () => {
         ? undefined
         : (options?.size ? (options.size.toUpperCase() === 'L' ? 'L' : 'M') : 'M');
       const sizeAdjust = !isFood && normalizedSize === 'L' ? 5000 : 0;
+      const extraToppingPrice = !isFood ? (Number(options?.toppingPrice) || 0) : 0;
       const basePrice = Number(product['Đơn giá']) || 0;
+      const addQty = Math.max(1, Number(options?.quantity) || 1);
 
       const newItem: CartItem = {
         id: product.IDSP,
         name: product['Tên sản phẩm'],
-        note: options?.note || '',
+        note: (options?.note || '').trim(),
         image: product['Hình ảnh'] || '',
-        price: basePrice + sizeAdjust,
-        quantity: 1,
+        price: basePrice + sizeAdjust + extraToppingPrice,
+        quantity: addQty,
         unit: product['Đơn vị tính'] || 'Cái',
         category,
         size: normalizedSize,
@@ -39,8 +84,10 @@ export const useCart = () => {
         printStatus: 'new',
       };
 
-      const newKey = getLineItemKey(newItem);
-      const existingIndex = prevCart.findIndex(item => getLineItemKey(item) === newKey);
+      const newKey = getNormalizedPosItemKey(newItem, isFood);
+      const existingIndex = prevCart.findIndex(
+        item => getNormalizedPosItemKey(item, !item.category ? isFood : undefined) === newKey
+      );
       let newCart: CartItem[];
 
       if (existingIndex >= 0) {
@@ -48,7 +95,7 @@ export const useCart = () => {
           idx === existingIndex 
             ? {
                 ...item,
-                quantity: item.quantity + 1,
+                quantity: (Number(item.quantity) || 0) + addQty,
                 printStatus: item.printStatus === 'printed' ? 'modified' : (item.printStatus || 'new'),
               } 
             : item
@@ -73,7 +120,10 @@ export const useCart = () => {
   // Remove item from cart
   const removeFromCart = useCallback((productId: string) => {
     setCart(prevCart => {
-      const newCart = prevCart.filter(item => item.id !== productId);
+      const hasExactKeyMatch = prevCart.some(item => getLineItemKey(item) === productId);
+      const newCart = hasExactKeyMatch
+        ? prevCart.filter(item => getLineItemKey(item) !== productId)
+        : prevCart.filter(item => item.id !== productId);
 
       // Update active orders if table is selected
       if (selectedTableId) {
@@ -95,9 +145,15 @@ export const useCart = () => {
   // Adjust item quantity
   const adjustQuantity = useCallback((productId: string, amount: number) => {
     setCart(prevCart => {
+      const hasExactKeyMatch = prevCart.some(item => getLineItemKey(item) === productId);
+      // Nếu có nhiều dòng cùng productId nhưng truyền theo item.id, ưu tiên dòng đầu tiên khớp hoặc khớp theo key
+      let adjusted = false;
       const updatedCart = prevCart.map(item => {
-        if (item.id === productId) {
-          const newQuantity = item.quantity + amount;
+        const isMatch = hasExactKeyMatch ? getLineItemKey(item) === productId : item.id === productId;
+        if (isMatch && !adjusted) {
+          adjusted = true;
+          const currentQty = Number(item.quantity) || 0;
+          const newQuantity = currentQty + Number(amount);
           if (newQuantity <= 0) return null;
           return {
             ...item,
@@ -133,15 +189,20 @@ export const useCart = () => {
     }
 
     setCart(prevCart => {
-      const newCart = prevCart.map(item =>
-        item.id === productId
-          ? {
-              ...item,
-              quantity,
-              printStatus: item.printStatus === 'printed' ? 'modified' : (item.printStatus || 'new'),
-            }
-          : item
-      );
+      const hasExactKeyMatch = prevCart.some(item => getLineItemKey(item) === productId);
+      let updated = false;
+      const newCart = prevCart.map(item => {
+        const isMatch = hasExactKeyMatch ? getLineItemKey(item) === productId : item.id === productId;
+        if (isMatch && !updated) {
+          updated = true;
+          return {
+            ...item,
+            quantity: Number(quantity),
+            printStatus: item.printStatus === 'printed' ? 'modified' : (item.printStatus || 'new'),
+          };
+        }
+        return item;
+      });
 
       // Update active orders if table is selected
       if (selectedTableId) {
@@ -159,15 +220,20 @@ export const useCart = () => {
   // Update cart item note
   const updateCartItemNote = useCallback((productId: string, note: string) => {
     setCart(prevCart => {
-      const newCart = prevCart.map(item =>
-        item.id === productId
-          ? {
-              ...item,
-              note,
-              printStatus: item.printStatus === 'printed' ? 'modified' : (item.printStatus || 'new'),
-            }
-          : item
-      );
+      const hasExactKeyMatch = prevCart.some(item => getLineItemKey(item) === productId);
+      let updated = false;
+      const newCart = prevCart.map(item => {
+        const isMatch = hasExactKeyMatch ? getLineItemKey(item) === productId : item.id === productId;
+        if (isMatch && !updated) {
+          updated = true;
+          return {
+            ...item,
+            note,
+            printStatus: item.printStatus === 'printed' ? 'modified' : (item.printStatus || 'new'),
+          };
+        }
+        return item;
+      });
 
       // Update active orders if table is selected
       if (selectedTableId) {
@@ -205,12 +271,12 @@ export const useCart = () => {
 
   // Get cart total
   const getCartTotal = useCallback(() => {
-    return cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    return cart.reduce((sum, item) => sum + ((Number(item.price) || 0) * (Number(item.quantity) || 0)), 0);
   }, [cart]);
 
   // Get cart item count
   const getCartItemCount = useCallback(() => {
-    return cart.reduce((sum, item) => sum + item.quantity, 0);
+    return cart.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
   }, [cart]);
 
   // Get cart item by ID

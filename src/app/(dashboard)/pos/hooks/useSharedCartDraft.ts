@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CartItem } from '../types/pos';
@@ -59,6 +59,10 @@ function getDeviceId(): string {
   }
 }
 
+function serializeCart(items: CartItem[]): string {
+  return JSON.stringify(items || []);
+}
+
 export function useSharedCartDraft({
   tableId,
   cart,
@@ -86,6 +90,8 @@ export function useSharedCartDraft({
   const pollDelayRef = useRef(3500); // 3.5s base delay để đồng bộ dự phòng cực nhanh
   const debounceTimerRef = useRef<number | null>(null);
   const fetchRequestIdRef = useRef(0);
+  const lastLocalMutationAtRef = useRef<number>(0);
+  const localMutationSeqRef = useRef<number>(0);
 
   // Kênh Realtime channel Ref để gửi broadcast tức thời của riêng bàn này
   const channelRef = useRef<any>(null);
@@ -111,6 +117,20 @@ export function useSharedCartDraft({
       debounceTimerRef.current = null;
     }
   }, []);
+
+  // Prime dữ liệu bàn đích trước khi chuyển bàn để ngăn hiện tượng nháy đơn cũ/rác
+  const primeTableDraft = useCallback((targetTableId: string, cartItems: CartItem[], version?: number) => {
+    cancelPendingAutosave();
+    initializedTableRef.current = targetTableId;
+    pendingRemoteCartRef.current = serializeCart(cartItems);
+    cartRef.current = cartItems;
+    versionRef.current = version || 1;
+    lastLocalMutationAtRef.current = Date.now();
+    fetchRequestIdRef.current += 1;
+    setConflictData(null);
+    setStatus('connected');
+    setLastSyncAt(new Date());
+  }, [cancelPendingAutosave]);
 
   const saveMergedDraft = useCallback(async (mergedCart: CartItem[], mergedCustomer: Customer | null, targetVersion: number) => {
     if (!tableId) return;
@@ -170,7 +190,7 @@ export function useSharedCartDraft({
       if (cartRef.current.length > 0 && remoteCart.length > 0) {
         const diff = diffCartItems(cartRef.current, remoteCart);
         const targetCart = diff.canAutoMerge ? diff.mergedCart : remoteCart;
-        pendingRemoteCartRef.current = JSON.stringify(targetCart);
+        pendingRemoteCartRef.current = serializeCart(targetCart);
         setCart(targetCart);
         if (tableId) onRemoteCartRef.current?.(tableId, targetCart);
         setLastSyncAt(new Date());
@@ -185,10 +205,10 @@ export function useSharedCartDraft({
         setLastSyncAt(new Date());
         setStatus('connected');
         setConflictData(null);
-        void saveMergedDraft(cartRef.current, customerRef.current, 0);
+        void saveMergedDraft(cartRef.current, customerRef.current ?? null, 0);
         return;
       }
-      pendingRemoteCartRef.current = JSON.stringify(remoteCart);
+      pendingRemoteCartRef.current = serializeCart(remoteCart);
       setCart(remoteCart);
       if (tableId) {
         onRemoteCartRef.current?.(tableId, remoteCart);
@@ -199,6 +219,15 @@ export function useSharedCartDraft({
       setLastSyncAt(new Date());
       setStatus('connected');
       setConflictData(null);
+      return;
+    }
+
+    // Bảo vệ thao tác local: nếu đang có request ghi hoặc người dùng vừa thao tác bấm món trong 1.5s qua, không cho phép dữ liệu cũ ghi đè
+    if (
+      writeInFlightRef.current ||
+      debounceTimerRef.current !== null ||
+      Date.now() - lastLocalMutationAtRef.current < 1500
+    ) {
       return;
     }
 
@@ -222,9 +251,14 @@ export function useSharedCartDraft({
 
     // Chỉ bỏ qua nếu remoteVersion <= version hiện tại VÀ nội dung giỏ hàng giống hệt nhau
     const currentLocalCart = cartRef.current;
-    const currentSnapshot = JSON.stringify(currentLocalCart);
-    const remoteSnapshot = JSON.stringify(remoteCart);
+    const currentSnapshot = serializeCart(currentLocalCart);
+    const remoteSnapshot = serializeCart(remoteCart);
     if (remoteVersion <= versionRef.current && currentSnapshot === remoteSnapshot) {
+      return;
+    }
+
+    // Nếu remoteVersion < version hiện tại của máy này, tuyệt đối không áp dụng bản cũ
+    if (remoteVersion > 0 && remoteVersion < versionRef.current) {
       return;
     }
 
@@ -239,7 +273,7 @@ export function useSharedCartDraft({
     if (diff.canAutoMerge) {
       // Tự động gộp hai bên an toàn (không ghi đè âm thầm)
       versionRef.current = Math.max(versionRef.current, remoteVersion);
-      pendingRemoteCartRef.current = JSON.stringify(diff.mergedCart);
+      pendingRemoteCartRef.current = serializeCart(diff.mergedCart);
       setCart(diff.mergedCart);
       if (tableId) onRemoteCartRef.current?.(tableId, diff.mergedCart);
       setLastSyncAt(new Date());
@@ -264,14 +298,34 @@ export function useSharedCartDraft({
   }, [saveMergedDraft, setCart, tableId]);
 
   const fetchDraft = useCallback(async (currentTableId: string, isInitialLoad = false) => {
+    // Nếu không phải lần tải đầu tiên mà thu ngân đang thao tác hoặc đang lưu, bỏ qua ngay để không đè thao tác local
+    if (
+      !isInitialLoad &&
+      (writeInFlightRef.current ||
+        debounceTimerRef.current !== null ||
+        Date.now() - lastLocalMutationAtRef.current < 1500)
+    ) {
+      return;
+    }
+
     const currentRequestId = ++fetchRequestIdRef.current;
     try {
       const response = await fetch(`/api/pos/cart-draft?tableId=${encodeURIComponent(currentTableId)}`, { cache: 'no-store' });
       const result = await response.json();
 
-      // Nếu người dùng đã chuyển sang bàn khác trong lúc fetch thì bỏ qua response cũ
+      // Nếu người dùng đã chuyển sang bàn khác hoặc có request mới hơn trong lúc fetch thì bỏ qua response cũ
       if (currentRequestId !== fetchRequestIdRef.current) return;
       if (!response.ok || !result.success) throw new Error(result.error || 'Không tải được giỏ hàng dùng chung.');
+
+      // Kiểm tra lại sau khi await: nếu trong lúc chờ response mà thu ngân vừa bấm thêm món ở local thì bỏ qua kết quả poll cũ
+      if (
+        !isInitialLoad &&
+        (writeInFlightRef.current ||
+          debounceTimerRef.current !== null ||
+          Date.now() - lastLocalMutationAtRef.current < 1500)
+      ) {
+        return;
+      }
 
       const shouldForce = isInitialLoad && initializedTableRef.current !== currentTableId;
       initializedTableRef.current = currentTableId;
@@ -299,7 +353,10 @@ export function useSharedCartDraft({
     }
 
     let active = true;
-    versionRef.current = 0;
+    const isAlreadyPrimed = initializedTableRef.current === tableId;
+    if (!isAlreadyPrimed) {
+      versionRef.current = 0;
+    }
 
     let bc: BroadcastChannel | null = null;
     try {
@@ -389,7 +446,6 @@ export function useSharedCartDraft({
             setStatus('connected');
             return;
           }
-
           const newDraft = payload.new as (CartDraft & { updated_by_device?: string });
           // Bỏ qua sự kiện tự dội ngược từ chính thiết bị này vừa cập nhật lên database
           if (newDraft?.updated_by_device && newDraft.updated_by_device === myDevId) {
@@ -400,7 +456,7 @@ export function useSharedCartDraft({
             return;
           }
 
-          applyDraft(newDraft);
+          applyDraft(newDraft, false);
         })
         .subscribe((connectionStatus) => {
           if (!active) return;
@@ -418,8 +474,13 @@ export function useSharedCartDraft({
       setStatus('connected');
     }
 
-    setStatus('loading');
-    void fetchDraft(tableId, true);
+    if (isAlreadyPrimed) {
+      // Bàn đã được prime sẵn từ kết quả chuyển bàn: giữ nguyên giỏ hàng mượt mà, không fetch đè dữ liệu cũ
+      setStatus('connected');
+    } else {
+      setStatus('loading');
+      void fetchDraft(tableId, true);
+    }
 
     // Watchdog an toàn: nếu mạng chập chờn kẹt status 'loading' quá 3.5 giây, tự phục hồi về 'connected'
     const loadingWatchdog = window.setTimeout(() => {
@@ -459,12 +520,130 @@ export function useSharedCartDraft({
         void client.removeChannel(channel);
       }
     };
-  }, [applyDraft, fetchDraft, tableId]);
+  }, [applyDraft, cancelPendingAutosave, fetchDraft, setCart, tableId]);
+
+  // Hàm thực thi PUT autosave có hỗ trợ tự động retry khi 409 và kiểm tra chuỗi mutation liên tiếp
+  const executeAutosavePut = useCallback(async (targetTableId: string) => {
+    const seqBeforeSend = localMutationSeqRef.current;
+    const payloadCart = cartRef.current;
+    const payloadCustomer = customerRef.current;
+
+    writeInFlightRef.current = true;
+    setStatus((prev) => (prev === 'connected' ? 'syncing' : prev));
+
+    try {
+      const response = await fetch('/api/pos/cart-draft', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tableId: targetTableId,
+          cart: payloadCart,
+          selectedCustomer: payloadCustomer,
+          expectedVersion: versionRef.current,
+        }),
+      });
+      const result = await response.json();
+
+      if (response.status === 409) {
+        if (result.draft) {
+          versionRef.current = result.draft.version;
+          if (localMutationSeqRef.current === seqBeforeSend) {
+            // Cùng máy vừa cập nhật làm lệch version -> giữ nguyên cartRef.current và tự động retry PUT 1 lần
+            const retryRes = await fetch('/api/pos/cart-draft', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                tableId: targetTableId,
+                cart: cartRef.current,
+                selectedCustomer: customerRef.current,
+                expectedVersion: result.draft.version,
+              }),
+            });
+            const retryResult = await retryRes.json();
+            if (retryRes.ok && retryResult.success) {
+              versionRef.current = retryResult.draft.version;
+              setLastSyncAt(new Date());
+              setStatus('connected');
+
+              const myDevId = getDeviceId();
+              try {
+                void channelRef.current?.send({
+                  type: 'broadcast',
+                  event: 'cart_sync',
+                  payload: {
+                    table_id: targetTableId,
+                    cart: retryResult.draft.cart,
+                    selected_customer: retryResult.draft.selected_customer,
+                    version: retryResult.draft.version,
+                    device_id: myDevId,
+                  },
+                });
+              } catch {}
+              onBroadcastTableStatusRef.current?.(targetTableId, retryResult.draft.cart, retryResult.draft.version);
+            }
+          } else {
+            // Trong lúc chờ PUT, thu ngân đã bấm thêm món mới -> giữ nguyên cartRef.current và đặt lịch autosave mới
+            if (debounceTimerRef.current) window.clearTimeout(debounceTimerRef.current);
+            debounceTimerRef.current = window.setTimeout(() => {
+              debounceTimerRef.current = null;
+              void executeAutosavePut(targetTableId);
+            }, 150);
+          }
+        } else {
+          await fetchDraft(targetTableId, false);
+        }
+        return;
+      }
+
+      if (!response.ok || !result.success) throw new Error(result.error || 'Không lưu được giỏ hàng.');
+      versionRef.current = result.draft.version;
+      setLastSyncAt(new Date());
+      setStatus('connected');
+
+      // Nếu trong lúc chờ PUT, thu ngân đã bấm thêm món lần 2 làm cartRef.current mới hơn payloadCart:
+      // Tuyệt đối không đè cartRef.current, và đảm bảo đặt lịch autosave tiếp theo để lưu trạng thái mới nhất!
+      if (localMutationSeqRef.current !== seqBeforeSend) {
+        if (!debounceTimerRef.current) {
+          debounceTimerRef.current = window.setTimeout(() => {
+            debounceTimerRef.current = null;
+            void executeAutosavePut(targetTableId);
+          }, 150);
+        }
+        return;
+      }
+
+      // Bắn broadcast tức thời cho các máy cùng bàn (< 50ms)
+      const myDevId = getDeviceId();
+      try {
+        void channelRef.current?.send({
+          type: 'broadcast',
+          event: 'cart_sync',
+          payload: {
+            table_id: targetTableId,
+            cart: result.draft.cart,
+            selected_customer: result.draft.selected_customer,
+            version: result.draft.version,
+            device_id: myDevId,
+          },
+        });
+      } catch {
+        // Bỏ qua lỗi gửi
+      }
+
+      // Báo cho usePOS phát broadcast toàn hệ thống
+      onBroadcastTableStatusRef.current?.(targetTableId, result.draft.cart, result.draft.version);
+    } catch (error) {
+      console.error('Save shared cart draft failed:', error);
+      setStatus('offline');
+    } finally {
+      writeInFlightRef.current = false;
+    }
+  }, [fetchDraft]);
 
   // Debounce Autosave (lưu cả cart và selectedCustomer)
   useEffect(() => {
     if (!tableId || statusRef.current === 'conflict' || isClearingRef.current) return;
-    const cartSnapshot = JSON.stringify(cart);
+    const cartSnapshot = serializeCart(cart);
 
     // Nếu giỏ hàng vừa được nhận từ server hoặc đã xóa sạch (cart=[] và version=0), không trigger autosave đè
     if (pendingRemoteCartRef.current === cartSnapshot) {
@@ -475,66 +654,17 @@ export function useSharedCartDraft({
       return;
     }
 
+    // Ghi nhận thời điểm và số thứ tự thao tác ở local của thu ngân
+    lastLocalMutationAtRef.current = Date.now();
+    localMutationSeqRef.current += 1;
+
     if (debounceTimerRef.current) {
       window.clearTimeout(debounceTimerRef.current);
     }
 
-    debounceTimerRef.current = window.setTimeout(async () => {
-      writeInFlightRef.current = true;
-      setStatus((prev) => (prev === 'connected' ? 'syncing' : prev));
-      try {
-        const response = await fetch('/api/pos/cart-draft', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            tableId,
-            cart: cartRef.current,
-            selectedCustomer: customerRef.current,
-            expectedVersion: versionRef.current,
-          }),
-        });
-        const result = await response.json();
-        if (response.status === 409) {
-          writeInFlightRef.current = false;
-          if (result.draft) {
-            applyDraft(result.draft, false);
-          } else {
-            await fetchDraft(tableId, false);
-          }
-          return;
-        }
-        if (!response.ok || !result.success) throw new Error(result.error || 'Không lưu được giỏ hàng.');
-        versionRef.current = result.draft.version;
-        setLastSyncAt(new Date());
-        setStatus('connected');
-
-        // Bắn broadcast tức thời cho các máy cùng bàn (< 50ms)
-        const myDevId = getDeviceId();
-        try {
-          void channelRef.current?.send({
-            type: 'broadcast',
-            event: 'cart_sync',
-            payload: {
-              table_id: tableId,
-              cart: result.draft.cart,
-              selected_customer: result.draft.selected_customer,
-              version: result.draft.version,
-              device_id: myDevId,
-            },
-          });
-        } catch {
-          // Bỏ qua lỗi gửi
-        }
-
-        // Báo cho usePOS phát broadcast toàn hệ thống
-        onBroadcastTableStatusRef.current?.(tableId, result.draft.cart, result.draft.version);
-      } catch (error) {
-        console.error('Save shared cart draft failed:', error);
-        setStatus('offline');
-      } finally {
-        writeInFlightRef.current = false;
-        debounceTimerRef.current = null;
-      }
+    debounceTimerRef.current = window.setTimeout(() => {
+      debounceTimerRef.current = null;
+      void executeAutosavePut(tableId);
     }, 300);
 
     return () => {
@@ -543,7 +673,7 @@ export function useSharedCartDraft({
         debounceTimerRef.current = null;
       }
     };
-  }, [cart, selectedCustomer, fetchDraft, tableId, applyDraft]);
+  }, [cart, selectedCustomer, tableId, executeAutosavePut]);
 
   // Giải quyết xung đột theo lựa chọn của thu ngân
   const resolveConflict = useCallback(async (strategy: 'keep_local' | 'take_remote' | 'merge_quantities') => {
@@ -553,6 +683,8 @@ export function useSharedCartDraft({
     const finalCart = resolveCartConflict(cartRef.current, conflictData.remoteDraft.cart, strategy);
     const targetVersion = conflictData.remoteDraft.version;
 
+    pendingRemoteCartRef.current = serializeCart(finalCart);
+    lastLocalMutationAtRef.current = Date.now();
     setCart(finalCart);
     setConflictData(null);
     setStatus('syncing');
@@ -604,6 +736,7 @@ export function useSharedCartDraft({
   const clearDraft = useCallback(async () => {
     cancelPendingAutosave();
     if (!tableId) return;
+    isClearingRef.current = true;
     pendingRemoteCartRef.current = '[]';
     versionRef.current = 0;
     setConflictData(null);
@@ -635,6 +768,8 @@ export function useSharedCartDraft({
       onBroadcastTableClearedRef.current?.(tableId);
     } catch (err) {
       console.error('Error clearing shared cart draft:', err);
+    } finally {
+      isClearingRef.current = false;
     }
   }, [cancelPendingAutosave, tableId]);
 
@@ -650,5 +785,6 @@ export function useSharedCartDraft({
     canCheckout,
     clearDraft,
     cancelPendingAutosave,
+    primeTableDraft,
   };
 }

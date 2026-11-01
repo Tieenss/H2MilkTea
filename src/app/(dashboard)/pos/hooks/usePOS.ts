@@ -13,6 +13,7 @@ import { printReceipt } from '../utils/receipt';
 import authUtils from '@/utils/authUtils';
 import { resolveCartConflict } from '@/lib/cart/mergeCart';
 import { Customer } from '@/app/(dashboard)/khachhang/types/customer';
+import { queueOfflineCheckout, initAutoOfflineSync } from '@/lib/offline/offlineSyncQueue';
 
 function playPosChimeSound() {
   try {
@@ -252,6 +253,7 @@ export const usePOS = () => {
     canCheckout,
     clearDraft: clearSharedCartDraft,
     cancelPendingAutosave,
+    primeTableDraft,
   } = useSharedCartDraft({
     tableId: selectedTableId,
     cart,
@@ -376,7 +378,7 @@ export const usePOS = () => {
   // Loading states
   const isLoading = productsLoading || tablesLoading;
 
-  const showNotification = useCallback((message: string, type: 'success' | 'error' | 'warning' = 'success') => {
+  const showNotification = useCallback((message: string, type: 'success' | 'error' | 'warning' | 'info' = 'success') => {
     if (type === 'success') {
       toast.success(message, {
         position: "bottom-left",
@@ -387,9 +389,9 @@ export const usePOS = () => {
         position: "bottom-left",
         duration: CONFIG.timeouts.notification,
       });
-    } else if (type === 'warning') {
+    } else if (type === 'warning' || type === 'info') {
       toast(message, {
-        icon: '⚠️',
+        icon: type === 'info' ? 'ℹ️' : '⚠️',
         position: "bottom-left",
         duration: CONFIG.timeouts.notification,
         style: { background: '#fffbe6', color: '#ad8b00' }
@@ -399,6 +401,11 @@ export const usePOS = () => {
 
   const showLoading = useCallback((message = 'Đang tải dữ liệu...') => {
     setLoadingText(message);
+  }, []);
+
+      // Khởi tạo trình lắng nghe tự động đồng bộ khi có kết nối Internet
+  useEffect(() => {
+    initAutoOfflineSync();
   }, []);
 
   // Nạp toàn bộ giỏ hàng nháp của tất cả các bàn ngay khi vào POS (Mục #18)
@@ -411,7 +418,16 @@ export const usePOS = () => {
         const validTableNames = new Set(tables.map(t => String(t['Tên bàn'] || '')));
 
         setActiveOrders((current) => {
-          const next = new Map(current);
+          // Khởi tạo Map sạch từ dữ liệu chuẩn của Server để loại bỏ triệt để các giỏ hàng rác/cũ từ localStorage
+          const next = new Map<string, CartItem[]>();
+          // Giữ lại giỏ hàng của bàn đang mở ở local nếu thu ngân đang chọn món
+          if (selectedTableId && current.has(selectedTableId)) {
+            const currentActiveCart = current.get(selectedTableId);
+            if (Array.isArray(currentActiveCart) && currentActiveCart.length > 0) {
+              next.set(selectedTableId, currentActiveCart);
+            }
+          }
+
           result.drafts.forEach((draft: CartDraft) => {
             const tableExists = validTableIds.size === 0 || validTableIds.has(draft.table_id) || validTableNames.has(draft.table_id);
             if (!tableExists) {
@@ -424,6 +440,8 @@ export const usePOS = () => {
             if (Array.isArray(draft.cart) && draft.cart.length > 0) {
               next.set(draft.table_id, draft.cart);
               updateTableStatus(draft.table_id, 'Đang sử dụng');
+            } else {
+              next.delete(draft.table_id);
             }
             if (draft.selected_customer) {
               tableCustomersRef.current.set(draft.table_id, draft.selected_customer);
@@ -438,7 +456,7 @@ export const usePOS = () => {
       console.error('Lỗi tải toàn bộ giỏ hàng nháp các bàn:', err);
       return [];
     }
-  }, [tables, setActiveOrders, updateTableStatus]);
+  }, [tables, selectedTableId, setActiveOrders, updateTableStatus]);
 
   // Tự động dọn dẹp đơn nháp mồ côi khỏi activeOrders mỗi khi danh sách bàn thay đổi
   useEffect(() => {
@@ -680,7 +698,6 @@ export const usePOS = () => {
     table_name?: string;
     items: Array<{ productId: string; productName: string; quantity: number; unitPrice: number; note?: string; size?: string; sugar?: string; ice?: string; unit?: string; image?: string }>;
   }) => {
-    setSelectedTableId(order.table_id);
     const convertedIncomingItems: CartItem[] = order.items.map((item) => {
       const foundProduct = products.find(p => p.IDSP === item.productId || p['Tên sản phẩm'] === item.productName);
       const realImage = item.image || foundProduct?.['Hình ảnh'] || undefined;
@@ -702,6 +719,8 @@ export const usePOS = () => {
       ? resolveCartConflict(currentTableCart, convertedIncomingItems, 'merge_quantities')
       : convertedIncomingItems;
 
+    primeTableDraft(order.table_id, mergedCart);
+    setSelectedTableId(order.table_id);
     setCart(mergedCart);
     setActiveOrders((prev) => new Map(prev).set(order.table_id, mergedCart));
 
@@ -724,7 +743,7 @@ export const usePOS = () => {
 
     setSelectedCustomer(tableCustomersRef.current.get(order.table_id) || null);
     setShowCheckoutModal(true);
-  }, [setSelectedTableId, setCart, setActiveOrders, activeOrders, selectedTableId, cart, activePOSOrderIds, products]);
+  }, [setSelectedTableId, setCart, setActiveOrders, activeOrders, selectedTableId, cart, activePOSOrderIds, products, primeTableDraft]);
 
   // Nhận đơn QR và nạp món vào giỏ hàng của bàn
   const acceptQrOrder = useCallback((order: {
@@ -733,7 +752,6 @@ export const usePOS = () => {
     table_name?: string;
     items: Array<{ productId: string; productName: string; quantity: number; unitPrice: number; note?: string; size?: string; sugar?: string; ice?: string; unit?: string; image?: string }>;
   }) => {
-    setSelectedTableId(order.table_id);
     const convertedItems: CartItem[] = order.items.map((item) => {
       const foundProduct = products.find(p => p.IDSP === item.productId || p['Tên sản phẩm'] === item.productName);
       const realImage = item.image || foundProduct?.['Hình ảnh'] || undefined;
@@ -755,6 +773,8 @@ export const usePOS = () => {
       ? resolveCartConflict(existingCart, convertedItems, 'merge_quantities')
       : convertedItems;
 
+    primeTableDraft(order.table_id, mergedCart);
+    setSelectedTableId(order.table_id);
     setCart(mergedCart);
     setActiveOrders((prev) => new Map(prev).set(order.table_id, mergedCart));
     void fetch('/api/pos/cart-draft', {
@@ -770,7 +790,7 @@ export const usePOS = () => {
     setActivePOSOrderIds((prev) => prev.includes(order.id) ? prev : [...prev, order.id]);
     updateTableStatus(order.table_id, 'Đang sử dụng');
     showNotification(`Đã nhận đơn và gộp các món vào ${order.table_name || 'bàn'}!`);
-  }, [setSelectedTableId, setCart, setActiveOrders, activeOrders, selectedTableId, cart, products, updateTableStatus, showNotification]);
+  }, [setSelectedTableId, setCart, setActiveOrders, activeOrders, selectedTableId, cart, products, updateTableStatus, showNotification, primeTableDraft]);
 
   // Fetch customers
   const fetchCustomers = useCallback(async () => {
@@ -866,7 +886,16 @@ export const usePOS = () => {
   // Cart operations
   const addToCart = useCallback((
     productId: string,
-    options?: { size?: string; sugar?: string; ice?: string; toppings?: string[]; note?: string }
+    options?: {
+      size?: string;
+      sugar?: string;
+      ice?: string;
+      toppings?: string[];
+      note?: string;
+      quantity?: number;
+      toppingPrice?: number;
+      priceAdjust?: number;
+    }
   ) => {
     if (!selectedTableId) {
       showNotification('Vui lòng chọn bàn trước khi gọi món!', 'error');
@@ -891,20 +920,22 @@ export const usePOS = () => {
 
     // Save current cart & customer if exists
     if (selectedTableId) {
+      const newActiveOrders = new Map(activeOrders);
       if (cart.length > 0) {
-        const newActiveOrders = new Map(activeOrders);
         newActiveOrders.set(selectedTableId, [...cart]);
-        setActiveOrders(newActiveOrders);
+      } else {
+        newActiveOrders.delete(selectedTableId);
       }
+      setActiveOrders(newActiveOrders);
       tableCustomersRef.current.set(selectedTableId, selectedCustomer);
     }
-
-    // Update selected table
-    setSelectedTableId(tableId);
 
     // Load cart for this table
     const tableCart = activeOrders.get(tableId) || [];
     setCart(tableCart);
+
+    // Update selected table
+    setSelectedTableId(tableId);
 
     // Khôi phục khách hàng đã chọn của bàn này (Mục #10)
     const existingCustomer = tableCustomersRef.current.get(tableId) || null;
@@ -953,7 +984,10 @@ export const usePOS = () => {
       // P1-BIZ-02: Sử dụng giỏ hàng đã gộp từ server để cập nhật bàn đích
       const finalTargetCart = Array.isArray(result.mergedCart) && result.mergedCart.length > 0
         ? result.mergedCart
-        : [...cart];
+        : (Array.isArray(result.draft?.cart) && result.draft.cart.length > 0 ? result.draft.cart : [...cart]);
+
+      // Prime trước dữ liệu bàn đích vào useSharedCartDraft để ngăn fetchDraft tải đè dữ liệu rác/cũ khi đổi selectedTableId
+      primeTableDraft(targetTableId, finalTargetCart, result.draft?.version || 1);
 
       const newActiveOrders = new Map(activeOrders);
       newActiveOrders.set(targetTableId, finalTargetCart);
@@ -976,8 +1010,12 @@ export const usePOS = () => {
       // Update selected table
       setSelectedTableId(targetTableId);
 
+      // Phát broadcast cho các thiết bị khác biết bàn nguồn đã trống và bàn đích đã nhận đơn
+      broadcastTableCleared(sourceTableId);
+      broadcastTableStatus(targetTableId, finalTargetCart, result.draft?.version || 1);
+
       // Update customer display
-      updateCustomerDisplay(cart, targetTable);
+      updateCustomerDisplay(finalTargetCart, targetTable);
 
       showNotification(`Đã chuyển từ ${sourceTable?.['Tên bàn']} sang ${targetTable?.['Tên bàn']}`);
       setShowTransferModal(false);
@@ -986,7 +1024,7 @@ export const usePOS = () => {
       console.error('Lỗi chuyển bàn:', error);
       showNotification(error.message || 'Có lỗi xảy ra khi chuyển bàn!', 'error');
     }
-  }, [selectedTableId, tables, cart, activeOrders, selectedCustomer, setActiveOrders, setSelectedTableId, updateTableStatus, cancelPendingAutosave, updateCustomerDisplay, showNotification, setShowTransferModal, showLoading]);
+  }, [selectedTableId, tables, cart, activeOrders, selectedCustomer, setActiveOrders, setCart, setSelectedTableId, updateTableStatus, cancelPendingAutosave, primeTableDraft, broadcastTableCleared, broadcastTableStatus, updateCustomerDisplay, showNotification, setShowTransferModal, showLoading]);
 
   // Payment operations with customer integration
   const saveInvoice = useCallback(async (invoice: any, details: any[]) => {
@@ -1112,38 +1150,59 @@ export const usePOS = () => {
         'Ghi chú': item.note || ''
       }));
 
-      // P0-BIZ-04: Lưu hóa đơn nguyên tử và hoàn tất đơn qua API Server / RPC pos_pay_order
-      const checkoutRes = await fetch('/api/pos/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          invoiceId,
-          tableId: selectedTableId,
-          tableName: selectedTableName,
-          cart,
-          items: cart,
-          invoice,
-          details,
-          linkedOrderIds: activePOSOrderIds,
-          orderIds: activePOSOrderIds,
+      const checkoutPayload = {
+        invoiceId,
+        tableId: selectedTableId,
+        tableName: selectedTableName,
+        cart,
+        items: cart,
+        invoice,
+        details,
+        linkedOrderIds: activePOSOrderIds,
+        orderIds: activePOSOrderIds,
+        totalAmount: paymentData.total,
+        employee: nhanvien,
+        idempotencyKey: invoiceId,
+        paymentForm: {
+          customer: selectedCustomer ? selectedCustomer['Tên khách hàng'] : 'Khách lẻ',
+          discount: paymentData.customerDiscount || 0,
+          paidAmount,
+          note: paymentData.note || '',
+          paymentType: payType,
+          debtAmount,
           totalAmount: paymentData.total,
-          employee: nhanvien,
-          idempotencyKey: invoiceId,
-          paymentForm: {
-            customer: selectedCustomer ? selectedCustomer['Tên khách hàng'] : 'Khách lẻ',
-            discount: paymentData.customerDiscount || 0,
-            paidAmount,
-            note: paymentData.note || '',
-            paymentType: payType,
-            debtAmount,
-            totalAmount: paymentData.total,
-          },
-        }),
-      });
+        },
+      };
 
-      const checkoutData = await checkoutRes.json();
-      if (!checkoutRes.ok || !checkoutData.success) {
-        throw new Error(checkoutData.error || 'Lỗi xử lý thanh toán trên máy chủ!');
+      let isOfflineTransaction = false;
+
+      // P0-BIZ-04 & Offline Resilience: Lưu hóa đơn nguyên tử qua API Server hoặc xếp vào Offline Queue khi mất mạng
+      try {
+        const checkoutRes = await fetch('/api/pos/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(checkoutPayload),
+        });
+
+        const checkoutData = await checkoutRes.json();
+        if (!checkoutRes.ok || !checkoutData.success) {
+          throw new Error(checkoutData.error || 'Lỗi xử lý thanh toán trên máy chủ!');
+        }
+      } catch (checkoutErr: any) {
+        const isNetworkFailure =
+          (typeof navigator !== 'undefined' && !navigator.onLine) ||
+          checkoutErr?.name === 'TypeError' ||
+          String(checkoutErr?.message).includes('fetch') ||
+          String(checkoutErr?.message).includes('Failed to fetch') ||
+          String(checkoutErr?.message).includes('NetworkError');
+
+        if (isNetworkFailure) {
+          console.warn('[Offline Mode] Mất kết nối mạng, chuyển sang lưu hóa đơn ngoại tuyến:', checkoutErr);
+          queueOfflineCheckout(checkoutPayload);
+          isOfflineTransaction = true;
+        } else {
+          throw checkoutErr;
+        }
       }
 
       // Cập nhật đồng bộ cache offline / in-memory để báo cáo đọc mượt
@@ -1238,7 +1297,14 @@ export const usePOS = () => {
           detail: { tableId: selectedTableId, tableName: selectedTableName, orderIds: activePOSOrderIds }
         }));
       }
-      showNotification(isDebt ? `Ghi nợ đơn hàng thành công! (Nợ: ${new Intl.NumberFormat('vi-VN').format(debtAmount)}đ)` : 'Thanh toán thành công!');
+      if (isOfflineTransaction) {
+        showNotification(
+          'Đã lưu thanh toán ngoại tuyến thành công! Đơn sẽ tự động đồng bộ khi có kết nối mạng.',
+          'info'
+        );
+      } else {
+        showNotification(isDebt ? `Ghi nợ đơn hàng thành công! (Nợ: ${new Intl.NumberFormat('vi-VN').format(debtAmount)}đ)` : 'Thanh toán thành công!');
+      }
     } catch (error: any) {
       console.error('Lỗi thanh toán:', error);
       showNotification(error.message || 'Lỗi khi xử lý thanh toán!', 'error');
