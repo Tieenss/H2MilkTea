@@ -6,6 +6,7 @@ import {
     ShoppingCart,
     Settings,
     CheckSquare,
+    Sliders,
     Warehouse,
     Truck,
     Home,
@@ -292,6 +293,16 @@ export const navigation: NavigationItem[] = [
         isGroup: true,
         description: 'Cài đặt giao diện, font chữ, mẫu in, chatbot và dữ liệu',
         children: [
+            {
+                name: 'Cài đặt chức năng',
+                href: '/settings/features',
+                icon: Sliders,
+                dashboard: true,
+                sidebar: true,
+                color: '#10B981',
+                badge: 'Mới',
+                description: 'Bật/tắt công tắc tính năng POS và phân quyền chức năng mở rộng cho nhân viên'
+            },
             {
                 name: 'Giao diện & Font chữ',
                 href: '/settings/appearance',

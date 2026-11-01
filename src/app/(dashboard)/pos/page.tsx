@@ -28,6 +28,7 @@ import type { Customer } from '@/app/(dashboard)/khachhang/types/customer';
 // POSAssistant moved to GlobalAssistant across all dashboard pages (Mục #16)
 import { CartConflictModal } from './components/CartConflictModal';
 import { getPendingOfflineCount, syncPendingCheckouts } from '@/lib/offline/offlineSyncQueue';
+import { useFeatureFlags } from '@/lib/settings/featureFlags';
 
 export default function POSPage() {
   const {
@@ -97,6 +98,11 @@ export default function POSPage() {
 
   const userData = authUtils.getUserData();
   const nhanvien = userData?.['Họ và Tên'] || userData?.username;
+  const { isFeatureEnabled } = useFeatureFlags();
+  const canUseBarcodeScanner = isFeatureEnabled('pos_barcode_scanner');
+  const canUseToppingModal = isFeatureEnabled('pos_topping_modal');
+  const canUseTransferTable = isFeatureEnabled('pos_transfer_table');
+  const canUseQrInbox = isFeatureEnabled('pos_qr_inbox');
   // Mobile state for showing/hiding cart
   const [showMobileCart, setShowMobileCart] = React.useState(false);
   const [isSearchExpanded, setIsSearchExpanded] = React.useState(false);
@@ -487,7 +493,7 @@ export default function POSPage() {
               </Button>
 
               {/* Nút hiển thị mã QR Bàn (Mục #11) */}
-              {selectedTableId && selectedTableName !== 'Khách mua về' && (
+              {canUseQrInbox && selectedTableId && selectedTableName !== 'Khách mua về' && (
                 <Button
                   onClick={() => setShowTableQRModal(true)}
                   variant="outline"
@@ -520,8 +526,8 @@ export default function POSPage() {
               <ReceiptSettings />
             </div>
 
-            {/* Barcode Scanner */}
-            <BarcodeScanner onBarcodeScanned={addToCart} />
+            {/* Barcode Scanner (Ẩn/hiện theo công tắc Admin tại /settings/features) */}
+            {canUseBarcodeScanner && <BarcodeScanner onBarcodeScanned={addToCart} />}
 
             {/* Search and Filters */}
             <div className="flex items-center gap-2 ml-auto w-full sm:w-auto">
@@ -580,7 +586,7 @@ export default function POSPage() {
         </Card>
       </div>
 
-      <QROrderInbox onSettle={settleQrOrder} onAccept={acceptQrOrder} />
+      {canUseQrInbox && <QROrderInbox onSettle={settleQrOrder} onAccept={acceptQrOrder} />}
 {/* Trợ lý AI GlobalAssistant đã được gắn ở DashboardLayout (Mục #16) */}
 
       {/* Main Content */}
@@ -589,6 +595,7 @@ export default function POSPage() {
         <div className="flex-1 lg:flex-grow">
           <ProductGrid
             products={filteredProducts}
+            enableOptionModal={canUseToppingModal}
             onAddToCart={addToCart}
           />
         </div>
@@ -721,7 +728,13 @@ export default function POSPage() {
           selectedTableId={selectedTableId}
           onSelectTable={selectTable}
           onClose={() => setShowTableModal(false)}
-          onShowTransfer={() => setShowTransferModal(true)}
+          onShowTransfer={() => {
+            if (!canUseTransferTable) {
+              toast.error('Chức năng chuyển bàn đang được tắt bởi Quản trị viên.');
+              return;
+            }
+            setShowTransferModal(true);
+          }}
           presenceByTable={presenceByTable}
         />
       )}

@@ -382,6 +382,17 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({
     updateFormData('Quyền View', newPermissions.join(', '));
   }, [selectedPermissions, updateFormData]);
 
+  // Toggle tất cả các quyền con trong nhóm một cách nguyên tử, tránh lỗi stale state
+  const handleGroupPermissionChange = useCallback((childNames: string[], checked: boolean) => {
+    const currentPermissionsSet = new Set(selectedPermissions);
+    if (checked) {
+      childNames.forEach(name => currentPermissionsSet.add(name));
+    } else {
+      childNames.forEach(name => currentPermissionsSet.delete(name));
+    }
+    updateFormData('Quyền View', Array.from(currentPermissionsSet).join(', '));
+  }, [selectedPermissions, updateFormData]);
+
   const handleSelectAll = useCallback(() => {
     const allItems = getAllNavigationItems(navigation);
     const allPermissions = allItems.map(item => item.name);
@@ -913,10 +924,7 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
                                     }
                                   }}
                                   onCheckedChange={(checked) => {
-                                    // Toggle tất cả children trong group
-                                    groupChildren.forEach(child => {
-                                      handlePermissionChange(child.name, checked as boolean);
-                                    });
+                                    handleGroupPermissionChange(groupChildren.map(child => child.name), checked as boolean);
                                   }}
                                 />
                                 <Label
