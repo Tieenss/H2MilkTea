@@ -229,7 +229,7 @@ describe('POS Checkout API', () => {
     expect(savedDetails[1]['Đơn vị tính']).toBeTruthy();
   });
 
-  it('self-heals when HOADON table lacks idempotency_key column (PGRST204)', async () => {
+  it('guarantees HOADON table insert never contains idempotency_key column', async () => {
     const hoadonInsertCalls: any[] = [];
 
     const makeTableChain = (tableName: string) => {
@@ -237,26 +237,12 @@ describe('POS Checkout API', () => {
         select: vi.fn(() => chain),
         eq: vi.fn(() => chain),
         in: vi.fn(async () => ({ error: null })),
-        maybeSingle: vi.fn(async () => ({
-          data: null,
-          error: {
-            code: 'PGRST204',
-            message: "Could not find the 'idempotency_key' column of 'HOADON' in the schema cache",
-          },
-        })),
+        maybeSingle: vi.fn(async () => ({ data: null, error: null })),
         update: vi.fn(() => chain),
         delete: vi.fn(() => chain),
         insert: vi.fn(async (payload: any) => {
           if (tableName === 'HOADON') {
             hoadonInsertCalls.push(payload);
-            if ('idempotency_key' in payload) {
-              return {
-                error: {
-                  code: 'PGRST204',
-                  message: "Could not find the 'idempotency_key' column of 'HOADON' in the schema cache",
-                },
-              };
-            }
           }
           return { error: null };
         }),
@@ -285,8 +271,7 @@ describe('POS Checkout API', () => {
     const data = await response.json();
     expect(data.success).toBe(true);
     expect(data.invoiceId).toBe('INV-SELF-HEAL');
-    expect(hoadonInsertCalls).toHaveLength(2);
-    expect(hoadonInsertCalls[0]).toHaveProperty('idempotency_key', 'pos-key-self-heal');
-    expect(hoadonInsertCalls[1]).not.toHaveProperty('idempotency_key');
+    expect(hoadonInsertCalls).toHaveLength(1);
+    expect(hoadonInsertCalls[0]).not.toHaveProperty('idempotency_key');
   });
 });

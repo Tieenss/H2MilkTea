@@ -177,8 +177,8 @@ export async function POST(request: NextRequest) {
       "Hóa đơn chi tiết": rawCart
         .map((item: any, idx: number) => `${invoiceId}_${item.id || item.IDSP || idx + 1}`)
         .join(' , '),
-      idempotency_key: idempotencyKey || null,
     };
+    delete invoiceRecord.idempotency_key;
 
     // Chuẩn bị danh sách chi tiết hóa đơn: chỉ giữ đúng 9 cột hợp lệ của bảng HOADONDETAIL
     const sourceDetails = Array.isArray(body.details) && body.details.length > 0 ? body.details : rawCart;
@@ -315,11 +315,12 @@ export async function POST(request: NextRequest) {
       await supabase.from('pos_cart_drafts').delete().eq('table_id', tableId);
     }
 
-    // 2.6 Đồng bộ đơn pos_orders sang 'paid' và 'completed'
+    // 2.6 Đồng bộ đơn pos_orders sang 'paid', 'completed' và 'served' để tự động dọn bếp
     if (linkedOrderIds.length > 0) {
       await supabase
         .from('pos_orders')
         .update({
+          kitchen_status: 'served',
           payment_status: 'paid',
           order_status: 'completed',
           payment_method: paymentType,
@@ -331,6 +332,7 @@ export async function POST(request: NextRequest) {
       await supabase
         .from('pos_orders')
         .update({
+          kitchen_status: 'served',
           payment_status: 'paid',
           order_status: 'completed',
           payment_method: paymentType,
