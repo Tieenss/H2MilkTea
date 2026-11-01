@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import defaultFaqs from '@/data/store_faq.json';
-import { createAdminSupabaseClient, getAuthenticatedStaff, getStaffRole } from '@/lib/supabase/server';
+import {
+  createAdminSupabaseClient,
+  getAuthenticatedStaff,
+  getStaffRole,
+  getSafeStaffUuid,
+} from '@/lib/supabase/server';
 
 export interface StoreFAQItem {
   id: string;
@@ -97,12 +102,23 @@ export async function PUT(request: NextRequest) {
       .filter((item) => item.question && item.answer);
 
     const now = new Date().toISOString();
-    const { error: upsertError } = await supabase.from('app_settings').upsert({
+    const safeUpdatedBy = getSafeStaffUuid(staff.id);
+    let { error: upsertError } = await supabase.from('app_settings').upsert({
       key: FAQ_SETTINGS_KEY,
       value: cleanedFaqs,
-      updated_by: staff.id,
+      updated_by: safeUpdatedBy,
       updated_at: now,
-    });
+    }, { onConflict: 'key' });
+
+    if (upsertError && safeUpdatedBy) {
+      const retryResult = await supabase.from('app_settings').upsert({
+        key: FAQ_SETTINGS_KEY,
+        value: cleanedFaqs,
+        updated_by: null,
+        updated_at: now,
+      }, { onConflict: 'key' });
+      upsertError = retryResult.error;
+    }
 
     if (upsertError) {
       console.error('Lỗi khi lưu FAQ vào Supabase:', upsertError);

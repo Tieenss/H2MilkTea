@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminSupabaseClient, getAuthenticatedStaff, getStaffRole } from '@/lib/supabase/server';
+import {
+  createAdminSupabaseClient,
+  getAuthenticatedStaff,
+  getStaffRole,
+  getSafeStaffUuid,
+} from '@/lib/supabase/server';
 import {
   DEFAULT_FEATURE_CONFIG,
   normalizeFeatureConfig,
@@ -39,7 +44,7 @@ export async function GET(request: NextRequest) {
     const normalized = normalizeFeatureConfig({
       ...(data.value as Partial<SystemFeaturesPayload>),
       updatedAt: data.updated_at || (data.value as any)?.updatedAt,
-      updatedBy: data.updated_by || (data.value as any)?.updatedBy,
+      updatedBy: (data.value as any)?.updatedBy || data.updated_by,
     });
 
     return NextResponse.json({
@@ -84,19 +89,39 @@ export async function POST(request: NextRequest) {
 
     const body = (await request.json()) as Partial<SystemFeaturesPayload>;
     const now = new Date().toISOString();
+    const staffIdentifier = staff.user_metadata?.username || staff.user_metadata?.name || staff.email || staff.id;
     const payload = normalizeFeatureConfig({
       ...body,
       updatedAt: now,
-      updatedBy: staff.user_metadata?.username || staff.email || staff.id,
+      updatedBy: staffIdentifier,
     });
 
     if (supabase) {
-      const { error } = await supabase.from('app_settings').upsert({
-        key: SETTINGS_KEY,
-        value: payload,
-        updated_by: staff.id,
-        updated_at: now,
-      });
+      const safeUpdatedBy = getSafeStaffUuid(staff.id);
+      let { error } = await supabase.from('app_settings').upsert(
+        {
+          key: SETTINGS_KEY,
+          value: payload,
+          updated_by: safeUpdatedBy,
+          updated_at: now,
+        },
+        { onConflict: 'key' }
+      );
+
+      // Nếu gặp lỗi do foreign key auth.users hoặc ràng buộc updated_by, thử lưu lại với updated_by = null
+      if (error && safeUpdatedBy) {
+        console.warn('Lỗi upsert app_settings với updated_by, thử lại với updated_by = null:', error.message);
+        const retryResult = await supabase.from('app_settings').upsert(
+          {
+            key: SETTINGS_KEY,
+            value: payload,
+            updated_by: null,
+            updated_at: now,
+          },
+          { onConflict: 'key' }
+        );
+        error = retryResult.error;
+      }
 
       if (error) {
         return NextResponse.json(

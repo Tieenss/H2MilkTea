@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminSupabaseClient, getAuthenticatedStaff, getStaffRole } from '@/lib/supabase/server';
+import {
+  createAdminSupabaseClient,
+  getAuthenticatedStaff,
+  getStaffRole,
+  getSafeStaffUuid,
+} from '@/lib/supabase/server';
 
 export interface AISettingsConfig {
   enabled: boolean;
@@ -84,21 +89,22 @@ export async function PUT(request: NextRequest) {
   };
 
   const now = new Date().toISOString();
+  const safeUpdatedBy = getSafeStaffUuid(staff.id);
 
   // Lưu cả 2 key để bảo đảm tương thích ngược tuyệt đối
   await Promise.all([
     supabase.from('app_settings').upsert({
       key: 'ai_assistant_settings',
       value: nextSettings,
-      updated_by: staff.id,
+      updated_by: safeUpdatedBy,
       updated_at: now,
-    }),
+    }, { onConflict: 'key' }),
     supabase.from('app_settings').upsert({
       key: 'ai_assistant_enabled',
       value: nextSettings.enabled,
-      updated_by: staff.id,
+      updated_by: safeUpdatedBy,
       updated_at: now,
-    }),
+    }, { onConflict: 'key' }),
   ]);
 
   return NextResponse.json({ success: true, isAdmin: true, settings: nextSettings });
