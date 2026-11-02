@@ -188,19 +188,28 @@ export function applyAppearanceSettings(settings: AppearanceSettings): void {
     root.classList.remove('dark');
   }
 
-  // 2. ÁP DỤNG FONT FAMILY & FONT SIZE
+  // 2. ÁP DỤNG FONT FAMILY & FONT SIZE ĐỒNG BỘ TOÀN DIỆN
   const fontConfig = FONT_FAMILY_MAP[settings.fontFamily] || FONT_FAMILY_MAP['be-vietnam-pro'];
   root.style.setProperty('--h2-app-font', fontConfig.cssFont);
+  root.style.setProperty('--h2-web-font-family', fontConfig.cssFont);
+  root.style.setProperty('--font-sans', fontConfig.cssFont);
   if (body?.style) {
-    body.style.fontFamily = `var(--h2-app-font, ${fontConfig.cssFont})`;
+    if (typeof body.style.setProperty === 'function') {
+      body.style.setProperty('font-family', fontConfig.cssFont, 'important');
+    } else {
+      body.style.fontFamily = fontConfig.cssFont;
+    }
   }
 
   const sizeConfig = WEB_FONT_SIZE_MAP[settings.fontSize] || WEB_FONT_SIZE_MAP['base'];
   root.style.setProperty('--h2-app-font-size', sizeConfig.rootPx);
+  root.style.setProperty('--h2-web-font-size', sizeConfig.rootPx);
   root.style.fontSize = sizeConfig.rootPx;
 
   const chatbotConfig = CHATBOT_FONT_SIZE_MAP[settings.chatbotFontSize] || CHATBOT_FONT_SIZE_MAP['base'];
   root.style.setProperty('--h2-chatbot-font-size', chatbotConfig.px);
+  root.style.setProperty('--h2-chat-font-size', chatbotConfig.px);
+  root.style.setProperty('--h2-chat-font-family', fontConfig.cssFont);
 
   // 3. ÁP DỤNG MÀU CHỦ ĐẠO THEME (Tác động lên mọi Button, Accent, Ring, Gradient)
   const themeConfig = THEME_COLOR_MAP[settings.themeColor] || THEME_COLOR_MAP['indigo'];
@@ -216,12 +225,18 @@ export function applyAppearanceSettings(settings: AppearanceSettings): void {
     body?.classList?.add('h2-elderly-mode');
     root.setAttribute?.('data-elderly-mode', 'true');
     if (root.style) {
-      root.style.fontSize = '19px';
-      root.style.setProperty('--h2-app-font-size', '19px');
+      root.style.fontSize = '18px';
+      root.style.setProperty('--h2-app-font-size', '18px');
+      root.style.setProperty('--h2-web-font-size', '18px');
     }
   } else {
     root.classList?.remove('h2-elderly-mode');
     body?.classList?.remove('h2-elderly-mode');
     root.removeAttribute?.('data-elderly-mode');
+    if (root.style) {
+      root.style.fontSize = sizeConfig.rootPx;
+      root.style.setProperty('--h2-app-font-size', sizeConfig.rootPx);
+      root.style.setProperty('--h2-web-font-size', sizeConfig.rootPx);
+    }
   }
 }

@@ -69,6 +69,86 @@ export function CustomerChatbot({
   });
 
   const [isRecording, setIsRecording] = useState(false);
+  const [fabPosition, setFabPosition] = useState<{ x: number; y: number } | null>(null);
+  const isDraggingFabRef = useRef(false);
+  const fabStartRef = useRef<{ startX: number; startY: number; startLeft: number; startTop: number }>({
+    startX: 0,
+    startY: 0,
+    startLeft: 0,
+    startTop: 0,
+  });
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('h2_customer_chat_fab_pos');
+      if (saved) {
+        const p = JSON.parse(saved);
+        if (typeof p.x === 'number' && typeof p.y === 'number') {
+          const safeX = Math.max(10, Math.min(window.innerWidth - 130, p.x));
+          const safeY = Math.max(10, Math.min(window.innerHeight - 60, p.y));
+          setFabPosition({ x: safeX, y: safeY });
+        }
+      }
+    } catch {}
+  }, []);
+
+  const handleFabStart = (clientX: number, clientY: number, target: HTMLElement) => {
+    isDraggingFabRef.current = false;
+    const rect = target.getBoundingClientRect();
+    fabStartRef.current = {
+      startX: clientX,
+      startY: clientY,
+      startLeft: rect.left,
+      startTop: rect.top,
+    };
+
+    const handleMove = (moveX: number, moveY: number) => {
+      const deltaX = moveX - fabStartRef.current.startX;
+      const deltaY = moveY - fabStartRef.current.startY;
+      if (Math.hypot(deltaX, deltaY) > 5) {
+        isDraggingFabRef.current = true;
+      }
+      if (isDraggingFabRef.current) {
+        const newX = Math.max(10, Math.min(window.innerWidth - 130, fabStartRef.current.startLeft + deltaX));
+        const newY = Math.max(10, Math.min(window.innerHeight - 60, fabStartRef.current.startTop + deltaY));
+        setFabPosition({ x: newX, y: newY });
+      }
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      e.preventDefault();
+      handleMove(e.clientX, e.clientY);
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        handleMove(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    };
+
+    const handleEnd = () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleEnd);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleEnd);
+
+      if (isDraggingFabRef.current) {
+        setFabPosition((current) => {
+          if (current) {
+            try {
+              localStorage.setItem('h2_customer_chat_fab_pos', JSON.stringify(current));
+            } catch {}
+          }
+          return current;
+        });
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleEnd);
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', handleEnd);
+  };
   const [addedItemIds, setAddedItemIds] = useState<Record<string, boolean>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -263,11 +343,28 @@ export function CustomerChatbot({
     <>
             {/* Floating Trigger Button - Tự động né thanh giỏ hàng và banner phục vụ */}
       <button
-        onClick={() => setIsOpen(true)}
-        className={`fixed right-4 z-45 flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-orange-600 hover:bg-orange-700 text-white shadow-lg shadow-orange-600/30 hover:scale-105 active:scale-95 transition-all ${
-          totalItems > 0 ? "bottom-36" : "bottom-18"
+        style={
+          fabPosition
+            ? { left: `${fabPosition.x}px`, top: `${fabPosition.y}px`, bottom: 'auto', right: 'auto' }
+            : undefined
+        }
+        onMouseDown={(e) => {
+          if (e.button !== 0) return;
+          handleFabStart(e.clientX, e.clientY, e.currentTarget);
+        }}
+        onTouchStart={(e) => {
+          if (e.touches.length > 0) {
+            handleFabStart(e.touches[0].clientX, e.touches[0].clientY, e.currentTarget);
+          }
+        }}
+        onClick={() => {
+          if (isDraggingFabRef.current) return;
+          setIsOpen(true);
+        }}
+        className={`fixed z-45 flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-orange-600 hover:bg-orange-700 text-white shadow-lg shadow-orange-600/30 hover:scale-105 active:scale-95 transition-all select-none cursor-grab active:cursor-grabbing ${
+          !fabPosition ? (totalItems > 0 ? "right-4 bottom-36" : "right-4 bottom-18") : ""
         }`}
-        title="Trợ lý AI tư vấn gọi món"
+        title="Nhấn giữ để kéo di chuyển nút Trợ lý AI"
         aria-label="Mở Trợ lý AI H2"
       >
         <Sparkles className="w-4 h-4 text-amber-200" />

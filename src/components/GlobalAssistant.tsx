@@ -9,6 +9,8 @@ import {
   Mic,
   Loader2,
   Maximize2,
+  RotateCcw,
+  Move,
   Minimize2,
   Copy,
   Check,
@@ -201,6 +203,146 @@ export function GlobalAssistant() {
   const chatWindowRef = useRef<HTMLDivElement>(null);
   const isResizingRef = useRef(false);
   const [isResizing, setIsResizing] = useState(false);
+  // Kéo di chuyển nút nổi FAB (Draggable Button)
+  const [fabPosition, setFabPosition] = useState<{ x: number; y: number } | null>(null);
+  const isDraggingFabRef = useRef(false);
+  const fabStartRef = useRef<{ startX: number; startY: number; startLeft: number; startTop: number }>({
+    startX: 0,
+    startY: 0,
+    startLeft: 0,
+    startTop: 0,
+  });
+
+  // Kéo di chuyển cửa sổ Chat (Draggable Window)
+  const [windowPosition, setWindowPosition] = useState<{ x: number; y: number } | null>(null);
+  const isDraggingWindowRef = useRef(false);
+  const windowStartRef = useRef<{ startX: number; startY: number; startLeft: number; startTop: number }>({
+    startX: 0,
+    startY: 0,
+    startLeft: 0,
+    startTop: 0,
+  });
+
+  const handleFabStart = (clientX: number, clientY: number, target: HTMLElement) => {
+    isDraggingFabRef.current = false;
+    const rect = target.getBoundingClientRect();
+    fabStartRef.current = {
+      startX: clientX,
+      startY: clientY,
+      startLeft: rect.left,
+      startTop: rect.top,
+    };
+
+    const handleMove = (moveX: number, moveY: number) => {
+      const deltaX = moveX - fabStartRef.current.startX;
+      const deltaY = moveY - fabStartRef.current.startY;
+      if (Math.hypot(deltaX, deltaY) > 5) {
+        isDraggingFabRef.current = true;
+      }
+      if (isDraggingFabRef.current) {
+        const newX = Math.max(10, Math.min(window.innerWidth - 65, fabStartRef.current.startLeft + deltaX));
+        const newY = Math.max(10, Math.min(window.innerHeight - 65, fabStartRef.current.startTop + deltaY));
+        setFabPosition({ x: newX, y: newY });
+      }
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      e.preventDefault();
+      handleMove(e.clientX, e.clientY);
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        handleMove(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    };
+
+    const handleEnd = () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleEnd);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleEnd);
+
+      if (isDraggingFabRef.current) {
+        setFabPosition((current) => {
+          if (current) {
+            try {
+              localStorage.setItem('h2_global_assistant_fab_pos', JSON.stringify(current));
+            } catch {}
+          }
+          return current;
+        });
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleEnd);
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', handleEnd);
+  };
+
+  const handleWindowDragStart = (clientX: number, clientY: number) => {
+    if (isMaximized) return;
+    isDraggingWindowRef.current = false;
+    const rect = chatWindowRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    windowStartRef.current = {
+      startX: clientX,
+      startY: clientY,
+      startLeft: rect.left,
+      startTop: rect.top,
+    };
+
+    const handleMove = (moveX: number, moveY: number) => {
+      const deltaX = moveX - windowStartRef.current.startX;
+      const deltaY = moveY - windowStartRef.current.startY;
+      if (Math.hypot(deltaX, deltaY) > 5) {
+        isDraggingWindowRef.current = true;
+      }
+      if (isDraggingWindowRef.current) {
+        const curW = chatWindowRef.current?.offsetWidth || dimensions.width;
+        const curH = chatWindowRef.current?.offsetHeight || dimensions.height;
+        const newX = Math.max(10, Math.min(window.innerWidth - curW - 10, windowStartRef.current.startLeft + deltaX));
+        const newY = Math.max(10, Math.min(window.innerHeight - curH - 10, windowStartRef.current.startTop + deltaY));
+        setWindowPosition({ x: newX, y: newY });
+      }
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      e.preventDefault();
+      handleMove(e.clientX, e.clientY);
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        handleMove(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    };
+
+    const handleEnd = () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleEnd);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleEnd);
+
+      if (isDraggingWindowRef.current) {
+        setWindowPosition((current) => {
+          if (current) {
+            try {
+              localStorage.setItem('h2_global_assistant_window_pos', JSON.stringify(current));
+            } catch {}
+          }
+          return current;
+        });
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleEnd);
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', handleEnd);
+  };
 
   // 1. Khôi phục kích thước và lịch sử chat từ localStorage
   useEffect(() => {
@@ -210,6 +352,23 @@ export function GlobalAssistant() {
         const parsed = JSON.parse(savedDim);
         if (parsed.width && parsed.height) {
           setDimensions(parsed);
+        }
+      }
+      const savedFab = localStorage.getItem('h2_global_assistant_fab_pos');
+      if (savedFab) {
+        const p = JSON.parse(savedFab);
+        if (typeof p.x === 'number' && typeof p.y === 'number') {
+          const safeX = Math.max(10, Math.min(window.innerWidth - 65, p.x));
+          const safeY = Math.max(10, Math.min(window.innerHeight - 65, p.y));
+          setFabPosition({ x: safeX, y: safeY });
+        }
+      }
+
+      const savedWin = localStorage.getItem('h2_global_assistant_window_pos');
+      if (savedWin) {
+        const pw = JSON.parse(savedWin);
+        if (typeof pw.x === 'number' && typeof pw.y === 'number') {
+          setWindowPosition(pw);
         }
       }
 
@@ -709,8 +868,20 @@ export function GlobalAssistant() {
           ref={chatWindowRef}
           style={
             isMaximized
-              ? { width: 'calc(100vw - 32px)', height: 'calc(100vh - 40px)', bottom: '20px', right: '16px' }
-              : { width: `${dimensions.width}px`, height: `${dimensions.height}px`, bottom: '80px', right: '16px' }
+              ? { width: 'calc(100vw - 32px)', height: 'calc(100vh - 40px)', top: '20px', left: '16px' }
+              : windowPosition
+              ? {
+                  width: `${dimensions.width}px`,
+                  height: `${dimensions.height}px`,
+                  left: `${windowPosition.x}px`,
+                  top: `${windowPosition.y}px`,
+                }
+              : {
+                  width: `${dimensions.width}px`,
+                  height: `${dimensions.height}px`,
+                  bottom: '80px',
+                  right: '16px',
+                }
           }
           className={`fixed z-50 flex flex-col rounded-3xl border border-indigo-200/80 bg-white shadow-2xl overflow-hidden ${isResizing ? "transition-none select-none" : "transition-all duration-150"} animate-in fade-in slide-in-from-bottom-4`}
         >
@@ -726,7 +897,19 @@ export function GlobalAssistant() {
           )}
 
           {/* Header Chatbot */}
-          <div className="flex items-center justify-between border-b border-indigo-100 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 px-4 py-3 text-white select-none">
+          <div
+            onMouseDown={(e) => {
+              if (e.button !== 0) return;
+              handleWindowDragStart(e.clientX, e.clientY);
+            }}
+            onTouchStart={(e) => {
+              if (e.touches.length > 0) {
+                handleWindowDragStart(e.touches[0].clientX, e.touches[0].clientY);
+              }
+            }}
+            title="Nhấn giữ để kéo di chuyển cửa sổ chat khắp màn hình"
+            className="flex items-center justify-between border-b border-indigo-100 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 px-4 py-3 text-white select-none cursor-grab active:cursor-grabbing"
+          >
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm shadow-inner">
                 <Bot className="h-5 w-5" />
@@ -745,9 +928,27 @@ export function GlobalAssistant() {
             </div>
 
             <div className="flex items-center gap-1 shrink-0 ml-2">
+              {/* Nút khôi phục vị trí mặc định */}
+              {windowPosition && (
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onClick={() => {
+                    setWindowPosition(null);
+                    try { localStorage.removeItem('h2_global_assistant_window_pos'); } catch {}
+                  }}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 text-white"
+                  title="Gắn lại cửa sổ về góc mặc định"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                </button>
+              )}
               {/* Nút Mở rộng / Thu nhỏ (Mục #2) */}
               <button
                 type="button"
+                onMouseDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
                 onClick={toggleMaximize}
                 className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 text-white"
                 title={isMaximized ? 'Thu nhỏ lại kích thước chuẩn' : 'Mở rộng khung chat tối đa'}
@@ -758,6 +959,8 @@ export function GlobalAssistant() {
               {/* Nút Đóng */}
               <button
                 type="button"
+                onMouseDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
                 onClick={() => setIsOpen(false)}
                 className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 text-white"
                 title="Đóng trợ lý"
@@ -978,9 +1181,28 @@ export function GlobalAssistant() {
       {/* Nút FAB nổi góc màn hình để mở Chatbot bất kỳ lúc nào */}
       <button
         type="button"
-        onClick={() => setIsOpen((prev) => !prev)}
-        className={`fixed z-40 flex h-12 w-12 sm:h-13 sm:w-13 items-center justify-center rounded-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-600/30 hover:scale-105 active:scale-95 transition-all ${isPOS ? "bottom-4 right-4 lg:bottom-5 lg:right-[calc(390px+1.25rem)]" : "bottom-5 right-5"}`}
-        title="Mở Trợ lý AI H2 MilkTea"
+        style={
+          fabPosition
+            ? { left: `${fabPosition.x}px`, top: `${fabPosition.y}px`, bottom: 'auto', right: 'auto' }
+            : undefined
+        }
+        onMouseDown={(e) => {
+          if (e.button !== 0) return;
+          handleFabStart(e.clientX, e.clientY, e.currentTarget);
+        }}
+        onTouchStart={(e) => {
+          if (e.touches.length > 0) {
+            handleFabStart(e.touches[0].clientX, e.touches[0].clientY, e.currentTarget);
+          }
+        }}
+        onClick={() => {
+          if (isDraggingFabRef.current) return;
+          setIsOpen((prev) => !prev);
+        }}
+        className={`fixed z-40 flex h-12 w-12 sm:h-13 sm:w-13 items-center justify-center rounded-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-600/30 hover:scale-105 active:scale-95 transition-all select-none cursor-grab active:cursor-grabbing ${
+          !fabPosition ? (isPOS ? "bottom-4 right-4 lg:bottom-5 lg:right-[calc(390px+1.25rem)]" : "bottom-5 right-5") : ""
+        }`}
+        title="Nhấn giữ để kéo di chuyển nút Trợ lý AI khắp màn hình"
         aria-label="Trợ lý AI H2"
       >
         {isOpen ? (

@@ -1,5 +1,3 @@
-'use client';
-
 import { useState, useEffect, useCallback } from 'react';
 import authUtils from '@/utils/authUtils';
 import {

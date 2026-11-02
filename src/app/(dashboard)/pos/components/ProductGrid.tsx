@@ -115,6 +115,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
 
   return (
     <Card
+      data-pos-card="true"
       className="bg-white p-2 sm:p-3 rounded-lg shadow hover:shadow-md transition-all duration-200 cursor-pointer border group hover:scale-[1.02] touch-target"
       onClick={onOpenOptions}
     >
