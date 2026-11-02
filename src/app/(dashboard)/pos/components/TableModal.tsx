@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '../utils/formatters';
 import type { Table, CartItem } from '../types/pos';
 import type { TablePresenceSummary } from '@/hooks/useTablePresence';
+import { detectTableArea, DEFAULT_AREAS } from '@/app/(dashboard)/tables/utils/constants';
 
 interface TableModalProps {
   tables: Table[];
@@ -29,6 +30,7 @@ export const TableModal: React.FC<TableModalProps> = ({
 }) => {
   const [filterMode, setFilterMode] = useState<'all' | 'occupied' | 'empty'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedArea, setSelectedArea] = useState<string>('Tất cả');
 
   const calculateTotal = (items: CartItem[]): number => {
     return items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -70,6 +72,9 @@ export const TableModal: React.FC<TableModalProps> = ({
       if (filterMode === 'occupied' && !hasOrder) return false;
       if (filterMode === 'empty' && hasOrder) return false;
 
+      const tableArea = detectTableArea(t['Tên bàn'], t['Khu vực']);
+      if (selectedArea !== 'Tất cả' && tableArea !== selectedArea) return false;
+
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase().trim();
         const name = (t['Tên bàn'] || '').toLowerCase();
@@ -79,7 +84,7 @@ export const TableModal: React.FC<TableModalProps> = ({
 
       return true;
     });
-  }, [tables, getTableCart, filterMode, searchQuery]);
+  }, [tables, getTableCart, filterMode, searchQuery, selectedArea]);
 
   const canTransfer = selectedTableId && activeOrders.has(selectedTableId) && 
     activeOrders.get(selectedTableId)!.length > 0;
@@ -89,11 +94,11 @@ export const TableModal: React.FC<TableModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-2 backdrop-blur-sm">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[92vh] overflow-hidden flex flex-col">
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-5xl max-h-[92vh] overflow-hidden flex flex-col border border-slate-200 dark:border-slate-800">
         {/* Header */}
         <div className="flex justify-between items-center p-4 border-b border-gray-200">
           <div>
-            <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+            <h2 className="text-lg font-bold text-gray-800 dark:text-slate-100 flex items-center gap-2">
               Sơ đồ bàn phục vụ
               {selectedTable && (
                 <Badge variant="outline" className="text-xs border-indigo-300 text-indigo-700 bg-indigo-50">
@@ -129,7 +134,34 @@ export const TableModal: React.FC<TableModalProps> = ({
         </div>
 
         {/* Banner thống kê đơn chưa thanh toán & Bộ lọc bàn */}
-        <div className="px-4 py-2.5 bg-slate-50 border-b border-gray-200 flex flex-wrap items-center justify-between gap-2.5">
+        {/* Thanh lọc theo Khu vực (Tầng 1, Tầng 2, Sân vườn, VIP, v.v.) */}
+        <div className="px-4 py-1.5 bg-white dark:bg-slate-900 border-b border-gray-100 dark:border-slate-800 flex items-center gap-1.5 overflow-x-auto hide-scrollbar">
+          <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap mr-1">Khu vực:</span>
+          {DEFAULT_AREAS.map((area) => {
+            const isSelected = selectedArea === area;
+            const count = area === 'Tất cả'
+              ? tables.length
+              : tables.filter(t => detectTableArea(t['Tên bàn'], t['Khu vực']) === area).length;
+            return (
+              <button
+                key={area}
+                type="button"
+                onClick={() => setSelectedArea(area)}
+                className={`px-2.5 py-1 text-xs rounded-lg font-medium whitespace-nowrap transition-colors flex items-center gap-1 cursor-pointer ${
+                  isSelected
+                    ? 'bg-indigo-600 text-white shadow-2xs'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                }`}
+              >
+                <span>{area}</span>
+                <span className={`text-[10px] px-1 rounded-full ${isSelected ? 'bg-white/20 text-white' : 'text-slate-400'}`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-900/60 border-b border-gray-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2.5">
           <div className="flex items-center gap-1.5">
             <button
               onClick={() => setFilterMode('all')}

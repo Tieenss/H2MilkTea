@@ -125,10 +125,43 @@ export const useTables = () => {
     }
   }, [tables]);
 
+  const bulkAddTables = useCallback(async (newTables: TableFormData[]) => {
+    try {
+      setLoading(true);
+      let successCount = 0;
+      const addedList: Table[] = [];
+
+      for (const formData of newTables) {
+        try {
+          const result = await authUtils.apiRequest('DSBAN', 'create', formData);
+          if (!Array.isArray(result) && result.success) {
+            successCount++;
+            addedList.push(formData as Table);
+          }
+        } catch (e) {
+          console.error('Lỗi khi thêm bàn:', formData['Tên bàn'], e);
+        }
+      }
+
+      if (addedList.length > 0) {
+        setTables(prev => [...prev, ...addedList]);
+        toast.success(`Đã thêm thành công ${successCount} bàn mới!`);
+      } else {
+        toast.error('Không thể thêm bàn hàng loạt');
+      }
+    } catch (err: any) {
+      console.error('Error bulk adding tables:', err);
+      toast.error(err.message || 'Lỗi khi thêm bàn hàng loạt');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   return {
     tables,
     loading,
     addTable,
+    bulkAddTables,
     updateTable,
     deleteTable,
     generateTableId,

@@ -10,7 +10,7 @@ interface TableStatsProps {
 
 export const TableStats: React.FC<TableStatsProps> = ({ tables }) => {
   const totalTables = tables.length;
-  const activeTables = tables.filter(t => t['Trạng thái'] === 'Đang hoạt động').length;
+  const activeTables = tables.filter(t => t['Trạng thái'] !== 'Bảo trì' && t['Trạng thái'] !== 'Ngưng sử dụng').length;
   const maintenanceTables = tables.filter(t => t['Trạng thái'] === 'Bảo trì').length;
 
   const totalCapacity = tables.reduce((sum, table) => sum + (Number( table['Sức chứa tối đa']) || 0), 0);
@@ -21,7 +21,7 @@ export const TableStats: React.FC<TableStatsProps> = ({ tables }) => {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-      <Card>
+      <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Tổng số bàn</CardTitle>
           <MapPin className="h-4 w-4 text-muted-foreground" />
@@ -34,7 +34,7 @@ export const TableStats: React.FC<TableStatsProps> = ({ tables }) => {
         </CardContent>
       </Card>
       
-      <Card>
+      <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Tổng sức chứa</CardTitle>
           <Users className="h-4 w-4 text-muted-foreground" />
@@ -49,7 +49,7 @@ export const TableStats: React.FC<TableStatsProps> = ({ tables }) => {
         </CardContent>
       </Card>
       
-      <Card>
+      <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Bàn hoạt động</CardTitle>
           <CheckCircle className="h-4 w-4 text-muted-foreground" />
@@ -62,7 +62,7 @@ export const TableStats: React.FC<TableStatsProps> = ({ tables }) => {
         </CardContent>
       </Card>
       
-      <Card>
+      <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Bảo trì</CardTitle>
           <Settings className="h-4 w-4 text-muted-foreground" />

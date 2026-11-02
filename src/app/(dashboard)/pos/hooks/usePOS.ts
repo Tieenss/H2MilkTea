@@ -221,7 +221,8 @@ export const usePOS = () => {
     setActiveOrders,
     setSelectedTableId,
     updateCartItemNote,
-    updateItemsPrintStatus
+    updateItemsPrintStatus,
+    updateItemsKitchenStatus,
   } = useCart();
 
   const selectedTableName = selectedTableId

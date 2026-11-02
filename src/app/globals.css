@@ -724,3 +724,33 @@ html.dark.h2-elderly-mode table th {
 .h2-elderly-mode svg.lucide {
   stroke-width: 2.25px !important;
 }
+
+
+/* ==========================================================================
+   H2MILKTEA DARK MODE CONTRAST SAFEGUARDS
+   Tự động bảo vệ độ tương phản cho các văn bản màu tối khi bật Dark Mode
+   ========================================================================== */
+html.dark .text-slate-900:not([class*="dark:text-"]),
+html.dark .text-gray-900:not([class*="dark:text-"]) {
+  color: #f8fafc !important;
+}
+
+html.dark .text-slate-800:not([class*="dark:text-"]),
+html.dark .text-gray-800:not([class*="dark:text-"]) {
+  color: #f1f5f9 !important;
+}
+
+html.dark .text-slate-700:not([class*="dark:text-"]),
+html.dark .text-gray-700:not([class*="dark:text-"]) {
+  color: #e2e8f0 !important;
+}
+
+html.dark .text-slate-600:not([class*="dark:text-"]),
+html.dark .text-gray-600:not([class*="dark:text-"]) {
+  color: #cbd5e1 !important;
+}
+
+html.dark [class*="bg-white"]:not([class*="dark:bg-"]) {
+  background-color: #0f172a !important;
+  border-color: #1e293b !important;
+}

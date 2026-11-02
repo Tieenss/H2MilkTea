@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Trash, User, Gift, Plus, Minus, ChefHat, Tag, QrCode, AlertTriangle, Receipt } from 'lucide-react';
+import { Trash, User, Gift, Plus, Minus, ChefHat, Tag, QrCode, AlertTriangle, Receipt, CheckCircle2, Clock } from 'lucide-react';
 import { formatCurrency, formatPoints } from '../utils/formatters';
 import type { CartItem } from '../types/pos';
 import { Customer } from '@/app/(dashboard)/khachhang/types/customer';
@@ -50,6 +50,7 @@ interface CartSidebarProps {
   onShowNoteModal: (item: CartItem) => void;
   onSendToKitchen?: () => Promise<void> | void;
   onUpdateCartItemPrintStatus?: (itemIds: string[], status: 'printed' | 'new' | 'modified') => void;
+  onUpdateCartItemKitchenStatus?: (itemIds: string[], status: 'sent' | 'new') => void;
 }
 
 export const CartSidebar: React.FC<CartSidebarProps> = ({
@@ -228,6 +229,7 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
     try {
       await onSendToKitchen();
       setSentKitchenSignature(cartSignature);
+      onUpdateCartItemKitchenStatus?.(cart.map((i) => i.id), 'sent');
       toast.success(`Đã gửi ${cart.length} món bàn ${selectedTableName || ''} đến quầy pha chế!`);
 
       // Tự động in tem nhãn nếu cấu hình autoPrintOnKitchenSend đang bật
@@ -459,6 +461,7 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
             <CartItemCard
               key={item.id}
               item={item}
+              isKitchenSent={isKitchenSent}
               onRemove={onRemoveFromCart}
               onAdjustQuantity={onAdjustQuantity}
               onShowNoteModal={onShowNoteModal}
@@ -527,6 +530,7 @@ const EmptyCart: React.FC<{ onShowTableModal: () => void }> = ({ onShowTableModa
 
 interface CartItemCardProps {
   item: CartItem;
+  isKitchenSent?: boolean;
   onRemove: (productId: string) => void;
   onAdjustQuantity: (productId: string, amount: number) => void;
   onShowNoteModal: (item: CartItem) => void;
@@ -559,7 +563,7 @@ const CartItemCard: React.FC<CartItemCardProps> = ({
   };
 
   return (
-    <div className="bg-white p-2 sm:p-2.5 rounded-xl border border-slate-200 hover:border-slate-300 transition-all shadow-2xs">
+    <div className="bg-white dark:bg-slate-900 p-2 sm:p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-2xs">
       <div className="flex items-start gap-2">
         <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center shrink-0 overflow-hidden border border-slate-200/60">
           <img
@@ -574,7 +578,7 @@ const CartItemCard: React.FC<CartItemCardProps> = ({
 
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-1 mb-1">
-            <h4 className="font-bold text-slate-800 text-xs sm:text-sm line-clamp-2 break-words leading-tight flex-1">
+            <h4 className="font-bold text-slate-800 dark:text-slate-100 text-xs sm:text-sm line-clamp-2 break-words leading-tight flex-1">
               {item.name}
               {item.size && (
                 <span className="ml-1 text-[10px] font-extrabold px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200 inline-block align-middle">
@@ -582,7 +586,7 @@ const CartItemCard: React.FC<CartItemCardProps> = ({
                 </span>
               )}
             </h4>
-            <span className="text-xs sm:text-sm font-bold text-blue-600 shrink-0 whitespace-nowrap ml-1.5">
+            <span className="text-xs sm:text-sm font-bold text-blue-600 dark:text-blue-400 shrink-0 whitespace-nowrap ml-1.5">
               {formatCurrency(item.price * item.quantity)}
             </span>
           </div>
@@ -592,6 +596,33 @@ const CartItemCard: React.FC<CartItemCardProps> = ({
               {item.note}
             </p>
           )}
+
+          {/* Status Badges: In tem nhãn & Gửi bếp */}
+          <div className="flex flex-wrap items-center gap-1.5 my-1">
+            {item.printStatus === 'printed' ? (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800">
+                <Tag className="w-2.5 h-2.5" />
+                <span>Đã in nhãn</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">
+                <Tag className="w-2.5 h-2.5" />
+                <span>Chưa in tem</span>
+              </span>
+            )}
+
+            {(isKitchenSent || item.kitchenStatus === 'sent' || item.isSentToKitchen) ? (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800">
+                <CheckCircle2 className="w-2.5 h-2.5" />
+                <span>Đã gửi bếp</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800">
+                <Clock className="w-2.5 h-2.5" />
+                <span>Chờ gửi bếp</span>
+              </span>
+            )}
+          </div>
 
           <div className="flex items-center justify-between gap-1 pt-0.5">
             <div className="text-[11px] text-slate-500 font-medium shrink-0">

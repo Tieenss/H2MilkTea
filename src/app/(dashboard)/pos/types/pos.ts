@@ -32,6 +32,8 @@ export interface CartItem {
   printStatus?: 'new' | 'printed' | 'modified';
   printedQuantity?: number;
   printedSignature?: string;
+  kitchenStatus?: 'new' | 'sent' | 'cooking' | 'ready';
+  isSentToKitchen?: boolean;
 }
 
 // Customer info for receipt

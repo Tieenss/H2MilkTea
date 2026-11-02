@@ -74,6 +74,7 @@ export default function POSPage() {
     adjustQuantity,
     clearCart,
     updateItemsPrintStatus,
+    updateItemsKitchenStatus,
     selectTable,
     transferTable,
     processPayment,
@@ -320,9 +321,23 @@ export default function POSPage() {
             </span>
           )}
           {selectedTableName && (
-            <span className="text-[11px] font-medium text-slate-600 flex-shrink-0 ml-2">
-              Đang chọn: <strong className="text-slate-800">{selectedTableName}</strong>
-            </span>
+            <button
+              type="button"
+              onClick={() => setShowTableModal(true)}
+              className="flex-shrink-0 ml-2 inline-flex items-center gap-2 px-3 py-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg shadow-sm transition-all transform active:scale-95 group cursor-pointer"
+              title="Nhấn để đổi bàn đang phục vụ"
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] uppercase tracking-wider font-medium text-blue-100 hidden sm:inline">Đang chọn:</span>
+                <span className="text-xs sm:text-sm font-black tracking-tight text-white flex items-center gap-1">
+                  <span>🪑</span>
+                  <span>{selectedTableName}</span>
+                </span>
+              </div>
+              <span className="text-[10px] bg-white/20 px-1.5 py-0.2 rounded text-white font-bold group-hover:bg-white/30 transition-colors">
+                Đổi bàn
+              </span>
+            </button>
           )}
         </div>
       </div>
@@ -651,6 +666,7 @@ export default function POSPage() {
             onShowCustomerModal={() => setShowCustomerModal(true)}
             onShowQRModal={() => setShowTableQRModal(true)}
             onUpdateCartItemPrintStatus={updateItemsPrintStatus}
+            onUpdateCartItemKitchenStatus={updateItemsKitchenStatus}
             onShowNoteModal={(item) => {
               setSelectedItemForNote(item);
               setNoteInput(item.note || '');

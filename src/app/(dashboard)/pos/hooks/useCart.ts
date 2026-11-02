@@ -41,7 +41,29 @@ export function getNormalizedPosItemKey(item: Partial<CartItem> & { id: string }
 export const useCart = () => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [activeOrders, setActiveOrders] = useState<Map<string, CartItem[]>>(new Map());
-  const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
+  const [selectedTableId, setSelectedTableId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return localStorage.getItem('h2_pos_active_table_id') || null;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  });
+
+  // Persist selectedTableId to localStorage for seamless cross-page navigation
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        if (selectedTableId) {
+          localStorage.setItem('h2_pos_active_table_id', selectedTableId);
+        }
+      } catch (e) {
+        console.warn('Could not persist table id to localStorage', e);
+      }
+    }
+  }, [selectedTableId]);
 
   // Add product to cart with options support (Size gốc M = +0đ, Size L = +5000đ + Topping price)
   const addToCart = useCallback((
@@ -82,6 +104,8 @@ export const useCart = () => {
         ice: options?.ice,
         toppings: options?.toppings,
         printStatus: 'new',
+        kitchenStatus: 'new',
+        isSentToKitchen: false,
       };
 
       const newKey = getNormalizedPosItemKey(newItem, isFood);
@@ -321,6 +345,33 @@ export const useCart = () => {
     });
   }, [selectedTableId]);
 
+  // Update kitchen status for cart items
+  const updateItemsKitchenStatus = useCallback((itemIds?: string[], status: 'sent' | 'new' = 'sent') => {
+    setCart(prevCart => {
+      const idSet = itemIds ? new Set(itemIds) : null;
+      const updated = prevCart.map(item => {
+        if (!idSet || idSet.has(item.id)) {
+          return {
+            ...item,
+            kitchenStatus: status,
+            isSentToKitchen: status === 'sent',
+          };
+        }
+        return item;
+      });
+
+      if (selectedTableId) {
+        setActiveOrders(prev => {
+          const next = new Map(prev);
+          next.set(selectedTableId, updated);
+          return next;
+        });
+      }
+
+      return updated;
+    });
+  }, [selectedTableId]);
+
   // Get table orders (for specific table)
   const getTableOrders = useCallback((tableId: string) => {
     return activeOrders.get(tableId) || [];
@@ -339,6 +390,7 @@ export const useCart = () => {
     updateQuantity,
     updateCartItemNote,
     updateItemsPrintStatus,
+    updateItemsKitchenStatus,
     clearCart,
     clearAllCarts,
     getCartTotal,

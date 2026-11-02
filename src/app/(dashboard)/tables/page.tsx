@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { MapPin, Plus, Search, X } from 'lucide-react';
+import { MapPin, Plus, Search, X, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -27,7 +28,7 @@ import { TableCard } from './components/TableCard';
 import { TableForm } from './components/TableForm';
 import { BulkQRCodeGenerator } from './components/BulkQRCodeGenerator';
 import type { Table, TableFormData } from './types/table';
-import { INITIAL_TABLE_FORM_DATA, TABLE_STATUS } from './utils/constants';
+import { INITIAL_TABLE_FORM_DATA, TABLE_STATUS, DEFAULT_AREAS, detectTableArea } from './utils/constants';
 import authUtils from '@/utils/authUtils';
 import toast from 'react-hot-toast';
 
@@ -36,6 +37,7 @@ export default function TablePage() {
   const {
     tables,
     addTable,
+    bulkAddTables,
     updateTable,
     deleteTable,
     generateTableId,
@@ -52,6 +54,15 @@ export default function TablePage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [capacityFilter, setCapacityFilter] = useState<string>('all');
+  const [areaFilter, setAreaFilter] = useState<string>('Tất cả');
+
+  // Bulk add states
+  const [isBulkDialogOpen, setIsBulkDialogOpen] = useState(false);
+  const [bulkPrefix, setBulkPrefix] = useState('Bàn ');
+  const [bulkFrom, setBulkFrom] = useState(1);
+  const [bulkTo, setBulkTo] = useState(5);
+  const [bulkCapacity, setBulkCapacity] = useState(4);
+  const [bulkArea, setBulkArea] = useState('Tầng 1');
 
   // Check user permissions
   React.useEffect(() => {
@@ -125,46 +136,79 @@ const handleSubmit = async (data: TableFormData) => {
    deleteTable(table.IDBAN);
  };
 
- // Filter tables
- const filteredTables = useMemo(() => {
-   return tables.filter(table => {
-     const matchesSearch = 
-       table.IDBAN.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       table['Tên bàn'].toLowerCase().includes(searchTerm.toLowerCase());
-     
-     const matchesStatus = statusFilter === 'all' || table['Trạng thái'] === statusFilter;
-     
-     const matchesCapacity = (() => {
-       switch (capacityFilter) {
-         case 'small': return table['Sức chứa tối đa'] <= 4;
-         case 'medium': return table['Sức chứa tối đa'] > 4 && table['Sức chứa tối đa'] <= 8;
-         case 'large': return table['Sức chứa tối đa'] > 8;
-         default: return true;
-       }
-     })();
+   // Filter tables with Area and Status normalization
+  const filteredTables = useMemo(() => {
+    return tables.filter(table => {
+      const matchesSearch = 
+        table.IDBAN.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        table['Tên bàn'].toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesStatus = statusFilter === 'all' 
+        ? true 
+        : (statusFilter === 'Đang hoạt động' 
+            ? (table['Trạng thái'] === 'Đang hoạt động' || table['Trạng thái'] === 'Trống' || table['Trạng thái'] === 'Có khách')
+            : table['Trạng thái'] === statusFilter);
 
-     return matchesSearch && matchesStatus && matchesCapacity;
-   });
- }, [tables, searchTerm, statusFilter, capacityFilter]);
+      const tableArea = detectTableArea(table['Tên bàn'], table['Khu vực']);
+      const matchesArea = areaFilter === 'Tất cả' || tableArea === areaFilter;
+      
+      const matchesCapacity = (() => {
+        switch (capacityFilter) {
+          case 'small': return table['Sức chứa tối đa'] <= 4;
+          case 'medium': return table['Sức chứa tối đa'] > 4 && table['Sức chứa tối đa'] <= 8;
+          case 'large': return table['Sức chứa tối đa'] > 8;
+          default: return true;
+        }
+      })();
 
- // Group tables by status for better visualization
-const tablesByStatus = useMemo(() => {
-  const grouped = {
-    'Đang hoạt động': [] as Table[],
-    'Bảo trì': [] as Table[]
-  };
+      return matchesSearch && matchesStatus && matchesArea && matchesCapacity;
+    });
+  }, [tables, searchTerm, statusFilter, areaFilter, capacityFilter]);
 
-  filteredTables.forEach(table => {
-    const status = table['Trạng thái'];
-    if (status === 'Đang hoạt động') {
-      grouped['Đang hoạt động'].push(table);
-    } else if (status === 'Bảo trì') {
-      grouped['Bảo trì'].push(table);
+  // Group tables by status - FIXED: Tất cả các bàn Trống, Có khách, Đang hoạt động đều thuộc nhóm Đang hoạt động, không bao giờ bị ẩn
+  const tablesByStatus = useMemo(() => {
+    const grouped = {
+      'Đang hoạt động': [] as Table[],
+      'Bảo trì': [] as Table[]
+    };
+
+    filteredTables.forEach(table => {
+      const status = table['Trạng thái'];
+      if (status === 'Bảo trì' || status === 'Ngưng sử dụng') {
+        grouped['Bảo trì'].push(table);
+      } else {
+        grouped['Đang hoạt động'].push(table);
+      }
+    });
+
+    return grouped;
+  }, [filteredTables]);
+
+  const handleBulkSubmit = async () => {
+    if (!isAdmin && !isManager) {
+      toast.error('Bạn không có quyền thực hiện chức năng này!');
+      return;
     }
-  });
+    const from = Math.min(bulkFrom, bulkTo);
+    const to = Math.max(bulkFrom, bulkTo);
+    const newTables: TableFormData[] = [];
 
-  return grouped;
-}, [filteredTables]);
+    for (let i = from; i <= to; i++) {
+      const numStr = i < 10 ? `0${i}` : `${i}`;
+      const prefix = bulkPrefix.trim();
+      const tableName = `${prefix} ${numStr}`.trim();
+      newTables.push({
+        IDBAN: `BAN${Date.now().toString().slice(-4)}${numStr}`,
+        'Tên bàn': tableName,
+        'Sức chứa tối đa': bulkCapacity,
+        'Trạng thái': 'Đang hoạt động',
+        'Khu vực': bulkArea,
+      });
+    }
+
+    await bulkAddTables(newTables);
+    setIsBulkDialogOpen(false);
+  };
 
  if (loading) {
    return (
@@ -190,7 +234,7 @@ const tablesByStatus = useMemo(() => {
    <div className="h-full flex flex-col space-y-6">
      {/* Header */}
      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-       <h3 className="text-3xl font-bold text-gray-800 flex items-center">
+       <h3 className="text-3xl font-bold text-gray-800 dark:text-slate-100 flex items-center">
          <MapPin className="mr-2 h-6 w-6 text-blue-600" />
          Quản lý bàn
        </h3>
@@ -338,7 +382,7 @@ const tablesByStatus = useMemo(() => {
                  {statusInfo?.icon && (
                    <statusInfo.icon className="h-5 w-5 text-gray-600" />
                  )}
-                 <h4 className="text-lg font-semibold text-gray-800">
+                 <h4 className="text-lg font-semibold text-gray-800 dark:text-slate-100">
                    {statusInfo?.label} ({statusTables.length})
                  </h4>
                </div>
