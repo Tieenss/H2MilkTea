@@ -37,11 +37,11 @@ import {
   CONFIGURABLE_ROLES,
   createDefaultFeatureConfig,
   isFeatureEnabledForUser,
-  useFeatureFlags,
   type SystemFeatureKey,
   type FeatureCategory,
   type SystemFeaturesPayload,
 } from '@/lib/settings/featureFlags';
+import { useFeatureFlags } from '@/lib/settings/useFeatureFlags';
 
 interface StaffMember {
   username: string;

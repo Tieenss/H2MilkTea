@@ -28,7 +28,7 @@ import type { Customer } from '@/app/(dashboard)/khachhang/types/customer';
 // POSAssistant moved to GlobalAssistant across all dashboard pages (Mục #16)
 import { CartConflictModal } from './components/CartConflictModal';
 import { getPendingOfflineCount, syncPendingCheckouts } from '@/lib/offline/offlineSyncQueue';
-import { useFeatureFlags } from '@/lib/settings/featureFlags';
+import { useFeatureFlags } from '@/lib/settings/useFeatureFlags';
 
 export default function POSPage() {
   const {
