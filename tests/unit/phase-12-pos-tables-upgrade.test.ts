@@ -75,21 +75,21 @@ describe('Phase 12: POS Cart Item Status, Table Persistence & Area Management', 
 
   describe('Phân hệ 4: Table Area Detection & Status Normalization (Anti Table Loss)', () => {
     it('detects areas accurately based on table name prefix and keywords', () => {
-      expect(detectTableArea('T1 - Bàn 01')).toBe('Tầng 1');
-      expect(detectTableArea('Tầng 1 Bàn 04')).toBe('Tầng 1');
-      expect(detectTableArea('T2-Bàn 05')).toBe('Tầng 2');
-      expect(detectTableArea('Tầng 2 - 08')).toBe('Tầng 2');
-      expect(detectTableArea('VIP-01')).toBe('Phòng VIP');
-      expect(detectTableArea('Phòng VIP 2')).toBe('Phòng VIP');
-      expect(detectTableArea('Sân vườn 03')).toBe('Sân vườn');
-      expect(detectTableArea('Ngoài trời Bàn 02')).toBe('Sân vườn');
-      expect(detectTableArea('Khách mang về')).toBe('Mang về');
-      expect(detectTableArea('Bàn 01')).toBe('Khu vực chung');
+      expect(detectTableArea('Phòng hát 01')).toBe('Phòng hát');
+      expect(detectTableArea('PH02')).toBe('Phòng hát');
+      expect(detectTableArea('VIP-01')).toBe('Phòng hát');
+      expect(detectTableArea('Karaoke 02')).toBe('Phòng hát');
+      expect(detectTableArea('Quầy 01')).toBe('Quầy');
+      expect(detectTableArea('Q03')).toBe('Quầy');
+      expect(detectTableArea('Vườn 01')).toBe('Vườn');
+      expect(detectTableArea('V04')).toBe('Vườn');
+      expect(detectTableArea('Ngoài trời Bàn 02')).toBe('Vườn');
+      expect(detectTableArea('Khách mua về')).toBe('Mang về');
     });
 
     it('prioritizes explicitArea when supplied', () => {
-      expect(detectTableArea('Bàn 01', 'Tầng 2')).toBe('Tầng 2');
-      expect(detectTableArea('T1-01', 'Phòng VIP')).toBe('Phòng VIP');
+      expect(detectTableArea('Bàn 01', 'Phòng hát')).toBe('Phòng hát');
+      expect(detectTableArea('V01', 'Quầy')).toBe('Quầy');
     });
 
     it('ensures tables with Trống and Có khách are categorized as active and never lost', () => {
@@ -124,10 +124,10 @@ describe('Phase 12: POS Cart Item Status, Table Persistence & Area Management', 
 
     it('includes all default areas and valid statuses', () => {
       expect(DEFAULT_AREAS).toContain('Tất cả');
-      expect(DEFAULT_AREAS).toContain('Tầng 1');
-      expect(DEFAULT_AREAS).toContain('Tầng 2');
-      expect(DEFAULT_AREAS).toContain('Sân vườn');
-      expect(DEFAULT_AREAS).toContain('Phòng VIP');
+      expect(DEFAULT_AREAS).toContain('Phòng hát');
+      expect(DEFAULT_AREAS).toContain('Quầy');
+      expect(DEFAULT_AREAS).toContain('Vườn');
+      expect(DEFAULT_AREAS).toContain('Mang về');
 
       const statusValues = TABLE_STATUS.map(s => s.value);
       expect(statusValues).toContain('Đang hoạt động');

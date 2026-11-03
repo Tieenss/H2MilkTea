@@ -17,9 +17,7 @@ export const useTables = () => {
       const tableList = Array.isArray(response) ? response : [];
       
       // Chỉ lấy bàn đang hoạt động
-      const activeTables = tableList.filter(table => 
-        table['Trạng thái'] === 'Đang hoạt động'
-      );
+      const activeTables = tableList.filter(table => table['Trạng thái'] !== 'Bảo trì' && table['Trạng thái'] !== 'Ngưng sử dụng' && table['Trạng thái'] !== 'Ngừng hoạt động');
       
       setTables(activeTables);
       return activeTables;
