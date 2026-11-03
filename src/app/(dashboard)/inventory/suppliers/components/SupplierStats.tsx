@@ -53,7 +53,7 @@ export function SupplierStatsComponent({ stats }: SupplierStatsComponentProps) {
     },
     {
       title: 'Đánh giá trung bình',
-      value: `${stats.trungBinhDanhGia.toFixed(1)} ⭐`,
+      value: `${(Number(stats?.trungBinhDanhGia) || 5).toFixed(1)} ⭐`,
       description: 'Đánh giá trung bình của tất cả',
       icon: Star,
       color: 'text-orange-600',

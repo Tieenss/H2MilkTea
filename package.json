@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "pretest": "node scripts/check-env.mjs",
+    "pretest": "node scripts/check-env.mjs && node scripts/verify-integrity.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "check-env": "node scripts/check-env.mjs",
@@ -17,7 +17,9 @@
     "db:verify": "node scripts/db/verify-backup.mjs",
     "db:seed:demo": "node scripts/db/seed-demo.mjs",
     "eval:ai": "npx tsx scripts/eval-ai.ts",
-    "eval:latency": "npx tsx scripts/measure-latency.ts"
+    "eval:latency": "npx tsx scripts/measure-latency.ts",
+    "verify": "node scripts/verify-integrity.mjs",
+    "prebuild": "node scripts/verify-integrity.mjs"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",

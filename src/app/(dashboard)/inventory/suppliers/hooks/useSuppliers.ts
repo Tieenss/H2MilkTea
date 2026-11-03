@@ -30,17 +30,19 @@ export function useSuppliers() {
 
   // Calculate statistics
   const calculateStats = (suppliersData: Supplier[]) => {
+    const list = Array.isArray(suppliersData) ? suppliersData : [];
     const stats = {
-      tongNhaCungCap: suppliersData.length,
-      dangHopTac: suppliersData.filter(s => s.TrangThai === 'Đang hợp tác').length,
-      tamNgung: suppliersData.filter(s => s.TrangThai === 'Tạm ngưng').length,
-      ngungHopTac: suppliersData.filter(s => s.TrangThai === 'Ngừng hợp tác').length,
-      tongGiaTriDatHang: suppliersData.reduce((total, supplier) => {
-        return total + supplier.LichSuDatHang.reduce((sum, order) => sum + order.TongTien, 0);
+      tongNhaCungCap: list.length,
+      dangHopTac: list.filter(s => s?.TrangThai === 'Đang hợp tác').length,
+      tamNgung: list.filter(s => s?.TrangThai === 'Tạm ngưng').length,
+      ngungHopTac: list.filter(s => s?.TrangThai === 'Ngừng hợp tác').length,
+      tongGiaTriDatHang: list.reduce((total, supplier) => {
+        const history = Array.isArray(supplier?.LichSuDatHang) ? supplier.LichSuDatHang : [];
+        return total + history.reduce((sum, order) => sum + (Number(order?.TongTien) || 0), 0);
       }, 0),
-      trungBinhDanhGia: suppliersData.length > 0 
-        ? suppliersData.reduce((sum, supplier) => sum + supplier.DanhGia, 0) / suppliersData.length 
-        : 0
+      trungBinhDanhGia: list.length > 0 
+        ? list.reduce((sum, supplier) => sum + (Number(supplier?.DanhGia) || 5), 0) / list.length 
+        : 5.0
     };
     setStats(stats);
   };

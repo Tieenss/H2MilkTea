@@ -1,22 +1,26 @@
 import type { Supplier } from '../types/supplier';
 
 // Format currency
-export const formatCurrency = (amount: number): string => {
+export const formatCurrency = (amount: any): string => {
+  const num = Number(amount) || 0;
   return new Intl.NumberFormat('vi-VN', {
     style: 'currency',
     currency: 'VND'
-  }).format(amount);
+  }).format(num);
 };
 
 // Format date
 export const formatDate = (dateString: string): string => {
+  if (!dateString) return '-';
   const date = new Date(dateString);
-  return date.toLocaleDateString('vi-VN');
+  return isNaN(date.getTime()) ? String(dateString) : date.toLocaleDateString('vi-VN');
 };
 
-// Format rating with stars
-export const formatRating = (rating: number): string => {
-  return `${rating.toFixed(1)} ⭐`;
+// Format rating with stars (Defensive: chống crash khi rating là null/undefined/string)
+export const formatRating = (rating: any): string => {
+  const num = Number(rating);
+  if (isNaN(num) || num <= 0) return '5.0 ⭐';
+  return `${num.toFixed(1)} ⭐`;
 };
 
 // Get status badge color
@@ -35,12 +39,14 @@ export const getStatusColor = (status: string): string => {
 
 // Calculate total order value
 export const calculateTotalOrderValue = (supplier: Supplier): number => {
-  return supplier.LichSuDatHang.reduce((total, order) => total + order.TongTien, 0);
+  const history = Array.isArray(supplier?.LichSuDatHang) ? supplier.LichSuDatHang : [];
+  return history.reduce((total, order) => total + (Number(order?.TongTien) || 0), 0);
 };
 
 // Get recent orders (last 5)
 export const getRecentOrders = (supplier: Supplier) => {
-  return supplier.LichSuDatHang
+  const history = Array.isArray(supplier?.LichSuDatHang) ? [...supplier.LichSuDatHang] : [];
+  return history
     .sort((a, b) => new Date(b.NgayDat).getTime() - new Date(a.NgayDat).getTime())
     .slice(0, 5);
 };

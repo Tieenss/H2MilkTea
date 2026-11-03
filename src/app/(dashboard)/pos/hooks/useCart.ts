@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { CartItem, Product } from '../types/pos';
 import { getLineItemKey } from '@/lib/cart/mergeCart';
 
