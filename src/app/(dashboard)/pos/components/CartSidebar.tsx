@@ -36,6 +36,7 @@ interface CartSidebarProps {
   employee?: string;
   sharedCartStatus?: string;
   canCheckout?: boolean;
+  canUseKitchenPrint?: boolean;
   showClearConfirmation?: boolean;
   activeCashiersOnTable?: string[];
   posViewersCount?: number;
@@ -491,6 +492,7 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
             isSendingKitchen={isSendingKitchen}
             isKitchenSent={sentKitchenSignature === cartSignature}
             canCheckout={canCheckout}
+            canUseKitchenPrint={canUseKitchenPrint}
             sharedCartStatus={sharedCartStatus}
           />
         </div>
@@ -792,8 +794,8 @@ const ActionButtons: React.FC<{
   return (
     <div className="space-y-2">
       {/* Cụm nút phụ: Gửi bếp & In hóa đơn tạm tính */}
-      <div className="grid grid-cols-2 gap-2">
-        {onSendToKitchen && (
+      <div className={`grid ${canUseKitchenPrint && onSendToKitchen ? 'grid-cols-2' : 'grid-cols-1'} gap-2`}>
+        {canUseKitchenPrint && onSendToKitchen && (
           <Button
             type="button"
             onClick={handleKitchenClick}

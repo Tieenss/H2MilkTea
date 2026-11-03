@@ -104,6 +104,7 @@ export default function POSPage() {
   const canUseToppingModal = isFeatureEnabled('pos_topping_modal');
   const canUseTransferTable = isFeatureEnabled('pos_transfer_table');
   const canUseQrInbox = isFeatureEnabled('pos_qr_inbox');
+  const canUseKitchenPrint = isFeatureEnabled('pos_kitchen_print');
   // Mobile state for showing/hiding cart
   const [showMobileCart, setShowMobileCart] = React.useState(false);
   const [isSearchExpanded, setIsSearchExpanded] = React.useState(false);
@@ -673,6 +674,7 @@ export default function POSPage() {
               setShowNoteModal(true);
             }}
             canCheckout={canCheckout}
+            canUseKitchenPrint={canUseKitchenPrint}
             sharedCartStatus={sharedCartStatus}
           />
         </div>

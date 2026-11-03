@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { X, ChevronDown, ChevronRight, RotateCcw, HelpCircle } from 'lucide-react';
 import { navigation, NavigationItem } from '@/lib/navigation';
+import { useFeatureFlags } from '@/lib/settings/useFeatureFlags';
 import authUtils from '@/utils/authUtils';
 import { TodayOrdersBadge } from '@/components/TodayOrdersBadge';
 import { toast } from 'react-hot-toast';
@@ -32,6 +33,8 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, className }: Sid
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
     const [isLoading, setIsLoading] = useState(true);
     const [deviceFeatureState, setDeviceFeatureState] = useState<DeviceFeatureState>(getDeviceFeatureState());
+    const { isFeatureEnabled } = useFeatureFlags();
+    const isKitchenEnabled = isFeatureEnabled('pos_kitchen_print');
 
     // Cập nhật trạng thái tính năng khi chuyển trang (Mục #8)
     useEffect(() => {
