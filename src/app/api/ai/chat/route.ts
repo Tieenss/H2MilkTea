@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
       rawMessage: message,
       history,
       currentTable: typeof body.table === 'string' ? body.table : undefined,
-      currentCart: Array.isArray(body.cart) ? body.cart : [],
+      currentCart: Array.isArray(body.cart) ? body.cart : undefined,
       currentRoute: typeof body.pathname === 'string' ? body.pathname : undefined,
       pageContext: typeof body.pageContext === 'string' ? body.pageContext : undefined,
       staff: {
@@ -142,6 +142,8 @@ export async function POST(request: NextRequest) {
       source: result.source,
       isBlocked: result.isBlocked,
       blockedReason: result.blockedReason,
+      disambiguation: result.disambiguation,
+      cartDiff: result.cartDiff,
     });
   } catch (error) {
     console.error('Gemini POS chat pipeline failed:', error);

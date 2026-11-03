@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Bot, CheckCircle2, Clock, Loader2, Mic, ShieldAlert, Sparkles, Volume2 } from 'lucide-react';
+import { Bot, CheckCircle2, Clock, Loader2, Mic, ShieldAlert, Sparkles } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import authUtils from '@/utils/authUtils';
 import { FAQManager } from './components/FAQManager';
+import { RecipeNotesManager } from './components/RecipeNotesManager';
+import { AIAuditLogViewer } from './components/AIAuditLogViewer';
 
 interface AISettingsConfig {
   enabled: boolean;
@@ -110,7 +112,7 @@ export default function AISettingsPage() {
             <Bot className="h-7 w-7 text-indigo-600" /> Trung tâm Cài đặt Trợ lý AI POS
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Quản lý tính năng, giọng nói, giới hạn an toàn và khả năng nghiệp vụ của Chatbot.
+            Quản lý tính năng, giọng nói, giới hạn an toàn, sổ tay công thức/dị ứng và nhật ký kiểm toán AI.
           </p>
         </div>
         {savedSuccess && (
@@ -245,7 +247,13 @@ export default function AISettingsPage() {
       {/* 4. Quản lý FAQ tùy biến */}
       <FAQManager isAdmin={isAdmin} />
 
-      {/* 5. Khả năng hiện có & Lộ trình */}
+      {/* 5. Sổ tay Công thức, Thành phần & Cảnh báo Dị ứng (P2) */}
+      <RecipeNotesManager isAdmin={isAdmin} />
+
+      {/* 6. Nhật ký Kiểm toán AI (AI Audit Log & Độ chuẩn xác) */}
+      <AIAuditLogViewer />
+
+      {/* 7. Tổng hợp Khả năng đã kích hoạt (P0, P1 & P2) */}
       <div className="grid md:grid-cols-2 gap-6 pt-2">
         <Card className="border-indigo-100 bg-indigo-50/40">
           <CardHeader>
@@ -255,22 +263,25 @@ export default function AISettingsPage() {
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-indigo-950">
             <p>✓ <strong>Gọi món tiếng Việt</strong>: Hiểu viết tắt (ts, dcs, bx...), gõ không dấu, chuẩn hóa theo menu.</p>
-            <p>✓ <strong>Tự động nhận diện bàn</strong>: Lệnh "bàn 3", "b3", "mang về" tự động mở đúng bàn trên POS.</p>
+            <p>✓ <strong>Tự động nhận diện bàn</strong>: Lệnh &ldquo;bàn 3&rdquo;, &ldquo;b3&rdquo;, &ldquo;mang về&rdquo; tự động mở đúng bàn trên POS.</p>
             <p>✓ <strong>Hỏi đáp nghiệp vụ POS</strong>: Hướng dẫn sử dụng POS, phím tắt F1-F5, kết nối máy in nhiệt K80/K57.</p>
             <p>✓ <strong>FAQ quán tùy biến (P1)</strong>: Quản lý câu hỏi tiện ích (Wifi, giờ mở cửa, gửi xe, ưu đãi) cho POS & Quét mã bàn.</p>
             <p>✓ <strong>Phân quyền Context-aware</strong>: Tự động từ chối nếu tài khoản không đủ quyền quản trị.</p>
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200">
+        <Card className="border-emerald-200 bg-emerald-50/40">
           <CardHeader>
-            <CardTitle className="text-slate-800 text-base">Kế hoạch mở rộng tiếp theo (P1 & P2)</CardTitle>
+            <CardTitle className="text-emerald-900 text-base flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" /> ✨ Khả năng nâng cao đã kích hoạt (P1 & P2)
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2 text-sm text-slate-600">
-            <p>• <strong>Tùy chọn chi tiết</strong>: Size M/L, % đường, % đá, topping chi tiết.</p>
-            <p>• <strong>Cart Action nâng cao</strong>: Chặn bớt món âm giỏ, hỏi rõ món trùng loại, Diff so sánh trực quan.</p>
-            <p>• <strong>Sổ tay công thức & Ghi chú</strong>: Ghi chú công thức cho AI đọc trả lời dị ứng/thành phần.</p>
-            <p>• <strong>AI Audit Log</strong>: Nhật ký theo dõi hiệu quả và độ chuẩn xác của câu lệnh.</p>
+          <CardContent className="space-y-2 text-sm text-emerald-950">
+            <p>✓ <strong>Tùy chọn chi tiết Size/Đường/Đá/Topping</strong>: Bóc tách chuẩn Size M/L, % đường, % đá và danh sách topping đi kèm.</p>
+            <p>✓ <strong>Cart Action nâng cao & Diff trực quan</strong>: Chặn bớt món âm giỏ, hỏi rõ món trùng loại, bảng so sánh trước/sau trực quan.</p>
+            <p>✓ <strong>Sổ tay công thức & Dị ứng</strong>: Tra cứu định lượng pha chế Barista, cảnh báo Lactose/Gluten, mức Caffeine & Calo.</p>
+            <p>✓ <strong>AI Audit Log</strong>: Nhật ký kiểm toán câu lệnh AI, đo độ trễ Rule 0ms vs Gemini LLM và tỷ lệ chuẩn xác.</p>
+            <p>✓ <strong>Lưu & quản lý phiên lịch sử chat + Đồng bộ cỡ chữ Chatbot</strong>: Lưu nhiều cuộc trò chuyện và tùy chỉnh cỡ chữ linh hoạt.</p>
           </CardContent>
         </Card>
       </div>

@@ -1,7 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedStaff } from '@/lib/supabase/server';
-import { updateAuditLogStatus } from '@/lib/ai/auditLogger';
+import { getAuditLogsAndStats, updateAuditLogStatus } from '@/lib/ai/auditLogger';
 import { AuditStatusEnum } from '@/lib/ai/schema';
+
+export async function GET(request: NextRequest) {
+  try {
+    const url = new URL(request.url);
+    const limitParam = Number(url.searchParams.get('limit') || 50);
+    const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 200) : 50;
+
+    const { logs, stats } = await getAuditLogsAndStats(limit);
+    return NextResponse.json({
+      success: true,
+      logs,
+      stats,
+    });
+  } catch (error) {
+    console.error('Lỗi tải danh sách audit log:', error);
+    return NextResponse.json(
+      { success: false, error: 'Lỗi server khi tải nhật ký kiểm toán AI.' },
+      { status: 500 }
+    );
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {

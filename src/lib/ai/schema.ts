@@ -38,6 +38,24 @@ export const TargetTableSchema = z.preprocess((val) => {
 }).nullable().optional());
 export type TargetTable = z.infer<typeof TargetTableSchema>;
 
+export const DisambiguationItemSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  price: z.number(),
+  category: z.string().optional(),
+});
+export type DisambiguationItem = z.infer<typeof DisambiguationItemSchema>;
+
+export const CartDiffItemSchema = z.object({
+  productId: z.string(),
+  productName: z.string(),
+  beforeQty: z.number(),
+  afterQty: z.number(),
+  delta: z.number(),
+  unitPrice: z.number().optional(),
+});
+export type CartDiffItem = z.infer<typeof CartDiffItemSchema>;
+
 export const AiOutputSchema = z.object({
   action: z.preprocess((val) => {
     if (typeof val === 'string') {
@@ -55,6 +73,8 @@ export const AiOutputSchema = z.object({
   message: z.preprocess((val) => (val ? String(val) : ''), z.string().default('')),
   isBlocked: z.boolean().optional().default(false),
   blockedReason: z.string().optional().nullable(),
+  disambiguation: z.array(DisambiguationItemSchema).optional(),
+  cartDiff: z.array(CartDiffItemSchema).optional(),
 });
 export type AiOutput = z.infer<typeof AiOutputSchema>;
 

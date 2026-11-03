@@ -1,11 +1,11 @@
 import { checkSecurityGuardrails } from './security';
-import { matchRuleBased } from './ruleEngine';
+import { matchRuleBased, applyNegativeCartGuard, computeCartDiff } from './ruleEngine';
 import { resolveProduct, normalizeSearchText } from './catalog';
 import { resolveTableFromMessage } from './table';
 import { getKnowledgeBasePrompt, appendCitationIfMissing, findRelevantKnowledge, removeCitation } from './knowledge';
 import { createAuditLog } from './auditLogger';
 import { AiOutputSchema, type AiOutput, type ParsedItem } from './schema';
-import type { CatalogItem, CatalogProduct, TableInfo } from './types';
+import type { CatalogItem, CatalogProduct, TableInfo, DisambiguationItem, CartDiffItem } from './types';
 
 export const PROMPT_VERSION = 'v1.2.0';
 export const DEFAULT_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
@@ -86,12 +86,14 @@ export interface PipelineResult {
   source: 'rule' | 'llm' | 'fallback';
   isBlocked?: boolean;
   blockedReason?: string | null;
+  disambiguation?: DisambiguationItem[];
+  cartDiff?: CartDiffItem[];
   error?: string;
 }
 
 export async function processAiPipeline(params: PipelineParams): Promise<PipelineResult> {
   const startTime = Date.now();
-  const { rawMessage, staff, catalog, tables, customFaqs, customAliases, apiKey } = params;
+  const { rawMessage, staff, catalog, tables, customFaqs, customAliases, apiKey, currentCart } = params;
   const message = rawMessage.trim();
 
   // 1. Kiểm tra giới hạn tần suất (Rate limit)
@@ -139,7 +141,7 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
   }
 
   // 3. Phân tích qua Bộ luật & Từ điển Alias (Rule Engine)
-  const ruleResult = matchRuleBased(message, catalog, tables, customAliases);
+  const ruleResult = matchRuleBased(message, catalog, tables, customAliases, currentCart);
   if (ruleResult.matched && ruleResult.output) {
     const latencyMs = Date.now() - startTime;
     const logId = await createAuditLog({
@@ -155,16 +157,23 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
       promptVersion: PROMPT_VERSION,
     });
 
+    const ruleItems = ruleResult.output.items || [];
+    const computedDiff =
+      ruleResult.output.cartDiff ||
+      computeCartDiff(ruleResult.output.action, ruleItems, currentCart, catalog);
+
     return {
       success: true,
       action: ruleResult.output.action,
       targetTable: ruleResult.output.targetTable || null,
-      items: ruleResult.output.items || [],
+      items: ruleItems,
       message: ruleResult.output.message,
       logId,
       source: 'rule',
       isBlocked: ruleResult.output.isBlocked,
       blockedReason: ruleResult.output.blockedReason,
+      ...(ruleResult.output.disambiguation ? { disambiguation: ruleResult.output.disambiguation } : {}),
+      ...(computedDiff.length > 0 ? { cartDiff: computedDiff } : {}),
     };
   }
 
@@ -325,7 +334,8 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
 
   // 6. Server-Side Validation: Món phải có trong catalog và Trạng thái Hoạt động
   const validProductsMap = new Map(catalog.map((p) => [p.id, p]));
-  const finalItems: ParsedItem[] = [];
+  let finalItems: ParsedItem[] = [];
+  let disambiguationList: DisambiguationItem[] | undefined = validatedOutput.disambiguation;
 
   if (validatedOutput.action === 'add' || validatedOutput.action === 'remove') {
     for (const item of validatedOutput.items) {
@@ -334,6 +344,13 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
         const resolved = resolveProduct(item.productName, catalog);
         if (resolved.status === 'resolved') {
           matched = validProductsMap.get(resolved.product.id);
+        } else if (resolved.status === 'ambiguous' && (!disambiguationList || disambiguationList.length === 0)) {
+          disambiguationList = resolved.candidates.slice(0, 5).map((c) => ({
+            id: c.product.id,
+            name: c.product.name,
+            price: c.product.price,
+            category: c.product.category,
+          }));
         }
       }
 
@@ -386,8 +403,19 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
     finalTargetTable = preResolvedTable.table;
   }
 
+  // Nếu có disambiguation mà chưa chốt được món cụ thể
+  if (disambiguationList && disambiguationList.length > 0 && finalItems.length === 0) {
+    validatedOutput.action = 'none';
+    validatedOutput.message = `Quán có nhiều món khớp với yêu cầu của bạn (${disambiguationList.map((c) => c.name).join(', ')}). Bạn muốn chọn cụ thể món nào ạ?`;
+  }
+
   // 8. Nếu có bàn nhưng không có món nào -> Chuyển sang action select_table
-  if (finalTargetTable && finalItems.length === 0 && (validatedOutput.action === 'add' || validatedOutput.action === 'select_table')) {
+  if (
+    finalTargetTable &&
+    finalItems.length === 0 &&
+    !disambiguationList?.length &&
+    (validatedOutput.action === 'add' || validatedOutput.action === 'select_table')
+  ) {
     validatedOutput.action = 'select_table';
   }
 
@@ -404,12 +432,23 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
     finalMessage = `Đã chọn ${finalTargetTable.name}. Bàn hiện chưa có món nào, bạn muốn gọi thêm những món gì cho bàn này ạ? (Gợi ý: Trà sữa nướng, Trà đào, Cà phê muối...)`;
   } else if (finalItems.length > 0) {
     const tableText = finalTargetTable ? ` cho ${finalTargetTable.name}` : '';
-    finalMessage = validatedOutput.action === 'remove'
-      ? `Đã nhận diện yêu cầu bớt ${finalItems.length} món${tableText}. Vui lòng kiểm tra và duyệt đơn bên dưới.`
-      : `Đã nhận diện ${finalItems.length} món${tableText}. Vui lòng kiểm tra và duyệt đơn bên dưới.`;
+    finalMessage =
+      validatedOutput.action === 'remove'
+        ? `Đã nhận diện yêu cầu bớt ${finalItems.length} món${tableText}. Vui lòng kiểm tra và duyệt đơn bên dưới.`
+        : `Đã nhận diện ${finalItems.length} món${tableText}. Vui lòng kiểm tra và duyệt đơn bên dưới.`;
   } else if (!finalMessage) {
     finalMessage = 'Chưa nhận diện được yêu cầu. Bạn có thể nói rõ hơn món hoặc bàn cần phục vụ nhé!';
   }
+
+  // 10. Chặn bớt món âm giỏ (Negative Cart Guard) & tính toán Cart Diff
+  if (validatedOutput.action === 'remove' && finalItems.length > 0) {
+    const guarded = applyNegativeCartGuard(validatedOutput.action, finalItems, currentCart, finalMessage);
+    validatedOutput.action = guarded.action;
+    finalItems = guarded.items;
+    finalMessage = guarded.message;
+  }
+
+  const cartDiff = computeCartDiff(validatedOutput.action, finalItems, currentCart, catalog);
 
   const latencyMs = Date.now() - startTime;
   const logId = await createAuditLog({
@@ -422,6 +461,8 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
       targetTable: finalTargetTable,
       items: finalItems,
       message: finalMessage,
+      ...(disambiguationList?.length ? { disambiguation: disambiguationList } : {}),
+      ...(cartDiff.length ? { cartDiff } : {}),
     },
     source: 'llm',
     status: 'previewed',
@@ -439,5 +480,7 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
     source: 'llm',
     isBlocked: false,
     blockedReason: null,
+    ...(disambiguationList?.length ? { disambiguation: disambiguationList } : {}),
+    ...(cartDiff.length ? { cartDiff } : {}),
   };
 }

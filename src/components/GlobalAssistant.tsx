@@ -10,12 +10,10 @@ import {
   Loader2,
   Maximize2,
   RotateCcw,
-  Move,
   Minimize2,
   Copy,
   Check,
   Sparkles,
-  Compass,
   ArrowRight,
   Monitor,
   ChefHat,
@@ -25,31 +23,64 @@ import {
   Users,
   Settings,
   BarChart,
-  HelpCircle,
-  ExternalLink
+  Plus,
+  Minus,
+  Trash2,
+  Clock,
+  MessageSquarePlus,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import toast from 'react-hot-toast';
+import { getAppearanceSettings, applyAppearanceSettings } from '@/utils/appearanceSettings';
 
-interface ChatMessage {
+export interface AssistantOrderItem {
+  productId: string;
+  productName: string;
+  quantity: number;
+  size?: string;
+  sugar?: string;
+  ice?: string;
+  toppings?: string[];
+  note?: string;
+  price?: number;
+}
+
+export interface DisambiguationCandidate {
+  id: string;
+  name: string;
+  price: number;
+  category?: string;
+}
+
+export interface CartDiffEntry {
+  productId: string;
+  productName: string;
+  beforeQty: number;
+  afterQty: number;
+  delta: number;
+  unitPrice?: number;
+}
+
+export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   source?: 'rule' | 'llm' | 'fallback';
   action?: 'add' | 'remove' | 'select_table' | 'qa' | 'none';
   targetTable?: { id: string; name: string } | null;
-  items?: Array<{
-    productId: string;
-    productName: string;
-    quantity: number;
-    size?: string;
-    sugar?: string;
-    ice?: string;
-    toppings?: string[];
-    note?: string;
-  }>;
+  items?: AssistantOrderItem[];
+  logId?: string;
+  disambiguation?: DisambiguationCandidate[];
+  cartDiff?: CartDiffEntry[];
   approvalStatus?: 'pending' | 'confirmed' | 'rejected';
   approvalTimestamp?: string;
+}
+
+interface ChatSessionRecord {
+  id: string;
+  title: string;
+  updatedAt: string;
+  messages: ChatMessage[];
 }
 
 interface PageContextInfo {
@@ -59,6 +90,20 @@ interface PageContextInfo {
   icon: React.ReactNode;
   suggestedChips: string[];
 }
+
+const SUGAR_CYCLE = ['100%', '70%', '50%', '30%', '0%'];
+const ICE_CYCLE = ['100% đá', '70% đá', '50% đá', '30% đá', '0% đá', 'Nóng'];
+const QUICK_TOPPINGS = [
+  'Trân châu đen',
+  'Trân châu trắng',
+  'Kem cheese',
+  'Pudding trứng',
+  'Thạch củ năng',
+];
+
+const SESSIONS_STORAGE_KEY = 'h2_global_assistant_sessions_v1';
+const MESSAGES_STORAGE_KEY = 'h2_global_assistant_messages';
+const LEGACY_HISTORY_KEY = 'h2_global_assistant_history';
 
 // Bảng ánh xạ ngữ cảnh các trang trong hệ thống (Mục #16)
 const PAGE_CONTEXT_MAP: Record<string, PageContextInfo> = {
@@ -177,14 +222,6 @@ export function GlobalAssistant() {
   };
 
   const isPOS = pathname === '/pos' || pathname?.startsWith('/pos');
-  const [isDesktop, setIsDesktop] = useState(false);
-
-  useEffect(() => {
-    const check = () => setIsDesktop(window.innerWidth >= 1024);
-    check();
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
-  }, []);
 
   const [isOpen, setIsOpen] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
@@ -194,6 +231,10 @@ export function GlobalAssistant() {
   });
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [sessions, setSessions] = useState<ChatSessionRecord[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string>(() => `sess_${Date.now()}`);
+  const [showHistoryPanel, setShowHistoryPanel] = useState(false);
+
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -203,6 +244,24 @@ export function GlobalAssistant() {
   const chatWindowRef = useRef<HTMLDivElement>(null);
   const isResizingRef = useRef(false);
   const [isResizing, setIsResizing] = useState(false);
+
+  // Đồng bộ cỡ chữ và font chữ Chatbot từ Appearance Settings
+  useEffect(() => {
+    try {
+      applyAppearanceSettings(getAppearanceSettings());
+    } catch {}
+    const handleAppearanceUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail) {
+        applyAppearanceSettings(customEvent.detail);
+      } else {
+        applyAppearanceSettings(getAppearanceSettings());
+      }
+    };
+    window.addEventListener('h2_appearance_settings_updated', handleAppearanceUpdate);
+    return () => window.removeEventListener('h2_appearance_settings_updated', handleAppearanceUpdate);
+  }, []);
+
   // Kéo di chuyển nút nổi FAB (Draggable Button)
   const [fabPosition, setFabPosition] = useState<{ x: number; y: number } | null>(null);
   const isDraggingFabRef = useRef(false);
@@ -344,7 +403,12 @@ export function GlobalAssistant() {
     window.addEventListener('touchend', handleEnd);
   };
 
-  // 1. Khôi phục kích thước và lịch sử chat từ localStorage
+  const getDefaultGreetingMessage = useCallback((): ChatMessage => ({
+    role: 'assistant',
+    content: `Xin chào! Mình là Trợ lý AI H2 MilkTea. Hiện bạn đang ở **${pageContext.name}**. Bạn cần hỗ trợ gì hôm nay? 🧋`,
+  }), [pageContext.name]);
+
+  // 1. Khôi phục kích thước, phiên chat và lịch sử chat từ localStorage
   useEffect(() => {
     try {
       const savedDim = localStorage.getItem('h2_global_assistant_size');
@@ -372,30 +436,118 @@ export function GlobalAssistant() {
         }
       }
 
-      const savedChat = localStorage.getItem('h2_global_assistant_messages');
-      if (savedChat) {
-        setMessages(JSON.parse(savedChat));
-      } else {
-        setMessages([
-          {
-            role: 'assistant',
-            content: `Xin chào! Mình là Trợ lý AI H2 MilkTea. Hiện bạn đang ở **${pageContext.name}**. Bạn cần hỗ trợ gì hôm nay? 🧋`,
-          },
-        ]);
+      const savedSessions = localStorage.getItem(SESSIONS_STORAGE_KEY);
+      if (savedSessions) {
+        const parsedSessions = JSON.parse(savedSessions);
+        if (Array.isArray(parsedSessions)) {
+          setSessions(parsedSessions);
+        }
       }
+
+      const savedChat =
+        localStorage.getItem(MESSAGES_STORAGE_KEY) ||
+        localStorage.getItem(LEGACY_HISTORY_KEY);
+      if (savedChat) {
+        const parsedChat = JSON.parse(savedChat);
+        if (Array.isArray(parsedChat) && parsedChat.length > 0) {
+          setMessages(parsedChat);
+          return;
+        }
+      }
+      setMessages([getDefaultGreetingMessage()]);
     } catch {
       // Bỏ qua lỗi truy cập storage
     }
-  }, []);
+  }, [getDefaultGreetingMessage]);
 
-  // Lưu lịch sử chat
+  // Lưu lịch sử chat hiện tại & cập nhật vào danh sách phiên gần đây
   useEffect(() => {
     if (messages.length > 0) {
       try {
-        localStorage.setItem('h2_global_assistant_messages', JSON.stringify(messages.slice(-25)));
+        const trimmed = messages.slice(-25);
+        localStorage.setItem(MESSAGES_STORAGE_KEY, JSON.stringify(trimmed));
+        localStorage.setItem(LEGACY_HISTORY_KEY, JSON.stringify(trimmed));
+
+        const firstUserMsg = trimmed.find((m) => m.role === 'user');
+        if (firstUserMsg) {
+          const title = firstUserMsg.content.slice(0, 42) + (firstUserMsg.content.length > 42 ? '...' : '');
+          const updatedAt = new Date().toLocaleTimeString('vi-VN', {
+            hour: '2-digit',
+            minute: '2-digit',
+            day: '2-digit',
+            month: '2-digit',
+          });
+
+          setSessions((prev) => {
+            const filtered = prev.filter((s) => s.id !== currentSessionId);
+            const next: ChatSessionRecord[] = [
+              {
+                id: currentSessionId,
+                title,
+                updatedAt,
+                messages: trimmed,
+              },
+              ...filtered,
+            ].slice(0, 10);
+            try {
+              localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(next));
+            } catch {}
+            return next;
+          });
+        }
       } catch {}
     }
-  }, [messages]);
+  }, [messages, currentSessionId]);
+
+  // Tạo cuộc trò chuyện mới (+ Mới)
+  const handleStartNewChat = () => {
+    setCurrentSessionId(`sess_${Date.now()}`);
+    setMessages([getDefaultGreetingMessage()]);
+    setShowHistoryPanel(false);
+    toast.success('Đã tạo cuộc trò chuyện mới!');
+  };
+
+  // Xóa lịch sử cuộc trò chuyện hiện tại
+  const handleClearCurrentChat = () => {
+    const greeting = getDefaultGreetingMessage();
+    setMessages([greeting]);
+    setSessions((prev) => {
+      const next = prev.filter((s) => s.id !== currentSessionId);
+      try {
+        localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(next));
+        localStorage.setItem(MESSAGES_STORAGE_KEY, JSON.stringify([greeting]));
+        localStorage.setItem(LEGACY_HISTORY_KEY, JSON.stringify([greeting]));
+      } catch {}
+      return next;
+    });
+    setCurrentSessionId(`sess_${Date.now()}`);
+    toast.success('Đã xóa lịch sử trò chuyện!');
+  };
+
+  // Chọn xem lại một phiên chat cũ
+  const handleSelectSession = (session: ChatSessionRecord) => {
+    setCurrentSessionId(session.id);
+    setMessages(session.messages);
+    setShowHistoryPanel(false);
+    toast.success(`Đã mở lại hội thoại: ${session.title}`);
+  };
+
+  // Xóa một phiên chat trong lịch sử
+  const handleDeleteSession = (e: React.MouseEvent, sessionId: string) => {
+    e.stopPropagation();
+    setSessions((prev) => {
+      const next = prev.filter((s) => s.id !== sessionId);
+      try {
+        localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    if (sessionId === currentSessionId) {
+      setCurrentSessionId(`sess_${Date.now()}`);
+      setMessages([getDefaultGreetingMessage()]);
+    }
+    toast.success('Đã xóa hội thoại khỏi lịch sử!');
+  };
 
   // 2. TỰ ĐỘNG CUỘN XUỐNG TIN NHẮN MỚI NHẤT (Mục #3)
   const scrollToBottom = useCallback((smooth = true) => {
@@ -474,6 +626,24 @@ export function GlobalAssistant() {
     } catch {
       toast.error('Không thể sao chép văn bản.');
     }
+  };
+
+  // Cập nhật trực tiếp tùy chọn món (Số lượng, Size, Đường, Đá, Topping) ngay trên Phiếu Duyệt
+  const handleUpdatePendingItem = (
+    msgIndex: number,
+    itemIndex: number,
+    updater: (item: AssistantOrderItem) => AssistantOrderItem
+  ) => {
+    setMessages((prev) =>
+      prev.map((m, mIdx) => {
+        if (mIdx !== msgIndex || !m.items) return m;
+        const nextItems = m.items.map((it, iIdx) => (iIdx === itemIndex ? updater(it) : it));
+        return {
+          ...m,
+          items: nextItems,
+        };
+      })
+    );
   };
 
   // 4.5 BỘ NHẬN DIỆN LỆNH TỨC THỜI (0.01 GIÂY - 100% FREE - KHÔNG TỐN TOKEN AI)
@@ -656,7 +826,7 @@ export function GlobalAssistant() {
     setMessages((prev) => [...prev, userMsg]);
     setInputValue('');
 
-    // Kiểm tra và thực thi tức thời qua Local Intent Parser (0.01 giây, 0 đồng, không tốn AI token)
+    // Kiểm tra và thực thi tức thời qua Local Intent Parser
     const executedLocally = parseAndExecuteInstantCommand(text);
     if (executedLocally) {
       return;
@@ -665,9 +835,23 @@ export function GlobalAssistant() {
     setIsLoading(true);
 
     try {
-      // Đọc danh sách bàn hiện tại từ localStorage (nếu người dùng vừa đổi tên bàn trong Quản lý bàn)
+      // Đọc danh sách bàn, bàn đang mở và giỏ hàng hiện tại từ localStorage
       let clientTables: Array<{ id: string; name: string }> | undefined = undefined;
+      let activeTableName: string | undefined = undefined;
+      let activeCart: Array<{
+        id: string;
+        name: string;
+        quantity: number;
+        price?: number;
+        size?: string;
+        sugar?: string;
+        ice?: string;
+        toppings?: string[];
+        note?: string;
+      }> = [];
+
       try {
+        const activeTableId = typeof window !== 'undefined' ? localStorage.getItem('h2_pos_active_table_id') : null;
         const localDataStr = typeof window !== 'undefined' ? localStorage.getItem('demoData') : null;
         if (localDataStr) {
           const parsed = JSON.parse(localDataStr);
@@ -679,6 +863,29 @@ export function GlobalAssistant() {
                 name: String(t['Tên bàn'] || ''),
               }))
               .filter((t: any) => t.id && t.name);
+
+            if (activeTableId && clientTables) {
+              const foundTbl = clientTables.find((t) => t.id === activeTableId);
+              if (foundTbl) activeTableName = foundTbl.name;
+            }
+          }
+        }
+        if (!activeTableName && activeTableId) {
+          activeTableName = activeTableId;
+        }
+
+        // Đọc giỏ hàng hiện tại nếu có lưu trong localStorage
+        const cartsStr = typeof window !== 'undefined' ? localStorage.getItem('h2_pos_carts_v1') : null;
+        if (cartsStr && activeTableId) {
+          const parsedCarts = JSON.parse(cartsStr);
+          if (parsedCarts && Array.isArray(parsedCarts[activeTableId])) {
+            activeCart = parsedCarts[activeTableId];
+          }
+        } else if (activeTableId && typeof window !== 'undefined') {
+          const singleCartStr = localStorage.getItem(`pos_cart_${activeTableId}`);
+          if (singleCartStr) {
+            const parsedSingle = JSON.parse(singleCartStr);
+            if (Array.isArray(parsedSingle)) activeCart = parsedSingle;
           }
         }
       } catch {
@@ -694,6 +901,8 @@ export function GlobalAssistant() {
           pageContext: pageContext.name,
           history: messages.slice(-6).map((m) => ({ role: m.role, content: m.content })),
           tables: clientTables,
+          table: activeTableName,
+          cart: activeCart,
         }),
       });
 
@@ -711,6 +920,9 @@ export function GlobalAssistant() {
           action: data.action,
           targetTable: data.targetTable,
           items: data.items,
+          logId: data.logId,
+          disambiguation: data.disambiguation,
+          cartDiff: data.cartDiff,
           approvalStatus: hasActionableItems ? 'pending' : undefined,
         };
         setMessages((prev) => [...prev, assistantMsg]);
@@ -723,7 +935,7 @@ export function GlobalAssistant() {
           },
         ]);
       }
-    } catch (err) {
+    } catch {
       setMessages((prev) => [
         ...prev,
         {
@@ -736,10 +948,18 @@ export function GlobalAssistant() {
     }
   };
 
-  // Xác nhận duyệt đơn bằng tay
+  // Xác nhận duyệt đơn bằng tay & gửi Audit Log
   const handleApproveOrder = (index: number) => {
     const msg = messages[index];
     if (!msg || !msg.action) return;
+
+    if (msg.logId) {
+      void fetch('/api/ai/audit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ logId: msg.logId, status: 'confirmed' }),
+      }).catch(() => {});
+    }
 
     const timeStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 
@@ -775,8 +995,17 @@ export function GlobalAssistant() {
     }
   };
 
-  // Hủy bỏ / từ chối duyệt
+  // Hủy bỏ / từ chối duyệt & gửi Audit Log
   const handleRejectOrder = (index: number) => {
+    const msg = messages[index];
+    if (msg?.logId) {
+      void fetch('/api/ai/audit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ logId: msg.logId, status: 'rejected' }),
+      }).catch(() => {});
+    }
+
     setMessages((prev) =>
       prev.map((m, idx) =>
         idx === index
@@ -819,7 +1048,6 @@ export function GlobalAssistant() {
 
   // 7. XỬ LÝ LINK ĐIỀU HƯỚNG TRONG TIN NHẮN (Ví dụ [Mở Bếp](/kitchen))
   const renderMessageContent = (content: string) => {
-    // Regex tìm link Markdown [Title](path)
     const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
     const parts = [];
     let lastIndex = 0;
@@ -883,7 +1111,9 @@ export function GlobalAssistant() {
                   right: '16px',
                 }
           }
-          className={`fixed z-50 flex flex-col rounded-3xl border border-indigo-200/80 bg-white shadow-2xl overflow-hidden ${isResizing ? "transition-none select-none" : "transition-all duration-150"} animate-in fade-in slide-in-from-bottom-4`}
+          className={`h2-chatbot-scope fixed z-50 flex flex-col rounded-3xl border border-indigo-200/80 bg-white shadow-2xl overflow-hidden ${
+            isResizing ? 'transition-none select-none' : 'transition-all duration-150'
+          } animate-in fade-in slide-in-from-bottom-4`}
         >
           {/* Resize Handle ở góc trên bên trái (Mục #2) */}
           {!isMaximized && (
@@ -908,14 +1138,14 @@ export function GlobalAssistant() {
               }
             }}
             title="Nhấn giữ để kéo di chuyển cửa sổ chat khắp màn hình"
-            className="flex items-center justify-between border-b border-indigo-100 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 px-4 py-3 text-white select-none cursor-grab active:cursor-grabbing"
+            className="flex items-center justify-between border-b border-indigo-100 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 px-3.5 py-2.5 text-white select-none cursor-grab active:cursor-grabbing"
           >
-            <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm shadow-inner">
                 <Bot className="h-5 w-5" />
               </div>
               <div className="min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <h3 className="font-extrabold text-sm truncate">Trợ Lý AI H2 MilkTea</h3>
                   <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
                 </div>
@@ -927,7 +1157,46 @@ export function GlobalAssistant() {
               </div>
             </div>
 
-            <div className="flex items-center gap-1 shrink-0 ml-2">
+            <div className="flex items-center gap-1 shrink-0 ml-1">
+              {/* Nút Tạo Hội Thoại Mới */}
+              <button
+                type="button"
+                onMouseDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                onClick={handleStartNewChat}
+                className="flex h-7 items-center gap-1 px-2 rounded-lg bg-white/15 hover:bg-white/25 active:scale-95 text-white text-[11px] font-bold"
+                title="Tạo cuộc trò chuyện mới"
+              >
+                <MessageSquarePlus className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Mới</span>
+              </button>
+
+              {/* Nút Lịch sử các phiên chat */}
+              <button
+                type="button"
+                onMouseDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                onClick={() => setShowHistoryPanel((prev) => !prev)}
+                className={`flex h-7 w-7 items-center justify-center rounded-lg active:scale-95 text-white ${
+                  showHistoryPanel ? 'bg-white/30 ring-1 ring-white' : 'bg-white/10 hover:bg-white/20'
+                }`}
+                title="Xem lịch sử các cuộc trò chuyện"
+              >
+                <Clock className="h-3.5 w-3.5" />
+              </button>
+
+              {/* Nút Xóa lịch sử chat hiện tại */}
+              <button
+                type="button"
+                onMouseDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                onClick={handleClearCurrentChat}
+                className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 hover:bg-rose-500/80 active:scale-95 text-white transition-colors"
+                title="Xóa lịch sử trò chuyện hiện tại"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+
               {/* Nút khôi phục vị trí mặc định */}
               {windowPosition && (
                 <button
@@ -936,7 +1205,9 @@ export function GlobalAssistant() {
                   onTouchStart={(e) => e.stopPropagation()}
                   onClick={() => {
                     setWindowPosition(null);
-                    try { localStorage.removeItem('h2_global_assistant_window_pos'); } catch {}
+                    try {
+                      localStorage.removeItem('h2_global_assistant_window_pos');
+                    } catch {}
                   }}
                   className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 text-white"
                   title="Gắn lại cửa sổ về góc mặc định"
@@ -944,6 +1215,7 @@ export function GlobalAssistant() {
                   <RotateCcw className="h-3.5 w-3.5" />
                 </button>
               )}
+
               {/* Nút Mở rộng / Thu nhỏ (Mục #2) */}
               <button
                 type="button"
@@ -970,6 +1242,60 @@ export function GlobalAssistant() {
             </div>
           </div>
 
+          {/* Ngăn kéo Lịch sử Hội thoại (History Drawer) */}
+          {showHistoryPanel && (
+            <div className="border-b border-indigo-100 bg-indigo-50/90 dark:bg-slate-900 p-3 max-h-52 overflow-y-auto space-y-1.5 animate-in fade-in">
+              <div className="flex items-center justify-between text-xs font-bold text-indigo-900 dark:text-indigo-200 mb-1">
+                <span>🕒 Lịch sử cuộc trò chuyện gần đây ({sessions.length}/10)</span>
+                <button
+                  type="button"
+                  onClick={() => setShowHistoryPanel(false)}
+                  className="text-[11px] text-indigo-600 hover:underline"
+                >
+                  Đóng
+                </button>
+              </div>
+              {sessions.length === 0 ? (
+                <div className="text-xs text-gray-500 py-2 text-center">
+                  Chưa có cuộc trò chuyện nào được lưu.
+                </div>
+              ) : (
+                sessions.map((sess) => (
+                  <div
+                    key={sess.id}
+                    onClick={() => handleSelectSession(sess)}
+                    className={`flex items-center justify-between px-2.5 py-1.5 rounded-xl border text-xs cursor-pointer transition-all ${
+                      sess.id === currentSessionId
+                        ? 'bg-indigo-600 text-white border-indigo-600 font-semibold'
+                        : 'bg-white dark:bg-slate-800 text-gray-800 dark:text-gray-200 border-gray-200 hover:border-indigo-300'
+                    }`}
+                  >
+                    <div className="truncate flex-1 pr-2">
+                      <div className="truncate">{sess.title}</div>
+                      <div
+                        className={`text-[10px] ${
+                          sess.id === currentSessionId ? 'text-indigo-100' : 'text-gray-400'
+                        }`}
+                      >
+                        {sess.updatedAt} · {sess.messages.length} tin nhắn
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => handleDeleteSession(e, sess.id)}
+                      className={`p-1 rounded hover:bg-rose-500 hover:text-white transition-colors ${
+                        sess.id === currentSessionId ? 'text-indigo-100' : 'text-gray-400'
+                      }`}
+                      title="Xóa phiên trò chuyện này"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
           {/* Quick Context Chips Bar (Mục #16) */}
           <div className="flex items-center gap-1.5 overflow-x-auto border-b border-gray-100 bg-gray-50/80 px-3 py-2 text-xs no-scrollbar">
             <span className="text-[10px] font-bold text-gray-500 shrink-0">💡 Gợi ý nhanh:</span>
@@ -986,9 +1312,48 @@ export function GlobalAssistant() {
           </div>
 
           {/* Danh Sách Tin Nhắn (Mục #3: Mở khóa bôi đen select-text) */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3.5 select-text cursor-text" style={{ fontSize: "var(--h2-chatbot-font-size, 14px)" }}>
+          <div
+            className="flex-1 overflow-y-auto p-4 space-y-3.5 select-text cursor-text"
+            style={{ fontSize: 'var(--h2-chatbot-font-size, 14px)' }}
+          >
             {messages.map((msg, index) => {
               const isUser = msg.role === 'user';
+              const isPending = msg.approvalStatus === 'pending';
+
+              // Tính toán danh sách hiển thị Cart Diff (từ API hoặc tự suy luận từ danh sách món)
+              const computedCartDiff: CartDiffEntry[] =
+                msg.cartDiff && msg.cartDiff.length > 0
+                  ? msg.cartDiff.map((diff) => {
+                      const editedItem = msg.items?.find(
+                        (it) => it.productId === diff.productId || it.productName === diff.productName
+                      );
+                      if (!editedItem) return diff;
+                      const signedDelta =
+                        msg.action === 'remove'
+                          ? -Math.abs(Number(editedItem.quantity) || 1)
+                          : Math.abs(Number(editedItem.quantity) || 1);
+                      const afterQty = Math.max(0, Number(diff.beforeQty || 0) + signedDelta);
+                      return {
+                        ...diff,
+                        afterQty,
+                        delta: signedDelta,
+                      };
+                    })
+                  : (msg.items || []).map((it) => {
+                      const qty = Number(it.quantity) || 1;
+                      const signedDelta = msg.action === 'remove' ? -qty : qty;
+                      const beforeQty = msg.action === 'remove' ? qty : 0;
+                      const afterQty = Math.max(0, beforeQty + signedDelta);
+                      return {
+                        productId: it.productId,
+                        productName: it.productName,
+                        beforeQty,
+                        afterQty,
+                        delta: signedDelta,
+                        unitPrice: it.price,
+                      };
+                    });
+
               return (
                 <div
                   key={index}
@@ -1014,7 +1379,7 @@ export function GlobalAssistant() {
 
                   {/* Bong bóng tin nhắn cho phép bôi đen copy mượt mà */}
                   <div
-                    className={`relative rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed max-w-[85%] whitespace-pre-wrap select-text selection:bg-indigo-200 selection:text-indigo-900 ${
+                    className={`h2-chatbot-bubble relative rounded-2xl px-3.5 py-2.5 max-w-[85%] whitespace-pre-wrap select-text selection:bg-indigo-200 selection:text-indigo-900 ${
                       isUser
                         ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-sm font-medium'
                         : 'bg-gray-100 text-gray-800 border border-gray-200/60 shadow-xs'
@@ -1023,93 +1388,306 @@ export function GlobalAssistant() {
                     {renderMessageContent(msg.content)}
                   </div>
 
-                  {/* Thẻ Duyệt Đơn Bằng Tay (Manual Approval Card) */}
-                  {!isUser && ((msg.items && msg.items.length > 0) || (msg.action === 'select_table' && msg.targetTable)) && (
-                    <div className="mt-2.5 w-full max-w-[95%] rounded-xl border-2 border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-900 shadow-md p-3 text-xs space-y-2.5">
-                      {/* Tiêu đề thẻ & Bàn mục tiêu */}
-                      <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-slate-800">
-                        <div className="flex items-center gap-1.5 font-bold text-indigo-900 dark:text-indigo-200">
-                          <Sparkles className="h-4 w-4 text-amber-500 animate-pulse" />
-                          <span>Phiếu xem trước lệnh gọi món</span>
-                        </div>
-                        {msg.targetTable && (
-                          <Badge className="bg-indigo-600 text-white text-[11px] font-bold px-2 py-0.5">
-                            📍 {msg.targetTable.name}
-                          </Badge>
-                        )}
-                      </div>
-
-                      {/* Thông tin chi tiết món nếu có */}
-                      {msg.items && msg.items.length > 0 ? (
-                        <div className="space-y-1.5 bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800">
-                          <div className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                            {msg.action === 'remove' ? 'Món yêu cầu bớt:' : 'Món yêu cầu thêm:'}
-                          </div>
-                          {msg.items.map((it, iIdx) => (
-                            <div key={iIdx} className="flex flex-col gap-0.5 border-b border-slate-200/60 dark:border-slate-700/60 pb-1.5 last:border-b-0 last:pb-0">
-                              <div className="flex justify-between font-bold text-slate-900 dark:text-white">
-                                <span>{it.quantity}x {it.productName}</span>
-                                {it.size && <span className="text-[10px] bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 px-1.5 py-0.2 rounded font-semibold">Size {it.size}</span>}
-                              </div>
-                              <div className="flex flex-wrap gap-1 text-[10px] text-slate-500 dark:text-slate-400">
-                                {it.sugar && it.sugar !== '100%' && <span>{it.sugar} đường</span>}
-                                {it.ice && it.ice !== '100% đá' && <span>· {it.ice}</span>}
-                                {it.toppings && it.toppings.length > 0 && <span>· +{it.toppings.join(', ')}</span>}
-                                {it.note && <span className="italic">({it.note})</span>}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-[11px] text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/60 p-2 rounded-lg">
-                          Chuyển đến làm việc với bàn: <strong>{msg.targetTable?.name}</strong> (chưa có món)
-                        </div>
-                      )}
-
-                      {/* Ghi chú nhắc nhở duyệt */}
-                      <div className="text-[10.5px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 p-2 rounded border border-amber-200/60 flex items-start gap-1.5 leading-snug">
-                        <span className="font-bold shrink-0">⚠️ Duyệt bằng tay:</span>
-                        <span>Vui lòng kiểm tra lại xem AI đã nhận diện đúng bàn và món bạn cần chưa trước khi áp dụng vào giỏ hàng.</span>
-                      </div>
-
-                      {/* Nút hành động Duyệt / Hủy */}
-                      <div className="pt-1 flex items-center justify-end gap-2">
-                        {msg.approvalStatus === 'confirmed' ? (
-                          <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/60 px-3 py-1.5 rounded-lg border border-emerald-300">
-                            <Check className="h-4 w-4" />
-                            <span>Đã duyệt & áp dụng vào {msg.targetTable?.name || 'bàn'}{msg.approvalTimestamp ? ` (${msg.approvalTimestamp})` : ''}</span>
-                          </div>
-                        ) : msg.approvalStatus === 'rejected' ? (
-                          <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 bg-gray-100 dark:bg-gray-800 px-3 py-1.5 rounded-lg">
-                            <X className="h-4 w-4" />
-                            <span>Đã hủy bỏ thao tác này</span>
-                          </div>
-                        ) : (
-                          <>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleRejectOrder(index)}
-                              className="h-8 px-2.5 text-xs text-gray-600 hover:text-red-600 hover:bg-red-50 border-gray-300 font-medium"
-                            >
-                              <X className="h-3.5 w-3.5 mr-1" />
-                              Hủy bỏ
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              onClick={() => handleApproveOrder(index)}
-                              className="h-8 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-sm flex items-center gap-1"
-                            >
-                              <Check className="h-3.5 w-3.5 mr-1" />
-                              Xác nhận duyệt thêm vào bàn
-                            </Button>
-                          </>
-                        )}
-                      </div>
+                  {/* Disambiguation Chips (khi nhân viên gọi tên món chung chung như "cho 2 trà sữa") */}
+                  {!isUser && msg.disambiguation && msg.disambiguation.length > 0 && (
+                    <div className="mt-2 w-full max-w-[92%] flex flex-wrap gap-1.5">
+                      {msg.disambiguation.map((cand) => (
+                        <button
+                          key={cand.id}
+                          type="button"
+                          onClick={() => void handleSendMessage(`Thêm 1 ${cand.name}`)}
+                          className="px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-800 text-xs font-semibold transition-all active:scale-95 shadow-2xs"
+                        >
+                          + Chọn: {cand.name} ({Number(cand.price || 0).toLocaleString('vi-VN')}đ)
+                        </button>
+                      ))}
                     </div>
                   )}
+
+                  {/* Thẻ Duyệt Đơn Bằng Tay (Manual Approval Card) */}
+                  {!isUser &&
+                    ((msg.items && msg.items.length > 0) ||
+                      (msg.action === 'select_table' && msg.targetTable)) && (
+                      <div className="mt-2.5 w-full max-w-[96%] rounded-xl border-2 border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-900 shadow-md p-3 text-xs space-y-2.5">
+                        {/* Tiêu đề thẻ & Bàn mục tiêu */}
+                        <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-slate-800">
+                          <div className="flex items-center gap-1.5 font-bold text-indigo-900 dark:text-indigo-200">
+                            <Sparkles className="h-4 w-4 text-amber-500 animate-pulse" />
+                            <span>Phiếu xem trước lệnh gọi món</span>
+                          </div>
+                          {msg.targetTable && (
+                            <Badge className="bg-indigo-600 text-white text-[11px] font-bold px-2 py-0.5">
+                              📍 {msg.targetTable.name}
+                            </Badge>
+                          )}
+                        </div>
+
+                        {/* Thông tin chi tiết món & Bộ chỉnh sửa trực tiếp (Interactive Options Editor) */}
+                        {msg.items && msg.items.length > 0 ? (
+                          <div className="space-y-2 bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800">
+                            <div className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                              <span>
+                                {msg.action === 'remove' ? 'Món yêu cầu bớt:' : 'Món yêu cầu thêm:'}
+                              </span>
+                              {isPending && (
+                                <span className="text-[10px] font-normal text-indigo-600 dark:text-indigo-300">
+                                  Chạm để chỉnh nhanh trước khi duyệt
+                                </span>
+                              )}
+                            </div>
+
+                            {msg.items.map((it, iIdx) => {
+                              const curSize = (it.size || 'M').toUpperCase() === 'L' ? 'L' : 'M';
+                              const curSugar = it.sugar || '100%';
+                              const curIce = it.ice || '100% đá';
+                              const curToppings = it.toppings || [];
+
+                              return (
+                                <div
+                                  key={iIdx}
+                                  className="flex flex-col gap-1.5 border-b border-slate-200/60 dark:border-slate-700/60 pb-2 last:border-b-0 last:pb-0"
+                                >
+                                  <div className="flex items-center justify-between font-bold text-slate-900 dark:text-white">
+                                    <span>
+                                      {it.quantity}x {it.productName}
+                                    </span>
+                                    <span className="text-[10px] bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 px-1.5 py-0.5 rounded font-semibold">
+                                      Size {curSize}
+                                    </span>
+                                  </div>
+
+                                  {/* Hiển thị tóm tắt tùy chọn hiện tại */}
+                                  <div className="flex flex-wrap gap-1 text-[10px] text-slate-600 dark:text-slate-300">
+                                    <span>Đường: {curSugar}</span>
+                                    <span>· Đá: {curIce}</span>
+                                    {curToppings.length > 0 && (
+                                      <span className="text-amber-700 dark:text-amber-300 font-semibold">
+                                        · +{curToppings.join(', ')}
+                                      </span>
+                                    )}
+                                    {it.note && <span className="italic">({it.note})</span>}
+                                  </div>
+
+                                  {/* Bộ nút chỉnh nhanh trực tiếp khi đang chờ duyệt */}
+                                  {isPending && (
+                                    <div className="pt-1 space-y-1.5">
+                                      <div className="flex flex-wrap items-center gap-1 text-[10px]">
+                                        {/* Tăng giảm số lượng */}
+                                        <div className="inline-flex items-center rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-1 py-0.5">
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              handleUpdatePendingItem(index, iIdx, (old) => ({
+                                                ...old,
+                                                quantity: Math.max(1, (Number(old.quantity) || 1) - 1),
+                                              }))
+                                            }
+                                            className="p-0.5 text-slate-600 hover:text-indigo-600"
+                                            title="Giảm số lượng"
+                                          >
+                                            <Minus className="h-3 w-3" />
+                                          </button>
+                                          <span className="px-1.5 font-bold text-slate-900 dark:text-white">
+                                            {it.quantity}
+                                          </span>
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              handleUpdatePendingItem(index, iIdx, (old) => ({
+                                                ...old,
+                                                quantity: (Number(old.quantity) || 1) + 1,
+                                              }))
+                                            }
+                                            className="p-0.5 text-slate-600 hover:text-indigo-600"
+                                            title="Tăng số lượng"
+                                          >
+                                            <Plus className="h-3 w-3" />
+                                          </button>
+                                        </div>
+
+                                        {/* Đổi Size M/L */}
+                                        {msg.action !== 'remove' && (
+                                          <>
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                handleUpdatePendingItem(index, iIdx, (old) => ({
+                                                  ...old,
+                                                  size: curSize === 'L' ? 'M' : 'L',
+                                                }))
+                                              }
+                                              className={`px-2 py-0.5 rounded-md border font-semibold transition-colors ${
+                                                curSize === 'L'
+                                                  ? 'bg-amber-100 border-amber-300 text-amber-900'
+                                                  : 'bg-white border-slate-300 text-slate-700 hover:border-indigo-400'
+                                              }`}
+                                              title="Đổi Size M / Size L"
+                                            >
+                                              Size {curSize}
+                                            </button>
+
+                                            {/* Đổi % Đường */}
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const normalized = curSugar.replace(/\s*đường/i, '').trim();
+                                                const idxS = SUGAR_CYCLE.indexOf(normalized);
+                                                const nextS = SUGAR_CYCLE[(idxS + 1) % SUGAR_CYCLE.length];
+                                                handleUpdatePendingItem(index, iIdx, (old) => ({
+                                                  ...old,
+                                                  sugar: nextS,
+                                                }));
+                                              }}
+                                              className="px-2 py-0.5 rounded-md border border-slate-300 bg-white text-slate-700 hover:border-indigo-400 font-medium"
+                                              title="Chạm để đổi mức đường"
+                                            >
+                                              🍬 {curSugar}
+                                            </button>
+
+                                            {/* Đổi % Đá */}
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const idxI = ICE_CYCLE.indexOf(curIce);
+                                                const nextI = ICE_CYCLE[(idxI + 1) % ICE_CYCLE.length];
+                                                handleUpdatePendingItem(index, iIdx, (old) => ({
+                                                  ...old,
+                                                  ice: nextI,
+                                                }));
+                                              }}
+                                              className="px-2 py-0.5 rounded-md border border-slate-300 bg-white text-slate-700 hover:border-indigo-400 font-medium"
+                                              title="Chạm để đổi mức đá"
+                                            >
+                                              🧊 {curIce}
+                                            </button>
+                                          </>
+                                        )}
+                                      </div>
+
+                                      {/* Hàng chọn nhanh Topping */}
+                                      {msg.action !== 'remove' && (
+                                        <div className="flex flex-wrap items-center gap-1 text-[10px]">
+                                          {QUICK_TOPPINGS.map((topName) => {
+                                            const active = curToppings.includes(topName);
+                                            return (
+                                              <button
+                                                key={topName}
+                                                type="button"
+                                                onClick={() =>
+                                                  handleUpdatePendingItem(index, iIdx, (old) => {
+                                                    const existing = old.toppings || [];
+                                                    const nextTops = existing.includes(topName)
+                                                      ? existing.filter((t) => t !== topName)
+                                                      : [...existing, topName];
+                                                    return { ...old, toppings: nextTops };
+                                                  })
+                                                }
+                                                className={`px-1.5 py-0.5 rounded border transition-colors ${
+                                                  active
+                                                    ? 'bg-indigo-600 text-white border-indigo-600 font-semibold'
+                                                    : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'
+                                                }`}
+                                              >
+                                                +{topName}
+                                              </button>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-[11px] text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/60 p-2 rounded-lg">
+                            Chuyển đến làm việc với bàn: <strong>{msg.targetTable?.name}</strong> (chưa có món)
+                          </div>
+                        )}
+
+                        {/* Bảng So sánh thay đổi giỏ hàng (Visual Cart Diff) */}
+                        {computedCartDiff.length > 0 && (
+                          <div className="rounded-lg border border-indigo-100 dark:border-slate-700 bg-indigo-50/50 dark:bg-slate-800/90 p-2 space-y-1">
+                            <div className="text-[10.5px] font-bold text-indigo-900 dark:text-indigo-200">
+                              📊 So sánh thay đổi giỏ hàng (Diff):
+                            </div>
+                            {computedCartDiff.map((d, dIdx) => (
+                              <div
+                                key={`${d.productId}-${dIdx}`}
+                                className="flex items-center justify-between text-[11px] py-0.5 border-b border-indigo-100/60 dark:border-slate-700 last:border-b-0"
+                              >
+                                <span className="font-medium text-slate-800 dark:text-slate-200 truncate pr-2">
+                                  {d.productName}
+                                </span>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <span className="text-slate-500 dark:text-slate-400 text-[10px]">
+                                    Trước: <b>{d.beforeQty}</b> ➔ Sau: <b>{d.afterQty}</b>
+                                  </span>
+                                  <span
+                                    className={`px-1.5 py-0.2 rounded font-bold text-[10px] ${
+                                      d.delta >= 0
+                                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                        : 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
+                                    }`}
+                                  >
+                                    {d.delta >= 0 ? `+${d.delta}` : d.delta} ly
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Ghi chú nhắc nhở duyệt */}
+                        <div className="text-[10.5px] text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 p-2 rounded border border-amber-200/60 flex items-start gap-1.5 leading-snug">
+                          <span className="font-bold shrink-0">⚠️ Duyệt bằng tay:</span>
+                          <span>
+                            Vui lòng kiểm tra lại xem AI đã nhận diện đúng bàn và món bạn cần chưa trước khi áp dụng vào giỏ hàng.
+                          </span>
+                        </div>
+
+                        {/* Nút hành động Duyệt / Hủy */}
+                        <div className="pt-1 flex items-center justify-end gap-2">
+                          {msg.approvalStatus === 'confirmed' ? (
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/60 px-3 py-1.5 rounded-lg border border-emerald-300">
+                              <Check className="h-4 w-4" />
+                              <span>
+                                Đã duyệt & áp dụng vào {msg.targetTable?.name || 'bàn'}
+                                {msg.approvalTimestamp ? ` (${msg.approvalTimestamp})` : ''}
+                              </span>
+                            </div>
+                          ) : msg.approvalStatus === 'rejected' ? (
+                            <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 bg-gray-100 dark:bg-gray-800 px-3 py-1.5 rounded-lg">
+                              <X className="h-4 w-4" />
+                              <span>Đã hủy bỏ thao tác này</span>
+                            </div>
+                          ) : (
+                            <>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleRejectOrder(index)}
+                                className="h-8 px-2.5 text-xs text-gray-600 hover:text-red-600 hover:bg-red-50 border-gray-300 font-medium"
+                              >
+                                <X className="h-3.5 w-3.5 mr-1" />
+                                Hủy bỏ
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() => handleApproveOrder(index)}
+                                className="h-8 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-sm flex items-center gap-1"
+                              >
+                                <Check className="h-3.5 w-3.5 mr-1" />
+                                Xác nhận duyệt thêm vào bàn
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
                 </div>
               );
             })}
@@ -1146,8 +1724,12 @@ export function GlobalAssistant() {
                   if (e.key === 'Enter') void handleSendMessage();
                 }}
                 disabled={isLoading}
-                placeholder={isRecording ? 'Đang lắng nghe giọng nói của bạn...' : `Hỏi bất kỳ điều gì về ${pageContext.name}...`}
-                className="flex-1 rounded-xl border border-gray-200 bg-gray-50/80 px-3.5 py-2.5 text-xs text-gray-900 placeholder:text-gray-400 focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 select-text"
+                placeholder={
+                  isRecording
+                    ? 'Đang lắng nghe giọng nói của bạn...'
+                    : `Hỏi bất kỳ điều gì về ${pageContext.name}...`
+                }
+                className="h2-chatbot-input flex-1 rounded-xl border border-gray-200 bg-gray-50/80 px-3.5 py-2.5 text-gray-900 placeholder:text-gray-400 focus:border-indigo-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 select-text"
               />
 
               {/* Nút Giọng nói */}
@@ -1200,7 +1782,7 @@ export function GlobalAssistant() {
           setIsOpen((prev) => !prev);
         }}
         className={`fixed z-40 flex h-12 w-12 sm:h-13 sm:w-13 items-center justify-center rounded-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-600/30 hover:scale-105 active:scale-95 transition-all select-none cursor-grab active:cursor-grabbing ${
-          !fabPosition ? (isPOS ? "bottom-4 right-4 lg:bottom-5 lg:right-[calc(390px+1.25rem)]" : "bottom-5 right-5") : ""
+          !fabPosition ? (isPOS ? 'bottom-4 right-4 lg:bottom-5 lg:right-[calc(390px+1.25rem)]' : 'bottom-5 right-5') : ''
         }`}
         title="Nhấn giữ để kéo di chuyển nút Trợ lý AI khắp màn hình"
         aria-label="Trợ lý AI H2"

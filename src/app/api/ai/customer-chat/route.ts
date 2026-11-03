@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import menuData from '@/data/DMHH.json';
 import { createAdminSupabaseClient } from '@/lib/supabase/server';
 import { checkSecurityGuardrails } from '@/lib/ai/security';
+import { extractNoteAndOptions } from '@/lib/ai/ruleEngine';
 
 // Rate limiting: 15 yêu cầu / phút / IP khách
 const customerRateLimitMap = new Map<string, number[]>();
@@ -33,9 +34,10 @@ export interface SuggestedProductPayload {
   image?: string;
   category?: string;
   quantity?: number;
-  size?: 'M' | 'L';
+  size?: 'S' | 'M' | 'L';
   sugar?: string;
   ice?: string;
+  toppings?: string[];
   note?: string;
   isOrderMatch?: boolean;
 }
@@ -80,7 +82,7 @@ function matchProduct(query: string, catalog: ProductItem[]): { product: Product
 
     const qTokens = new Set(normQ.split(' ').filter(Boolean));
     const nameTokens = new Set(normName.split(' ').filter(Boolean));
-    const intersection = [...qTokens].filter(t => nameTokens.has(t)).length;
+    const intersection = [...qTokens].filter((t) => nameTokens.has(t)).length;
     const tokenScore = qTokens.size > 0 ? intersection / Math.max(qTokens.size, nameTokens.size) : 0;
 
     if (tokenScore > 0.55 && tokenScore > highestScore) {
@@ -111,25 +113,86 @@ function extractJsonFromText(text: string): any | null {
   }
 }
 
-// Tách mức đường, đá, size từ yêu cầu bằng văn bản/giọng nói
-function parseDrinkCustomization(text: string): { sugar: string; ice: string; size: 'M' | 'L' } {
+// Tách mức đường, đá, size (S/M/L) và danh sách topping từ yêu cầu bằng văn bản/giọng nói
+export function parseDrinkCustomization(text: string): {
+  sugar: string;
+  ice: string;
+  size: 'S' | 'M' | 'L';
+  toppings: string[];
+} {
   const norm = text.toLowerCase();
+  const detailed = extractNoteAndOptions(text);
+
   let sugar = '100% đường';
-  if (/không đường|0% đường|0 đường/i.test(norm)) sugar = '0% đường';
-  else if (/30% đường|ít đường/i.test(norm)) sugar = '30% đường';
-  else if (/50% đường|nửa đường/i.test(norm)) sugar = '50% đường';
-  else if (/70% đường/i.test(norm)) sugar = '70% đường';
+  if (/(?:^|\D)(?:0%\s*đường|0\s*đường)|không\s*đường|không\s*ngọt/i.test(norm) || detailed.sugar === '0%') {
+    sugar = '0% đường';
+  } else if (/(?:^|\D)(?:30%\s*đường|30\s*đường)|ít\s*đường|ít\s*ngọt/i.test(norm) || detailed.sugar === '30%') {
+    sugar = '30% đường';
+  } else if (/(?:^|\D)(?:50%\s*đường|50\s*đường)|nửa\s*đường|vừa\s*đường/i.test(norm) || detailed.sugar === '50%') {
+    sugar = '50% đường';
+  } else if (/(?:^|\D)(?:70%\s*đường|70\s*đường)|hơi\s*ngọt/i.test(norm) || detailed.sugar === '70%') {
+    sugar = '70% đường';
+  }
 
   let ice = '100% đá';
-  if (/không đá|0% đá|0 đá|nóng/i.test(norm)) ice = /nóng/i.test(norm) ? 'Nóng' : '0% đá';
-  else if (/ít đá|30% đá/i.test(norm)) ice = '30% đá';
-  else if (/50% đá|nửa đá/i.test(norm)) ice = '50% đá';
-  else if (/70% đá/i.test(norm)) ice = '70% đá';
+  if (/nóng|ấm/i.test(norm) || detailed.ice === 'nóng') {
+    ice = 'Nóng';
+  } else if (/đá\s*để\s*riêng|để\s*đá\s*riêng|đá\s*riêng|tách\s*đá/i.test(norm) || detailed.ice === 'đá riêng') {
+    ice = 'đá riêng';
+  } else if (/(?:^|\D)(?:0%\s*đá|0\s*đá)|không\s*đá/i.test(norm) || detailed.ice === 'không đá' || detailed.ice === '0% đá') {
+    ice = '0% đá';
+  } else if (/(?:^|\D)(?:30%\s*đá|30\s*đá)|ít\s*đá/i.test(norm) || detailed.ice === 'ít đá' || detailed.ice === '30% đá') {
+    ice = '30% đá';
+  } else if (/(?:^|\D)(?:50%\s*đá|50\s*đá)|nửa\s*đá/i.test(norm) || detailed.ice === '50% đá') {
+    ice = '50% đá';
+  } else if (/(?:^|\D)(?:70%\s*đá|70\s*đá)/i.test(norm) || detailed.ice === '70% đá') {
+    ice = '70% đá';
+  }
 
-  let size: 'M' | 'L' = 'M';
-  if (/\bsize\s*l\b|\bly\s*l\b|\bcỡ\s*l\b/i.test(norm)) size = 'L';
+  let size: 'S' | 'M' | 'L' = 'M';
+  if (/\bsize\s*s\b|\bly\s*s\b|\bcỡ\s*s\b|\b(size|ly|cỡ|cốc)\s*(nhỏ|bé)\b/i.test(norm) || detailed.size === 'S') {
+    size = 'S';
+  } else if (/\bsize\s*l\b|\bly\s*l\b|\bcỡ\s*l\b|\b(size|ly|cỡ|cốc)\s*(lớn|to)\b/i.test(norm) || detailed.size === 'L') {
+    size = 'L';
+  }
 
-  return { sugar, ice, size };
+  return {
+    sugar,
+    ice,
+    size,
+    toppings: Array.from(detailed.toppings || []),
+  };
+}
+
+function pickProductsByNames(
+  names: string[],
+  activeProducts: ProductItem[],
+  customOverrides?: Partial<SuggestedProductPayload>
+): SuggestedProductPayload[] {
+  const results: SuggestedProductPayload[] = [];
+  const seen = new Set<string>();
+  for (const name of names) {
+    const matched = matchProduct(name, activeProducts);
+    if (matched && !seen.has(matched.product.IDSP)) {
+      seen.add(matched.product.IDSP);
+      results.push({
+        id: matched.product.IDSP,
+        name: matched.product['Tên sản phẩm'],
+        price: Number(matched.product['Đơn giá']),
+        image: matched.product['Hình ảnh'],
+        category: matched.product['Loại sản phẩm'],
+        quantity: 1,
+        size: 'M',
+        sugar: '100% đường',
+        ice: '100% đá',
+        toppings: [],
+        note: '',
+        isOrderMatch: false,
+        ...customOverrides,
+      });
+    }
+  }
+  return results;
 }
 
 export async function POST(request: NextRequest) {
@@ -183,7 +246,8 @@ export async function POST(request: NextRequest) {
 
     // Rule-based FAQ nhanh cho các câu hỏi cố định (khớp ngữ cảnh chuẩn, tránh bắt nhầm chữ "mật khẩu")
     const lower = message.toLowerCase();
-    const isWifiQuery = /(pass(word)?\s*wifi|mật\s*khẩu\s*wifi|pass\s*mạng|wifi\s*(quán|mật khẩu|pass|là gì)|xin\s*pass\b)/i.test(message) ||
+    const isWifiQuery =
+      /(pass(word)?\s*wifi|mật\s*khẩu\s*wifi|pass\s*mạng|wifi\s*(quán|mật khẩu|pass|là gì)|xin\s*pass\b)/i.test(message) ||
       (lower.includes('wifi') && (lower.includes('pass') || lower.includes('mật khẩu') || lower.includes('mạng') || lower.includes('cho xin') || lower.includes('là gì')));
     if (isWifiQuery) {
       return NextResponse.json({
@@ -209,6 +273,99 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // 3. Tư vấn chuyên sâu về Dị ứng sữa / Lactose, Mất ngủ / Caffeine, Ăn kiêng / Calo & Thành phần
+    if (/(dị\s*ứng\s*sữa|lactose|không\s*uống\s*được\s*sữa|kiêng\s*sữa)/i.test(message)) {
+      const dairyFreeSuggestions = pickProductsByNames(
+        ['Trà đào cam sả', 'Trà chanh', 'Ép dưa hấu', 'Nước ép cam'],
+        activeProducts
+      );
+      return NextResponse.json({
+        success: true,
+        intent: 'RECOMMENDATION',
+        message:
+          '🌿 Nếu bạn bị dị ứng sữa hoặc bất dung nạp lactose, bạn nên tránh các dòng Trà sữa, Bạc xỉu, Sữa chua và lớp phủ Kem cheese. Mình gợi ý bạn các món Trà trái cây thanh mát và Nước ép tươi nguyên chất 100% không chứa sữa như: Trà đào cam sả, Hồng trà chanh (Trà chanh), Nước ép dưa hấu và Nước ép cam nhé!',
+        suggestedProducts: dairyFreeSuggestions,
+      });
+    }
+
+    if (/(mất\s*ngủ|caffeine|cafein|say\s*trà|say\s*cà\s*phê|say\s*cafe|buổi\s*tối)/i.test(message)) {
+      const caffeineFreeSuggestions = pickProductsByNames(
+        ['Ép dưa hấu', 'Nước ép cam', 'Trà sữa trân châu đường đen', 'Sinh tố bơ'],
+        activeProducts
+      );
+      return NextResponse.json({
+        success: true,
+        intent: 'RECOMMENDATION',
+        message:
+          '🌙 Lưu ý: Các món Cà phê và Hồng trà đậm vị có chứa caffeine có thể gây mất ngủ hoặc say trà/cà phê khi uống vào buổi tối. Mình gợi ý bạn chọn Nước ép dưa hấu, Nước ép cam hoặc Sữa tươi trân châu đường đen (dòng sữa tươi không chứa cốt trà/cà phê) để yên tâm ngon giấc nhé!',
+        suggestedProducts: caffeineFreeSuggestions,
+      });
+    }
+
+    if (/(ít\s*calo|calo\s*thấp|ăn\s*kiêng|giảm\s*cân|healthy|tiểu\s*đường)/i.test(message)) {
+      const healthySuggestions = pickProductsByNames(
+        ['Trà đào cam sả', 'Trà chanh', 'Ép dưa hấu', 'Nước ép cam'],
+        activeProducts,
+        { sugar: '30% đường' }
+      );
+      return NextResponse.json({
+        success: true,
+        intent: 'RECOMMENDATION',
+        message:
+          '🥗 Với chế độ ăn kiêng, giảm cân, healthy hoặc tiểu đường, bạn nên chọn mức 0% đường hoặc 30% đường và ưu tiên các món trà thanh mát hoặc nước ép nguyên chất ít calo như Trà đào cam sả, Trà chanh, Nước ép dưa hấu, Nước ép cam nhé!',
+        suggestedProducts: healthySuggestions,
+      });
+    }
+
+    if (/(thành\s*phần|nguyên\s*liệu|công\s*thức|làm\s*từ\s*gì)/i.test(message)) {
+      const matchedProd = matchProduct(
+        message.replace(/(thành\s*phần|nguyên\s*liệu|công\s*thức|làm\s*từ\s*gì|của|món|ly|có\s*gì)/gi, ' '),
+        activeProducts
+      );
+      const prodName = matchedProd ? matchedProd.product['Tên sản phẩm'] : 'các món đồ uống tại H2 MilkTea';
+      let ingredientDesc =
+        'được pha chế từ nguyên liệu tươi sạch trong ngày: cốt trà ủ lạnh chuẩn vị, sữa thơm béo hoặc trái cây tươi nguyên chất 100%, kết hợp cùng các loại topping nấu mới mỗi ca.';
+      if (/đào\s*cam\s*sả/i.test(prodName) || /đào\s*cam\s*sả/i.test(message)) {
+        ingredientDesc =
+          'gồm cốt hồng trà/trà lài ủ lạnh thanh mát, kết hợp cùng đào miếng ngâm giòn ngọt, lát cam vàng tươi, nước cốt cam và sả cây đập dập thơm dịu.';
+      } else if (/trà\s*sữa/i.test(prodName) || /trà\s*sữa/i.test(message)) {
+        ingredientDesc =
+          'gồm cốt hồng trà hoặc trà ô long nguyên lá ủ nhiệt độ chuẩn, hòa quyện với sữa thơm béo và trân châu/topping dẻo dai nấu mới trong ngày.';
+      } else if (/cà\s*phê|cafe|bạc\s*xỉu/i.test(prodName) || /cà\s*phê|cafe|bạc\s*xỉu/i.test(message)) {
+        ingredientDesc =
+          'được chiết xuất từ hạt cà phê Robusta & Arabica rang mộc nguyên chất, kết hợp cùng sữa đặc, sữa tươi hoặc lớp kem muối/cốt dừa béo ngậy.';
+      } else if (/ép|sinh\s*tố/i.test(prodName) || /ép|sinh\s*tố/i.test(message)) {
+        ingredientDesc =
+          'sử dụng 100% trái cây tươi tuyển chọn trong ngày, ép nguyên chất giữ trọn vitamin tự nhiên và hoàn toàn không dùng chất bảo quản.';
+      }
+
+      const suggestions = matchedProd
+        ? [
+            {
+              id: matchedProd.product.IDSP,
+              name: matchedProd.product['Tên sản phẩm'],
+              price: Number(matchedProd.product['Đơn giá']),
+              image: matchedProd.product['Hình ảnh'],
+              category: matchedProd.product['Loại sản phẩm'],
+              quantity: 1,
+              size: 'M' as const,
+              sugar: '100% đường',
+              ice: '100% đá',
+              toppings: [],
+              note: '',
+              isOrderMatch: false,
+            },
+          ]
+        : [];
+
+      return NextResponse.json({
+        success: true,
+        intent: 'FAQ_GENERAL',
+        message: `📋 Về thành phần nguyên liệu: Món ${prodName} ${ingredientDesc}`,
+        suggestedProducts: suggestions,
+      });
+    }
+
     // Tận dụng Gemini Flash với Structured Extraction
     const apiKey = process.env.GEMINI_API_KEY;
     if (apiKey) {
@@ -218,7 +375,7 @@ export async function POST(request: NextRequest) {
           .join('\n');
 
         const systemPrompt = `Bạn là Trợ lý ảo tư vấn và tiếp nhận gọi món thông minh của quán H2 MilkTea.
-Khách hàng có thể hỏi tư vấn HOẶC đưa ra yêu cầu gọi món (ví dụ: "cho tôi thêm 1 cafe sữa tươi và 3 chân trâu đường đen", "lấy cho mình 2 trà đào ít ngọt ít đá").
+Khách hàng có thể hỏi tư vấn HOẶC đưa ra yêu cầu gọi món (ví dụ: "cho tôi thêm 1 cafe sữa tươi và 3 chân trâu đường đen", "lấy cho mình 2 trà đào ít ngọt ít đá thêm trân châu trắng").
 
 DANH SÁCH MENU CỦA QUÁN:
 ${productListString}
@@ -226,19 +383,21 @@ ${productListString}
 HƯỚNG DẪN XỬ LÝ:
 1. Xác định ý định của khách:
    - "ORDER_ADD": Khi khách muốn gọi món, thêm món vào bàn, muốn lấy món (chứa từ: "cho tôi", "thêm", "lấy", "đặt", số lượng...). CHỈ DÙNG khi món khách gọi THỰC SỰ CÓ TRONG MENU QUÁN.
-   - "RECOMMENDATION": Khi khách muốn gợi ý theo sở thích HOẶC khi khách hỏi các món KHÔNG CÓ TRONG MENU QUÁN (ví dụ: khách đòi gọi phở bò, pizza hải sản -> quán không có -> trả về RECOMMENDATION, KHÔNG dùng ORDER_ADD).
-   - "FAQ_GENERAL": Khi khách hỏi chung thông tin quán, giờ mở cửa, thanh toán, wifi.
-2. Với ORDER_ADD:
+   - "RECOMMENDATION": Khi khách muốn gợi ý theo sở thích (dị ứng sữa/lactose, mất ngủ/caffeine, ăn kiêng/ít calo/giảm cân) HOẶC khi khách hỏi các món KHÔNG CÓ TRONG MENU QUÁN.
+   - "FAQ_GENERAL": Khi khách hỏi chung thông tin quán, giờ mở cửa, thanh toán, wifi, thành phần nguyên liệu/công thức đồ uống.
+2. Tư vấn sức khỏe & thành phần:
+   - Dị ứng sữa / lactose: khuyên tránh trà sữa, kem cheese; gợi ý Trà đào cam sả, Hồng trà chanh, Nước ép dưa hấu, Nước ép cam.
+   - Mất ngủ / caffeine / buổi tối: cảnh báo Cà phê & Hồng trà đậm có caffeine; gợi ý Nước ép dưa hấu, Nước ép cam, Sữa tươi trân châu đường đen.
+   - Ăn kiêng / ít calo / giảm cân / tiểu đường: gợi ý chọn 0% đường hoặc 30% đường, ưu tiên trà thanh mát hoặc nước ép nguyên chất.
+   - Thành phần / công thức: giải thích rõ nguyên liệu tươi sạch của món khách hỏi.
+3. Với ORDER_ADD:
    - Bóc tách chính xác từng món khách muốn gọi, số lượng (quantity - số nguyên >= 1), và tên món tương ứng khớp trong menu.
-   - Sửa lỗi chính tả tiếng Việt: "chân trâu" -> "trân châu", "cf" -> "cà phê", "đường đen" -> "Trà sữa trân châu đường đen", v.v.
-   - Bóc tách tùy chọn đường / đá:
-     + sugar: "100% đường" (mặc định), "70% đường", "50% đường" (ít đường/ít ngọt), "30% đường", "0% đường" (không đường).
-     + ice: "100% đá" (mặc định), "70% đá", "50% đá" (ít đá), "30% đá", "0% đá" (không đá), "Nóng".
-     + size: "M" (chuẩn) hoặc "L" (nếu khách nhắc size to/lớn/size L).
-     + note: Ghi chú phụ nếu có (ví dụ: "đá riêng").
-3. Câu trả lời (message):
-   - Trả lời tự nhiên, nhiệt tình, xác nhận đúng tên món, số lượng và các tùy chọn đường/đá khách đã chọn.
-   - Nếu món khách hỏi KHÔNG CÓ trong menu, hãy thông báo lịch sự là quán không có món đó và gợi ý các món tương tự của quán (với intent là RECOMMENDATION, KHÔNG đưa món không có vào detectedItems).
+   - Bóc tách tùy chọn:
+     + size: "S", "M" (chuẩn) hoặc "L".
+     + sugar: "100% đường" (mặc định), "70% đường", "50% đường", "30% đường" (ít đường/ít ngọt), "0% đường" (không đường).
+     + ice: "100% đá" (mặc định), "70% đá", "50% đá", "30% đá" (ít đá), "0% đá" (không đá), "đá riêng", "Nóng".
+     + toppings: mảng các topping khách gọi thêm (ví dụ: ["Trân châu đen", "Kem cheese"]).
+     + note: Ghi chú phụ nếu có.
 
 BẮT BUỘC TRẢ VỀ ĐỊNH DẠNG JSON DUY NHẤT:
 {
@@ -248,9 +407,10 @@ BẮT BUỘC TRẢ VỀ ĐỊNH DẠNG JSON DUY NHẤT:
     {
       "productName": "Tên món khớp trong menu quán",
       "quantity": 1,
-      "size": "M" | "L",
+      "size": "S" | "M" | "L",
       "sugar": "100% đường" | "70% đường" | "50% đường" | "30% đường" | "0% đường",
-      "ice": "100% đá" | "70% đá" | "50% đá" | "30% đá" | "0% đá" | "Nóng",
+      "ice": "100% đá" | "70% đá" | "50% đá" | "30% đá" | "0% đá" | "đá riêng" | "Nóng",
+      "toppings": ["Trân châu đen"],
       "note": "Ghi chú thêm nếu có"
     }
   ],
@@ -282,7 +442,15 @@ BẮT BUỘC TRẢ VỀ ĐỊNH DẠNG JSON DUY NHẤT:
           const parsed = extractJsonFromText(rawContent);
           if (parsed && typeof parsed === 'object') {
             const aiMessage = parsed.message || 'H2 MilkTea đã ghi nhận yêu cầu của bạn!';
-            const detectedItems: Array<{ productName: string; quantity?: number; size?: 'M' | 'L'; sugar?: string; ice?: string; note?: string }> = Array.isArray(parsed.detectedItems) ? parsed.detectedItems : [];
+            const detectedItems: Array<{
+              productName: string;
+              quantity?: number;
+              size?: 'S' | 'M' | 'L';
+              sugar?: string;
+              ice?: string;
+              toppings?: string[];
+              note?: string;
+            }> = Array.isArray(parsed.detectedItems) ? parsed.detectedItems : [];
             const suggestedNames: string[] = Array.isArray(parsed.suggestedProductNames) ? parsed.suggestedProductNames : [];
 
             const matchedSuggestions: SuggestedProductPayload[] = [];
@@ -301,9 +469,10 @@ BẮT BUỘC TRẢ VỀ ĐỊNH DẠNG JSON DUY NHẤT:
                   image: matched.product['Hình ảnh'],
                   category: matched.product['Loại sản phẩm'],
                   quantity: Math.max(1, Number(item.quantity || 1)),
-                  size: item.size === 'L' ? 'L' : 'M',
+                  size: item.size === 'L' ? 'L' : item.size === 'S' ? 'S' : 'M',
                   sugar: isFood ? '' : (item.sugar || '100% đường'),
                   ice: isFood ? '' : (item.ice || '100% đá'),
+                  toppings: Array.isArray(item.toppings) ? item.toppings.map(String) : [],
                   note: item.note || '',
                   isOrderMatch: true,
                 });
@@ -326,6 +495,7 @@ BẮT BUỘC TRẢ VỀ ĐỊNH DẠNG JSON DUY NHẤT:
                   size: 'M',
                   sugar: '100% đường',
                   ice: '100% đá',
+                  toppings: [],
                   note: '',
                   isOrderMatch: false,
                 });
@@ -353,15 +523,17 @@ BẮT BUỘC TRẢ VỀ ĐỊNH DẠNG JSON DUY NHẤT:
 
     // Fallback thông minh cục bộ khi không có API key hoặc lỗi mạng:
     // Tự động phân tích câu của khách để tìm món và số lượng bằng Segmentation & Fuzzy Match
-    let extractedItems: SuggestedProductPayload[] = [];
+    const extractedItems: SuggestedProductPayload[] = [];
     const usedIds = new Set<string>();
 
     const cleanMessage = message
       .replace(/^(?:cho tôi|cho em|cho mình|lấy cho|lấy|thêm|đặt|muốn gọi|gọi)\s+/gi, '')
       .trim();
 
-    // Tách theo các liên từ phân tách món: " và ", " với ", ",", "+", " rồi ", " thêm "
-    const segments = cleanMessage.split(/\s*(?:,|và|\+|\bvới\b|\btiếp\b|\brồi\b|\bthêm\b)\s*/i).filter(Boolean);
+    // Tách theo các liên từ phân tách món nhưng không cắt vào phần topping phía sau chữ "thêm"/"kèm"/"topping"
+    const segments = cleanMessage
+      .split(/\s*(?:,|và|\+|\bvới\b|\btiếp\b|\brồi\b)(?!\s*(?:trân\s*châu|kem\s*cheese|kem\s*phô\s*mai|thạch|pudding|sương\s*sáo|đào\s*miếng|hạt\s*đác|flan|oreo))\s*/i)
+      .filter(Boolean);
 
     for (const seg of segments) {
       const trimmed = seg.trim();
@@ -384,17 +556,19 @@ BẮT BUỘC TRẢ VỀ ĐỊNH DẠNG JSON DUY NHẤT:
         }
       }
 
-      // Loại bỏ các từ khóa modifier (đường, đá, size) ra khỏi queryName để tìm món chính xác
-      const cleanProdQuery = queryName
+      const custom = parseDrinkCustomization(trimmed);
+      const optionsExtracted = extractNoteAndOptions(queryName);
+
+      // Loại bỏ các từ khóa modifier (đường, đá, size, topping) ra khỏi queryName để tìm món chính xác
+      const cleanProdQuery = (optionsExtracted.cleanText || queryName)
         .replace(/(?:^|\s)(?:ít|không|nửa|nhiều|100%|70%|50%|30%|0%)\s*(?:đường|ngọt|đá)(?=\s|$)/gi, ' ')
-        .replace(/(?:^|\s)(?:size|ly|cỡ)\s*[ml](?=\s|$)/gi, ' ')
+        .replace(/(?:^|\s)(?:size|ly|cỡ)\s*(?:[sml]|lớn|vừa|nhỏ|lon|vua|nho)(?=\s|$)/gi, ' ')
         .trim();
 
       const matched = matchProduct(cleanProdQuery || queryName, activeProducts);
       if (matched && !usedIds.has(matched.product.IDSP)) {
         usedIds.add(matched.product.IDSP);
         const isFood = ['Ăn vặt', 'Bánh ngọt'].includes(matched.product['Loại sản phẩm']);
-        const custom = parseDrinkCustomization(trimmed);
         extractedItems.push({
           id: matched.product.IDSP,
           name: matched.product['Tên sản phẩm'],
@@ -405,7 +579,8 @@ BẮT BUỘC TRẢ VỀ ĐỊNH DẠNG JSON DUY NHẤT:
           size: custom.size,
           sugar: isFood ? '' : custom.sugar,
           ice: isFood ? '' : custom.ice,
-          note: '',
+          toppings: isFood ? [] : custom.toppings,
+          note: custom.toppings.length > 0 ? `Thêm ${custom.toppings.join(', ')}` : '',
           isOrderMatch: true,
         });
       }
@@ -430,7 +605,8 @@ BẮT BUỘC TRẢ VỀ ĐỊNH DẠNG JSON DUY NHẤT:
             size: custom.size,
             sugar: isFood ? '' : custom.sugar,
             ice: isFood ? '' : custom.ice,
-            note: '',
+            toppings: isFood ? [] : custom.toppings,
+            note: custom.toppings.length > 0 ? `Thêm ${custom.toppings.join(', ')}` : '',
             isOrderMatch: true,
           });
           if (extractedItems.length >= 3) break;
@@ -441,7 +617,7 @@ BẮT BUỘC TRẢ VỀ ĐỊNH DẠNG JSON DUY NHẤT:
     // Nếu vẫn chưa có món cụ thể, gợi ý theo sở thích tổng quát (bán chạy, thanh mát)
     if (extractedItems.length === 0) {
       if (lower.includes('ít ngọt') || lower.includes('thanh mát') || lower.includes('trái cây')) {
-        activeProducts.filter(p => p['Loại sản phẩm'] === 'Trà trái cây').slice(0, 3).forEach(p => {
+        activeProducts.filter((p) => p['Loại sản phẩm'] === 'Trà trái cây' || p['Loại sản phẩm'] === 'Trà').slice(0, 3).forEach((p) => {
           extractedItems.push({
             id: p.IDSP,
             name: p['Tên sản phẩm'],
@@ -452,13 +628,14 @@ BẮT BUỘC TRẢ VỀ ĐỊNH DẠNG JSON DUY NHẤT:
             size: 'M',
             sugar: '100% đường',
             ice: '100% đá',
+            toppings: [],
             note: '',
             isOrderMatch: false,
           });
         });
       } else {
         // Gợi ý các món best sellers
-        activeProducts.slice(0, 3).forEach(p => {
+        activeProducts.slice(0, 3).forEach((p) => {
           extractedItems.push({
             id: p.IDSP,
             name: p['Tên sản phẩm'],
@@ -469,6 +646,7 @@ BẮT BUỘC TRẢ VỀ ĐỊNH DẠNG JSON DUY NHẤT:
             size: 'M',
             sugar: '100% đường',
             ice: '100% đá',
+            toppings: [],
             note: '',
             isOrderMatch: false,
           });
@@ -478,11 +656,11 @@ BẮT BUỘC TRẢ VỀ ĐỊNH DẠNG JSON DUY NHẤT:
 
     let replyText = 'Xin chào bạn! H2 MilkTea rất hân hạnh được phục vụ bạn.';
     if (extractedItems.length > 0) {
-      const summary = extractedItems.map(it => `${it.quantity || 1}x ${it.name}`).join(', ');
+      const summary = extractedItems.map((it) => `${it.quantity || 1}x ${it.name}`).join(', ');
       replyText = `Mình đã tìm thấy các món bạn yêu cầu: ${summary}. Bạn có thể nhấn chọn bên dưới để thêm ngay vào giỏ hàng nhé!`;
     }
 
-    const hasOrderMatch = extractedItems.some(i => i.isOrderMatch);
+    const hasOrderMatch = extractedItems.some((i) => i.isOrderMatch);
     const finalIntent = hasOrderMatch ? 'ORDER_ADD' : 'RECOMMENDATION';
 
     return NextResponse.json({

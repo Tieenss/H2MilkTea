@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { Bot, Check, Loader2, Mic, Send, X, ArrowRight } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Bot, Check, Loader2, Mic, Send, X, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { getAppearanceSettings, applyAppearanceSettings } from '@/utils/appearanceSettings';
 import type { Table, Product } from '../types/pos';
 
 interface SpeechRecognitionResultItem {
@@ -98,6 +99,23 @@ export function POSAssistant({
   const loadedStorageKeyRef = useRef<string | null>(null);
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Đồng bộ cỡ chữ và font chữ Chatbot từ Appearance Settings
+  useEffect(() => {
+    try {
+      applyAppearanceSettings(getAppearanceSettings());
+    } catch {}
+    const handleAppearanceUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail) {
+        applyAppearanceSettings(customEvent.detail);
+      } else {
+        applyAppearanceSettings(getAppearanceSettings());
+      }
+    };
+    window.addEventListener('h2_appearance_settings_updated', handleAppearanceUpdate);
+    return () => window.removeEventListener('h2_appearance_settings_updated', handleAppearanceUpdate);
+  }, []);
+
   useEffect(() => {
     fetch('/api/ai/settings')
       .then(async (response) => {
@@ -118,7 +136,7 @@ export function POSAssistant({
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem(storageKey);
-      setMessages(saved ? JSON.parse(saved) as ChatMessage[] : []);
+      setMessages(saved ? (JSON.parse(saved) as ChatMessage[]) : []);
       loadedStorageKeyRef.current = storageKey;
     } catch (error) {
       console.error('Không thể tải lịch sử chat POS:', error);
@@ -134,6 +152,16 @@ export function POSAssistant({
       console.error('Không thể lưu lịch sử chat POS:', error);
     }
   }, [messages, storageKey]);
+
+  function clearHistory() {
+    setMessages([]);
+    setItems([]);
+    setTargetTable(null);
+    setAction('none');
+    try {
+      window.localStorage.removeItem(storageKey);
+    } catch {}
+  }
 
   async function analyzeOrder(overrideMessage?: string) {
     const rawMsg = overrideMessage !== undefined ? overrideMessage : message;
@@ -168,6 +196,7 @@ export function POSAssistant({
           history: messages,
           table: selectedTableName,
           cart,
+          tables: tables.map((t) => ({ id: String(t.IDBAN || ''), name: String(t['Tên bàn'] || '') })),
         }),
       });
       window.clearTimeout(timeout);
@@ -321,34 +350,48 @@ export function POSAssistant({
   return (
     <>
       {open && (
-        <div className="fixed bottom-24 right-4 z-50 flex w-[calc(100vw-2rem)] max-w-[430px] flex-col gap-3 rounded-xl border border-indigo-200 bg-white p-4 shadow-2xl">
+        <div className="h2-chatbot-scope fixed bottom-24 right-4 z-50 flex w-[calc(100vw-2rem)] max-w-[430px] flex-col gap-3 rounded-xl border border-indigo-200 bg-white p-4 shadow-2xl">
           <div className="flex items-center justify-between text-sm font-semibold text-indigo-700">
             <span className="flex items-center gap-2">
               <Bot className="h-4 w-4" /> Trợ lý POS H2 MilkTea
             </span>
-            <Button onClick={() => setOpen(false)} variant="ghost" size="icon" aria-label="Đóng trợ lý POS" className="h-7 w-7">
-              <X className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-1">
+              {messages.length > 0 && (
+                <Button
+                  onClick={clearHistory}
+                  variant="ghost"
+                  size="icon"
+                  title="Xóa lịch sử trò chuyện"
+                  aria-label="Xóa lịch sử trò chuyện"
+                  className="h-7 w-7 text-slate-400 hover:text-rose-600"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              <Button onClick={() => setOpen(false)} variant="ghost" size="icon" aria-label="Đóng trợ lý POS" className="h-7 w-7">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
           <div className="bg-slate-50 border border-slate-100 p-2 rounded text-xs text-slate-600">
             💡 Gợi ý: &quot;3 trà sữa nướng vào bàn 3&quot;, &quot;chuyển sang bàn 2&quot;, &quot;hướng dẫn thêm món mới&quot;
           </div>
 
-          <div className="max-h-56 min-h-[140px] space-y-2.5 overflow-y-auto text-sm pr-1">
+          <div className="max-h-56 min-h-[140px] space-y-2.5 overflow-y-auto pr-1">
             {messages.map((chatMessage, index) => (
               <div
                 key={`${chatMessage.role}-${index}`}
                 className={chatMessage.role === 'user' ? 'text-right' : 'text-left'}
               >
                 <div
-                  className={`inline-block rounded-lg px-3 py-2 text-xs leading-relaxed max-w-[88%] whitespace-pre-line ${
+                  className={`h2-chatbot-bubble inline-block rounded-lg px-3 py-2 max-w-[88%] whitespace-pre-line ${
                     chatMessage.role === 'user'
                       ? 'bg-indigo-600 text-white text-left'
                       : 'bg-gray-100 text-gray-800'
                   }`}
                 >
-                  <span className="font-semibold block mb-0.5 opacity-80">
+                  <span className="font-semibold block mb-0.5 opacity-80 text-[11px]">
                     {chatMessage.role === 'user' ? 'Bạn' : 'Trợ lý AI'}
                   </span>
                   {chatMessage.content}
@@ -356,7 +399,7 @@ export function POSAssistant({
               </div>
             ))}
             {!messages.length && (
-              <div className="text-center py-6 text-muted-foreground text-xs">
+              <div className="text-center py-6 text-muted-foreground h2-chatbot-bubble">
                 Sẵn sàng nhận lệnh gọi món, đổi bàn hoặc hướng dẫn nghiệp vụ.
               </div>
             )}
@@ -364,8 +407,8 @@ export function POSAssistant({
 
           {/* Tính toán Trước / Sau (Before / After Cart Diff) */}
           {(() => {
-            const beforeCount = cart.reduce((sum, item) => sum + (item.quantity || 0), 0);
-            const beforeTotal = cart.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0);
+            const beforeCount = cart.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+            const beforeTotal = cart.reduce((sum, item) => sum + ((Number(item.price) || 0) * (Number(item.quantity) || 0)), 0);
 
             const getProductPrice = (productId: string, defaultPrice: number = 0) => {
               const prod = products?.find((p) => p.IDSP === productId);
@@ -373,19 +416,19 @@ export function POSAssistant({
               return Number(prod['Đơn giá']) || defaultPrice;
             };
 
-            const deltaCount = (action === 'remove' ? -1 : 1) * items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+            const deltaCount = (action === 'remove' ? -1 : 1) * items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
             const deltaTotal = (action === 'remove' ? -1 : 1) * items.reduce((sum, item) => {
-              let unitPrice = item.price || 0;
+              let unitPrice = Number(item.price) || 0;
               if (!unitPrice) {
                 if (action === 'remove') {
                   const cartItem = cart.find((c) => c.id === item.productId);
-                  unitPrice = cartItem?.price || getProductPrice(item.productId, 0);
+                  unitPrice = Number(cartItem?.price) || getProductPrice(item.productId, 0);
                 } else {
                   const sizeUpcharge = item.size?.trim().toUpperCase() === 'L' ? 5000 : 0;
                   unitPrice = getProductPrice(item.productId, 0) + sizeUpcharge;
                 }
               }
-              return sum + (unitPrice * (item.quantity || 0));
+              return sum + (unitPrice * (Number(item.quantity) || 0));
             }, 0);
 
             const afterCount = Math.max(0, beforeCount + deltaCount);
@@ -505,7 +548,7 @@ export function POSAssistant({
           <div className="flex gap-1.5 items-center">
             <input
               autoFocus
-              className="min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="h2-chatbot-input min-w-0 flex-1 rounded-md border border-slate-300 px-3 py-2 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               value={message}
               onChange={(event) => setMessage(event.target.value)}
               onKeyDown={(event) => {

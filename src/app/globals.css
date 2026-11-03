@@ -754,3 +754,19 @@ html.dark [class*="bg-white"]:not([class*="dark:bg-"]) {
   background-color: #0f172a !important;
   border-color: #1e293b !important;
 }
+
+/* ==========================================================================
+   H2MILKTEA CHATBOT FONT FAMILY & FONT SIZE SYNC UTILITIES
+   ========================================================================== */
+.h2-chatbot-scope {
+  font-family: var(--h2-chat-font-family, var(--h2-app-font, "Be Vietnam Pro", sans-serif));
+}
+
+.h2-chatbot-bubble {
+  font-size: var(--h2-chatbot-font-size, 14px) !important;
+  line-height: 1.55 !important;
+}
+
+.h2-chatbot-input {
+  font-size: var(--h2-chatbot-font-size, 14px) !important;
+}

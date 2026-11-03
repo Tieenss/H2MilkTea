@@ -1,10 +1,10 @@
 export interface CatalogProduct {
   id: string;
   name: string;
-  category: string;
-  unit: string;
+  category?: string;
+  unit?: string;
   price: number;
-  status: string;
+  status?: string;
 }
 
 export interface CatalogItem {
@@ -35,6 +35,22 @@ export interface ProductMatch {
   product: CatalogProduct;
   score: number;
   exact: boolean;
+}
+
+export interface DisambiguationItem {
+  id: string;
+  name: string;
+  price: number;
+  category?: string;
+}
+
+export interface CartDiffItem {
+  productId: string;
+  productName: string;
+  beforeQty: number;
+  afterQty: number;
+  delta: number;
+  unitPrice?: number;
 }
 
 export type ProductResolution =

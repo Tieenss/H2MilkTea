@@ -1,0 +1,98 @@
+[
+  {
+    "id": "recipe-ts-tran-chau-duong-den",
+    "productName": "Trà sữa trân châu đường đen",
+    "category": "Trà sữa",
+    "ingredients": "Cốt hồng trà ủ lạnh 120ml, bột sữa béo thực vật 25g, sữa đặc 15ml, sữa tươi thanh trùng 30ml, trân châu đen nấu đường đen Hàn Quốc 50g",
+    "formulaNote": "Size M: 120ml cốt hồng trà + 20ml siro đường đen + 50g trân châu đường đen; Size L: 160ml cốt trà + 30ml đường đen + 70g trân châu. Quét viền đường đen quanh thành ly trước khi đổ đá và lắc đều 8 giây.",
+    "allergens": ["Sữa đặc (Lactose)", "Kem béo thực vật", "Sữa tươi"],
+    "caffeineLevel": "Trung bình",
+    "caloriesEstimate": "350 - 440 kcal (Size M, 100% đường)",
+    "dietaryAdvice": "Chứa đường đen và sữa đặc có Lactose. Khách giảm cân hoặc tiểu đường nên chọn mức 30% - 50% đường; khách bất dung nạp Lactose nặng nên chuyển sang dòng Trà trái cây.",
+    "keywords": ["trân châu đường đen", "ts trân châu đường đen", "sữa tươi trân châu đường đen", "đường đen", "lactose", "sữa"]
+  },
+  {
+    "id": "recipe-ts-nuong-cu-nang",
+    "productName": "Trà sữa nướng (Topping củ năng)",
+    "category": "Trà sữa",
+    "ingredients": "Cốt trà Ô long rang đậm 130ml, sốt caramel nướng 20ml, bột sữa béo 25g, kem béo 15ml, thạch củ năng giòn 45g",
+    "formulaNote": "Size M: 130ml cốt trà Ô long nướng + 20ml sốt caramel nướng + 15ml đường; Size L: 170ml cốt trà + 30ml sốt nướng + 20ml đường. Lắc mạnh với đá 10 giây để dậy mùi khói caramel.",
+    "allergens": ["Sữa (Lactose)", "Kem béo"],
+    "caffeineLevel": "Trung bình",
+    "caloriesEstimate": "320 - 410 kcal (Size M, 100% đường)",
+    "dietaryAdvice": "Hương vị caramel béo ngậy nhưng có chứa sữa và cốt trà Ô long. Khách nhạy cảm với caffeine buổi tối nên lưu ý hoặc gọi trước 17h.",
+    "keywords": ["trà sữa nướng", "ts nướng", "củ năng", "thạch củ năng", "ô long nướng", "caramel"]
+  },
+  {
+    "id": "recipe-ts-kem-cheese",
+    "productName": "Trà sữa kem Cheese Milk Foam",
+    "category": "Trà sữa",
+    "ingredients": "Cốt lục trà nhài / hồng trà 130ml, bột sữa 20g, lớp kem phô mai đánh bông (Anchor whipping cream, cream cheese, muối hồng Himalaya) 60ml",
+    "formulaNote": "Size M: 130ml cốt trà + 20ml đường, lắc lạnh với đá rồi rót lớp Milk Foam 50-60ml lên trên mặt (không khuấy); Size L: 170ml cốt trà + 25ml đường + 70ml kem cheese.",
+    "allergens": ["Sữa bò (Lactose)", "Phô mai (Cream Cheese)", "Whipping Cream"],
+    "caffeineLevel": "Trung bình",
+    "caloriesEstimate": "380 - 480 kcal (Size M, có lớp kem phô mai béo)",
+    "dietaryAdvice": "Hàm lượng béo và đạm sữa cao do lớp kem phô mai. Tuyệt đối cảnh báo với khách dị ứng đạm sữa bò hoặc bất dung nạp Lactose.",
+    "keywords": ["kem cheese", "milk foam", "macchiato", "phô mai", "trà sữa kem cheese", "béo"]
+  },
+  {
+    "id": "recipe-tra-dao-cam-sa",
+    "productName": "Trà đào cam sả",
+    "category": "Trà trái cây",
+    "ingredients": "Cốt trà đen / lục trà nhài 150ml, siro đào 25ml, nước cốt cam vàng tươi 20ml, sả cây đập dập ủ nóng, 3 miếng đào ngâm giòn",
+    "formulaNote": "Size M: 150ml cốt trà + 25ml siro đào + 20ml nước cam + 15ml đường + 3 miếng đào; Size L: 190ml cốt trà + 35ml siro đào + 30ml nước cam + 20ml đường + 4 miếng đào. Lắc đều với sả tươi 6 giây.",
+    "allergens": ["Không chứa sữa (Lactose-free)", "Không chứa hạt"],
+    "caffeineLevel": "Thấp",
+    "caloriesEstimate": "120 - 160 kcal (Size M, thanh mát ít calo)",
+    "dietaryAdvice": "Hoàn toàn không chứa sữa (Lactose-free), giàu vitamin C, rất phù hợp cho khách dị ứng sữa bò, ăn chay hoặc đang ăn kiêng giảm cân (nên chọn 30% - 50% đường).",
+    "keywords": ["trà đào", "trà đào cam sả", "dcs", "tdcs", "không sữa", "ăn kiêng", "ít calo", "lactose free"]
+  },
+  {
+    "id": "recipe-ts-thai-xanh-do",
+    "productName": "Trà sữa Thái xanh / Thái đỏ",
+    "category": "Trà sữa",
+    "ingredients": "Cốt trà Thái nguyên bản (ChaTraMue) ủ nóng 120ml, sữa đặc có đường 30ml, kem béo thực vật 20g, thạch trà thái dẻo 50g",
+    "formulaNote": "Size M: 120ml cốt trà Thái + 30ml sữa đặc + 10ml nước đường; Size L: 160ml cốt trà Thái + 40ml sữa đặc + 15ml nước đường. Khuấy tan sữa đặc khi trà còn ấm trước khi lắc đá.",
+    "allergens": ["Sữa đặc (Lactose)", "Kem béo"],
+    "caffeineLevel": "Cao",
+    "caloriesEstimate": "310 - 390 kcal (Size M, 100% đường)",
+    "dietaryAdvice": "Cốt trà Thái có hàm lượng tannin và caffeine khá cao, có thể gây khó ngủ với người nhạy cảm caffeine hoặc phụ nữ mang thai.",
+    "keywords": ["thái xanh", "thái đỏ", "trà sữa thái", "ts thái", "mất ngủ", "caffeine cao"]
+  },
+  {
+    "id": "recipe-ca-phe-muoi-bac-xiu",
+    "productName": "Cà phê muối / Bạc xỉu",
+    "category": "Cà phê",
+    "ingredients": "Chiết xuất cà phê Phin / Espresso hạt Robusta & Arabica 45ml, sữa đặc 30ml, sữa tươi 50ml, kem muối biển đánh bông 40ml",
+    "formulaNote": "Bạc xỉu Size M: 30ml sữa đặc + 60ml sữa tươi đánh bọt + 30ml cốt cà phê; Cà phê muối: 45ml cốt cà phê + 25ml sữa đặc + 40ml kem muối mặn ngọt phủ mặt.",
+    "allergens": ["Sữa đặc (Lactose)", "Sữa tươi", "Kem béo (Whipping Cream)"],
+    "caffeineLevel": "Cao",
+    "caloriesEstimate": "210 - 290 kcal (Size M)",
+    "dietaryAdvice": "Hàm lượng caffeine cao giúp tỉnh táo mạnh. Không khuyến nghị cho trẻ em, bà bầu, người cao huyết áp hoặc khách dễ bị say cà phê / tim đập nhanh.",
+    "keywords": ["cà phê", "cafe", "bạc xỉu", "bx", "cà phê muối", "cafe muối", "caffeine", "say cà phê", "tỉnh táo", "mất ngủ"]
+  },
+  {
+    "id": "recipe-nuoc-ep-trai-cay",
+    "productName": "Nước ép trái cây tươi (Cam / Dưa hấu / Thơm)",
+    "category": "Nước ép",
+    "ingredients": "100% trái cây tươi ép chậm nguyên chất (Cam sành / Dưa hấu đỏ / Thơm mật) 220ml, 10ml nước đường mía (tùy chọn), 1 lát chanh/bạc hà trang trí",
+    "formulaNote": "Size M: 220ml nước ép nguyên chất + 10ml đường (hoặc 0% đường nếu khách dặn nguyên chất); Size L: 280ml nước ép nguyên chất + 15ml đường.",
+    "allergens": ["Không chứa sữa (Lactose-free)", "Không chứa Gluten", "Thuần chay (Vegan)"],
+    "caffeineLevel": "Không",
+    "caloriesEstimate": "90 - 135 kcal (Size M, 0% - 30% đường)",
+    "dietaryAdvice": "Không chứa caffeine (0% caffeine) và không chứa sữa. Lựa chọn an toàn tuyệt đối cho bà bầu, trẻ nhỏ, người ăn kiêng, khách uống buổi tối sợ mất ngủ hoặc dị ứng đạm sữa.",
+    "keywords": ["nước ép", "nước cam", "ép cam", "ép dưa hấu", "ép thơm", "bà bầu", "trẻ em", "không mất ngủ", "không caffeine", "healthy", "ăn kiêng"]
+  },
+  {
+    "id": "recipe-ts-oreo-socola",
+    "productName": "Trà sữa Oreo Socola Cream",
+    "category": "Trà sữa",
+    "ingredients": "Cốt hồng trà 110ml, sốt socola nguyên chất 20ml, bột cacao 10g, kem milk foam 40ml, vụn bánh quy Oreo nghiền 25g",
+    "formulaNote": "Size M: 110ml cốt trà + 20ml sốt socola + 15ml đường, lắc đá, phủ 40ml kem béo và rắc 25g vụn bánh Oreo lên mặt; Size L: 150ml cốt trà + 30ml sốt socola + 35g vụn bánh Oreo.",
+    "allergens": ["Gluten (Bột mì trong bánh Oreo)", "Sữa (Lactose)", "Đậu nành (Lecithin trong Oreo)"],
+    "caffeineLevel": "Trung bình",
+    "caloriesEstimate": "410 - 510 kcal (Size M, giàu năng lượng)",
+    "dietaryAdvice": "Chứa cả Gluten từ bánh quy Oreo và Lactose từ sữa/kem béo. Cần cảnh báo rõ cho khách dị ứng Gluten (Celiac) hoặc đang kiêng đường nghiêm ngặt.",
+    "keywords": ["oreo", "socola", "chocolate", "trà sữa oreo", "bánh oreo", "gluten", "dị ứng bột mì"]
+  }
+]

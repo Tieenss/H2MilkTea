@@ -162,6 +162,20 @@ export const POS_KNOWLEDGE_BASE: KnowledgeTopic[] = [
       'Xung đột giỏ hàng: Khi 2 thu ngân cùng sửa một bàn, hệ thống sẽ cảnh báo "Xung đột giỏ hàng", hãy bấm F5 để tải bản mới nhất.',
     ],
   },
+  {
+    id: 'allergy-and-recipes',
+    title: 'Sổ tay Công thức pha chế, Thành phần, Calo & Cảnh báo dị ứng',
+    sectionId: 'menu',
+    sectionTitle: 'Menu & Sản phẩm',
+    keywords: ['dị ứng', 'lactose', 'công thức', 'thành phần', 'calo', 'caffeine', 'mất ngủ', 'bà bầu', 'ăn kiêng'],
+    summary: 'Tra cứu định lượng pha chế chuẩn Size M/L, cảnh báo dị ứng đạm sữa (Lactose), Gluten (bánh Oreo), mức độ Caffeine và lượng Calo ước tính cho từng nhóm đồ uống:',
+    steps: [
+      'Khách dị ứng sữa (Lactose-free) hoặc ăn chay: Gợi ý ngay Trà đào cam sả hoặc Nước ép trái cây tươi (Cam / Dưa hấu / Thơm) hoàn toàn không chứa sữa.',
+      'Khách sợ mất ngủ, phụ nữ mang thai hoặc trẻ nhỏ: Gợi ý Nước ép trái cây tươi (0% Caffeine) hoặc Trà đào cam sả (Caffeine thấp); tránh Trà sữa Thái và Cà phê muối / Bạc xỉu (Caffeine cao).',
+      'Khách dị ứng Gluten (bột mì): Cảnh báo không dùng Trà sữa Oreo Socola Cream do có vụn bánh quy Oreo.',
+      'Khách ăn kiêng / giảm cân (Low-calorie): Gợi ý Nước ép trái cây (90-135 kcal) hoặc Trà đào cam sả (120-160 kcal) với mức đường 0% - 30%.',
+    ],
+  },
 ];
 
 export function formatCitation(sectionTitle: string, sectionId: string): string {
@@ -192,6 +206,7 @@ export function appendCitationIfMissing(answer: string, topic?: KnowledgeTopic |
 }
 
 import defaultStoreFaqs from '@/data/store_faq.json';
+import defaultRecipes from '@/data/store_recipes.json';
 
 export interface StoreFAQItem {
   id: string;
@@ -201,6 +216,128 @@ export interface StoreFAQItem {
   keywords: string[];
   isActive: boolean;
   order: number;
+}
+
+export interface StoreRecipeNote {
+  id: string;
+  productName: string;
+  category: string;
+  ingredients: string;
+  formulaNote: string;
+  allergens: string[];
+  caffeineLevel: 'Không' | 'Thấp' | 'Trung bình' | 'Cao';
+  caloriesEstimate: string;
+  dietaryAdvice: string;
+  keywords: string[];
+}
+
+/**
+ * Tìm kiếm công thức pha chế, thành phần hoặc cảnh báo dị ứng phù hợp với câu hỏi
+ */
+export function findRelevantRecipeOrAllergy(
+  query: string,
+  customRecipes?: StoreRecipeNote[] | null
+): StoreRecipeNote[] {
+  const normalized = query.toLowerCase();
+  const list =
+    Array.isArray(customRecipes) && customRecipes.length > 0
+      ? customRecipes
+      : (defaultRecipes as StoreRecipeNote[]);
+
+  const generalAllergyTerms = [
+    'dị ứng',
+    'lactose',
+    'sữa',
+    'gluten',
+    'công thức',
+    'pha chế',
+    'định lượng',
+    'thành phần',
+    'calo',
+    'kcal',
+    'ăn kiêng',
+    'giảm cân',
+    'tiểu đường',
+    'caffeine',
+    'mất ngủ',
+    'say cà phê',
+    'bà bầu',
+    'mang thai',
+    'trẻ em',
+  ];
+
+  const scored = list.map((item) => {
+    let score = 0;
+    if (normalized.includes(item.productName.toLowerCase())) score += 4;
+    if (normalized.includes(item.category.toLowerCase())) score += 2;
+    for (const kw of item.keywords || []) {
+      if (kw && normalized.includes(kw.toLowerCase())) score += 2;
+    }
+    for (const al of item.allergens || []) {
+      if (al && normalized.includes(al.toLowerCase())) score += 2;
+    }
+    if (
+      normalized.includes('không sữa') ||
+      normalized.includes('dị ứng sữa') ||
+      normalized.includes('lactose')
+    ) {
+      if (item.allergens.some((a) => a.toLowerCase().includes('không chứa sữa') || a.toLowerCase().includes('lactose-free'))) {
+        score += 3;
+      }
+    }
+    if (
+      normalized.includes('mất ngủ') ||
+      normalized.includes('bà bầu') ||
+      normalized.includes('trẻ em') ||
+      normalized.includes('không caffeine')
+    ) {
+      if (item.caffeineLevel === 'Không' || item.caffeineLevel === 'Thấp') {
+        score += 3;
+      }
+    }
+    return { item, score };
+  });
+
+  const matched = scored
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map((entry) => entry.item);
+
+  if (matched.length > 0) {
+    return matched;
+  }
+
+  // Nếu câu hỏi có chứa từ khóa chung về dị ứng / calo / công thức, trả về toàn bộ sổ tay để AI đối chiếu
+  if (generalAllergyTerms.some((term) => normalized.includes(term))) {
+    return list;
+  }
+
+  return [];
+}
+
+/**
+ * Tạo prompt Sổ tay Công thức, Thành phần & Cảnh báo Dị ứng cho AI POS
+ */
+export function getRecipeKnowledgePrompt(customRecipes?: StoreRecipeNote[] | null): string {
+  const recipes =
+    Array.isArray(customRecipes) && customRecipes.length > 0
+      ? customRecipes
+      : (defaultRecipes as StoreRecipeNote[]);
+
+  if (recipes.length === 0) return '';
+
+  return [
+    'SỔ TAY CÔNG THỨC PHA CHẾ, ĐỊNH LƯỢNG BARISTA & CẢNH BÁO DỊ ỨNG / CALO / CAFFEINE (Dùng để trả lời khi thu ngân hoặc khách hỏi về công thức pha, thành phần, dị ứng Lactose/Gluten, lượng calo, mức caffeine, bà bầu/ăn kiêng):',
+    ...recipes.map(
+      (r, idx) =>
+        `${idx + 1}. Món: ${r.productName} [${r.category}]\n` +
+        `   - Thành phần: ${r.ingredients}\n` +
+        `   - Công thức chuẩn Barista (Size M/L): ${r.formulaNote}\n` +
+        `   - Cảnh báo dị ứng (Allergens): ${(r.allergens || []).join(', ')}\n` +
+        `   - Mức Caffeine: ${r.caffeineLevel} | Năng lượng ước tính: ${r.caloriesEstimate}\n` +
+        `   - Lời khuyên dinh dưỡng: ${r.dietaryAdvice}`
+    ),
+  ].join('\n\n');
 }
 
 /**
@@ -266,8 +403,12 @@ export function findRelevantKnowledge(query: string): KnowledgeTopic | null {
 /**
  * Tạo prompt kiến thức rút gọn để tiêm vào System Instruction của AI
  */
-export function getKnowledgeBasePrompt(customFaqs?: StoreFAQItem[] | null): string {
+export function getKnowledgeBasePrompt(
+  customFaqs?: StoreFAQItem[] | null,
+  customRecipes?: StoreRecipeNote[] | null
+): string {
   const faqSection = getStoreFAQPrompt(customFaqs);
+  const recipeSection = getRecipeKnowledgePrompt(customRecipes);
   const userGuideSection = [
     'HƯỚNG DẪN SỬ DỤNG HỆ THỐNG POS H2 MILKTEA (dùng để trả lời khi người dùng hỏi nghiệp vụ - action: "qa"):',
     ...POS_KNOWLEDGE_BASE.map((topic) => {
@@ -286,6 +427,5 @@ export function getKnowledgeBasePrompt(customFaqs?: StoreFAQItem[] | null): stri
     }),
   ].join('\n\n');
 
-  return faqSection ? `${faqSection}\n\n${userGuideSection}` : userGuideSection;
+  return [faqSection, recipeSection, userGuideSection].filter(Boolean).join('\n\n');
 }
-
