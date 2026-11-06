@@ -66,6 +66,7 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
   employee = 'Admin',
   sharedCartStatus = 'connected',
   canCheckout = true,
+  canUseKitchenPrint = true,
   showClearConfirmation: controlledShowClearConfirmation,
   activeCashiersOnTable = [],
   posViewersCount = 0,
@@ -79,7 +80,8 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
   onShowQRModal,
   onShowNoteModal,
   onSendToKitchen,
-  onUpdateCartItemPrintStatus
+  onUpdateCartItemPrintStatus,
+  onUpdateCartItemKitchenStatus
 }) => {
   const [isSendingKitchen, setIsSendingKitchen] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
@@ -98,6 +100,7 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
 
   const [sentKitchenSignature, setSentKitchenSignature] = useState<string | null>(null);
   const cartSignature = JSON.stringify(cart.map((item) => [item.id, item.quantity, item.note]));
+  const isKitchenSent = sentKitchenSignature === cartSignature;
   const previousCartSignature = useRef(cartSignature);
 
   useEffect(() => {
@@ -541,6 +544,7 @@ interface CartItemCardProps {
 
 const CartItemCard: React.FC<CartItemCardProps> = ({
   item,
+  isKitchenSent = false,
   onRemove,
   onAdjustQuantity,
   onShowNoteModal,
@@ -746,6 +750,7 @@ const ActionButtons: React.FC<{
   isSendingKitchen: boolean;
   isKitchenSent: boolean;
   canCheckout?: boolean;
+  canUseKitchenPrint?: boolean;
   sharedCartStatus?: string;
 }> = ({
   cart,
@@ -757,6 +762,7 @@ const ActionButtons: React.FC<{
   isSendingKitchen,
   isKitchenSent,
   canCheckout = true,
+  canUseKitchenPrint = true,
   sharedCartStatus = 'synced',
 }) => {
   const handleCheckoutClick = () => {

@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { matchRuleBased, extractNoteAndOptions, computeCartDiff } from '@/lib/ai/ruleEngine';
 import { processAiPipeline } from '@/lib/ai/pipeline';
-import { POST as customerChatPost, parseDrinkCustomization } from '@/app/api/ai/customer-chat/route';
+import { POST as customerChatPost } from '@/app/api/ai/customer-chat/route';
+import { parseDrinkCustomization } from '@/lib/ai/customerDrinkParser';
 import { NextRequest } from 'next/server';
 import type { CatalogProduct, TableInfo } from '@/lib/ai/types';
 
