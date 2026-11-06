@@ -161,16 +161,33 @@ export function CustomerChatbot({
       startTop: rect.top,
     };
 
+    target.style.transition = 'none';
+    target.style.willChange = 'left, top';
+
+    let rafId: number | null = null;
+    let latestX = rect.left;
+    let latestY = rect.top;
+
+    const applyDOM = () => {
+      target.style.left = `${latestX}px`;
+      target.style.top = `${latestY}px`;
+      target.style.bottom = 'auto';
+      target.style.right = 'auto';
+      rafId = null;
+    };
+
     const handleMove = (moveX: number, moveY: number) => {
       const deltaX = moveX - fabStartRef.current.startX;
       const deltaY = moveY - fabStartRef.current.startY;
-      if (Math.hypot(deltaX, deltaY) > 5) {
+      if (!isDraggingFabRef.current && Math.hypot(deltaX, deltaY) > 3) {
         isDraggingFabRef.current = true;
       }
       if (isDraggingFabRef.current) {
-        const newX = Math.max(10, Math.min(window.innerWidth - 130, fabStartRef.current.startLeft + deltaX));
-        const newY = Math.max(10, Math.min(window.innerHeight - 60, fabStartRef.current.startTop + deltaY));
-        setFabPosition({ x: newX, y: newY });
+        latestX = Math.max(10, Math.min(window.innerWidth - 130, fabStartRef.current.startLeft + deltaX));
+        latestY = Math.max(10, Math.min(window.innerHeight - 60, fabStartRef.current.startTop + deltaY));
+        if (!rafId) {
+          rafId = requestAnimationFrame(applyDOM);
+        }
       }
     };
 
@@ -191,15 +208,19 @@ export function CustomerChatbot({
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleEnd);
 
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        applyDOM();
+      }
+
+      target.style.transition = '';
+      target.style.willChange = '';
+
       if (isDraggingFabRef.current) {
-        setFabPosition((current) => {
-          if (current) {
-            try {
-              localStorage.setItem('h2_customer_chat_fab_pos', JSON.stringify(current));
-            } catch {}
-          }
-          return current;
-        });
+        setFabPosition({ x: latestX, y: latestY });
+        try {
+          localStorage.setItem('h2_customer_chat_fab_pos', JSON.stringify({ x: latestX, y: latestY }));
+        } catch {}
       }
     };
 

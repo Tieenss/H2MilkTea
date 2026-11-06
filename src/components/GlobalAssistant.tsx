@@ -297,6 +297,7 @@ export function GlobalAssistant() {
 
   // Kéo di chuyển cửa sổ Chat (Draggable Window)
   const [windowPosition, setWindowPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isDraggingWindow, setIsDraggingWindow] = useState(false);
   const isDraggingWindowRef = useRef(false);
   const windowStartRef = useRef<{ startX: number; startY: number; startLeft: number; startTop: number }>({
     startX: 0,
@@ -315,16 +316,33 @@ export function GlobalAssistant() {
       startTop: rect.top,
     };
 
+    target.style.transition = 'none';
+    target.style.willChange = 'left, top';
+
+    let rafId: number | null = null;
+    let latestX = rect.left;
+    let latestY = rect.top;
+
+    const applyDOM = () => {
+      target.style.left = `${latestX}px`;
+      target.style.top = `${latestY}px`;
+      target.style.bottom = 'auto';
+      target.style.right = 'auto';
+      rafId = null;
+    };
+
     const handleMove = (moveX: number, moveY: number) => {
       const deltaX = moveX - fabStartRef.current.startX;
       const deltaY = moveY - fabStartRef.current.startY;
-      if (Math.hypot(deltaX, deltaY) > 5) {
+      if (!isDraggingFabRef.current && Math.hypot(deltaX, deltaY) > 3) {
         isDraggingFabRef.current = true;
       }
       if (isDraggingFabRef.current) {
-        const newX = Math.max(10, Math.min(window.innerWidth - 60, fabStartRef.current.startLeft + deltaX));
-        const newY = Math.max(10, Math.min(window.innerHeight - 70, fabStartRef.current.startTop + deltaY));
-        setFabPosition({ x: newX, y: newY });
+        latestX = Math.max(10, Math.min(window.innerWidth - 60, fabStartRef.current.startLeft + deltaX));
+        latestY = Math.max(10, Math.min(window.innerHeight - 70, fabStartRef.current.startTop + deltaY));
+        if (!rafId) {
+          rafId = requestAnimationFrame(applyDOM);
+        }
       }
     };
 
@@ -345,15 +363,19 @@ export function GlobalAssistant() {
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleEnd);
 
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        applyDOM();
+      }
+
+      target.style.transition = '';
+      target.style.willChange = '';
+
       if (isDraggingFabRef.current) {
-        setFabPosition((current) => {
-          if (current) {
-            try {
-              localStorage.setItem('h2_global_assistant_fab_pos', JSON.stringify(current));
-            } catch {}
-          }
-          return current;
-        });
+        setFabPosition({ x: latestX, y: latestY });
+        try {
+          localStorage.setItem('h2_global_assistant_fab_pos', JSON.stringify({ x: latestX, y: latestY }));
+        } catch {}
       }
     };
 
@@ -365,9 +387,11 @@ export function GlobalAssistant() {
 
   const handleWindowDragStart = (clientX: number, clientY: number) => {
     if (isMaximized || isMobile) return;
+    const el = chatWindowRef.current;
+    if (!el) return;
+
     isDraggingWindowRef.current = false;
-    const rect = chatWindowRef.current?.getBoundingClientRect();
-    if (!rect) return;
+    const rect = el.getBoundingClientRect();
 
     windowStartRef.current = {
       startX: clientX,
@@ -376,18 +400,36 @@ export function GlobalAssistant() {
       startTop: rect.top,
     };
 
+    el.style.transition = 'none';
+    el.style.willChange = 'left, top';
+
+    let rafId: number | null = null;
+    let latestX = rect.left;
+    let latestY = rect.top;
+
+    const applyDOM = () => {
+      el.style.left = `${latestX}px`;
+      el.style.top = `${latestY}px`;
+      el.style.bottom = 'auto';
+      el.style.right = 'auto';
+      rafId = null;
+    };
+
     const handleMove = (moveX: number, moveY: number) => {
       const deltaX = moveX - windowStartRef.current.startX;
       const deltaY = moveY - windowStartRef.current.startY;
-      if (Math.hypot(deltaX, deltaY) > 5) {
+      if (!isDraggingWindowRef.current && Math.hypot(deltaX, deltaY) > 3) {
         isDraggingWindowRef.current = true;
+        setIsDraggingWindow(true);
       }
       if (isDraggingWindowRef.current) {
-        const curW = chatWindowRef.current?.offsetWidth || dimensions.width;
-        const curH = chatWindowRef.current?.offsetHeight || dimensions.height;
-        const newX = Math.max(10, Math.min(window.innerWidth - curW - 10, windowStartRef.current.startLeft + deltaX));
-        const newY = Math.max(10, Math.min(window.innerHeight - curH - 10, windowStartRef.current.startTop + deltaY));
-        setWindowPosition({ x: newX, y: newY });
+        const curW = el.offsetWidth || dimensions.width;
+        const curH = el.offsetHeight || dimensions.height;
+        latestX = Math.max(10, Math.min(window.innerWidth - curW - 10, windowStartRef.current.startLeft + deltaX));
+        latestY = Math.max(10, Math.min(window.innerHeight - curH - 10, windowStartRef.current.startTop + deltaY));
+        if (!rafId) {
+          rafId = requestAnimationFrame(applyDOM);
+        }
       }
     };
 
@@ -408,15 +450,20 @@ export function GlobalAssistant() {
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleEnd);
 
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        applyDOM();
+      }
+
+      el.style.transition = '';
+      el.style.willChange = '';
+      setIsDraggingWindow(false);
+
       if (isDraggingWindowRef.current) {
-        setWindowPosition((current) => {
-          if (current) {
-            try {
-              localStorage.setItem('h2_global_assistant_window_pos', JSON.stringify(current));
-            } catch {}
-          }
-          return current;
-        });
+        setWindowPosition({ x: latestX, y: latestY });
+        try {
+          localStorage.setItem('h2_global_assistant_window_pos', JSON.stringify({ x: latestX, y: latestY }));
+        } catch {}
       }
     };
 
@@ -1151,7 +1198,7 @@ export function GlobalAssistant() {
               ? 'rounded-t-3xl rounded-b-none border-t border-x-0 border-b-0 border-indigo-200 bottom-sheet-shadow'
               : 'rounded-3xl border border-indigo-200/80'
           } ${
-            isResizing ? 'transition-none select-none' : 'transition-all duration-150'
+            isResizing || isDraggingWindow ? 'transition-none select-none' : 'transition-[opacity,transform] duration-150'
           } animate-in fade-in slide-in-from-bottom-4`}
         >
           {/* Resize Handle ở góc trên bên trái (Mục #2 - Chỉ trên màn hình Desktop) */}
