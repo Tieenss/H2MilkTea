@@ -61,6 +61,6 @@ export default function KitchenPage() {
   }
 
   return (
-    <KitchenDisplay stationId="main" maxOrders={20} />
+    <KitchenDisplay stationId="main" maxOrders={30} />
   );
 }

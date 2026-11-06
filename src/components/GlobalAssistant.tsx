@@ -225,6 +225,7 @@ export function GlobalAssistant() {
 
   const [isOpen, setIsOpen] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const [dimensions, setDimensions] = useState<{ width: number; height: number }>({
     width: 420,
     height: 560,
@@ -260,6 +261,28 @@ export function GlobalAssistant() {
     };
     window.addEventListener('h2_appearance_settings_updated', handleAppearanceUpdate);
     return () => window.removeEventListener('h2_appearance_settings_updated', handleAppearanceUpdate);
+  }, []);
+
+  // Nhận diện màn hình di động (< 640px) và tự động căn chỉnh FAB / Cửa sổ
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 640;
+      setIsMobile(mobile);
+      // Tự động bảo vệ nút FAB không bị tràn ra ngoài màn hình khi xoay màn hình hoặc đổi viewport
+      setFabPosition((current) => {
+        if (!current) return current;
+        const clampedX = Math.max(10, Math.min(window.innerWidth - 60, current.x));
+        const clampedY = Math.max(10, Math.min(window.innerHeight - 70, current.y));
+        if (clampedX !== current.x || clampedY !== current.y) {
+          return { x: clampedX, y: clampedY };
+        }
+        return current;
+      });
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   // Kéo di chuyển nút nổi FAB (Draggable Button)
@@ -299,8 +322,8 @@ export function GlobalAssistant() {
         isDraggingFabRef.current = true;
       }
       if (isDraggingFabRef.current) {
-        const newX = Math.max(10, Math.min(window.innerWidth - 65, fabStartRef.current.startLeft + deltaX));
-        const newY = Math.max(10, Math.min(window.innerHeight - 65, fabStartRef.current.startTop + deltaY));
+        const newX = Math.max(10, Math.min(window.innerWidth - 60, fabStartRef.current.startLeft + deltaX));
+        const newY = Math.max(10, Math.min(window.innerHeight - 70, fabStartRef.current.startTop + deltaY));
         setFabPosition({ x: newX, y: newY });
       }
     };
@@ -341,7 +364,7 @@ export function GlobalAssistant() {
   };
 
   const handleWindowDragStart = (clientX: number, clientY: number) => {
-    if (isMaximized) return;
+    if (isMaximized || isMobile) return;
     isDraggingWindowRef.current = false;
     const rect = chatWindowRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -422,8 +445,8 @@ export function GlobalAssistant() {
       if (savedFab) {
         const p = JSON.parse(savedFab);
         if (typeof p.x === 'number' && typeof p.y === 'number') {
-          const safeX = Math.max(10, Math.min(window.innerWidth - 65, p.x));
-          const safeY = Math.max(10, Math.min(window.innerHeight - 65, p.y));
+          const safeX = Math.max(10, Math.min(window.innerWidth - 60, p.x));
+          const safeY = Math.max(10, Math.min(window.innerHeight - 70, p.y));
           setFabPosition({ x: safeX, y: safeY });
         }
       }
@@ -564,6 +587,7 @@ export function GlobalAssistant() {
 
   // 3. XỬ LÝ KÉO MỞ RỘNG / THU HẸP KHUNG CHAT 60FPS SMOOTH (Mục #10)
   const handleMouseDownResize = (e: React.MouseEvent) => {
+    if (isMobile) return;
     e.preventDefault();
     isResizingRef.current = true;
     setIsResizing(true);
@@ -1095,7 +1119,18 @@ export function GlobalAssistant() {
         <div
           ref={chatWindowRef}
           style={
-            isMaximized
+            isMobile
+              ? {
+                  width: '100%',
+                  maxWidth: '100vw',
+                  height: 'calc(100dvh - 3rem)',
+                  maxHeight: '92vh',
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  top: 'auto',
+                }
+              : isMaximized
               ? { width: 'calc(100vw - 32px)', height: 'calc(100vh - 40px)', top: '20px', left: '16px' }
               : windowPosition
               ? {
@@ -1111,12 +1146,16 @@ export function GlobalAssistant() {
                   right: '16px',
                 }
           }
-          className={`h2-chatbot-scope fixed z-50 flex flex-col rounded-3xl border border-indigo-200/80 bg-white shadow-2xl overflow-hidden ${
+          className={`h2-chatbot-scope fixed z-50 flex flex-col bg-white shadow-2xl overflow-hidden ${
+            isMobile
+              ? 'rounded-t-3xl rounded-b-none border-t border-x-0 border-b-0 border-indigo-200 bottom-sheet-shadow'
+              : 'rounded-3xl border border-indigo-200/80'
+          } ${
             isResizing ? 'transition-none select-none' : 'transition-all duration-150'
           } animate-in fade-in slide-in-from-bottom-4`}
         >
-          {/* Resize Handle ở góc trên bên trái (Mục #2) */}
-          {!isMaximized && (
+          {/* Resize Handle ở góc trên bên trái (Mục #2 - Chỉ trên màn hình Desktop) */}
+          {!isMaximized && !isMobile && (
             <div
               onMouseDown={handleMouseDownResize}
               title="Kéo để mở rộng hoặc thu nhỏ khung chat"
@@ -1129,116 +1168,128 @@ export function GlobalAssistant() {
           {/* Header Chatbot */}
           <div
             onMouseDown={(e) => {
-              if (e.button !== 0) return;
+              if (e.button !== 0 || isMobile) return;
               handleWindowDragStart(e.clientX, e.clientY);
             }}
             onTouchStart={(e) => {
+              if (isMobile) return;
               if (e.touches.length > 0) {
                 handleWindowDragStart(e.touches[0].clientX, e.touches[0].clientY);
               }
             }}
-            title="Nhấn giữ để kéo di chuyển cửa sổ chat khắp màn hình"
-            className="flex items-center justify-between border-b border-indigo-100 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 px-3.5 py-2.5 text-white select-none cursor-grab active:cursor-grabbing"
+            title={isMobile ? undefined : 'Nhấn giữ để kéo di chuyển cửa sổ chat khắp màn hình'}
+            className={`flex flex-col border-b border-indigo-100 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 px-3.5 py-2.5 text-white select-none ${
+              isMobile ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
+            }`}
           >
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm shadow-inner">
-                <Bot className="h-5 w-5" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <h3 className="font-extrabold text-sm truncate">Trợ Lý AI H2 MilkTea</h3>
-                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+            {/* Thanh grab handle mượt mà dành riêng cho Mobile Bottom Sheet */}
+            {isMobile && (
+              <div className="w-12 h-1 bg-white/40 rounded-full mx-auto mb-1.5 sm:hidden" />
+            )}
+
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm shadow-inner">
+                  <Bot className="h-5 w-5" />
                 </div>
-                {/* Huy hiệu nhận diện ngữ cảnh trang hiện tại (Mục #16) */}
-                <div className="flex items-center gap-1 text-[11px] text-indigo-100 font-medium truncate">
-                  <span className="opacity-75">📍 Đang ở:</span>
-                  <span className="font-bold underline decoration-indigo-300">{pageContext.name}</span>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="font-extrabold text-sm truncate">Trợ Lý AI H2 MilkTea</h3>
+                    <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                  </div>
+                  {/* Huy hiệu nhận diện ngữ cảnh trang hiện tại (Mục #16) */}
+                  <div className="flex items-center gap-1 text-[11px] text-indigo-100 font-medium truncate">
+                    <span className="opacity-75">📍 Đang ở:</span>
+                    <span className="font-bold underline decoration-indigo-300">{pageContext.name}</span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="flex items-center gap-1 shrink-0 ml-1">
-              {/* Nút Tạo Hội Thoại Mới */}
-              <button
-                type="button"
-                onMouseDown={(e) => e.stopPropagation()}
-                onTouchStart={(e) => e.stopPropagation()}
-                onClick={handleStartNewChat}
-                className="flex h-7 items-center gap-1 px-2 rounded-lg bg-white/15 hover:bg-white/25 active:scale-95 text-white text-[11px] font-bold"
-                title="Tạo cuộc trò chuyện mới"
-              >
-                <MessageSquarePlus className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Mới</span>
-              </button>
-
-              {/* Nút Lịch sử các phiên chat */}
-              <button
-                type="button"
-                onMouseDown={(e) => e.stopPropagation()}
-                onTouchStart={(e) => e.stopPropagation()}
-                onClick={() => setShowHistoryPanel((prev) => !prev)}
-                className={`flex h-7 w-7 items-center justify-center rounded-lg active:scale-95 text-white ${
-                  showHistoryPanel ? 'bg-white/30 ring-1 ring-white' : 'bg-white/10 hover:bg-white/20'
-                }`}
-                title="Xem lịch sử các cuộc trò chuyện"
-              >
-                <Clock className="h-3.5 w-3.5" />
-              </button>
-
-              {/* Nút Xóa lịch sử chat hiện tại */}
-              <button
-                type="button"
-                onMouseDown={(e) => e.stopPropagation()}
-                onTouchStart={(e) => e.stopPropagation()}
-                onClick={handleClearCurrentChat}
-                className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 hover:bg-rose-500/80 active:scale-95 text-white transition-colors"
-                title="Xóa lịch sử trò chuyện hiện tại"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-
-              {/* Nút khôi phục vị trí mặc định */}
-              {windowPosition && (
+              <div className="flex items-center gap-1 shrink-0 ml-1">
+                {/* Nút Tạo Hội Thoại Mới */}
                 <button
                   type="button"
                   onMouseDown={(e) => e.stopPropagation()}
                   onTouchStart={(e) => e.stopPropagation()}
-                  onClick={() => {
-                    setWindowPosition(null);
-                    try {
-                      localStorage.removeItem('h2_global_assistant_window_pos');
-                    } catch {}
-                  }}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 text-white"
-                  title="Gắn lại cửa sổ về góc mặc định"
+                  onClick={handleStartNewChat}
+                  className="flex h-7 items-center gap-1 px-2 rounded-lg bg-white/15 hover:bg-white/25 active:scale-95 text-white text-[11px] font-bold"
+                  title="Tạo cuộc trò chuyện mới"
                 >
-                  <RotateCcw className="h-3.5 w-3.5" />
+                  <MessageSquarePlus className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Mới</span>
                 </button>
-              )}
 
-              {/* Nút Mở rộng / Thu nhỏ (Mục #2) */}
-              <button
-                type="button"
-                onMouseDown={(e) => e.stopPropagation()}
-                onTouchStart={(e) => e.stopPropagation()}
-                onClick={toggleMaximize}
-                className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 text-white"
-                title={isMaximized ? 'Thu nhỏ lại kích thước chuẩn' : 'Mở rộng khung chat tối đa'}
-              >
-                {isMaximized ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-              </button>
+                {/* Nút Lịch sử các phiên chat */}
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onClick={() => setShowHistoryPanel((prev) => !prev)}
+                  className={`flex h-7 w-7 items-center justify-center rounded-lg active:scale-95 text-white ${
+                    showHistoryPanel ? 'bg-white/30 ring-1 ring-white' : 'bg-white/10 hover:bg-white/20'
+                  }`}
+                  title="Xem lịch sử các cuộc trò chuyện"
+                >
+                  <Clock className="h-3.5 w-3.5" />
+                </button>
 
-              {/* Nút Đóng */}
-              <button
-                type="button"
-                onMouseDown={(e) => e.stopPropagation()}
-                onTouchStart={(e) => e.stopPropagation()}
-                onClick={() => setIsOpen(false)}
-                className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 text-white"
-                title="Đóng trợ lý"
-              >
-                <X className="h-4 w-4" />
-              </button>
+                {/* Nút Xóa lịch sử chat hiện tại */}
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onClick={handleClearCurrentChat}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 hover:bg-rose-500/80 active:scale-95 text-white transition-colors"
+                  title="Xóa lịch sử trò chuyện hiện tại"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+
+                {/* Nút khôi phục vị trí mặc định (chỉ desktop) */}
+                {!isMobile && windowPosition && (
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onTouchStart={(e) => e.stopPropagation()}
+                    onClick={() => {
+                      setWindowPosition(null);
+                      try {
+                        localStorage.removeItem('h2_global_assistant_window_pos');
+                      } catch {}
+                    }}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 text-white"
+                    title="Gắn lại cửa sổ về góc mặc định"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                  </button>
+                )}
+
+                {/* Nút Mở rộng / Thu nhỏ (Mục #2 - Chỉ desktop) */}
+                {!isMobile && (
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onTouchStart={(e) => e.stopPropagation()}
+                    onClick={toggleMaximize}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 text-white"
+                    title={isMaximized ? 'Thu nhỏ lại kích thước chuẩn' : 'Mở rộng khung chat tối đa'}
+                  >
+                    {isMaximized ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+                  </button>
+                )}
+
+                {/* Nút Đóng */}
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onClick={() => setIsOpen(false)}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 text-white"
+                  title="Đóng trợ lý"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1313,7 +1364,7 @@ export function GlobalAssistant() {
 
           {/* Danh Sách Tin Nhắn (Mục #3: Mở khóa bôi đen select-text) */}
           <div
-            className="flex-1 overflow-y-auto p-4 space-y-3.5 select-text cursor-text"
+            className="flex-1 overflow-y-auto p-4 space-y-3.5 select-text cursor-text overscroll-contain"
             style={{ fontSize: 'var(--h2-chatbot-font-size, 14px)' }}
           >
             {messages.map((msg, index) => {
@@ -1714,7 +1765,7 @@ export function GlobalAssistant() {
           </div>
 
           {/* Input Bar */}
-          <div className="border-t border-gray-100 bg-white p-3">
+          <div className="border-t border-gray-100 bg-white p-3 pb-safe">
             <div className="flex items-center gap-2">
               <input
                 type="text"
@@ -1722,6 +1773,11 @@ export function GlobalAssistant() {
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') void handleSendMessage();
+                }}
+                onFocus={() => {
+                  if (isMobile) {
+                    setTimeout(() => scrollToBottom(true), 300);
+                  }
                 }}
                 disabled={isLoading}
                 placeholder={
@@ -1765,7 +1821,12 @@ export function GlobalAssistant() {
         type="button"
         style={
           fabPosition
-            ? { left: `${fabPosition.x}px`, top: `${fabPosition.y}px`, bottom: 'auto', right: 'auto' }
+            ? {
+                left: `${Math.max(10, Math.min(typeof window !== 'undefined' ? window.innerWidth - 60 : 300, fabPosition.x))}px`,
+                top: `${Math.max(10, Math.min(typeof window !== 'undefined' ? window.innerHeight - 70 : 500, fabPosition.y))}px`,
+                bottom: 'auto',
+                right: 'auto',
+              }
             : undefined
         }
         onMouseDown={(e) => {

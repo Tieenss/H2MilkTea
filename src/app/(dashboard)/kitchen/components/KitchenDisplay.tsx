@@ -25,6 +25,12 @@ import {
   AlertTriangle,
   FlaskConical,
   ChevronDown,
+  MoreVertical,
+  Layers,
+  LayoutGrid,
+  Check,
+  X,
+  ListTodo,
 } from 'lucide-react';
 
 export interface KitchenOrderItem {
@@ -175,7 +181,7 @@ const getDefaultSeedKitchenOrders = (): KitchenOrder[] => {
 
 export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
   stationId = 'main',
-  maxOrders = 24,
+  maxOrders = 30,
 }) => {
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -187,10 +193,23 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
   const [statusFilter, setStatusFilter] = useState<'active' | 'pending' | 'preparing' | 'ready'>('active');
   const [completedItemsMap, setCompletedItemsMap] = useState<Record<string, boolean>>({});
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [showMobileMoreMenu, setShowMobileMoreMenu] = useState(false);
+  const [viewMode, setViewMode] = useState<'cards' | 'batch'>('cards');
 
   const knownOrderIds = React.useRef(new Set<string>());
   const soundEnabledRef = React.useRef(soundEnabled);
   soundEnabledRef.current = soundEnabled;
+
+  // Responsive mobile screen detection
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(typeof window !== 'undefined' && window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Load completed item checkboxes from localStorage
   useEffect(() => {
@@ -227,7 +246,6 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
     try {
       const raw = localStorage.getItem(LOCAL_KDS_ORDERS_KEY);
       if (!raw) {
-        // Mặc định màn hình bếp trống, chỉ hiển thị khi có đơn thực tế hoặc người dùng bấm Tạo đơn mẫu
         return [];
       }
       const parsed = JSON.parse(raw);
@@ -340,7 +358,6 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
       const { tableId, tableName, orderIds } = event.detail || {};
       setOrders((prev) =>
         prev.filter((o) => {
-          // Ngoại trừ đơn mẫu do bấm nút tạo mẫu
           if (o.id && (String(o.id).startsWith('KDS-') || String(o.id).startsWith('demo-kds-'))) return true;
           if (orderIds && Array.isArray(orderIds) && orderIds.includes(o.id)) return false;
           if (tableId && (o.tableId === tableId || o.tableName === tableName)) return false;
@@ -429,10 +446,10 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
 
     const statusLabel =
       status === 'preparing'
-        ? 'Đang pha chế / chế biến'
+        ? 'Đang pha chế'
         : status === 'ready'
-        ? 'Đã hoàn thành - Chờ phục vụ'
-        : 'Đã phục vụ xong';
+        ? 'Chờ phục vụ'
+        : 'Đã hoàn tất';
     toast.success(`Đơn #${orderId.slice(-6)}: ${statusLabel}`);
 
     // Also attempt backend PATCH if it's a Supabase order
@@ -648,40 +665,270 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
     return { pendingCount, preparingCount, readyCount, urgentCount, total: orders.length };
   }, [orders, currentTime]);
 
+  // Aggregated Batch Prep Items (Gom món tổng hợp)
+  const batchItems = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        name: string;
+        station: 'bar' | 'kitchen';
+        unit: string;
+        totalQuantity: number;
+        completedQuantity: number;
+        orderBreakdowns: {
+          orderId: string;
+          tableName: string;
+          quantity: number;
+          note?: string;
+          itemKey: string;
+          isCompleted: boolean;
+          orderAge: number;
+        }[];
+      }
+    >();
+
+    filteredOrders.forEach((order) => {
+      order.items.forEach((item, index) => {
+        const itemKey = `${item.id}-${index}`;
+        const isDone = !!completedItemsMap[`${order.id}__${itemKey}`];
+        const station = item.station || detectStation(item.name, item.category);
+        const groupKey = `${item.name.trim().toLowerCase()}__${station}`;
+
+        if (!map.has(groupKey)) {
+          map.set(groupKey, {
+            name: item.name,
+            station,
+            unit: item.unit || 'Ly',
+            totalQuantity: 0,
+            completedQuantity: 0,
+            orderBreakdowns: [],
+          });
+        }
+
+        const group = map.get(groupKey)!;
+        const qty = Number(item.quantity) || 1;
+        group.totalQuantity += qty;
+        if (isDone) {
+          group.completedQuantity += qty;
+        }
+
+        group.orderBreakdowns.push({
+          orderId: order.id,
+          tableName: order.tableName,
+          quantity: qty,
+          note: item.note,
+          itemKey,
+          isCompleted: isDone,
+          orderAge: getOrderAge(order.orderTime),
+        });
+      });
+    });
+
+    return Array.from(map.values()).sort((a, b) => {
+      const aRemaining = a.totalQuantity - a.completedQuantity;
+      const bRemaining = b.totalQuantity - b.completedQuantity;
+      if (aRemaining !== bRemaining) return bRemaining - aRemaining;
+      return b.totalQuantity - a.totalQuantity;
+    });
+  }, [filteredOrders, completedItemsMap, currentTime]);
+
+  const totalUnfinishedBatchItems = useMemo(() => {
+    return batchItems.reduce((acc, curr) => acc + Math.max(0, curr.totalQuantity - curr.completedQuantity), 0);
+  }, [batchItems]);
+
+  const markAllBatchItemDone = (groupName: string, station: string) => {
+    const groupKey = `${groupName.trim().toLowerCase()}__${station}`;
+    const targetGroup = batchItems.find((g) => `${g.name.trim().toLowerCase()}__${g.station}` === groupKey);
+    if (!targetGroup) return;
+
+    setCompletedItemsMap((prev) => {
+      const next = { ...prev };
+      targetGroup.orderBreakdowns.forEach((b) => {
+        next[`${b.orderId}__${b.itemKey}`] = true;
+      });
+      try {
+        localStorage.setItem(LOCAL_KDS_COMPLETED_ITEMS_KEY, JSON.stringify(next));
+      } catch (e) {
+        console.error(e);
+      }
+      return next;
+    });
+    toast.success(`Đã đánh dấu xong tất cả: ${groupName}`);
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Top Header */}
-      <div className="bg-white shadow-sm border-b border-slate-200 px-6 py-4 sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center text-white shadow-sm">
-                <ChefHat className="w-6 h-6" />
+    <div className="min-h-screen bg-slate-50 flex flex-col pb-24 md:pb-10">
+      {/* ============================================================ */}
+      {/* 1. MOBILE COMPACT BARISTA TOPBAR (Screens < 768px, ~48px height) */}
+      {/* ============================================================ */}
+      <div className="md:hidden sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-3 py-2 shadow-xs">
+        <div className="flex items-center justify-between">
+          {/* Left: Chef icon + Brand + Live Clock */}
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center text-white shadow-xs shrink-0">
+              <ChefHat className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5 leading-none">
+                <span className="font-black text-sm text-slate-900 tracking-tight">KDS Bếp</span>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-800 leading-none">
+                  {stationId.toUpperCase()}
+                </span>
               </div>
-              <div>
-                <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                  Màn Hình Nhà Bếp & Quầy Pha Chế (KDS)
-                  <Badge className="bg-orange-100 text-orange-800 border-orange-200 text-xs">
-                    TRẠM {stationId.toUpperCase()}
-                  </Badge>
-                </h1>
-                <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 mt-0.5">
-                  <span className="flex items-center gap-1 font-medium text-slate-700">
-                    <Clock className="w-3.5 h-3.5 text-orange-500" />
-                    {currentTime.toLocaleString('vi-VN')}
-                  </span>
-                  <span>•</span>
-                  <span className={`inline-flex items-center gap-1.5 font-medium ${isConnected ? 'text-emerald-600' : 'text-amber-600'}`}>
-                    <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
-                    {isConnected ? 'Realtime KDS Đang hoạt động' : 'Chế độ Đồng bộ Nội bộ'}
-                  </span>
+              <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5 font-medium">
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                <span className="font-mono text-slate-700">
+                  {currentTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right: Sound, Sync, More Dropdown */}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => {
+                const next = !soundEnabled;
+                setSoundEnabled(next);
+                toast(next ? '🔔 Đã bật chuông báo món mới' : '🔕 Đã tắt chuông báo', { icon: next ? '🔔' : '🔕' });
+              }}
+              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                soundEnabled ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-400'
+              }`}
+              title={soundEnabled ? 'Tắt âm báo' : 'Bật âm báo'}
+            >
+              {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => fetchOrders(true)}
+              disabled={isSyncing}
+              className="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 flex items-center justify-center transition-colors"
+              title="Đồng bộ lại đơn hàng"
+            >
+              <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin text-orange-600' : ''}`} />
+            </button>
+
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowMobileMoreMenu(!showMobileMoreMenu)}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                  showMobileMoreMenu ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+                title="Tùy chọn khác"
+              >
+                <MoreVertical className="w-4 h-4" />
+              </button>
+
+              {showMobileMoreMenu && (
+                <div
+                  className="fixed inset-0 z-40 bg-slate-900/30 backdrop-blur-xs"
+                  onClick={() => setShowMobileMoreMenu(false)}
+                >
+                  <div
+                    className="absolute right-3 top-12 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 p-2.5 space-y-1.5 animate-in fade-in zoom-in-95 duration-150"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 px-1">
+                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Cài đặt màn hình</span>
+                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${isConnected ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                        {isConnected ? 'Realtime Online' : 'Nội bộ'}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowMobileMoreMenu(false);
+                        handleClearAllOrders();
+                      }}
+                      disabled={isClearingStale}
+                      className="w-full text-left px-2.5 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 rounded-xl flex items-center gap-2 transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="w-4 h-4 shrink-0" />
+                      Làm sạch bếp (Dọn đơn tồn)
+                    </button>
+
+                    <div className="pt-1 border-t border-slate-100">
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1 py-0.5">
+                        Thử nghiệm / Demo KDS
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowMobileMoreMenu(false);
+                          handleGenerateSampleOrder();
+                        }}
+                        className="w-full text-left px-2.5 py-2 text-xs font-medium text-slate-700 hover:bg-orange-50 hover:text-orange-700 rounded-xl flex items-center gap-2 transition-colors cursor-pointer"
+                      >
+                        <PlusCircle className="w-4 h-4 text-orange-500 shrink-0" />
+                        + Tạo 1 đơn mẫu KDS
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowMobileMoreMenu(false);
+                          handleResetDemoOrders();
+                        }}
+                        className="w-full text-left px-2.5 py-2 text-xs font-medium text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 rounded-xl flex items-center gap-2 transition-colors cursor-pointer"
+                      >
+                        <Sparkles className="w-4 h-4 text-indigo-500 shrink-0" />
+                        Khôi phục 3 đơn mẫu chuẩn
+                      </button>
+                    </div>
+
+                    <div className="pt-1 border-t border-slate-100">
+                      <button
+                        type="button"
+                        onClick={() => setShowMobileMoreMenu(false)}
+                        className="w-full py-1.5 text-center text-xs font-medium text-slate-500 hover:text-slate-800 rounded-lg hover:bg-slate-100"
+                      >
+                        Đóng menu
+                      </button>
+                    </div>
+                  </div>
                 </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ============================================================ */}
+      {/* 2. DESKTOP FULL HEADER (Screens >= 768px)                     */}
+      {/* ============================================================ */}
+      <div className="hidden md:block bg-white shadow-xs border-b border-slate-200 px-6 py-4 sticky top-0 z-20">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center text-white shadow-sm">
+              <ChefHat className="w-6 h-6" />
+            </div>
+            <div>
+              <h1 className="text-xl lg:text-2xl font-bold text-slate-900 flex items-center gap-2">
+                Màn Hình Nhà Bếp & Quầy Pha Chế (KDS)
+                <Badge className="bg-orange-100 text-orange-800 border-orange-200 text-xs">
+                  TRẠM {stationId.toUpperCase()}
+                </Badge>
+              </h1>
+              <div className="flex items-center gap-3 text-xs text-slate-500 mt-0.5">
+                <span className="flex items-center gap-1 font-medium text-slate-700">
+                  <Clock className="w-3.5 h-3.5 text-orange-500" />
+                  {currentTime.toLocaleString('vi-VN')}
+                </span>
+                <span>•</span>
+                <span className={`inline-flex items-center gap-1.5 font-medium ${isConnected ? 'text-emerald-600' : 'text-amber-600'}`}>
+                  <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                  {isConnected ? 'Realtime KDS Đang hoạt động' : 'Chế độ Đồng bộ Nội bộ'}
+                </span>
               </div>
             </div>
           </div>
 
           {/* Action Controls */}
-          <div className="flex flex-wrap items-center gap-2.5 relative">
+          <div className="flex items-center gap-2 relative">
             <Button
               onClick={() => fetchOrders(true)}
               variant="outline"
@@ -690,7 +937,7 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
               className="border-slate-300 text-slate-700 font-medium"
             >
               <RefreshCw className={`w-4 h-4 mr-1.5 ${isSyncing ? 'animate-spin' : ''}`} />
-              Đồng bộ đơn
+              Đồng bộ
             </Button>
 
             <Button
@@ -702,7 +949,7 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
               title="Dọn sạch các đơn tồn đọng để làm gọn màn hình bếp"
             >
               <Trash2 className="w-4 h-4 mr-1.5 text-red-600" />
-              {isClearingStale ? 'Đang dọn dẹp...' : 'Làm sạch bếp'}
+              {isClearingStale ? 'Đang dọn...' : 'Làm sạch bếp'}
             </Button>
 
             <Button
@@ -712,17 +959,17 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
               className={soundEnabled ? 'bg-slate-800 hover:bg-slate-900 text-white font-medium' : 'font-medium'}
             >
               {soundEnabled ? <Volume2 className="w-4 h-4 mr-1.5" /> : <VolumeX className="w-4 h-4 mr-1.5" />}
-              {soundEnabled ? 'Chuông báo: BẬT' : 'Chuông báo: TẮT'}
+              {soundEnabled ? 'Chuông: BẬT' : 'Chuông: TẮT'}
             </Button>
 
-            {/* Menu công cụ thử nghiệm (Demo) ẩn tách biệt khỏi thao tác vận hành */}
+            {/* Menu công cụ thử nghiệm (Demo) */}
             <div className="relative">
               <Button
                 onClick={() => setShowDemoMenu(!showDemoMenu)}
                 variant="outline"
                 size="sm"
                 className="border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-800 text-xs"
-                title="Các công cụ tạo đơn mẫu dùng để kiểm thử hệ thống"
+                title="Các công cụ tạo đơn mẫu"
               >
                 <FlaskConical className="w-3.5 h-3.5 mr-1 text-amber-600" />
                 Demo / Thử nghiệm
@@ -757,319 +1004,541 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
                     Khôi phục 3 đơn mẫu chuẩn
                   </button>
                   <div className="text-[10px] text-slate-400 px-2 pt-1 border-t border-slate-100 italic">
-                    * Chỉ dùng để test khi không có khách gọi món thực tế.
+                    * Dùng để test khi không có khách gọi món thực tế.
                   </div>
                 </div>
               )}
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Filter & KPI Bar */}
-        <div className="max-w-7xl mx-auto mt-4 pt-3 border-t border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
-          {/* Station Filter */}
-          <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
-            <button
-              type="button"
-              onClick={() => setStationFilter('all')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                stationFilter === 'all'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <ChefHat className="w-3.5 h-3.5 text-orange-500" />
-              Tất cả khu vực ({orders.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setStationFilter('bar')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                stationFilter === 'bar'
-                  ? 'bg-white text-blue-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Coffee className="w-3.5 h-3.5 text-blue-600" />
-              Quầy Pha Chế - Đồ uống
-            </button>
-            <button
-              type="button"
-              onClick={() => setStationFilter('kitchen')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                stationFilter === 'kitchen'
-                  ? 'bg-white text-amber-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <UtensilsCrossed className="w-3.5 h-3.5 text-amber-600" />
-              Bếp & Bánh Ngọt
-            </button>
-          </div>
+      {/* ============================================================ */}
+      {/* 3. ULTRA-COMPACT 1-ROW FILTER PILLS (Mobile & Desktop)        */}
+      {/* Saves ~350px vertical height so orders are visible immediately! */}
+      {/* ============================================================ */}
+      <div className="sticky top-[48px] md:top-[73px] z-20 bg-white/95 backdrop-blur-md border-b border-slate-200/90 shadow-xs px-2.5 sm:px-6 py-1.5">
+        <div className="max-w-7xl mx-auto flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden py-0.5">
+          {/* Status Filters */}
+          <button
+            type="button"
+            onClick={() => setStatusFilter('active')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1 ${
+              statusFilter === 'active'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            Tất cả ({stats.total})
+          </button>
 
-          {/* Status Filter Pills */}
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setStatusFilter('active')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                statusFilter === 'active'
-                  ? 'bg-slate-900 text-white border-slate-900'
-                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              Tất cả ({stats.total})
-            </button>
-            <button
-              type="button"
-              onClick={() => setStatusFilter('pending')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all flex items-center gap-1.5 ${
-                statusFilter === 'pending'
-                  ? 'bg-red-600 text-white border-red-600'
-                  : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
-              }`}
-            >
-              <span className="w-2 h-2 rounded-full bg-current" />
-              Chờ làm ({stats.pendingCount})
-            </button>
-            <button
-              type="button"
-              onClick={() => setStatusFilter('preparing')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all flex items-center gap-1.5 ${
-                statusFilter === 'preparing'
-                  ? 'bg-amber-500 text-white border-amber-500'
-                  : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
-              }`}
-            >
-              <Flame className="w-3.5 h-3.5" />
-              Đang pha chế ({stats.preparingCount})
-            </button>
-            <button
-              type="button"
-              onClick={() => setStatusFilter('ready')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all flex items-center gap-1.5 ${
-                statusFilter === 'ready'
-                  ? 'bg-emerald-600 text-white border-emerald-600'
-                  : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-              }`}
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              Chờ phục vụ ({stats.readyCount})
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('pending')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1 ${
+              statusFilter === 'pending'
+                ? 'bg-red-600 text-white shadow-xs'
+                : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200/60'
+            }`}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-current shrink-0" />
+            🔥 Chờ làm ({stats.pendingCount})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setStatusFilter('preparing')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1 ${
+              statusFilter === 'preparing'
+                ? 'bg-amber-500 text-white shadow-xs'
+                : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200/60'
+            }`}
+          >
+            <Flame className="w-3.5 h-3.5 shrink-0" />
+            ⚡ Đang pha ({stats.preparingCount})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setStatusFilter('ready')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1 ${
+              statusFilter === 'ready'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/60'
+            }`}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+            ✅ Chờ phục vụ ({stats.readyCount})
+          </button>
+
+          {/* Separator */}
+          <div className="h-4 w-px bg-slate-300 shrink-0 mx-0.5" />
+
+          {/* Station Filters */}
+          <button
+            type="button"
+            onClick={() => setStationFilter('all')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1 ${
+              stationFilter === 'all'
+                ? 'bg-slate-700 text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            Tất cả trạm
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setStationFilter('bar')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1 ${
+              stationFilter === 'bar'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200/60'
+            }`}
+          >
+            <Coffee className="w-3.5 h-3.5 shrink-0" />
+            🧋 Pha chế
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setStationFilter('kitchen')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1 ${
+              stationFilter === 'kitchen'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200/60'
+            }`}
+          >
+            <UtensilsCrossed className="w-3.5 h-3.5 shrink-0" />
+            🥐 Bếp bánh
+          </button>
+
+          {/* Separator */}
+          <div className="h-4 w-px bg-slate-300 shrink-0 mx-0.5" />
+
+          {/* View Mode Toggle: Order Cards vs Batch Items */}
+          <button
+            type="button"
+            onClick={() => setViewMode(viewMode === 'cards' ? 'batch' : 'cards')}
+            className={`px-3 py-1 rounded-lg text-xs font-black transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
+              viewMode === 'batch'
+                ? 'bg-purple-600 text-white shadow-sm ring-2 ring-purple-300'
+                : 'bg-purple-50 text-purple-800 hover:bg-purple-100 border border-purple-300'
+            }`}
+            title="Gom tất cả các món từ nhiều đơn thành danh sách tổng để pha chế hàng loạt"
+          >
+            {viewMode === 'batch' ? (
+              <>
+                <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
+                <span>🎴 Xem theo thẻ bàn</span>
+              </>
+            ) : (
+              <>
+                <ListTodo className="w-3.5 h-3.5 shrink-0" />
+                <span>📋 Gom món tổng hợp ({totalUnfinishedBatchItems})</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
 
-      {/* Orders Grid */}
-      <div className="max-w-7xl mx-auto p-6">
-        {filteredOrders.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center max-w-xl mx-auto my-8 shadow-xs">
-            <div className="w-16 h-16 rounded-2xl bg-orange-50 text-orange-500 flex items-center justify-center mx-auto mb-4">
-              <ChefHat className="w-9 h-9" />
-            </div>
-            <h3 className="text-xl font-bold text-slate-800">Hiện không có đơn hàng nào trong bộ lọc này</h3>
-            <p className="text-slate-500 text-sm mt-2">
-              Các đơn hàng từ màn hình Bán hàng (POS) hoặc khách quét mã QR tại bàn sẽ tự động xuất hiện tại đây. Bạn cũng có thể tạo đơn mẫu để kiểm thử quy trình bếp.
-            </p>
-            <div className="mt-6 flex items-center justify-center gap-3">
-              <Button
-                onClick={handleGenerateSampleOrder}
-                className="bg-orange-500 hover:bg-orange-600 text-white"
-              >
-                <PlusCircle className="w-4 h-4 mr-2" />
-                Tạo đơn thử nghiệm ngay
-              </Button>
-              <Button onClick={handleResetDemoOrders} variant="outline">
-                Khôi phục bộ đơn mẫu
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-5">
-            {filteredOrders.map((order) => {
-              const age = getOrderAge(order.orderTime);
-              const priorityColor = getPriorityColor(order.priority, age, order.status);
-              const completedCount = order.items.filter(
-                (item, idx) => completedItemsMap[`${order.id}__${item.id}-${idx}`]
-              ).length;
-
-              return (
-                <Card
-                  key={order.id}
-                  className={`p-5 ${priorityColor} border-2 rounded-2xl transition-all duration-200 flex flex-col justify-between`}
-                >
+      {/* ============================================================ */}
+      {/* 4. MAIN CONTENT AREA                                         */}
+      {/* ============================================================ */}
+      <div className="max-w-7xl mx-auto w-full p-3 sm:p-6 flex-1">
+        {/* VIEW 1: BATCH PREP / GROUPED ITEMS VIEW ("GOM MÓN TỔNG HỢP") */}
+        {viewMode === 'batch' ? (
+          <div className="space-y-4">
+            {/* Batch View Summary Banner */}
+            <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center font-bold text-sm shadow-xs">
+                    📋
+                  </span>
                   <div>
-                    {/* Order Header */}
-                    <div className="flex justify-between items-start gap-2 mb-3 pb-3 border-b border-slate-200/80">
+                    <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
+                      Danh Sách Gom Món Pha Chế Hàng Loạt (Batch Prep)
+                    </h2>
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      Tổng hợp <strong className="text-purple-700 font-bold">{totalUnfinishedBatchItems} ly/món</strong> đang chờ làm trên {filteredOrders.length} đơn bàn.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setViewMode('cards')}
+                className="border-purple-300 text-purple-800 hover:bg-purple-100 font-bold self-start sm:self-auto cursor-pointer"
+              >
+                <LayoutGrid className="w-4 h-4 mr-1.5" />
+                Quay lại xem theo bàn
+              </Button>
+            </div>
+
+            {batchItems.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-slate-200 p-8 sm:p-12 text-center max-w-md mx-auto my-6 shadow-xs">
+                <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
+                <h3 className="text-lg font-bold text-slate-800">Không có món nào cần pha chế</h3>
+                <p className="text-slate-500 text-xs sm:text-sm mt-1">
+                  Tất cả các món trong bộ lọc hiện tại đã được hoàn thành hoặc chưa có đơn hàng mới.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                {batchItems.map((group) => {
+                  const isAllDone = group.completedQuantity >= group.totalQuantity;
+                  const percent = Math.min(
+                    100,
+                    group.totalQuantity > 0 ? Math.round((group.completedQuantity / group.totalQuantity) * 100) : 0
+                  );
+
+                  return (
+                    <Card
+                      key={`${group.name}__${group.station}`}
+                      className={`p-4 rounded-2xl border-2 transition-all flex flex-col justify-between ${
+                        isAllDone
+                          ? 'bg-emerald-50/50 border-emerald-300 opacity-80'
+                          : 'bg-white border-slate-200 hover:border-purple-300 shadow-xs'
+                      }`}
+                    >
                       <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-black text-xl sm:text-2xl text-slate-950 tracking-tight">{order.tableName}</h3>
-                          {(order.priority === 'urgent' || age > 15) && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-600 text-white">
-                              <AlertTriangle className="w-3 h-3" />
-                              GẤP
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          Mã: <span className="font-mono font-semibold text-slate-700">#{order.id.slice(-6)}</span> • {order.employee}
-                        </p>
-                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                          <Badge
-                            className={`text-[11px] px-2 py-0.5 ${
-                              order.source === 'QR_TABLE'
-                                ? 'bg-purple-100 text-purple-800 border-purple-200'
-                                : 'bg-blue-100 text-blue-800 border-blue-200'
-                            }`}
-                          >
-                            {order.source === 'QR_TABLE' ? '📱 Khách quét QR' : '🖥️ Gọi tại quầy POS'}
-                          </Badge>
-                          <span className="text-[11px] text-slate-500 font-medium">
-                            ({completedCount}/{order.items.length} món xong)
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="text-right shrink-0">
-                        <Badge className={`${getStatusColor(order.status)} mb-1.5 text-[11px] font-bold px-2.5 py-0.5`}>
-                          {getStatusText(order.status)}
-                        </Badge>
-                        <div
-                          className={`text-xs font-bold flex items-center justify-end gap-1 ${
-                            age > 15 ? 'text-red-600' : age > 10 ? 'text-amber-600' : 'text-slate-600'
-                          }`}
-                        >
-                          <Clock className="w-3 h-3" />
-                          {formatOrderAge(order.orderTime, age)}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Order Items with Click-to-Complete */}
-                    <div className="space-y-2.5 mb-4">
-                      {order.items.map((item, index) => {
-                        const itemKey = `${item.id}-${index}`;
-                        const isItemDone = !!completedItemsMap[`${order.id}__${itemKey}`];
-                        const itemStation = item.station || detectStation(item.name, item.category);
-
-                        return (
-                          <div
-                            key={itemKey}
-                            onClick={() => toggleItemCompleted(order.id, itemKey)}
-                            className={`flex justify-between items-start p-2.5 rounded-xl border cursor-pointer transition-all select-none ${
-                              isItemDone
-                                ? 'bg-emerald-50/70 border-emerald-200 opacity-75'
-                                : 'bg-white border-slate-200 hover:border-orange-300 shadow-2xs'
-                            }`}
-                          >
-                            <div className="flex items-start gap-2.5 flex-1 pr-2">
-                              <button
-                                type="button"
-                                className="mt-0.5 text-slate-400 hover:text-emerald-600"
-                                aria-label="Đánh dấu hoàn thành món"
-                              >
-                                {isItemDone ? (
-                                  <CheckSquare className="w-4 h-4 text-emerald-600" />
-                                ) : (
-                                  <Square className="w-4 h-4 text-slate-400" />
-                                )}
-                              </button>
-                              <div className="flex-1">
-                                <div
-                                  className={`font-bold text-base sm:text-lg leading-snug tracking-tight break-words ${
-                                    isItemDone ? 'line-through text-slate-500' : 'text-slate-800'
-                                  }`}
-                                >
-                                  {item.name}
-                                </div>
-                                <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                                  <span
-                                    className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-                                      itemStation === 'kitchen'
-                                        ? 'bg-amber-100 text-amber-800'
-                                        : 'bg-sky-100 text-sky-800'
-                                    }`}
-                                  >
-                                    {itemStation === 'kitchen' ? '🍰 Bếp/Bánh' : '🧋 Pha chế'}
-                                  </span>
-                                  {item.note && (<span className="inline-flex items-center gap-1 bg-amber-100 text-amber-950 font-bold text-xs sm:text-sm px-2.5 py-1 rounded-md border border-amber-300 shadow-2xs break-words max-w-full"><span>⚡</span> {item.note}</span>)}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="text-right shrink-0">
-                              <span
-                                className={`inline-block font-black text-lg sm:text-xl px-3 py-1 rounded-lg ${
-                                  isItemDone
-                                    ? 'bg-emerald-100 text-emerald-800'
-                                    : 'bg-orange-100 text-orange-900'
+                        {/* Group Header */}
+                        <div className="flex items-start justify-between gap-2 pb-2.5 border-b border-slate-100">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <Badge
+                                className={`text-[10px] px-1.5 py-0 font-bold ${
+                                  group.station === 'kitchen'
+                                    ? 'bg-amber-100 text-amber-800 border-amber-200'
+                                    : 'bg-blue-100 text-blue-800 border-blue-200'
                                 }`}
                               >
-                                x{item.quantity}
+                                {group.station === 'kitchen' ? '🥐 Bếp bánh' : '🧋 Pha chế'}
+                              </Badge>
+                              {isAllDone && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                                  ✓ Đã xong hết
+                                </span>
+                              )}
+                            </div>
+                            <h3 className={`font-black text-base sm:text-lg leading-snug ${isAllDone ? 'line-through text-slate-400' : 'text-slate-900'}`}>
+                              {group.name}
+                            </h3>
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            <span className="inline-block font-black text-xl sm:text-2xl px-2.5 py-1 rounded-xl bg-purple-100 text-purple-950">
+                              {group.totalQuantity} <span className="text-xs font-semibold">{group.unit}</span>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Progress Bar */}
+                        <div className="mt-2.5 mb-3">
+                          <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 mb-1">
+                            <span>Tiến độ pha:</span>
+                            <span className={isAllDone ? 'text-emerald-700 font-bold' : 'text-purple-700 font-bold'}>
+                              {group.completedQuantity}/{group.totalQuantity} ({percent}%)
+                            </span>
+                          </div>
+                          <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                            <div
+                              className={`h-full transition-all duration-300 ${isAllDone ? 'bg-emerald-500' : 'bg-purple-600'}`}
+                              style={{ width: `${percent}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Order breakdown list */}
+                        <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                          {group.orderBreakdowns.map((b) => (
+                            <div
+                              key={`${b.orderId}__${b.itemKey}`}
+                              onClick={() => toggleItemCompleted(b.orderId, b.itemKey)}
+                              className={`p-2 rounded-xl border text-xs flex items-center justify-between gap-2 cursor-pointer transition-colors select-none active:scale-[0.99] ${
+                                b.isCompleted
+                                  ? 'bg-emerald-50/80 border-emerald-200 text-slate-400 line-through'
+                                  : 'bg-slate-50 hover:bg-purple-50/60 border-slate-200 text-slate-800'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                <span className={b.isCompleted ? 'text-emerald-600 shrink-0' : 'text-slate-400 shrink-0'}>
+                                  {b.isCompleted ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                                </span>
+                                <div className="truncate">
+                                  <span className="font-bold text-slate-900">{b.tableName}</span>
+                                  {b.note && (
+                                    <span className="ml-1 text-[11px] text-amber-800 font-medium bg-amber-100 px-1.5 py-0.2 rounded">
+                                      {b.note}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <span className="font-black text-sm px-1.5 py-0.5 rounded bg-white border border-slate-200 shrink-0">
+                                x{b.quantity}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Footer Quick Action */}
+                      {!isAllDone && (
+                        <div className="mt-3 pt-2 border-t border-slate-100">
+                          <Button
+                            size="sm"
+                            onClick={() => markAllBatchItemDone(group.name, group.station)}
+                            className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs py-2 rounded-xl cursor-pointer"
+                          >
+                            <Check className="w-3.5 h-3.5 mr-1" />
+                            Xong tất cả ({group.totalQuantity} {group.unit})
+                          </Button>
+                        </div>
+                      )}
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : (
+          /* VIEW 2: ORDER CARDS VIEW (DEFAULT - 1-tap touch cards) */
+          <>
+            {filteredOrders.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-slate-200 p-8 sm:p-12 text-center max-w-md mx-auto my-6 shadow-xs">
+                <div className="w-14 h-14 rounded-2xl bg-orange-50 text-orange-500 flex items-center justify-center mx-auto mb-3">
+                  <ChefHat className="w-8 h-8" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-800">Hiện không có đơn nào</h3>
+                <p className="text-slate-500 text-xs sm:text-sm mt-1 leading-relaxed">
+                  Đơn từ quầy POS hoặc mã QR tại bàn sẽ tự động đồng bộ tức thì lên màn hình.
+                </p>
+                <div className="mt-5 flex flex-col sm:flex-row items-center justify-center gap-2">
+                  <Button
+                    onClick={handleGenerateSampleOrder}
+                    className="w-full sm:w-auto bg-orange-500 hover:bg-orange-600 text-white font-bold cursor-pointer"
+                  >
+                    <PlusCircle className="w-4 h-4 mr-1.5" />
+                    Tạo 1 đơn mẫu
+                  </Button>
+                  <Button
+                    onClick={handleResetDemoOrders}
+                    variant="outline"
+                    className="w-full sm:w-auto cursor-pointer"
+                  >
+                    Khôi phục 3 đơn mẫu
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+                {filteredOrders.map((order) => {
+                  const age = getOrderAge(order.orderTime);
+                  const priorityColor = getPriorityColor(order.priority, age, order.status);
+                  const completedCount = order.items.filter(
+                    (item, idx) => completedItemsMap[`${order.id}__${item.id}-${idx}`]
+                  ).length;
+                  const isAllItemsCompleted = completedCount === order.items.length && order.items.length > 0;
+
+                  return (
+                    <Card
+                      key={order.id}
+                      className={`p-3.5 sm:p-4 ${priorityColor} border-2 rounded-2xl transition-all flex flex-col justify-between`}
+                    >
+                      <div>
+                        {/* Order Header: Table Name, Urgent Alert, Status */}
+                        <div className="flex justify-between items-start gap-2 mb-2.5 pb-2.5 border-b border-slate-200/80">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <h3 className="font-black text-lg sm:text-xl text-slate-950 tracking-tight truncate">
+                                {order.tableName}
+                              </h3>
+                              {(order.priority === 'urgent' || age > 15) && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-black bg-red-600 text-white animate-pulse">
+                                  <AlertTriangle className="w-3 h-3" />
+                                  GẤP
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-1 text-[11px] text-slate-500 flex-wrap">
+                              <span className="font-mono font-semibold text-slate-700">#{order.id.slice(-6)}</span>
+                              <span>•</span>
+                              <Badge
+                                className={`text-[10px] px-1.5 py-0 ${
+                                  order.source === 'QR_TABLE'
+                                    ? 'bg-purple-100 text-purple-800 border-purple-200'
+                                    : 'bg-blue-100 text-blue-800 border-blue-200'
+                                }`}
+                              >
+                                {order.source === 'QR_TABLE' ? '📱 QR Bàn' : '🖥️ POS'}
+                              </Badge>
+                              <span>•</span>
+                              <span className={`font-semibold ${isAllItemsCompleted ? 'text-emerald-700' : 'text-slate-600'}`}>
+                                ({completedCount}/{order.items.length} xong)
                               </span>
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>
 
-                    {/* Order Notes */}
-                    {order.notes && (
-                      <div className="mb-4 p-2.5 bg-amber-50 border border-amber-200 rounded-xl">
-                        <div className="text-xs font-bold text-amber-900">📋 Ghi chú đơn hàng:</div>
-                        <div className="text-xs text-amber-800 mt-0.5 break-words leading-relaxed">{order.notes}</div>
+                          <div className="text-right shrink-0">
+                            <Badge className={`${getStatusColor(order.status)} mb-1 text-[10px] font-bold px-2 py-0.5`}>
+                              {getStatusText(order.status)}
+                            </Badge>
+                            <div
+                              className={`text-[11px] font-bold flex items-center justify-end gap-1 ${
+                                age > 15 ? 'text-red-600' : age > 10 ? 'text-amber-600' : 'text-slate-500'
+                              }`}
+                            >
+                              <Clock className="w-3 h-3" />
+                              {formatOrderAge(order.orderTime, age)}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Order Items with Large Touch-Friendly Row & 1-Tap Checkbox */}
+                        <div className="space-y-1.5 mb-3">
+                          {order.items.map((item, index) => {
+                            const itemKey = `${item.id}-${index}`;
+                            const isItemDone = !!completedItemsMap[`${order.id}__${itemKey}`];
+                            const itemStation = item.station || detectStation(item.name, item.category);
+
+                            return (
+                              <div
+                                key={itemKey}
+                                onClick={() => toggleItemCompleted(order.id, itemKey)}
+                                className={`flex justify-between items-center p-2.5 rounded-xl border cursor-pointer transition-all select-none active:scale-[0.99] min-h-[46px] ${
+                                  isItemDone
+                                    ? 'bg-emerald-50/70 border-emerald-300 opacity-70'
+                                    : 'bg-white border-slate-200 hover:border-orange-300 shadow-2xs'
+                                }`}
+                                title="Chạm để đánh dấu xong món"
+                              >
+                                <div className="flex items-center gap-2.5 flex-1 pr-2 min-w-0">
+                                  <button
+                                    type="button"
+                                    className="shrink-0 text-slate-400 hover:text-emerald-600"
+                                    aria-label="Đánh dấu hoàn thành món"
+                                  >
+                                    {isItemDone ? (
+                                      <CheckSquare className="w-5 h-5 text-emerald-600" />
+                                    ) : (
+                                      <Square className="w-5 h-5 text-slate-300" />
+                                    )}
+                                  </button>
+                                  <div className="flex-1 min-w-0">
+                                    <div
+                                      className={`font-bold text-sm sm:text-base leading-snug break-words ${
+                                        isItemDone ? 'line-through text-slate-400' : 'text-slate-900'
+                                      }`}
+                                    >
+                                      {item.name}
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                                      <span
+                                        className={`text-[9px] px-1 py-0.2 rounded font-bold ${
+                                          itemStation === 'kitchen'
+                                            ? 'bg-amber-100 text-amber-800'
+                                            : 'bg-sky-100 text-sky-800'
+                                        }`}
+                                      >
+                                        {itemStation === 'kitchen' ? '🍰 Bếp' : '🧋 Pha'}
+                                      </span>
+                                      {item.note && (
+                                        <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-950 font-bold text-[11px] px-1.5 py-0.2 rounded border border-amber-300">
+                                          <span>⚡</span> {item.note}
+                                        </span>
+                                      )}
+                                      {isItemDone && (
+                                        <span className="text-[10px] text-emerald-700 font-bold ml-1">
+                                          ✓ Xong
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="text-right shrink-0">
+                                  <span
+                                    className={`inline-block font-black text-base sm:text-lg px-2.5 py-0.5 rounded-lg ${
+                                      isItemDone
+                                        ? 'bg-emerald-100 text-emerald-800'
+                                        : 'bg-orange-100 text-orange-950'
+                                    }`}
+                                  >
+                                    x{item.quantity}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Order Notes */}
+                        {order.notes && (
+                          <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded-xl">
+                            <div className="text-[11px] font-bold text-amber-900 flex items-center gap-1">
+                              <span>📋 Ghi chú đơn:</span>
+                            </div>
+                            <div className="text-xs text-amber-800 mt-0.5 break-words leading-relaxed">
+                              {order.notes}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
 
-                  {/* Action Buttons */}
-                  <div className="pt-2 border-t border-slate-200/80 space-y-2">
-                    {order.status === 'pending' && (
-                      <Button
-                        onClick={() => updateOrderStatus(order.id, 'preparing')}
-                        className="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2.5"
-                      >
-                        <Flame className="w-4 h-4 mr-1.5" />
-                        Bắt đầu pha chế / làm món
-                      </Button>
-                    )}
+                      {/* Prominent One-Tap Action Button */}
+                      <div className="pt-2 border-t border-slate-200/80 space-y-1.5">
+                        {order.status === 'pending' && (
+                          <Button
+                            onClick={() => updateOrderStatus(order.id, 'preparing')}
+                            className="w-full bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white font-bold text-sm py-2.5 rounded-xl shadow-xs cursor-pointer"
+                          >
+                            <Flame className="w-4 h-4 mr-1.5" />
+                            ▶ Bắt đầu pha chế
+                          </Button>
+                        )}
 
-                    {order.status === 'preparing' && (
-                      <Button
-                        onClick={() => updateOrderStatus(order.id, 'ready')}
-                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5"
-                      >
-                        <CheckCircle2 className="w-4 h-4 mr-1.5" />
-                        Hoàn thành • Báo phục vụ
-                      </Button>
-                    )}
+                        {order.status === 'preparing' && (
+                          <Button
+                            onClick={() => updateOrderStatus(order.id, 'ready')}
+                            className="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-sm py-2.5 rounded-xl shadow-xs cursor-pointer"
+                          >
+                            <CheckCircle2 className="w-4 h-4 mr-1.5" />
+                            ✓ Hoàn thành (Báo phục vụ)
+                          </Button>
+                        )}
 
-                    {order.status === 'ready' && (
-                      <Button
-                        onClick={() => updateOrderStatus(order.id, 'served')}
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5"
-                      >
-                        🚀 Xác nhận Đã giao khách
-                      </Button>
-                    )}
+                        {order.status === 'ready' && (
+                          <Button
+                            onClick={() => updateOrderStatus(order.id, 'served')}
+                            className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-sm py-2.5 rounded-xl shadow-xs cursor-pointer"
+                          >
+                            🚀 Đã phục vụ khách (Xong)
+                          </Button>
+                        )}
 
-                    <div className="flex items-center justify-between pt-1">
-                      <span className="text-[11px] text-slate-400">
-                        Đặt lúc: {new Date(order.orderTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => updateOrderStatus(order.id, 'served')}
-                        className="text-xs text-slate-400 hover:text-red-600 inline-flex items-center gap-1 transition-colors"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Ẩn / Hoàn tất đơn
-                      </button>
-                    </div>
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
+                        <div className="flex items-center justify-between pt-0.5 px-0.5 text-[11px] text-slate-400">
+                          <span>
+                            Lúc: {new Date(order.orderTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => updateOrderStatus(order.id, 'served')}
+                            className="hover:text-red-600 inline-flex items-center gap-1 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            Ẩn đơn
+                          </button>
+                        </div>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

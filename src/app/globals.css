@@ -770,3 +770,13 @@ html.dark [class*="bg-white"]:not([class*="dark:bg-"]) {
 .h2-chatbot-input {
   font-size: var(--h2-chatbot-font-size, 14px) !important;
 }
+
+/* Mobile Safe Area & Bottom Sheet Enhancements */
+.pb-safe {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+}
+
+.bottom-sheet-shadow {
+  box-shadow: 0 -10px 25px -5px rgba(0, 0, 0, 0.1), 0 -8px 10px -6px rgba(0, 0, 0, 0.1);
+}
+

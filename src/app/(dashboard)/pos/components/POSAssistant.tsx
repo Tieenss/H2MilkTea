@@ -350,7 +350,7 @@ export function POSAssistant({
   return (
     <>
       {open && (
-        <div className="h2-chatbot-scope fixed bottom-24 right-4 z-50 flex w-[calc(100vw-2rem)] max-w-[430px] flex-col gap-3 rounded-xl border border-indigo-200 bg-white p-4 shadow-2xl">
+        <div className="h2-chatbot-scope fixed bottom-20 sm:bottom-24 right-2 sm:right-4 left-2 sm:left-auto z-50 flex w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] sm:max-w-[430px] sm:w-[430px] max-h-[calc(100dvh-6rem)] sm:max-h-[85vh] flex-col gap-3 rounded-xl border border-indigo-200 bg-white p-3 sm:p-4 shadow-2xl overflow-y-auto">
           <div className="flex items-center justify-between text-sm font-semibold text-indigo-700">
             <span className="flex items-center gap-2">
               <Bot className="h-4 w-4" /> Trợ lý POS H2 MilkTea
@@ -583,10 +583,10 @@ export function POSAssistant({
       {/* Nút FAB mở popup */}
       <Button
         onClick={() => setOpen((current) => !current)}
-        className="fixed bottom-4 right-4 z-50 h-14 w-14 rounded-full bg-indigo-600 p-0 text-white shadow-xl hover:bg-indigo-700 hover:scale-105 transition-transform"
+        className="fixed bottom-4 right-4 z-50 h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-indigo-600 p-0 text-white shadow-xl hover:bg-indigo-700 hover:scale-105 transition-transform"
         aria-label={open ? 'Đóng trợ lý POS' : 'Mở trợ lý POS'}
       >
-        {open ? <X className="h-6 w-6" /> : <Bot className="h-7 w-7" />}
+        {open ? <X className="h-6 w-6" /> : <Bot className="h-6 w-6 sm:h-7 sm:w-7" />}
       </Button>
     </>
   );
