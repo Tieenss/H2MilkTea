@@ -45,6 +45,11 @@ export function resolveTableFromMessage(
 
   const normalized = normalizeSearchText(message);
 
+  // Bỏ qua nếu là câu lệnh tạo / thêm / quản lý bàn nhanh
+  if (/(?:tao|them|quan ly|danh sach|kiem tra|tinh trang)\s*(?:nhanh\s*)?(?:ban|khu|phong)/i.test(normalized)) {
+    return null;
+  }
+
   // 1. Kiểm tra trường hợp "Khách mua về" / "mang về" / "take away"
   const takeawayKeywords = ['mang ve', 'mua ve', 'khach mua ve', 'mang di', 'take away', 'takeaway'];
   for (const kw of takeawayKeywords) {

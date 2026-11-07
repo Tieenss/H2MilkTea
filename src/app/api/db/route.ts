@@ -67,7 +67,7 @@ const SCHEMAS: Record<string, TableSchema> = {
   DSBAN: {
     pk: 'IDBAN',
     columns: [
-      '_RowNumber', 'IDBAN', 'Tên bàn', 'Sức chứa tối đa', 'Trạng thái', 'Lịch sử  bàn'
+      '_RowNumber', 'IDBAN', 'Tên bàn', 'Sức chứa tối đa', 'Trạng thái', 'Lịch sử  bàn', 'Khu vực'
     ],
     numericCols: ['Sức chứa tối đa']
   },
@@ -219,7 +219,14 @@ export async function POST(request: NextRequest) {
 
     if (['create', 'add', 'insert'].includes(act)) {
       const cleanData = sanitizePayload(table, data);
-      const { data: resData, error } = await supabase.from(table).insert([cleanData]).select();
+      let { data: resData, error } = await supabase.from(table).insert([cleanData]).select();
+      if (error && (error.message?.includes('Khu vực') || error.code === 'PGRST204')) {
+        const fallbackData = { ...cleanData };
+        delete fallbackData['Khu vực'];
+        const retry = await supabase.from(table).insert([fallbackData]).select();
+        resData = retry.data;
+        error = retry.error;
+      }
       if (error) {
         console.warn(`Supabase ${table} insert warning:`, error.message);
         return NextResponse.json({ success: false, error: error.message }, { status: 400 });
@@ -235,7 +242,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: false, error: 'Thiếu ID để cập nhật' }, { status: 400 });
       }
 
-      const { data: resData, error } = await supabase.from(table).update(cleanData).eq(pk, targetId).select();
+      let { data: resData, error } = await supabase.from(table).update(cleanData).eq(pk, targetId).select();
+      if (error && (error.message?.includes('Khu vực') || error.code === 'PGRST204')) {
+        const fallbackData = { ...cleanData };
+        delete fallbackData['Khu vực'];
+        const retry = await supabase.from(table).update(fallbackData).eq(pk, targetId).select();
+        resData = retry.data;
+        error = retry.error;
+      }
       if (error) {
         console.warn(`Supabase ${table} update warning:`, error.message);
         return NextResponse.json({ success: false, error: error.message }, { status: 400 });

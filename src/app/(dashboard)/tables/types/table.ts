@@ -3,6 +3,7 @@ export interface Table {
   'Tên bàn': string;
   'Sức chứa tối đa': number;
   'Trạng thái': string;
+  'Khu vực'?: string;
   [key: string]: any;
 }
 
@@ -11,4 +12,5 @@ export interface TableFormData {
   'Tên bàn': string;
   'Sức chứa tối đa': number;
   'Trạng thái': string;
+  'Khu vực'?: string;
 }

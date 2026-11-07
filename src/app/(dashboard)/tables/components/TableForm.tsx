@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { Save, Loader2, X, MapPin, Users, Hash } from 'lucide-react';
+import { Save, Loader2, X, MapPin, Users, Hash, Compass } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import type { Table, TableFormData } from '../types/table';
-import { TABLE_STATUS } from '../utils/constants';
+import { TABLE_STATUS, TABLE_AREA_OPTIONS, detectTableArea } from '../utils/constants';
 import toast from 'react-hot-toast';
 
 interface TableFormProps {
@@ -34,13 +34,23 @@ export const TableForm: React.FC<TableFormProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditMode = Boolean(table);
 
-  // Auto-generate table ID for new tables
+  // Auto-generate table ID and ensure area for tables
   useEffect(() => {
     if (!isEditMode && !formData.IDBAN) {
       const newId = generateTableId();
-      updateFormData('IDBAN', newId);
+      onFormDataChange({
+        ...formData,
+        IDBAN: newId,
+        'Khu vực': formData['Khu vực'] || 'Quầy'
+      });
+    } else if (isEditMode && table && !formData['Khu vực']) {
+      const detectedArea = table['Khu vực'] || detectTableArea(table['Tên bàn']) || 'Quầy';
+      onFormDataChange({
+        ...formData,
+        'Khu vực': detectedArea
+      });
     }
-  }, [isEditMode, formData.IDBAN, generateTableId]);
+  }, [isEditMode, formData, table, generateTableId, onFormDataChange]);
 
   const updateFormData = useCallback((field: keyof TableFormData, value: string | number) => {
     onFormDataChange({ ...formData, [field]: value });
@@ -51,6 +61,7 @@ export const TableForm: React.FC<TableFormProps> = ({
 
     if (!table.IDBAN?.trim()) errors.push('Mã bàn không được để trống');
     if (!table['Tên bàn']?.trim()) errors.push('Tên bàn không được để trống');
+    if (!table['Khu vực']?.trim()) errors.push('Khu vực không được để trống');
     if (table['Sức chứa tối đa'] < 1) errors.push('Sức chứa phải lớn hơn 0');
     if (table['Sức chứa tối đa'] > 50) errors.push('Sức chứa không được quá 50 người');
 
@@ -58,33 +69,33 @@ export const TableForm: React.FC<TableFormProps> = ({
   }, []);
 
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  if (isSubmitting || (!isAdmin && !isManager)) {
-    if (!isAdmin && !isManager) {
-      toast.error('Bạn không có quyền thực hiện chức năng này!');
-    }
-    return;
-  }
-
-  try {
-    setIsSubmitting(true);
-
-    const errors = validateTable(formData);
-    if (errors.length > 0) {
-      toast.error(errors.join('\n'));
+    if (isSubmitting || (!isAdmin && !isManager)) {
+      if (!isAdmin && !isManager) {
+        toast.error('Bạn không có quyền thực hiện chức năng này!');
+      }
       return;
     }
 
-    // Chỉ gọi onSubmit, không cần xử lý thêm
-    onSubmit(formData);
-  } catch (error) {
-    console.error('Error in form submission:', error);
-    toast.error('Có lỗi xảy ra khi xử lý form');
-  } finally {
-    setIsSubmitting(false);
-  }
-}, [isSubmitting, isAdmin, isManager, formData, validateTable, onSubmit]);
+    try {
+      setIsSubmitting(true);
+
+      const errors = validateTable(formData);
+      if (errors.length > 0) {
+        toast.error(errors.join('\n'));
+        return;
+      }
+
+      onSubmit(formData);
+    } catch (error) {
+      console.error('Error in form submission:', error);
+      toast.error('Có lỗi xảy ra khi xử lý form');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [isSubmitting, isAdmin, isManager, formData, validateTable, onSubmit]);
+
   return (
     <div className="flex flex-col h-full max-h-screen">
       <div className="flex-1 overflow-y-auto">
@@ -127,10 +138,55 @@ export const TableForm: React.FC<TableFormProps> = ({
                       className="pl-10 h-10"
                       value={formData['Tên bàn'] || ''}
                       onChange={(e) => updateFormData('Tên bàn', e.target.value)}
-                      placeholder="Nhập tên bàn"
+                      placeholder="Nhập tên bàn (ví dụ: Bàn 01, VIP 01...)"
                       required
                     />
                   </div>
+                </div>
+
+                {/* Khu vực (Area) Selection */}
+                <div className="space-y-2">
+                  <Label htmlFor="tableArea" className="text-sm font-medium text-gray-700">
+                    Khu vực <span className="text-red-500">*</span>
+                  </Label>
+                  <div className="relative">
+                    <Compass className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      id="tableArea"
+                      className="pl-10 h-10"
+                      value={formData['Khu vực'] || ''}
+                      onChange={(e) => updateFormData('Khu vực', e.target.value)}
+                      placeholder="Chọn hoặc nhập tên khu vực..."
+                      required
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {TABLE_AREA_OPTIONS.map((areaName) => {
+                      const isSelected = formData['Khu vực'] === areaName;
+                      return (
+                        <button
+                          key={areaName}
+                          type="button"
+                          onClick={() => updateFormData('Khu vực', areaName)}
+                          className={cn(
+                            "text-xs px-2.5 py-1 rounded-md border font-medium transition-colors cursor-pointer flex items-center gap-1",
+                            isSelected
+                              ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                              : "bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100"
+                          )}
+                        >
+                          {areaName === 'Phòng hát' && '🎤'}
+                          {areaName === 'Quầy' && '☕'}
+                          {areaName === 'Vườn' && '🌿'}
+                          {areaName === 'Mang về' && '🛍️'}
+                          <span>{areaName}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Bấm chọn nhanh khu vực ở trên hoặc nhập tên khu vực mong muốn.
+                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -159,7 +215,7 @@ export const TableForm: React.FC<TableFormProps> = ({
 
               {/* Right Column */}
               <div className="space-y-6">
-                 <div className="space-y-3">
+                <div className="space-y-3">
                   <Label className="text-sm font-medium text-gray-700">
                     Trạng thái <span className="text-red-500">*</span>
                   </Label>
@@ -189,6 +245,7 @@ export const TableForm: React.FC<TableFormProps> = ({
                             <div className="text-xs text-gray-500 mt-1">
                               {status.value === 'Đang hoạt động' && 'Bàn sẵn sàng phục vụ khách hàng'}
                               {status.value === 'Bảo trì' && 'Bàn đang được bảo trì hoặc sửa chữa'}
+                              {status.value === 'Trống' && 'Bàn đang trống sẵn sàng đón khách'}
                             </div>
                           </div>
                         </div>
@@ -196,6 +253,7 @@ export const TableForm: React.FC<TableFormProps> = ({
                     ))}
                   </div>
                 </div>
+
                 {/* Capacity suggestions */}
                 <div className="p-4 bg-gray-50 rounded-lg">
                   <div className="text-sm font-medium text-gray-700 mb-2">

@@ -33,6 +33,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import toast from 'react-hot-toast';
 import { getAppearanceSettings, applyAppearanceSettings } from '@/utils/appearanceSettings';
+import defaultTables from '@/data/DSBAN.json';
+import authUtils from '@/utils/authUtils';
+import { detectTableArea, DEFAULT_AREAS } from '@/app/(dashboard)/tables/utils/constants';
 
 export interface AssistantOrderItem {
   productId: string;
@@ -856,6 +859,175 @@ export function GlobalAssistant() {
       return true;
     }
 
+    // Lệnh 6.5: Quản lý bàn & Tạo bàn nhanh hàng loạt (Hỗ trợ phân quyền chặt chẽ Admin/Quản lý)
+    const isBulkTableCommand = /(tạo|thêm)\s*(nhanh\s*)?(bàn|phòng)/i.test(text) &&
+      (text.includes('nhanh') || text.includes('hàng loạt') || text.includes('đến') || text.includes('tới') || /\d+/.test(text));
+
+    if (isBulkTableCommand || text === 'tạo bàn nhanh' || text === 'thêm bàn nhanh') {
+      const userData = authUtils.getUserData();
+      const isAdmin = userData?.['Phân quyền'] === 'Admin';
+      const isManager = userData?.['Phân quyền'] === 'Quản lý' || userData?.['Chức vụ']?.toLowerCase().includes('quản lý');
+
+      if (!isAdmin && !isManager) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: `⛔ **YÊU CẦU QUYỀN QUẢN LÝ HOẶC QUẢN TRỊ VIÊN!**\n\n` +
+              `• Bạn đang đăng nhập: **${userData?.['Họ và Tên'] || 'Nhân viên'}**\n` +
+              `• Vai trò hiện tại: *${userData?.['Phân quyền'] || 'Thu ngân'}*\n\n` +
+              `Chức năng tạo mới bàn và phân chia khu vực ảnh hưởng đến toàn bộ sơ đồ phục vụ của nhà hàng nên chỉ dành cho **Quản lý** hoặc **Admin**. Vui lòng liên hệ cấp quản lý để được hỗ trợ.`,
+            source: 'rule',
+          },
+        ]);
+        return true;
+      }
+
+      // Nhận diện khu vực
+      let detectedArea = 'Phòng hát';
+      let prefix = 'PH';
+      if (/vườn|ngoài\s*trời|garden/i.test(text)) {
+        detectedArea = 'Vườn';
+        prefix = 'V';
+      } else if (/quầy|bar/i.test(text)) {
+        detectedArea = 'Quầy';
+        prefix = 'Q';
+      } else if (/mang\s*về|takeaway/i.test(text)) {
+        detectedArea = 'Mang về';
+        prefix = 'MV';
+      } else if (/phòng\s*hát|karaoke|vip/i.test(text)) {
+        detectedArea = 'Phòng hát';
+        prefix = 'PH';
+      } else {
+        const customPrefixMatch = text.match(/\b([A-Z]{1,4})\s*0*1/i);
+        if (customPrefixMatch) {
+          prefix = customPrefixMatch[1].toUpperCase();
+        } else {
+          prefix = 'BAN';
+        }
+      }
+
+      // Nhận diện dải số: vd BAN01 đến BAN15, hoặc tạo 10 bàn
+      let fromNum = 1;
+      let toNum = 10;
+
+      const rangeMatch = text.match(/(?:từ\s*)?([a-zA-Z]*)\s*0*(\d+)\s*(?:đến|tới|-)\s*([a-zA-Z]*)\s*0*(\d+)/i);
+      if (rangeMatch) {
+        fromNum = parseInt(rangeMatch[2], 10) || 1;
+        toNum = parseInt(rangeMatch[4], 10) || 15;
+        if (rangeMatch[1] && !/từ/i.test(rangeMatch[1])) {
+          prefix = rangeMatch[1].toUpperCase();
+        }
+      } else {
+        const countMatch = text.match(/(?:tạo|thêm)\s*(\d+)\s*bàn/i);
+        if (countMatch) {
+          fromNum = 1;
+          toNum = parseInt(countMatch[1], 10) || 10;
+        }
+      }
+
+      // Nhận diện sức chứa
+      let capacity = 4;
+      const capMatch = text.match(/(\d+)\s*(?:người|khách|chỗ)/i);
+      if (capMatch) {
+        capacity = parseInt(capMatch[1], 10) || 4;
+      }
+
+      const bulkConfig = {
+        prefix,
+        from: fromNum,
+        to: toNum,
+        area: detectedArea,
+        capacity,
+      };
+
+      if (pathname === '/tables') {
+        window.dispatchEvent(new CustomEvent('h2_open_bulk_add_tables', { detail: bulkConfig }));
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: `⚡ **Đã mở hộp thoại Tạo bàn nhanh trên màn hình!**\n` +
+              `• **Khu vực:** ${detectedArea}\n` +
+              `• **Dải mã dự kiến:** \`${prefix}${fromNum < 10 ? '0' + fromNum : fromNum}\` → \`${prefix}${toNum < 10 ? '0' + toNum : toNum}\` (${toNum - fromNum + 1} bàn)\n` +
+              `• **Sức chứa:** ${capacity} người/bàn\n\n` +
+              `Bạn có thể kiểm tra danh sách xem trước trực quan và bấm nút **"Tạo ngay"** để hoàn tất.`,
+            source: 'rule',
+          },
+        ]);
+      } else {
+        try {
+          localStorage.setItem('h2_pending_bulk_add_tables', JSON.stringify(bulkConfig));
+        } catch {}
+        router.push('/tables');
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: `⚡ **Đang chuyển tới màn hình Quản lý bàn để tạo nhanh ${toNum - fromNum + 1} bàn khu vực "${detectedArea}"!**\n` +
+              `• **Dải mã dự kiến:** \`${prefix}${fromNum < 10 ? '0' + fromNum : fromNum}\` → \`${prefix}${toNum < 10 ? '0' + toNum : toNum}\`\n` +
+              `• **Sức chứa:** ${capacity} người/bàn\n\n` +
+              `Hệ thống sẽ tự động mở sẵn hộp thoại cấu hình cho bạn kiểm tra.`,
+            source: 'rule',
+          },
+        ]);
+      }
+      return true;
+    }
+
+    // Lệnh 6.6: Tra cứu trạng thái bàn theo khu vực
+    if (/(danh\s*sách\s*bàn|bàn\s*khu|bàn\s*trống|tình\s*trạng\s*bàn)/i.test(text)) {
+      let allTables: any[] = [];
+      try {
+        const localDataStr = typeof window !== 'undefined' ? localStorage.getItem('demoData') : null;
+        if (localDataStr) {
+          const parsed = JSON.parse(localDataStr);
+          if (Array.isArray(parsed?.DSBAN)) allTables = parsed.DSBAN;
+        }
+      } catch {}
+
+      if (allTables.length === 0) {
+        allTables = defaultTables as any[];
+      }
+
+      const areaStats: Record<string, { total: number; active: number; empty: number }> = {
+        'Phòng hát': { total: 0, active: 0, empty: 0 },
+        'Quầy': { total: 0, active: 0, empty: 0 },
+        'Vườn': { total: 0, active: 0, empty: 0 },
+        'Mang về': { total: 0, active: 0, empty: 0 },
+      };
+
+      allTables.forEach((t) => {
+        const a = detectTableArea(t['Tên bàn'], t['Khu vực']);
+        if (!areaStats[a]) {
+          areaStats[a] = { total: 0, active: 0, empty: 0 };
+        }
+        areaStats[a].total++;
+        if (t['Trạng thái'] === 'Đang hoạt động' || t['Trạng thái'] === 'Trống') {
+          areaStats[a].empty++;
+        } else {
+          areaStats[a].active++;
+        }
+      });
+
+      const summaryLines = Object.entries(areaStats).map(([areaName, stat]) => {
+        const icon = areaName === 'Phòng hát' ? '🎤' : areaName === 'Vườn' ? '🌿' : areaName === 'Quầy' ? '☕' : '🛍️';
+        return `• **${icon} ${areaName}:** ${stat.total} bàn (${stat.empty} bàn sẵn sàng, ${stat.active} bàn đang phục vụ/bảo trì)`;
+      }).join('\n');
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: `📊 **TÌNH TRẠNG CÁC KHU VỰC BÀN HIỆN TẠI:**\n\n` +
+            summaryLines +
+            `\n\n💡 **Gợi ý:** Bạn có thể ra lệnh *"tạo bàn nhanh khu phòng hát"* hoặc *"mở bàn 01"* để thao tác ngay!`,
+          source: 'rule',
+        },
+      ]);
+      return true;
+    }
+
     // Lệnh 7: Điều hướng siêu tốc sang các màn hình chức năng khác
     const navPatterns: Array<{ regex: RegExp; route: string; name: string }> = [
       { regex: /(mở|vào|đến|chuyển\s*sang|đi\s*tới)?\s*(máy\s*)?(bán\s*hàng|pos)/i, route: '/pos', name: 'Máy Bán Hàng POS' },
@@ -866,6 +1038,7 @@ export function GlobalAssistant() {
       { regex: /(mở|vào|đến|chuyển\s*sang|đi\s*tới)?\s*(cài\s*đặt|cấu\s*hình\s*mẫu\s*in|mẫu\s*in|vat|ngân\s*hàng)/i, route: '/receipt-settings', name: 'Cài Đặt Mẫu In & Ngân Hàng' },
       { regex: /(mở|vào|đến|chuyển\s*sang|đi\s*tới)?\s*(thực\s*đơn|danh\s*sách\s*món|menu|sản\s*phẩm)/i, route: '/menu/products', name: 'Danh Mục Thực Đơn' },
       { regex: /(mở|vào|đến|chuyển\s*sang|đi\s*tới)?\s*(khách\s*hàng|hội\s*viên|crm)/i, route: '/khachhang', name: 'Khách Hàng & Hội Viên' },
+      { regex: /(mở|vào|đến|chuyển\s*sang|đi\s*tới)?\s*(quản\s*lý\s*)?(bàn|sơ\s*đồ\s*bàn|khu\s*vực\s*bàn|phòng\s*bàn)/i, route: '/tables', name: 'Quản Lý Sơ Đồ Bàn' },
     ];
 
     for (const item of navPatterns) {

@@ -17,6 +17,13 @@ export const DEFAULT_AREAS = [
   'Mang về'
 ];
 
+export const TABLE_AREA_OPTIONS = [
+  'Phòng hát',
+  'Quầy',
+  'Vườn',
+  'Mang về'
+];
+
 /**
  * Nhận diện Khu vực của Bàn (Hybrid Area Detection):
  * Tự động phân loại chính xác vào 4 khu vực của quán: Phòng hát, Quầy, Vườn, Mang về
@@ -48,5 +55,6 @@ export const INITIAL_TABLE_FORM_DATA: TableFormData = {
   IDBAN: '',
   'Tên bàn': '',
   'Sức chứa tối đa': 4,
-  'Trạng thái': 'Đang hoạt động'
+  'Trạng thái': 'Đang hoạt động',
+  'Khu vực': 'Quầy'
 };
