@@ -176,7 +176,44 @@ export const POS_KNOWLEDGE_BASE: KnowledgeTopic[] = [
       'Khách ăn kiêng / giảm cân (Low-calorie): Gợi ý Nước ép trái cây (90-135 kcal) hoặc Trà đào cam sả (120-160 kcal) với mức đường 0% - 30%.',
     ],
   },
+  {
+    id: 'bulk-tables-and-areas',
+    title: 'Tạo bàn nhanh hàng loạt (Bulk Add) và Phân chia Khu vực bàn',
+    sectionId: 'pos',
+    sectionTitle: 'Quản lý bàn & Khu vực',
+    keywords: ['tạo bàn nhanh', 'thêm bàn hàng loạt', 'khu vực bàn', 'phòng hát', 'vườn', 'quầy', 'ban01', 'ban15', 'in qr hàng loạt'],
+    summary: 'Tạo nhanh hàng loạt bàn theo dải số (ví dụ BAN01 đến BAN15) và gán vào 4 khu vực chuẩn (Phòng hát, Quầy, Vườn, Mang về):',
+    steps: [
+      'Bước 1: Vào trang Quản lý bàn (/tables) hoặc nhắn Trợ lý AI: "tạo bàn BAN01 đến BAN15 ở phòng hát".',
+      'Bước 2: Bấm nút "⚡ Tạo bàn nhanh" trên thanh công cụ.',
+      'Bước 3: Chọn khu vực (Phòng hát, Quầy, Vườn, Mang về), nhập tiền tố mã bàn, dải số từ 1 đến 15 và sức chứa.',
+      'Bước 4: Xem trước danh sách bàn sẽ tạo (hệ thống tự báo đỏ nếu trùng mã) rồi bấm "Tạo ngay".',
+    ],
+  },
+  {
+    id: 'kitchen-kds-mobile',
+    title: 'Màn hình Bếp KDS Mobile, Gom nhóm món Batch Prep & Bật/Tắt tính năng Bếp',
+    sectionId: 'settings',
+    sectionTitle: 'Màn hình Bếp KDS',
+    keywords: ['màn hình bếp', 'kds', 'gom nhóm món', 'batch prep', 'ẩn màn hình bếp', 'tắt gửi bếp', 'pha chế'],
+    summary: 'Sử dụng màn hình Bếp KDS (/kitchen) trên điện thoại nhỏ của Barista và bật/tắt tính năng gửi bếp:',
+    steps: [
+      'Trên màn hình Bếp (/kitchen): Chạm trực tiếp vào từng món trong đơn để gạch ngang đánh dấu đã pha chế xong.',
+      'Chế độ Gom món (Batch Prep): Bấm nút "📦 Gom món" trên thanh lọc KDS để gộp tổng số ly giống nhau từ tất cả các đơn đang chờ.',
+      'Bật/Tắt tính năng Bếp: Vào Cài đặt tính năng (/settings/features) ➔ Bật/tắt công tắc "Gửi bếp & In tem nhãn pha chế". Khi tắt, màn hình Bếp sẽ tự động ẩn và vô hiệu hóa.',
+    ],
+  },
 ];
+
+function stripVietnameseAccents(str: string): string {
+  return (str || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/đ/g, 'd')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 export function formatCitation(sectionTitle: string, sectionId: string): string {
   return `[Nguồn: Hướng dẫn sử dụng > ${sectionTitle}](/user-guide#${sectionId})`;
@@ -345,6 +382,7 @@ export function getRecipeKnowledgePrompt(customRecipes?: StoreRecipeNote[] | nul
  */
 export function findRelevantFAQ(query: string, faqs?: StoreFAQItem[] | null): StoreFAQItem | null {
   const normalized = query.toLowerCase();
+  const normNoAccent = stripVietnameseAccents(query);
   const list = Array.isArray(faqs) && faqs.length > 0 ? faqs : (defaultStoreFaqs as StoreFAQItem[]);
   let bestItem: StoreFAQItem | null = null;
   let maxMatched = 0;
@@ -352,9 +390,14 @@ export function findRelevantFAQ(query: string, faqs?: StoreFAQItem[] | null): St
   for (const item of list) {
     if (item.isActive === false) continue;
     let score = 0;
-    if (normalized.includes(item.question.toLowerCase())) score += 3;
+    if (normalized.includes(item.question.toLowerCase()) || normNoAccent.includes(stripVietnameseAccents(item.question))) {
+      score += 3;
+    }
     for (const kw of item.keywords || []) {
-      if (kw && normalized.includes(kw.toLowerCase())) score += 1;
+      if (!kw) continue;
+      if (normalized.includes(kw.toLowerCase()) || normNoAccent.includes(stripVietnameseAccents(kw))) {
+        score += 1;
+      }
     }
     if (score > maxMatched) {
       maxMatched = score;
@@ -382,15 +425,20 @@ export function getStoreFAQPrompt(faqs?: StoreFAQItem[] | null): string {
 }
 
 /**
- * Tìm kiếm thông tin hướng dẫn liên quan nhất dựa trên câu hỏi
+ * Tìm kiếm thông tin hướng dẫn liên quan nhất dựa trên câu hỏi (Hỗ trợ cả có dấu & không dấu)
  */
 export function findRelevantKnowledge(query: string): KnowledgeTopic | null {
   const normalized = query.toLowerCase();
+  const normNoAccent = stripVietnameseAccents(query);
   let bestTopic: KnowledgeTopic | null = null;
   let maxMatched = 0;
 
   for (const topic of POS_KNOWLEDGE_BASE) {
-    const matched = topic.keywords.filter((kw) => normalized.includes(kw.toLowerCase())).length;
+    const matched = topic.keywords.filter((kw) => {
+      const kwLower = kw.toLowerCase();
+      const kwNoAccent = stripVietnameseAccents(kw);
+      return normalized.includes(kwLower) || (kwNoAccent.length >= 3 && normNoAccent.includes(kwNoAccent));
+    }).length;
     if (matched > maxMatched) {
       maxMatched = matched;
       bestTopic = topic;

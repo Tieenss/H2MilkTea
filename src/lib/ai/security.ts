@@ -76,9 +76,17 @@ export function checkSecurityGuardrails(
     }
   }
 
-  // 4. Phân quyền vai trò: Nhân viên không được xem báo cáo tài chính qua chatbot
-  if (userRole && userRole !== 'Quản trị viên' && userRole !== 'Admin') {
-    if (/(báo cáo doanh thu|lợi nhuận|doanh số|quản trị hệ thống|phân quyền nhân viên)/i.test(trimmed)) {
+  // 4. Phân quyền vai trò: Nhân viên thu ngân/pha chế không được xem báo cáo tài chính qua chatbot (Admin & Quản lý được phép)
+  const normalizedRole = (userRole || '').trim().toLowerCase();
+  const isPrivilegedRole =
+    normalizedRole === 'quản trị viên' ||
+    normalizedRole === 'admin' ||
+    normalizedRole === 'quản lý' ||
+    normalizedRole === 'quan ly' ||
+    normalizedRole === 'manager';
+
+  if (userRole && !isPrivilegedRole) {
+    if (/(báo cáo doanh thu|tổng doanh thu|doanh thu hôm nay|doanh thu tháng|lợi nhuận|doanh số|quản trị hệ thống|phân quyền nhân viên)/i.test(trimmed)) {
       return {
         violated: true,
         type: 'unauthorized',

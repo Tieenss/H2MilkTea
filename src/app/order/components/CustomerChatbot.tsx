@@ -15,10 +15,12 @@ import {
   Check,
   SlidersHorizontal,
   Trash2,
+  BellRing,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import toast from 'react-hot-toast';
 import { getAppearanceSettings, applyAppearanceSettings } from '@/utils/appearanceSettings';
+import { buildMergedToppingNote } from '@/lib/ai/customerDrinkParser';
 import type { Product } from '../types/customer-order';
 import { useCart } from '../context/CartContext';
 
@@ -29,7 +31,7 @@ export interface SuggestedProduct {
   image?: string;
   category?: string;
   quantity?: number;
-  size?: 'M' | 'L';
+  size?: 'S' | 'M' | 'L';
   sugar?: string;
   ice?: string;
   toppings?: string[];
@@ -47,7 +49,9 @@ export interface DisambiguationOption {
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
-  intent?: 'ORDER_ADD' | 'RECOMMENDATION' | 'FAQ_GENERAL' | 'GENERAL';
+  intent?: 'ORDER_ADD' | 'RECOMMENDATION' | 'FAQ_GENERAL' | 'GENERAL' | 'SERVICE_CALL';
+  serviceCallReason?: string;
+  serviceCallSent?: boolean;
   suggestedProducts?: SuggestedProduct[];
   disambiguation?: DisambiguationOption[];
 }
@@ -62,6 +66,7 @@ export interface CustomerChatbotProps {
 const CHAT_TTL_MS = 24 * 60 * 60 * 1000; // 24 giờ
 const SUGAR_LEVELS = ['100% đường', '70% đường', '50% đường', '0% đường'];
 const ICE_LEVELS = ['100% đá', '50% đá', '0% đá'];
+const QUICK_TOPPING_OPTIONS = ['Trân châu đen', 'Kem cheese', 'Thạch củ năng'];
 
 export function CustomerChatbot({
   onSelectProduct,
@@ -74,6 +79,7 @@ export function CustomerChatbot({
   const [isOpen, setIsOpen] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [sendingServiceIdx, setSendingServiceIdx] = useState<number | null>(null);
 
   const storageKeyV2 = `h2_customer_chat_v2_${tableId || 'default'}`;
   const legacySessionKey = `h2_customer_chat_${tableId || 'default'}`;
@@ -278,7 +284,7 @@ export function CustomerChatbot({
     toast.success('Đã xóa lịch sử trò chuyện!');
   };
 
-  // Cập nhật tùy chỉnh nhanh (Size / Đường / Đá / Số lượng) ngay trên thẻ món đề xuất
+  // Cập nhật tùy chỉnh nhanh (Size / Đường / Đá / Topping / Số lượng) ngay trên thẻ món đề xuất
   const handleUpdateSuggestedProduct = (
     msgIndex: number,
     prodId: string,
@@ -295,6 +301,52 @@ export function CustomerChatbot({
         };
       })
     );
+  };
+
+  const handleToggleSuggestedTopping = (msgIndex: number, prod: SuggestedProduct, toppingName: string) => {
+    const currentToppings = Array.isArray(prod.toppings) ? prod.toppings : [];
+    const exists = currentToppings.includes(toppingName);
+    const nextToppings = exists
+      ? currentToppings.filter((t) => t !== toppingName)
+      : [...currentToppings, toppingName];
+
+    // Làm sạch phần "Thêm ..." cũ trong note trước khi ghép mới
+    const rawNoteWithoutOldToppings = (prod.note || '')
+      .replace(/^Thêm\s+[^·]+(?:·\s*)?/i, '')
+      .trim();
+
+    handleUpdateSuggestedProduct(msgIndex, prod.id, {
+      toppings: nextToppings,
+      note: buildMergedToppingNote(nextToppings, rawNoteWithoutOldToppings),
+    });
+  };
+
+  const handleTriggerServiceCall = async (msgIndex: number, reason: string) => {
+    setSendingServiceIdx(msgIndex);
+    try {
+      const res = await fetch('/api/customer-order/service-call', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tableId: tableId || 'KHACH_QR',
+          tableName: tableName || 'Bàn khách QR',
+          reason,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success !== false) {
+        setMessages((prev) =>
+          prev.map((m, idx) => (idx === msgIndex ? { ...m, serviceCallSent: true } : m))
+        );
+        toast.success('Đã gửi chuông gọi nhân viên tới quầy thu ngân!', { icon: '🔔' });
+      } else {
+        toast.error(data.error || 'Không thể gửi yêu cầu lúc này.');
+      }
+    } catch {
+      toast.error('Lỗi kết nối khi gọi nhân viên.');
+    } finally {
+      setSendingServiceIdx(null);
+    }
   };
 
   const handleSendMessage = async (textToSend?: string) => {
@@ -324,6 +376,7 @@ export function CustomerChatbot({
             role: 'assistant',
             content: data.message,
             intent: data.intent,
+            serviceCallReason: data.serviceCallReason,
             suggestedProducts: data.suggestedProducts,
             disambiguation: data.disambiguation,
           },
@@ -373,7 +426,7 @@ export function CustomerChatbot({
     }
   };
 
-  // Thêm nhanh trực tiếp vào giỏ hàng với đúng số lượng và tùy chỉnh đã chọn
+  // Thêm nhanh trực tiếp vào giỏ hàng với đúng số lượng và tùy chỉnh đã chọn (bảo toàn 100% Topping)
   const handleDirectAddToCart = (suggested: SuggestedProduct) => {
     const fullProd = catalogProducts.find((p) => p.IDSP === suggested.id) || {
       IDSP: suggested.id,
@@ -387,12 +440,13 @@ export function CustomerChatbot({
 
     const isFood = ['Ăn vặt', 'Bánh ngọt'].includes(fullProd['Loại sản phẩm']);
     const qty = suggested.quantity && suggested.quantity > 0 ? suggested.quantity : 1;
+    const mergedNote = isFood ? (suggested.note || '') : buildMergedToppingNote(suggested.toppings, suggested.note);
 
     addItem(fullProd as Product, {
-      size: isFood ? 'M' : (suggested.size || 'M'),
+      size: isFood ? 'M' : (suggested.size === 'L' ? 'L' : 'M'),
       sugar: isFood ? '' : (suggested.sugar || '100% đường'),
       ice: isFood ? '' : (suggested.ice || '100% đá'),
-      note: suggested.note || '',
+      note: mergedNote,
       quantity: qty,
     });
 
@@ -407,7 +461,7 @@ export function CustomerChatbot({
     });
   };
 
-  // Thêm tất cả các món được đề xuất vào giỏ hàng
+  // Thêm tất cả các món được đề xuất vào giỏ hàng (bảo toàn 100% Topping)
   const handleAddAllToCart = (prods: SuggestedProduct[]) => {
     let totalAdded = 0;
     for (const suggested of prods) {
@@ -423,12 +477,13 @@ export function CustomerChatbot({
 
       const isFood = ['Ăn vặt', 'Bánh ngọt'].includes(fullProd['Loại sản phẩm']);
       const qty = suggested.quantity && suggested.quantity > 0 ? suggested.quantity : 1;
+      const mergedNote = isFood ? (suggested.note || '') : buildMergedToppingNote(suggested.toppings, suggested.note);
 
       addItem(fullProd as Product, {
-        size: isFood ? 'M' : (suggested.size || 'M'),
+        size: isFood ? 'M' : (suggested.size === 'L' ? 'L' : 'M'),
         sugar: isFood ? '' : (suggested.sugar || '100% đường'),
         ice: isFood ? '' : (suggested.ice || '100% đá'),
-        note: suggested.note || '',
+        note: mergedNote,
         quantity: qty,
       });
       totalAdded += qty;
@@ -550,10 +605,10 @@ export function CustomerChatbot({
                 🍃 Ít ngọt, thanh mát
               </button>
               <button
-                onClick={() => handleQuickChip('Gợi ý món cà phê ngon')}
-                className="px-2.5 py-1 rounded-full bg-white text-amber-800 font-medium border border-amber-200 whitespace-nowrap active:scale-95 transition-transform"
+                onClick={() => handleQuickChip('Cho mình xin thêm khăn giấy và đá')}
+                className="px-2.5 py-1 rounded-full bg-white text-rose-700 font-medium border border-rose-200 whitespace-nowrap active:scale-95 transition-transform"
               >
-                ☕ Cà phê
+                🔔 Gọi nhân viên
               </button>
               <button
                 onClick={() => handleQuickChip('Cho mình xin mật khẩu wifi quán')}
@@ -583,6 +638,32 @@ export function CustomerChatbot({
                     >
                       {msg.content}
                     </div>
+
+                    {/* Nút 1 chạm gọi nhân viên phục vụ (khi intent === SERVICE_CALL) */}
+                    {msg.serviceCallReason && (
+                      <div className="mt-2 w-full max-w-[88%]">
+                        {msg.serviceCallSent ? (
+                          <div className="px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold flex items-center gap-1.5">
+                            <Check className="w-4 h-4 shrink-0" />
+                            <span>Đã gửi thông báo "{msg.serviceCallReason}" tới quầy thu ngân!</span>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={sendingServiceIdx === idx}
+                            onClick={() => void handleTriggerServiceCall(idx, msg.serviceCallReason!)}
+                            className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-rose-500 to-orange-500 hover:from-rose-600 hover:to-orange-600 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all"
+                          >
+                            {sendingServiceIdx === idx ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <BellRing className="w-3.5 h-3.5" />
+                            )}
+                            <span>🔔 Gửi yêu cầu "{msg.serviceCallReason}" tới quầy ngay</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
 
                     {/* Disambiguation Chips (khi khách hỏi món chung chung) */}
                     {msg.disambiguation && msg.disambiguation.length > 0 && (
@@ -626,6 +707,10 @@ export function CustomerChatbot({
                           const currentSize = prod.size || 'M';
                           const currentSugar = prod.sugar || '100% đường';
                           const currentIce = prod.ice || '100% đá';
+                          const currentToppings = Array.isArray(prod.toppings) ? prod.toppings : [];
+                          const allToppingPills = Array.from(
+                            new Set([...QUICK_TOPPING_OPTIONS, ...currentToppings])
+                          );
                           const effectiveUnitPrice = Number(prod.price || 0) + (!isFood && currentSize === 'L' ? 5000 : 0);
 
                           return (
@@ -717,89 +802,113 @@ export function CustomerChatbot({
 
                               {/* Inline Quick Customization Pills cho đồ uống */}
                               {!isFood && (
-                                <div className="flex flex-wrap items-center gap-1 pt-1.5 border-t border-slate-100 text-[10px]">
-                                  {/* Số lượng [-] [+] */}
-                                  <div className="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-1 py-0.5 mr-1">
+                                <div className="flex flex-col gap-1.5 pt-1.5 border-t border-slate-100 text-[10px]">
+                                  <div className="flex flex-wrap items-center gap-1">
+                                    {/* Số lượng [-] [+] */}
+                                    <div className="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-1 py-0.5 mr-1">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          handleUpdateSuggestedProduct(idx, prod.id, {
+                                            quantity: Math.max(1, qty - 1),
+                                          })
+                                        }
+                                        className="p-0.5 text-slate-600 hover:text-orange-600"
+                                        aria-label="Giảm số lượng"
+                                      >
+                                        <Minus className="w-2.5 h-2.5" />
+                                      </button>
+                                      <span className="px-1.5 font-bold text-slate-800">{qty}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          handleUpdateSuggestedProduct(idx, prod.id, {
+                                            quantity: qty + 1,
+                                          })
+                                        }
+                                        className="p-0.5 text-slate-600 hover:text-orange-600"
+                                        aria-label="Tăng số lượng"
+                                      >
+                                        <Plus className="w-2.5 h-2.5" />
+                                      </button>
+                                    </div>
+
+                                    {/* Đổi nhanh Size M / L */}
                                     <button
                                       type="button"
                                       onClick={() =>
                                         handleUpdateSuggestedProduct(idx, prod.id, {
-                                          quantity: Math.max(1, qty - 1),
+                                          size: currentSize === 'L' ? 'M' : 'L',
                                         })
                                       }
-                                      className="p-0.5 text-slate-600 hover:text-orange-600"
-                                      aria-label="Giảm số lượng"
+                                      className={`px-1.5 py-0.5 rounded-md border font-semibold transition-colors ${
+                                        currentSize === 'L'
+                                          ? 'bg-amber-100 border-amber-300 text-amber-900'
+                                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-orange-300'
+                                      }`}
+                                      title="Chạm để đổi Size M / Size L (+5.000đ)"
                                     >
-                                      <Minus className="w-2.5 h-2.5" />
+                                      Size {currentSize}
                                     </button>
-                                    <span className="px-1.5 font-bold text-slate-800">{qty}</span>
+
+                                    {/* Đổi nhanh % Đường */}
                                     <button
                                       type="button"
-                                      onClick={() =>
-                                        handleUpdateSuggestedProduct(idx, prod.id, {
-                                          quantity: qty + 1,
-                                        })
-                                      }
-                                      className="p-0.5 text-slate-600 hover:text-orange-600"
-                                      aria-label="Tăng số lượng"
+                                      onClick={() => {
+                                        const curIdx = SUGAR_LEVELS.indexOf(currentSugar);
+                                        const nextSugar = SUGAR_LEVELS[(curIdx + 1) % SUGAR_LEVELS.length];
+                                        handleUpdateSuggestedProduct(idx, prod.id, { sugar: nextSugar });
+                                      }}
+                                      className={`px-1.5 py-0.5 rounded-md border font-medium transition-colors ${
+                                        currentSugar !== '100% đường'
+                                          ? 'bg-teal-50 border-teal-300 text-teal-800 font-semibold'
+                                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-orange-300'
+                                      }`}
+                                      title="Chạm để đổi mức đường (100% / 70% / 50% / 0%)"
                                     >
-                                      <Plus className="w-2.5 h-2.5" />
+                                      🍬 {currentSugar}
+                                    </button>
+
+                                    {/* Đổi nhanh % Đá */}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const curIdx = ICE_LEVELS.indexOf(currentIce);
+                                        const nextIce = ICE_LEVELS[(curIdx + 1) % ICE_LEVELS.length];
+                                        handleUpdateSuggestedProduct(idx, prod.id, { ice: nextIce });
+                                      }}
+                                      className={`px-1.5 py-0.5 rounded-md border font-medium transition-colors ${
+                                        currentIce !== '100% đá'
+                                          ? 'bg-sky-50 border-sky-300 text-sky-800 font-semibold'
+                                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-orange-300'
+                                      }`}
+                                      title="Chạm để đổi mức đá (100% / 50% / 0%)"
+                                    >
+                                      🧊 {currentIce}
                                     </button>
                                   </div>
 
-                                  {/* Đổi nhanh Size M / L */}
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      handleUpdateSuggestedProduct(idx, prod.id, {
-                                        size: currentSize === 'L' ? 'M' : 'L',
-                                      })
-                                    }
-                                    className={`px-1.5 py-0.5 rounded-md border font-semibold transition-colors ${
-                                      currentSize === 'L'
-                                        ? 'bg-amber-100 border-amber-300 text-amber-900'
-                                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:border-orange-300'
-                                    }`}
-                                    title="Chạm để đổi Size M / Size L (+5.000đ)"
-                                  >
-                                    Size {currentSize}
-                                  </button>
-
-                                  {/* Đổi nhanh % Đường */}
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const curIdx = SUGAR_LEVELS.indexOf(currentSugar);
-                                      const nextSugar = SUGAR_LEVELS[(curIdx + 1) % SUGAR_LEVELS.length];
-                                      handleUpdateSuggestedProduct(idx, prod.id, { sugar: nextSugar });
-                                    }}
-                                    className={`px-1.5 py-0.5 rounded-md border font-medium transition-colors ${
-                                      currentSugar !== '100% đường'
-                                        ? 'bg-teal-50 border-teal-300 text-teal-800 font-semibold'
-                                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-orange-300'
-                                    }`}
-                                    title="Chạm để đổi mức đường (100% / 70% / 50% / 0%)"
-                                  >
-                                    🍬 {currentSugar}
-                                  </button>
-
-                                  {/* Đổi nhanh % Đá */}
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const curIdx = ICE_LEVELS.indexOf(currentIce);
-                                      const nextIce = ICE_LEVELS[(curIdx + 1) % ICE_LEVELS.length];
-                                      handleUpdateSuggestedProduct(idx, prod.id, { ice: nextIce });
-                                    }}
-                                    className={`px-1.5 py-0.5 rounded-md border font-medium transition-colors ${
-                                      currentIce !== '100% đá'
-                                        ? 'bg-sky-50 border-sky-300 text-sky-800 font-semibold'
-                                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-orange-300'
-                                    }`}
-                                    title="Chạm để đổi mức đá (100% / 50% / 0%)"
-                                  >
-                                    🧊 {currentIce}
-                                  </button>
+                                  {/* Chọn/Bỏ Topping trực tiếp ngay trên thẻ món */}
+                                  <div className="flex flex-wrap items-center gap-1">
+                                    <span className="text-[9px] font-semibold text-slate-400 mr-0.5">Topping:</span>
+                                    {allToppingPills.map((topName) => {
+                                      const active = currentToppings.includes(topName);
+                                      return (
+                                        <button
+                                          key={topName}
+                                          type="button"
+                                          onClick={() => handleToggleSuggestedTopping(idx, prod, topName)}
+                                          className={`px-1.5 py-0.5 rounded-md border transition-colors ${
+                                            active
+                                              ? 'bg-orange-100 border-orange-400 text-orange-900 font-bold'
+                                              : 'bg-white border-slate-200 text-slate-500 hover:border-orange-300'
+                                          }`}
+                                        >
+                                          {active ? `✓ +${topName}` : `+${topName}`}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
                                 </div>
                               )}
                             </div>

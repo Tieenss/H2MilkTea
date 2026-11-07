@@ -1,0 +1,289 @@
+[
+  {
+    "id": "rag-pos-overview",
+    "category": "POS Bán hàng",
+    "title": "Tổng quan hệ thống POS H2 MilkTea & Phím tắt thao tác nhanh",
+    "route": "/pos",
+    "sectionId": "shortcuts",
+    "sectionTitle": "Phím tắt & POS",
+    "roleScope": "all",
+    "keywords": [
+      "phím tắt",
+      "shortcut",
+      "hotkey",
+      "f1",
+      "f3",
+      "f4",
+      "f5",
+      "esc",
+      "bán hàng nhanh",
+      "hướng dẫn sử dụng pos",
+      "tổng quan"
+    ],
+    "content": "Màn hình Bán hàng POS (/pos) hỗ trợ đồng bộ giỏ hàng thời gian thực giữa nhiều thiết bị thu ngân và khách quét mã QR tại bàn. Các phím tắt tốc độ cao gồm: F1 (Reset bộ lọc sản phẩm về mặc định), F3 (Mở hộp thoại tìm kiếm và chọn khách hàng thân thiết tích điểm), F4 (Mở nhanh hộp thoại Thanh toán khi giỏ hàng đã có món), F5 (Đồng bộ lại toàn bộ dữ liệu Sản phẩm, Bàn, Khách hàng từ máy chủ), và phím Esc (Xóa nhanh toàn bộ giỏ hàng của bàn đang chọn).",
+    "steps": [
+      "Chọn bàn phục vụ hoặc chọn 'Khách mua về' ở góc trên giỏ hàng.",
+      "Chọn món từ lưới thực đơn hoặc ra lệnh bằng giọng nói/văn bản qua Trợ lý AI.",
+      "Tùy chỉnh Size (M/L), % đường (0%, 30%, 50%, 70%, 100%), % đá (đá riêng, ít đá, không đá, nóng) và các loại Topping.",
+      "Bấm 'Gửi bếp' để đẩy đơn xuống màn hình KDS pha chế và 'In tem' để in nhãn dán ly.",
+      "Bấm F4 hoặc nút 'Thanh toán' để thu Tiền mặt hoặc quét mã VietQR SePay tự động báo có."
+    ],
+    "isActive": true
+  },
+  {
+    "id": "rag-tables-bulk-and-area",
+    "category": "Quản lý bàn",
+    "title": "Quản lý sơ đồ bàn, Phân chia Khu vực & Tạo bàn nhanh hàng loạt (Bulk Add)",
+    "route": "/tables",
+    "sectionId": "pos",
+    "sectionTitle": "Quản lý bàn & Khu vực",
+    "roleScope": "staff",
+    "keywords": [
+      "tạo bàn nhanh",
+      "thêm bàn hàng loạt",
+      "bulk add",
+      "khu vực bàn",
+      "phòng hát",
+      "quầy",
+      "vườn",
+      "mang về",
+      "ban01",
+      "ban15",
+      "in mã qr hàng loạt",
+      "sơ đồ bàn"
+    ],
+    "content": "Trang Quản lý bàn (/tables) cho phép Admin và Quản lý phân loại bàn theo 4 khu vực chuẩn (🎤 Phòng hát, ☕ Quầy, 🌿 Vườn, 🛍️ Mang về) hoặc nhập khu vực tùy chỉnh. Đặc biệt, tính năng '⚡ Tạo bàn nhanh' hỗ trợ khởi tạo hàng loạt bàn (ví dụ: từ BAN01 đến BAN15, hoặc PH01 đến PH10) trong 1 thao tác, có bảng xem trước trực quan (Live Preview) và cơ chế tự động phát hiện mã bàn bị trùng lặp.",
+    "steps": [
+      "Bước 1: Truy cập trang Quản lý bàn (/tables) hoặc nhắn Trợ lý AI lệnh: 'tạo bàn BAN01 đến BAN15 ở phòng hát'.",
+      "Bước 2: Bấm nút '⚡ Tạo bàn nhanh' trên thanh công cụ phía trên.",
+      "Bước 3: Chọn nhanh khu vực (Phòng hát, Quầy, Vườn, Mang về), nhập tiền tố mã (VD: BAN, PH, V), dải số (Từ số 1 đến 15) và sức chứa mỗi bàn.",
+      "Bước 4: Kiểm tra danh sách xem trước trực quan để đảm bảo không có mã bàn báo đỏ (trùng lặp) rồi bấm 'Tạo ngay'.",
+      "Bước 5: Có thể bấm 'In QR hàng loạt' để xuất mã QR đặt món tại bàn cho toàn bộ các bàn vừa tạo."
+    ],
+    "isActive": true
+  },
+  {
+    "id": "rag-pos-table-transfer-and-presence",
+    "category": "POS Bán hàng",
+    "title": "Chuyển bàn, Ghép đơn & Theo dõi người đang xem bàn (Realtime Presence)",
+    "route": "/pos",
+    "sectionId": "pos",
+    "sectionTitle": "POS Bán hàng",
+    "roleScope": "staff",
+    "keywords": [
+      "chuyển bàn",
+      "đổi bàn",
+      "ghép bàn",
+      "bàn có khách",
+      "bàn trống",
+      "ai đang mở bàn",
+      "presence",
+      "xung đột giỏ hàng"
+    ],
+    "content": "Trong hộp thoại Sơ đồ bàn phục vụ trên POS, hệ thống hiển thị trạng thái thời gian thực: Bàn trống (Xanh lá), Bàn đang có khách/có đơn (Vàng cam), kèm nhãn hiển thị thu ngân nào đang mở bàn (🖥️) và bao nhiêu khách hàng đang quét QR xem menu tại bàn đó (📱). Khi khách muốn đổi chỗ ngồi, thu ngân dùng chức năng Chuyển bàn để dời toàn bộ giỏ hàng và đơn bếp sang bàn mới.",
+    "steps": [
+      "Bước 1: Trên màn hình POS (/pos), mở bàn hiện tại đang có khách ngồi.",
+      "Bước 2: Bấm vào nút 'Đổi bàn' / 'Sơ đồ bàn' để mở danh sách bàn theo khu vực (Phòng hát, Quầy, Vườn, Mang về).",
+      "Bước 3: Bấm nút 'Chuyển bàn' màu cam ở góc trên hộp thoại sơ đồ bàn.",
+      "Bước 4: Chọn bàn đích đến; toàn bộ món trong giỏ hàng nháp và trạng thái sử dụng bàn sẽ được chuyển sang bàn mới ngay lập tức."
+    ],
+    "isActive": true
+  },
+  {
+    "id": "rag-kitchen-kds-and-feature-toggle",
+    "category": "Bếp KDS & Pha chế",
+    "title": "Màn hình Bếp KDS Mobile, Gom món Batch Prep & Bật/Tắt tính năng Gửi bếp",
+    "route": "/kitchen",
+    "sectionId": "settings",
+    "sectionTitle": "Màn hình Bếp KDS & Cài đặt tính năng",
+    "roleScope": "staff",
+    "keywords": [
+      "màn hình bếp",
+      "kds",
+      "pha chế",
+      "ẩn màn hình bếp",
+      "vô hiệu hóa bếp",
+      "tắt gửi bếp",
+      "in tem nhãn",
+      "gom nhóm món",
+      "batch prep",
+      "điện thoại pha chế"
+    ],
+    "content": "Màn hình Nhà Bếp & Quầy Pha Chế (/kitchen) được tối ưu hóa riêng cho cả màn hình lớn lẫn điện thoại nhỏ của Barista. Hỗ trợ tick hoàn thành từng ly bằng 1 chạm (checkbox 28x28px) và chế độ '📦 Gom nhóm món cần pha (Batch Prep)' để cộng dồn các ly giống nhau từ nhiều bàn (ví dụ: tổng cộng 5 ly Trà đào Size L). Nếu quán không dùng KDS, Admin có thể tắt công tắc 'Gửi bếp & In tem nhãn pha chế' tại trang Cài đặt tính năng (/settings/features) — khi tắt, mục Màn hình Bếp sẽ tự động ẩn khỏi menu và vô hiệu hóa.",
+    "steps": [
+      "Để bật hoặc tắt tính năng Bếp KDS: Vào Cài đặt (/settings/features) ➔ Bật/tắt công tắc 'Gửi bếp & In tem nhãn pha chế'.",
+      "Trên điện thoại của nhân viên pha chế (/kitchen): Bấm vào từng dòng món trên thẻ đơn để đánh dấu gạch ngang những ly đã pha xong.",
+      "Bấm nút '📦 Gom món' trên thanh bộ lọc KDS để xem tổng số lượng từng loại đồ uống cần làm cùng lúc, tiết kiệm thời gian đong nguyên liệu.",
+      "Khi pha xong toàn bộ đơn, bấm 'Hoàn tất đơn' hoặc 'Đã giao khách' để hoàn thành."
+    ],
+    "isActive": true
+  },
+  {
+    "id": "rag-printer-and-labels",
+    "category": "Cài đặt hệ thống",
+    "title": "Cài đặt Máy in hóa đơn nhiệt (K80/K57), In tem dán ly & Thuế VAT",
+    "route": "/receipt-settings",
+    "sectionId": "settings",
+    "sectionTitle": "Cài đặt hệ thống",
+    "roleScope": "staff",
+    "keywords": [
+      "máy in",
+      "in hóa đơn",
+      "in bill",
+      "in tem",
+      "tem nhãn ly",
+      "k80",
+      "k57",
+      "vat",
+      "thuế",
+      "tài khoản ngân hàng",
+      "vietqr",
+      "sepay"
+    ],
+    "content": "Trang Cài đặt mẫu in & Ngân hàng (/receipt-settings) cho phép cấu hình khổ giấy máy in nhiệt K80 (80mm) hoặc K57 (58mm), kích thước tem nhãn dán ly (50x30mm hoặc 40x30mm), bật/tắt thuế VAT tự động trên hóa đơn, và thiết lập số tài khoản ngân hàng nhận tiền chuyển khoản VietQR tự động đối soát qua SePay Webhook.",
+    "steps": [
+      "Bước 1: Truy cập Cài đặt ➔ Cài đặt mẫu in (/receipt-settings).",
+      "Bước 2: Chọn khổ giấy K80 hoặc K57, điền Tên quán, Địa chỉ, Hotline và câu chào cuối hóa đơn.",
+      "Bước 3: Cấu hình Ngân hàng thụ hưởng để tạo mã VietQR động theo đúng số tiền từng đơn hàng.",
+      "Bước 4: Bấm 'In thử nghiệm' để kiểm tra kết nối máy in."
+    ],
+    "isActive": true
+  },
+  {
+    "id": "rag-customer-loyalty-and-discounts",
+    "category": "Khách hàng & QR",
+    "title": "Chính sách Khách hàng thân thiết, Tích điểm & Giảm giá VIP / Kim Cương",
+    "route": "/khachhang",
+    "sectionId": "customers",
+    "sectionTitle": "Quản lý khách hàng",
+    "roleScope": "all",
+    "keywords": [
+      "khách hàng",
+      "tích điểm",
+      "hội viên",
+      "thành viên",
+      "vip",
+      "kim cương",
+      "giảm giá",
+      "chiết khấu",
+      "ưu đãi",
+      "f3"
+    ],
+    "content": "Hệ thống CRM (/khachhang) tự động phân hạng và áp dụng ưu đãi giảm giá trực tiếp trên hóa đơn POS theo cấp bậc khách hàng: Khách thường (Tích điểm theo chi tiêu, giảm 0%), Khách VIP (Tự động giảm giá 10% trên tổng tạm tính), Khách Kim Cương (Tự động giảm giá 20% trên tổng tạm tính). Thu ngân có thể bấm phím tắt F3 trên màn hình POS để tìm khách hàng theo Số điện thoại hoặc Tên.",
+    "steps": [
+      "Trên màn hình POS, bấm phím F3 hoặc bấm nút 'Chọn khách hàng'.",
+      "Nhập số điện thoại hoặc tên khách hàng (nếu khách mới có thể tạo nhanh ngay tại quầy).",
+      "Hệ thống tự động nhận diện hạng thẻ (Thường / VIP / Kim Cương) và khấu trừ % giảm giá tương ứng vào tổng tiền thanh toán."
+    ],
+    "isActive": true
+  },
+  {
+    "id": "rag-qr-table-ordering",
+    "category": "Khách hàng & QR",
+    "title": "Quy trình Khách tự quét mã QR đặt món tại bàn & Gọi phục vụ",
+    "route": "/order",
+    "sectionId": "mobile",
+    "sectionTitle": "Hỗ trợ di động & QR Order",
+    "roleScope": "all",
+    "keywords": [
+      "quét mã qr",
+      "qr tại bàn",
+      "khách tự đặt món",
+      "gọi nhân viên",
+      "xin thêm đá",
+      "khăn giấy",
+      "đơn qr",
+      "duyệt đơn qr"
+    ],
+    "content": "Khách hàng ngồi tại bàn dùng điện thoại quét mã QR để mở trang gọi món (/order/menu), xem thực đơn trực quan, hỏi Trợ lý AI tư vấn món (dị ứng sữa, ít calo, không caffeine) và gửi đơn trực tiếp. Đơn QR được đẩy realtime về hộp thư 'Đơn QR tại bàn' trên màn hình POS kèm chuông báo để thu ngân duyệt vào giỏ hàng bàn. Khách cũng có thể bấm Gọi nhân viên (thêm đá, khăn giấy, thanh toán) ngay trên điện thoại.",
+    "steps": [
+      "Khách quét mã QR tại bàn ➔ Chọn món hoặc nhờ Chatbot AI gợi ý và thêm vào giỏ hàng.",
+      "Khách bấm 'Gửi yêu cầu gọi món' ➔ Đơn hiển thị trạng thái chờ xác nhận.",
+      "Thu ngân tại quầy POS nhận thông báo chuông ➔ Bấm 'Chấp nhận' để nạp đơn vào bàn và chuyển xuống bếp pha chế."
+    ],
+    "isActive": true
+  },
+  {
+    "id": "rag-inventory-and-bom-config",
+    "category": "Kho & Định lượng",
+    "title": "Quản lý Kho nguyên liệu, Kiểm kê, Dự báo AI & Định mức trừ kho tự động (BOM)",
+    "route": "/inventory",
+    "sectionId": "menu",
+    "sectionTitle": "Quản lý Kho & Định mức",
+    "roleScope": "staff",
+    "keywords": [
+      "tồn kho",
+      "nguyên liệu",
+      "nhập kho",
+      "xuất kho",
+      "kiểm kê kho",
+      "định mức nguyên liệu",
+      "cấu hình nguyên liệu",
+      "cauhinh",
+      "dự báo tồn kho",
+      "nhà cung cấp",
+      "sắp hết hàng"
+    ],
+    "content": "Phân hệ Kho hàng (/inventory) quản lý danh mục nguyên vật liệu (NGUYENLIEU), giao dịch Nhập/Xuất kho (/inventory/transactions), Kiểm kê kho thực tế (/inventory/stocktake), Quản lý Nhà cung cấp (/inventory/suppliers) và Dự báo nhu cầu nhập hàng bằng AI (/inventory/forecast). Tại trang Cấu hình định mức (/menu/cauhinhnguyenlieu), Quản lý thiết lập công thức tiêu hao nguyên liệu (BOM - bảng CAUHINH) cho từng sản phẩm để hệ thống tự động trừ tồn kho khi bán hàng.",
+    "steps": [
+      "Để cài đặt công thức trừ kho: Vào Menu ➔ Cấu hình nguyên liệu (/menu/cauhinhnguyenlieu), chọn Sản phẩm và gán các Nguyên liệu cần dùng kèm định lượng.",
+      "Để nhập hàng mới: Vào Kho ➔ Nhập/Xuất kho (/inventory/transactions) và tạo phiếu Nhập kho từ Nhà cung cấp.",
+      "Để kiểm tra lệch kho cuối ca: Vào Kiểm kê kho (/inventory/stocktake), nhập số lượng thực đếm để hệ thống tự tính chênh lệch."
+    ],
+    "isActive": true
+  },
+  {
+    "id": "rag-invoice-security-and-offline",
+    "category": "Bảo mật & Hóa đơn",
+    "title": "Chống thất thoát hóa đơn (Soft-Cancel Audit) & Chế độ Bán hàng Ngoại tuyến (Offline Queue)",
+    "route": "/orders",
+    "sectionId": "orders",
+    "sectionTitle": "Quản lý đơn hàng & Bảo mật",
+    "roleScope": "staff",
+    "keywords": [
+      "hủy hóa đơn",
+      "xóa hóa đơn",
+      "chống thất thoát",
+      "soft delete",
+      "mất mạng",
+      "offline",
+      "ngoại tuyến",
+      "lịch sử đơn hàng",
+      "in lại bill"
+    ],
+    "content": "Hệ thống áp dụng cơ chế Bảo mật Chống Thất Thoát nghiêm ngặt: Nhân viên thu ngân không có quyền xóa hóa đơn; chỉ Quản lý hoặc Admin mới được phép hủy hóa đơn, và hệ thống tuyệt đối không xóa cứng (Hard Delete) mà chuyển sang trạng thái 'Đã hủy' kèm lưu vết người hủy, thời gian và lý do hủy để đối soát kế toán. Khi quán bị rớt mạng Internet, POS tự động kích hoạt Hàng đợi Thanh toán Ngoại tuyến (Offline Checkout Queue), lưu đơn an toàn tại máy và tự động đồng bộ lên máy chủ ngay khi có mạng trở lại.",
+    "steps": [
+      "Tra cứu hoặc in lại hóa đơn cũ: Vào Quản lý đơn hàng (/orders), tìm theo mã INV hoặc tên bàn và bấm Xem chi tiết.",
+      "Hủy hóa đơn sai (Chỉ dành cho Quản lý/Admin): Chọn hóa đơn ➔ Bấm Hủy đơn ➔ Nhập lý do hủy để lưu vào nhật ký kiểm toán.",
+      "Khi mất mạng: Thu ngân vẫn tính tiền và in bill bình thường; hệ thống sẽ tự đồng bộ ngầm khi mạng khôi phục."
+    ],
+    "isActive": true
+  },
+  {
+    "id": "rag-ai-settings-and-rag-manager",
+    "category": "Cài đặt hệ thống",
+    "title": "Quản lý Trợ lý AI, Kho Tri Thức RAG, Sổ tay Dị ứng & Nhật ký Kiểm toán AI",
+    "route": "/settings/ai",
+    "sectionId": "settings",
+    "sectionTitle": "Trung tâm Cài đặt Trợ lý AI",
+    "roleScope": "staff",
+    "keywords": [
+      "cài đặt ai",
+      "quản lý rag",
+      "kho tri thức",
+      "sổ tay công thức",
+      "faq",
+      "nhật ký ai",
+      "audit log",
+      "giọng nói",
+      "tắt chatbot"
+    ],
+    "content": "Trung tâm Cài đặt Trợ lý AI (/settings/ai) là nơi Admin toàn quyền cấu hình: Bật/tắt Trợ lý AI toàn hệ thống, điều chỉnh thời gian chờ dứt câu giọng nói, giới hạn số ly tối đa mỗi lệnh, quản lý Kho Tri Thức RAG của dự án (Project Knowledge Chunks), quản lý FAQ tiện ích quán, cập nhật Sổ tay Công thức & Cảnh báo Dị ứng Barista, và theo dõi Nhật ký Kiểm toán AI (AI Audit Logs).",
+    "steps": [
+      "Vào Cài đặt ➔ Cài đặt Trợ lý AI (/settings/ai).",
+      "Sử dụng công cụ 'Test Truy xuất RAG' để kiểm tra xem AI sẽ trích xuất tài liệu nào khi người dùng đặt câu hỏi.",
+      "Thêm hoặc chỉnh sửa trực tiếp các đoạn tài liệu (Knowledge Chunks), FAQ và Sổ tay công thức để AI cập nhật kiến thức ngay lập tức."
+    ],
+    "isActive": true
+  }
+]

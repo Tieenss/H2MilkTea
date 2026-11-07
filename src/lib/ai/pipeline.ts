@@ -2,12 +2,13 @@ import { checkSecurityGuardrails } from './security';
 import { matchRuleBased, applyNegativeCartGuard, computeCartDiff } from './ruleEngine';
 import { resolveProduct, normalizeSearchText } from './catalog';
 import { resolveTableFromMessage } from './table';
-import { getKnowledgeBasePrompt, appendCitationIfMissing, findRelevantKnowledge, removeCitation } from './knowledge';
+import { appendCitationIfMissing, findRelevantKnowledge, removeCitation } from './knowledge';
+import { buildSelectiveRagPrompt, retrieveProjectKnowledge, type ProjectKnowledgeChunk } from './ragEngine';
 import { createAuditLog } from './auditLogger';
 import { AiOutputSchema, type AiOutput, type ParsedItem } from './schema';
 import type { CatalogItem, CatalogProduct, TableInfo, DisambiguationItem, CartDiffItem } from './types';
 
-export const PROMPT_VERSION = 'v1.2.0';
+export const PROMPT_VERSION = 'v1.3.0-rag';
 export const DEFAULT_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
 // Rate limiting: Tối đa 20 yêu cầu / phút / nhân viên
@@ -73,6 +74,7 @@ export interface PipelineParams {
   tables: TableInfo[];
   customFaqs?: unknown;
   customAliases?: Record<string, string>;
+  customRagChunks?: ProjectKnowledgeChunk[] | null;
   apiKey?: string;
 }
 
@@ -93,7 +95,17 @@ export interface PipelineResult {
 
 export async function processAiPipeline(params: PipelineParams): Promise<PipelineResult> {
   const startTime = Date.now();
-  const { rawMessage, staff, catalog, tables, customFaqs, customAliases, apiKey, currentCart } = params;
+  const {
+    rawMessage,
+    staff,
+    catalog,
+    tables,
+    customFaqs,
+    customAliases,
+    customRagChunks,
+    apiKey,
+    currentCart,
+  } = params;
   const message = rawMessage.trim();
 
   // 1. Kiểm tra giới hạn tần suất (Rate limit)
@@ -140,8 +152,13 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
     };
   }
 
-  // 3. Phân tích qua Bộ luật & Từ điển Alias (Rule Engine)
-  const ruleResult = matchRuleBased(message, catalog, tables, customAliases, currentCart);
+  // 3. Phân tích qua Bộ luật, Từ điển Alias & Hybrid RAG Engine (0ms)
+  const ruleResult = matchRuleBased(message, catalog, tables, customAliases, currentCart, {
+    currentTable: params.currentTable,
+    history: params.history,
+    customChunks: customRagChunks,
+    customFaqs: Array.isArray(customFaqs) ? (customFaqs as any) : null,
+  });
   if (ruleResult.matched && ruleResult.output) {
     const latencyMs = Date.now() - startTime;
     const logId = await createAuditLog({
@@ -177,7 +194,7 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
     };
   }
 
-  // 4. Nếu mơ hồ -> Chuyển cho LLM (Gemini) xử lý
+  // 4. Nếu mơ hồ -> Chuyển cho LLM (Gemini) xử lý kèm Selective Top-K RAG Context
   if (!apiKey) {
     return {
       success: false,
@@ -211,12 +228,19 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
     };
   }
 
-  const knowledgePrompt = getKnowledgeBasePrompt(customFaqs as any);
+  // Selective RAG Prompt: Chỉ nạp Top-K đoạn kiến thức liên quan nhất với câu hỏi thay vì nhồi toàn bộ
+  const { prompt: selectiveRagPrompt } = buildSelectiveRagPrompt(message, {
+    topK: 5,
+    roleScope: 'staff',
+    customChunks: customRagChunks,
+    customFaqs: Array.isArray(customFaqs) ? (customFaqs as any) : null,
+  });
 
   const systemPrompt = [
     'Bạn là trợ lý AI thông minh cho hệ thống POS H2 MilkTea.',
     `Nhân viên đăng nhập: ${staff.name || 'Thu ngân'} (Vai trò: ${staff.role || 'Nhân viên'}, Admin: ${staff.isAdmin ? 'Có' : 'Không'}).`,
     `Vị trí trang hiện tại: ${params.currentRoute || '/pos'} (${params.pageContext || 'Máy bán hàng POS'}).`,
+    `Bàn đang mở trên màn hình POS hiện tại: ${params.currentTable || 'Chưa chọn'}.`,
     `Phiên bản prompt: ${PROMPT_VERSION}.`,
     '',
     'NGUYÊN TẮC AN TOÀN TUYỆT ĐỐI:',
@@ -235,7 +259,7 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
     '   - Đặt action = "select_table", items = [].',
     '   - message: Thông báo đã chọn bàn đó và hỏi người dùng muốn gọi thêm những món gì cho bàn.',
     '4. NẾU CÓ MÓN CỤ THỂ ĐƯỢC NÊU:',
-    '   - Bóc tách đúng action: "add" | "remove", targetTable, items.',
+    '   - Bóc tách đúng action: "add" | "remove", targetTable (nếu câu hiện tại không nêu tên bàn, kế thừa bàn đang mở hoặc bàn từ lượt chat trước), items.',
     '   - Mỗi item: { productId, productName, quantity, size, sugar, ice, toppings, note }.',
     '   - message: Tóm tắt món đã nhận diện và kết thúc bằng câu nhắc: "Vui lòng kiểm tra và duyệt đơn bên dưới."',
     '',
@@ -247,7 +271,7 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
     `Danh sách Bàn hợp lệ: ${JSON.stringify(tables.map((t) => ({ id: t.id, name: t.name })))}`,
     `Catalog món hợp lệ: ${JSON.stringify(catalogItems)}`,
     '',
-    knowledgePrompt,
+    selectiveRagPrompt,
   ].join('\n');
 
   const history = Array.isArray(params.history) ? params.history.slice(-6) : [];
@@ -422,8 +446,17 @@ export async function processAiPipeline(params: PipelineParams): Promise<Pipelin
   // 9. Xử lý thông điệp rõ ràng, không bao giờ tự ý báo "đã thêm đơn thành công"
   let finalMessage = validatedOutput.message || '';
   if (validatedOutput.action === 'qa') {
+    const ragHits = retrieveProjectKnowledge(message, {
+      topK: 1,
+      minScore: 4,
+      roleScope: 'staff',
+      customChunks: customRagChunks,
+      customFaqs: Array.isArray(customFaqs) ? (customFaqs as any) : null,
+    });
     const matchedTopic = findRelevantKnowledge(message);
-    if (matchedTopic) {
+    if (ragHits.length > 0 && !finalMessage.includes('[Nguồn:')) {
+      finalMessage = `${finalMessage || ragHits[0].content}\n\n${ragHits[0].citation}`;
+    } else if (matchedTopic) {
       finalMessage = appendCitationIfMissing(finalMessage || 'Đã trả lời hướng dẫn.', matchedTopic);
     } else {
       finalMessage = removeCitation(finalMessage || 'Xin chào! Tôi có thể hỗ trợ gì cho bạn?');

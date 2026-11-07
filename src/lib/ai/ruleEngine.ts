@@ -3,10 +3,20 @@ import { resolveTableFromMessage } from './table';
 import { expandAliasesWithDict } from './aliases';
 import { resolveProduct, normalizeSearchText } from './catalog';
 import type { AiOutput, ParsedItem } from './schema';
+import { retrieveProjectKnowledge, type ProjectKnowledgeChunk } from './ragEngine';
+import type { StoreFAQItem, StoreRecipeNote } from './knowledge';
 
 export interface RuleMatchResult {
   matched: boolean;
   output?: AiOutput;
+}
+
+export interface RuleEngineContextOptions {
+  currentTable?: string;
+  history?: Array<{ role: 'user' | 'assistant'; content: string }>;
+  customChunks?: ProjectKnowledgeChunk[] | null;
+  customFaqs?: StoreFAQItem[] | null;
+  customRecipes?: StoreRecipeNote[] | null;
 }
 
 const GREETING_REGEX = /^(xin chào(\s+(bạn|bot|em|shop|ad|trợ lý|ai))?|chào(\s+(bạn|bot|em|shop|ad|trợ lý|ai|buổi sáng|buổi trưa|buổi chiều|buổi tối))?|hello(\s+(bạn|bot|trợ lý|ai))?|hi(\s+(bạn|bot))?|alo(\s+(bạn|bot))?|hey)[!. ]*$/i;
@@ -385,6 +395,62 @@ export function computeCartDiff(
   });
 }
 
+function inferTableFromContext(
+  tables: TableInfo[],
+  contextOptions?: RuleEngineContextOptions
+): TableInfo | null {
+  if (!contextOptions || tables.length === 0) return null;
+
+  if (contextOptions.currentTable) {
+    const rawCurrent = contextOptions.currentTable.trim();
+    const normCurrent = normalizeSearchText(rawCurrent);
+    const foundCurrent = tables.find(
+      (t) =>
+        t.id === rawCurrent ||
+        t.name.toLowerCase() === rawCurrent.toLowerCase() ||
+        normalizeSearchText(t.name) === normCurrent
+    );
+    if (foundCurrent) return foundCurrent;
+
+    const resolvedFromCurrent = resolveTableFromMessage(rawCurrent, tables);
+    if (resolvedFromCurrent?.table) return resolvedFromCurrent.table;
+  }
+
+  if (Array.isArray(contextOptions.history) && contextOptions.history.length > 0) {
+    const recentTurns = contextOptions.history.slice(-4).reverse();
+    for (const turn of recentTurns) {
+      if (!turn?.content) continue;
+      const resolved = resolveTableFromMessage(turn.content, tables);
+      if (resolved?.table) {
+        return resolved.table;
+      }
+    }
+  }
+
+  return null;
+}
+
+function isPureKnowledgeOrFaqQuery(normMsg: string): boolean {
+  if (/^(?:mo|cho|them|lay|goi|order|len\s+don|bot|xoa|huy|giam|chon|chuyen\s+sang|chuyen|vao)\b/i.test(normMsg)) {
+    return false;
+  }
+  if (/^\d+\s+/.test(normMsg)) {
+    return false;
+  }
+
+  const qaPatterns = [
+    /\b(?:cach|huong\s*dan|lam\s*sao|nhu\s*the\s*nao|o\s*dau|la\s*gi|tai\s*sao|khi\s*nao|bao\s*nhieu\s*calo)\b/i,
+    /\b(?:phim\s*tat|hotkey|f2|f4|f8|f9|esc)\b/i,
+    /\b(?:wifi|mat\s*khau|pass\s*mang|gio\s*mo\s*cua|dong\s*cua)\b/i,
+    /\b(?:di\s*ung|lactose|caffeine|cafein|mat\s*ngu|an\s*kieng|giam\s*can|tieu\s*duong|calo)\b/i,
+    /\b(?:dinh\s*muc|cong\s*thuc|nguyen\s*lieu|thanh\s*phan|bom)\b/i,
+    /\b(?:tao\s*ban\s*nhanh|gop\s*mon|man\s*hinh\s*bep|kds|sepay|may\s*in|kho\s*giay|vat|thue)\b/i,
+    /\b(?:hang\s*thanh\s*vien|khach\s*vip|kim\s*cuong|tich\s*diem|chiet\s*khau|rag)\b/i,
+  ];
+
+  return qaPatterns.some((regex) => regex.test(normMsg));
+}
+
 /**
  * Phân tích câu lệnh dựa trên quy tắc và từ điển alias (không tốn chi phí LLM)
  */
@@ -393,9 +459,11 @@ export function matchRuleBased(
   catalog: CatalogProduct[],
   tables: TableInfo[],
   customAliases?: Record<string, string>,
-  currentCart?: unknown[]
+  currentCart?: unknown[],
+  contextOptions?: RuleEngineContextOptions
 ): RuleMatchResult {
   const trimmed = rawMessage.trim();
+  const normMsg = normalizeSearchText(trimmed);
 
   // 1. Kiểm tra câu chào hỏi
   if (GREETING_REGEX.test(trimmed)) {
@@ -411,6 +479,35 @@ export function matchRuleBased(
         blockedReason: null,
       },
     };
+  }
+
+  // 1.5. Tra cứu nhanh qua Hybrid RAG Engine (0ms) nếu là câu hỏi hướng dẫn / FAQ / Công thức / Định mức
+  if (isPureKnowledgeOrFaqQuery(normMsg)) {
+    const ragHits = retrieveProjectKnowledge(trimmed, {
+      topK: 2,
+      minScore: 6,
+      roleScope: 'staff',
+      customChunks: contextOptions?.customChunks,
+      customFaqs: contextOptions?.customFaqs,
+      customRecipes: contextOptions?.customRecipes,
+    });
+    if (ragHits.length > 0) {
+      const topHit = ragHits[0];
+      const formattedAnswer = topHit.citation
+        ? `${topHit.content}\n\n${topHit.citation}`
+        : topHit.content;
+      return {
+        matched: true,
+        output: {
+          action: 'qa',
+          targetTable: null,
+          items: [],
+          message: formattedAnswer,
+          isBlocked: false,
+          blockedReason: null,
+        },
+      };
+    }
   }
 
   // Phân giải bàn từ câu lệnh
@@ -467,7 +564,7 @@ export function matchRuleBased(
   workingText = workingText
     .trim()
     .replace(
-      /^(?:mo|cho|them|lay|goi|order|len don|bot|xoa|huy|giam|chon|chuyen sang|chuyen|vao)(\s+(?:cho|gium|ho)?\s*(?:toi|tao|minh|em|anh|chi|khach|ban))?\s+/i,
+      /^(?:mo|cho\s+them|them\s+cho|cho|them|lay|goi|order|len don|bot|xoa|huy|giam|chon|chuyen sang|chuyen|vao)(\s+(?:cho|gium|ho)?\s*(?:toi|tao|minh|em|anh|chi|khach|ban))?\s+/i,
       ' '
     )
     .replace(/\b(?:cho|gium|ho)\s+(?:toi|tao|minh|em|anh|chi|khach)\b/gi, ' ')
@@ -636,7 +733,8 @@ export function matchRuleBased(
   }
 
   if (parsedItems.length > 0) {
-    const tableSuffix = tableRes?.table ? ` cho ${tableRes.table.name}` : '';
+    const effectiveTable = tableRes?.table || inferTableFromContext(tables, contextOptions);
+    const tableSuffix = effectiveTable ? ` cho ${effectiveTable.name}` : '';
     const formatItemSummary = (itemsToFormat: ParsedItem[]) =>
       itemsToFormat
         .map((i) => {
@@ -665,7 +763,7 @@ export function matchRuleBased(
       matched: true,
       output: {
         action: guarded.action,
-        targetTable: tableRes?.table || null,
+        targetTable: effectiveTable || null,
         items: guarded.items,
         message: guarded.message,
         isBlocked: false,

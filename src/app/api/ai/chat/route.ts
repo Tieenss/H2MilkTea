@@ -5,6 +5,7 @@ import { createAdminSupabaseClient, getAuthenticatedStaff, getStaffRole } from '
 import { toActiveCatalog } from '@/lib/ai/catalog';
 import { processAiPipeline } from '@/lib/ai/pipeline';
 import type { TableInfo } from '@/lib/ai/types';
+import type { ProjectKnowledgeChunk } from '@/lib/ai/ragEngine';
 
 export async function POST(request: NextRequest) {
   const staff = await getAuthenticatedStaff(request.headers.get('cookie') || '');
@@ -30,16 +31,18 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createAdminSupabaseClient();
-    
-    // 1. Kiểm tra setting bật/tắt toàn hệ thống, FAQ và Alias tùy biến của quán
+
+    // 1. Kiểm tra setting bật/tắt toàn hệ thống, FAQ, Alias và RAG Chunks tùy biến của quán
     let customFaqs: any = null;
     let customAliases: Record<string, string> | undefined = undefined;
+    let customRagChunks: ProjectKnowledgeChunk[] | null = null;
 
     if (supabase) {
-      const [settingRes, faqRes, aliasRes] = await Promise.all([
+      const [settingRes, faqRes, aliasRes, ragRes] = await Promise.all([
         supabase.from('app_settings').select('value').eq('key', 'ai_assistant_enabled').maybeSingle(),
         supabase.from('app_settings').select('value').eq('key', 'store_custom_faq').maybeSingle(),
         supabase.from('app_settings').select('value').eq('key', 'store_custom_aliases').maybeSingle(),
+        supabase.from('app_settings').select('value').eq('key', 'store_custom_rag_chunks').maybeSingle(),
       ]);
 
       if (settingRes.data && settingRes.data.value === false) {
@@ -52,6 +55,10 @@ export async function POST(request: NextRequest) {
 
       if (aliasRes.data && typeof aliasRes.data.value === 'object' && aliasRes.data.value !== null) {
         customAliases = aliasRes.data.value as Record<string, string>;
+      }
+
+      if (ragRes.data && Array.isArray(ragRes.data.value)) {
+        customRagChunks = ragRes.data.value as ProjectKnowledgeChunk[];
       }
     }
 
@@ -122,6 +129,7 @@ export async function POST(request: NextRequest) {
       tables,
       customFaqs,
       customAliases,
+      customRagChunks,
       apiKey,
     });
 

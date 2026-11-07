@@ -34,6 +34,8 @@ import { Badge } from '@/components/ui/badge';
 import toast from 'react-hot-toast';
 import { getAppearanceSettings, applyAppearanceSettings } from '@/utils/appearanceSettings';
 import defaultTables from '@/data/DSBAN.json';
+import defaultInvoices from '@/data/HOADON.json';
+import defaultIngredients from '@/data/NGUYENLIEU.json';
 import authUtils from '@/utils/authUtils';
 import { detectTableArea, DEFAULT_AREAS } from '@/app/(dashboard)/tables/utils/constants';
 
@@ -1025,6 +1027,187 @@ export function GlobalAssistant() {
           source: 'rule',
         },
       ]);
+      return true;
+    }
+
+    // Lệnh 6.7: Truy vấn Báo cáo Doanh thu Live (Phân quyền Admin & Quản lý)
+    if (
+      /(doanh\s*thu\s*(hôm\s*nay|thế\s*nào|hiện\s*tại|tổng)?|hôm\s*nay\s*bán\s*được\s*bao\s*nhiêu|báo\s*cáo\s*nhanh\s*doanh\s*thu|tổng\s*doanh\s*thu)/i.test(text) &&
+      !/(mở|vào|đến|chuyển\s*sang|đi\s*tới)\s*(trang|màn\s*hình)?\s*báo\s*cáo/i.test(text)
+    ) {
+      const userData = authUtils.getUserData();
+      const isAdmin = userData?.['Phân quyền'] === 'Admin';
+      const isManager =
+        userData?.['Phân quyền'] === 'Quản lý' ||
+        userData?.['Chức vụ']?.toLowerCase().includes('quản lý');
+
+      if (!isAdmin && !isManager) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content:
+              `⛔ **CHỨC NĂNG DÀNH CHO QUẢN LÝ & ADMIN**\n` +
+              `Tài khoản hiện tại (**${userData?.['Họ và Tên'] || 'Nhân viên'}** - *${userData?.['Phân quyền'] || 'Thu ngân'}*) không có quyền tra cứu tổng doanh thu cửa hàng qua AI.`,
+            source: 'rule',
+          },
+        ]);
+        return true;
+      }
+
+      let invoices: any[] = [];
+      try {
+        const localDataStr = typeof window !== 'undefined' ? localStorage.getItem('demoData') : null;
+        if (localDataStr) {
+          const parsed = JSON.parse(localDataStr);
+          if (Array.isArray(parsed?.HOADON)) invoices = parsed.HOADON;
+        }
+      } catch {}
+      if (invoices.length === 0) {
+        invoices = defaultInvoices as any[];
+      }
+
+      const paidInvoices = invoices.filter(
+        (inv) => !inv['Trạng thái'] || inv['Trạng thái'] === 'Đã thanh toán'
+      );
+      const canceledInvoices = invoices.filter((inv) =>
+        String(inv['Trạng thái'] || '').toLowerCase().includes('hủy')
+      );
+
+      let totalRevenue = 0;
+      let cashRevenue = 0;
+      let transferRevenue = 0;
+
+      for (const inv of paidInvoices) {
+        const amount =
+          Number(String(inv['Tổng tiền'] || inv['Khách trả'] || 0).replace(/[^0-9.-]+/g, '')) || 0;
+        totalRevenue += amount;
+        const payType = String(inv['Loại thanh toán'] || '').toLowerCase();
+        if (payType.includes('chuyển khoản') || payType.includes('qr')) {
+          transferRevenue += amount;
+        } else {
+          cashRevenue += amount;
+        }
+      }
+
+      const avgOrder = paidInvoices.length > 0 ? Math.round(totalRevenue / paidInvoices.length) : 0;
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content:
+            `📈 **BÁO CÁO DOANH THU TRỰC TIẾP (LIVE BI):**\n\n` +
+            `• **Tổng doanh thu thuần:** **${totalRevenue.toLocaleString('vi-VN')} đ**\n` +
+            `• **Số hóa đơn thành công:** ${paidInvoices.length} đơn (Hủy: ${canceledInvoices.length} đơn)\n` +
+            `• **Giá trị trung bình/đơn (AOV):** ${avgOrder.toLocaleString('vi-VN')} đ\n` +
+            `• **Tiền mặt:** ${cashRevenue.toLocaleString('vi-VN')} đ\n` +
+            `• **Chuyển khoản / VietQR:** ${transferRevenue.toLocaleString('vi-VN')} đ\n\n` +
+            `💡 *[Nguồn: Dữ liệu Hóa đơn Hệ thống (HOADON)]*`,
+          source: 'rule',
+        },
+      ]);
+      return true;
+    }
+
+    // Lệnh 6.8: Cảnh báo Nguyên liệu sắp hết / Kiểm tra tồn kho Live (NGUYENLIEU)
+    if (
+      /(nguyên\s*liệu\s*(nào\s*)?(sắp\s*hết|cần\s*nhập|cảnh\s*báo)|kiểm\s*tra\s*tồn\s*kho|cảnh\s*báo\s*tồn\s*kho)/i.test(text)
+    ) {
+      let ingredients: any[] = [];
+      try {
+        const localDataStr = typeof window !== 'undefined' ? localStorage.getItem('demoData') : null;
+        if (localDataStr) {
+          const parsed = JSON.parse(localDataStr);
+          if (Array.isArray(parsed?.NGUYENLIEU)) ingredients = parsed.NGUYENLIEU;
+        }
+      } catch {}
+      if (ingredients.length === 0) {
+        ingredients = defaultIngredients as any[];
+      }
+
+      const lowStockList = ingredients.filter((item) => {
+        const currentQty = Number(item['Số lượng tồn'] ?? item['Tồn kho'] ?? item['Số lượng cảnh báo'] ?? 0);
+        const warnThreshold = Number(item['Số lượng cảnh báo'] ?? 5);
+        return currentQty <= warnThreshold;
+      });
+
+      const previewItems = (lowStockList.length > 0 ? lowStockList : ingredients).slice(0, 6);
+      const lines = previewItems
+        .map((it) => {
+          const stock = it['Số lượng tồn'] ?? it['Tồn kho'] ?? it['Số lượng cảnh báo'] ?? '0';
+          const warn = it['Số lượng cảnh báo'] || '5';
+          const unit = it['Đơn vị tính'] || '';
+          return `• **${it['Tên nguyên liệu']}** (\`${it.IDNguyenLieu}\`): Tồn **${stock} ${unit}** *(Ngưỡng cảnh báo: ${warn} ${unit})*`;
+        })
+        .join('\n');
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content:
+            `📦 **KIỂM TRA TỒN KHO & NGUYÊN LIỆU CẦN LƯU Ý (${lowStockList.length}/${ingredients.length} mặt hàng chạm ngưỡng):**\n\n` +
+            lines +
+            `\n\n💡 Bạn có thể vào mục **Kho hàng (\`/inventory\`)** để lập phiếu nhập kho hoặc kiểm kê định kỳ. *[Nguồn: Dữ liệu Kho (NGUYENLIEU)]*`,
+          source: 'rule',
+        },
+      ]);
+      return true;
+    }
+
+    // Lệnh 6.9: Kiểm tra giỏ hàng của một bàn cụ thể ("bàn 3 đang có món gì", "kiểm tra giỏ hàng bàn 2")
+    const inspectCartMatch = text.match(
+      /(?:kiểm\s*tra\s*giỏ\s*hàng|xem\s*đơn|xem\s*giỏ\s*hàng|đang\s*có\s*món\s*gì).*?\b(?:bàn\s*([a-z0-9]+))|\b(?:bàn\s*([a-z0-9]+))\s*(?:đang\s*có\s*món\s*gì|gọi\s*món\s*gì|có\s*đơn\s*gì)/i
+    );
+    if (inspectCartMatch) {
+      const requestedNum = (inspectCartMatch[1] || inspectCartMatch[2] || '').trim();
+      let targetTblName = `Bàn ${requestedNum}`;
+      let cartItems: any[] = [];
+
+      try {
+        const cartsStr = typeof window !== 'undefined' ? localStorage.getItem('h2_pos_carts_v1') : null;
+        if (cartsStr) {
+          const parsedCarts = JSON.parse(cartsStr);
+          for (const [tblKey, items] of Object.entries(parsedCarts || {})) {
+            if (
+              tblKey.toLowerCase().includes(requestedNum.toLowerCase()) &&
+              Array.isArray(items) &&
+              items.length > 0
+            ) {
+              cartItems = items;
+              targetTblName = tblKey;
+              break;
+            }
+          }
+        }
+      } catch {}
+
+      if (cartItems.length === 0) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: `🍽️ **${targetTblName}** hiện đang trống hoặc chưa có món nào lưu tạm trong giỏ hàng máy POS.`,
+            source: 'rule',
+          },
+        ]);
+      } else {
+        const itemLines = cartItems
+          .map(
+            (c: any, idx: number) =>
+              `${idx + 1}. **${c.quantity || 1}x ${c.name || c.productName}** (${Number(c.price || 0).toLocaleString('vi-VN')}đ)`
+          )
+          .join('\n');
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: `🧾 **GIỎ HÀNG HIỆN TẠI CỦA ${targetTblName.toUpperCase()}:**\n\n${itemLines}`,
+            source: 'rule',
+          },
+        ]);
+      }
       return true;
     }
 

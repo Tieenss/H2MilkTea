@@ -3,7 +3,17 @@ import menuData from '@/data/DMHH.json';
 import { createAdminSupabaseClient } from '@/lib/supabase/server';
 import { checkSecurityGuardrails } from '@/lib/ai/security';
 import { extractNoteAndOptions } from '@/lib/ai/ruleEngine';
-import { parseDrinkCustomization } from '@/lib/ai/customerDrinkParser';
+import {
+  parseDrinkCustomization,
+  buildMergedToppingNote,
+  detectServiceCallReason,
+} from '@/lib/ai/customerDrinkParser';
+import {
+  retrieveProjectKnowledge,
+  buildSelectiveRagPrompt,
+  type ProjectKnowledgeChunk,
+} from '@/lib/ai/ragEngine';
+import { expandAliasesWithDict } from '@/lib/ai/aliases';
 
 // Rate limiting: 15 yêu cầu / phút / IP khách
 const customerRateLimitMap = new Map<string, number[]>();
@@ -44,8 +54,9 @@ export interface SuggestedProductPayload {
 }
 
 // Chuẩn hóa chuỗi tiếng Việt để so khớp tương đồng cao
-function normalizeText(val: string): string {
-  return val
+function normalizeText(val: string, customAliases?: Record<string, string>): string {
+  const expanded = customAliases ? expandAliasesWithDict(val, customAliases) : val;
+  return expanded
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
@@ -59,8 +70,12 @@ function normalizeText(val: string): string {
 }
 
 // Tìm sản phẩm khớp nhất từ văn bản bằng Fuzzy/Token Matching
-function matchProduct(query: string, catalog: ProductItem[]): { product: ProductItem; score: number } | null {
-  const normQ = normalizeText(query);
+function matchProduct(
+  query: string,
+  catalog: ProductItem[],
+  customAliases?: Record<string, string>
+): { product: ProductItem; score: number } | null {
+  const normQ = normalizeText(query, customAliases);
   if (!normQ) return null;
 
   let bestProduct: ProductItem | null = null;
@@ -113,8 +128,6 @@ function extractJsonFromText(text: string): any | null {
     return null;
   }
 }
-
-// parseDrinkCustomization được quản lý tại @/lib/ai/customerDrinkParser
 
 function pickProductsByNames(
   names: string[],
@@ -186,18 +199,70 @@ export async function POST(request: NextRequest) {
 
     const supabase = createAdminSupabaseClient();
     let catalog: ProductItem[] = menuData as ProductItem[];
+    let customFaqs: any = null;
+    let customAliases: Record<string, string> | undefined = undefined;
+    let customRagChunks: ProjectKnowledgeChunk[] | null = null;
 
     if (supabase) {
-      const { data } = await supabase.from('DMHH').select('*');
-      if (data && data.length > 0) {
-        catalog = data as ProductItem[];
+      const [dmhhRes, faqRes, aliasRes, ragRes] = await Promise.all([
+        supabase.from('DMHH').select('*'),
+        supabase.from('app_settings').select('value').eq('key', 'store_custom_faq').maybeSingle(),
+        supabase.from('app_settings').select('value').eq('key', 'store_custom_aliases').maybeSingle(),
+        supabase.from('app_settings').select('value').eq('key', 'store_custom_rag_chunks').maybeSingle(),
+      ]);
+
+      if (dmhhRes.data && dmhhRes.data.length > 0) {
+        catalog = dmhhRes.data as ProductItem[];
+      }
+      if (faqRes.data && Array.isArray(faqRes.data.value)) {
+        customFaqs = faqRes.data.value;
+      }
+      if (aliasRes.data && typeof aliasRes.data.value === 'object' && aliasRes.data.value !== null) {
+        customAliases = aliasRes.data.value as Record<string, string>;
+      }
+      if (ragRes.data && Array.isArray(ragRes.data.value)) {
+        customRagChunks = ragRes.data.value as ProjectKnowledgeChunk[];
       }
     }
 
     const activeProducts = catalog.filter((p) => !p['Trạng thái'] || p['Trạng thái'] === 'Hoạt động');
 
-    // Rule-based FAQ nhanh cho các câu hỏi cố định (khớp ngữ cảnh chuẩn, tránh bắt nhầm chữ "mật khẩu")
+    // 2.5. Nhận diện yêu cầu gọi phục vụ tại bàn (Service Call Trigger)
+    const serviceCallReason = detectServiceCallReason(message);
+    if (serviceCallReason) {
+      return NextResponse.json({
+        success: true,
+        intent: 'SERVICE_CALL',
+        serviceCallReason,
+        message: `🔔 Mình đã nhận thấy bạn cần hỗ trợ: "${serviceCallReason}". Bạn hãy nhấn nút **"Gửi yêu cầu tới quầy ngay"** bên dưới để chuông báo vang lên tại màn hình nhân viên thu ngân nhé!`,
+        suggestedProducts: [],
+      });
+    }
+
+    // 2.6. Tra cứu FAQ / RAG dành cho khách hàng (ưu tiên dữ liệu động từ /settings/ai)
     const lower = message.toLowerCase();
+    const isOrderLike = /^(?:cho|thêm|lấy|gọi|đặt|muốn\s+gọi)\s+/i.test(message);
+
+    if (!isOrderLike) {
+      const customerRagHits = retrieveProjectKnowledge(message, {
+        topK: 1,
+        minScore: 7,
+        roleScope: 'customer',
+        customChunks: customRagChunks,
+        customFaqs,
+      });
+
+      // Nếu khớp trực tiếp với một câu hỏi FAQ của quán (như Wifi, Giờ mở cửa, Thanh toán, Tích điểm)
+      if (customerRagHits.length > 0 && customerRagHits[0].sourceType === 'faq') {
+        return NextResponse.json({
+          success: true,
+          intent: 'FAQ_GENERAL',
+          message: customerRagHits[0].content,
+          suggestedProducts: [],
+        });
+      }
+    }
+
     const isWifiQuery =
       /(pass(word)?\s*wifi|mật\s*khẩu\s*wifi|pass\s*mạng|wifi\s*(quán|mật khẩu|pass|là gì)|xin\s*pass\b)/i.test(message) ||
       (lower.includes('wifi') && (lower.includes('pass') || lower.includes('mật khẩu') || lower.includes('mạng') || lower.includes('cho xin') || lower.includes('là gì')));
@@ -272,7 +337,8 @@ export async function POST(request: NextRequest) {
     if (/(thành\s*phần|nguyên\s*liệu|công\s*thức|làm\s*từ\s*gì)/i.test(message)) {
       const matchedProd = matchProduct(
         message.replace(/(thành\s*phần|nguyên\s*liệu|công\s*thức|làm\s*từ\s*gì|của|món|ly|có\s*gì)/gi, ' '),
-        activeProducts
+        activeProducts,
+        customAliases
       );
       const prodName = matchedProd ? matchedProd.product['Tên sản phẩm'] : 'các món đồ uống tại H2 MilkTea';
       let ingredientDesc =
@@ -318,7 +384,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Tận dụng Gemini Flash với Structured Extraction
+    // Tận dụng Gemini Flash với Structured Extraction + Selective Customer RAG Context
     const apiKey = process.env.GEMINI_API_KEY;
     if (apiKey) {
       try {
@@ -326,11 +392,20 @@ export async function POST(request: NextRequest) {
           .map((p) => `ID:${p.IDSP} | ${p['Tên sản phẩm']} | ${p['Loại sản phẩm']} | ${Number(p['Đơn giá'])}đ`)
           .join('\n');
 
+        const { prompt: customerRagContext } = buildSelectiveRagPrompt(message, {
+          topK: 3,
+          roleScope: 'customer',
+          customChunks: customRagChunks,
+          customFaqs,
+        });
+
         const systemPrompt = `Bạn là Trợ lý ảo tư vấn và tiếp nhận gọi món thông minh của quán H2 MilkTea.
 Khách hàng có thể hỏi tư vấn HOẶC đưa ra yêu cầu gọi món (ví dụ: "cho tôi thêm 1 cafe sữa tươi và 3 chân trâu đường đen", "lấy cho mình 2 trà đào ít ngọt ít đá thêm trân châu trắng").
 
 DANH SÁCH MENU CỦA QUÁN:
 ${productListString}
+
+${customerRagContext}
 
 HƯỚNG DẪN XỬ LÝ:
 1. Xác định ý định của khách:
@@ -410,10 +485,15 @@ BẮT BUỘC TRẢ VỀ ĐỊNH DẠNG JSON DUY NHẤT:
 
             // 1. Nạp các món đã được bóc tách từ yêu cầu đặt món
             for (const item of detectedItems) {
-              const matched = matchProduct(item.productName, activeProducts);
+              const matched = matchProduct(item.productName, activeProducts, customAliases);
               if (matched && !addedIds.has(matched.product.IDSP)) {
                 addedIds.add(matched.product.IDSP);
                 const isFood = ['Ăn vặt', 'Bánh ngọt'].includes(matched.product['Loại sản phẩm']);
+                const itemToppings = isFood
+                  ? []
+                  : Array.isArray(item.toppings)
+                  ? item.toppings.map(String)
+                  : [];
                 matchedSuggestions.push({
                   id: matched.product.IDSP,
                   name: matched.product['Tên sản phẩm'],
@@ -424,8 +504,8 @@ BẮT BUỘC TRẢ VỀ ĐỊNH DẠNG JSON DUY NHẤT:
                   size: item.size === 'L' ? 'L' : item.size === 'S' ? 'S' : 'M',
                   sugar: isFood ? '' : (item.sugar || '100% đường'),
                   ice: isFood ? '' : (item.ice || '100% đá'),
-                  toppings: Array.isArray(item.toppings) ? item.toppings.map(String) : [],
-                  note: item.note || '',
+                  toppings: itemToppings,
+                  note: buildMergedToppingNote(itemToppings, item.note),
                   isOrderMatch: true,
                 });
               }
@@ -434,7 +514,7 @@ BẮT BUỘC TRẢ VỀ ĐỊNH DẠNG JSON DUY NHẤT:
             // 2. Nạp thêm các món được gợi ý phụ (nếu chưa có trong danh sách)
             for (const name of suggestedNames) {
               if (matchedSuggestions.length >= 4) break;
-              const matched = matchProduct(name, activeProducts);
+              const matched = matchProduct(name, activeProducts, customAliases);
               if (matched && !addedIds.has(matched.product.IDSP)) {
                 addedIds.add(matched.product.IDSP);
                 matchedSuggestions.push({
@@ -517,7 +597,7 @@ BẮT BUỘC TRẢ VỀ ĐỊNH DẠNG JSON DUY NHẤT:
         .replace(/(?:^|\s)(?:size|ly|cỡ)\s*(?:[sml]|lớn|vừa|nhỏ|lon|vua|nho)(?=\s|$)/gi, ' ')
         .trim();
 
-      const matched = matchProduct(cleanProdQuery || queryName, activeProducts);
+      const matched = matchProduct(cleanProdQuery || queryName, activeProducts, customAliases);
       if (matched && !usedIds.has(matched.product.IDSP)) {
         usedIds.add(matched.product.IDSP);
         const isFood = ['Ăn vặt', 'Bánh ngọt'].includes(matched.product['Loại sản phẩm']);
@@ -532,7 +612,7 @@ BẮT BUỘC TRẢ VỀ ĐỊNH DẠNG JSON DUY NHẤT:
           sugar: isFood ? '' : custom.sugar,
           ice: isFood ? '' : custom.ice,
           toppings: isFood ? [] : custom.toppings,
-          note: custom.toppings.length > 0 ? `Thêm ${custom.toppings.join(', ')}` : '',
+          note: buildMergedToppingNote(isFood ? [] : custom.toppings, ''),
           isOrderMatch: true,
         });
       }
@@ -542,7 +622,7 @@ BẮT BUỘC TRẢ VỀ ĐỊNH DẠNG JSON DUY NHẤT:
     if (extractedItems.length === 0) {
       for (const prod of activeProducts) {
         const normName = normalizeText(prod['Tên sản phẩm']);
-        const normMsg = normalizeText(message);
+        const normMsg = normalizeText(message, customAliases);
         if (normMsg.includes(normName) && !usedIds.has(prod.IDSP)) {
           usedIds.add(prod.IDSP);
           const isFood = ['Ăn vặt', 'Bánh ngọt'].includes(prod['Loại sản phẩm']);
@@ -558,7 +638,7 @@ BẮT BUỘC TRẢ VỀ ĐỊNH DẠNG JSON DUY NHẤT:
             sugar: isFood ? '' : custom.sugar,
             ice: isFood ? '' : custom.ice,
             toppings: isFood ? [] : custom.toppings,
-            note: custom.toppings.length > 0 ? `Thêm ${custom.toppings.join(', ')}` : '',
+            note: buildMergedToppingNote(isFood ? [] : custom.toppings, ''),
             isOrderMatch: true,
           });
           if (extractedItems.length >= 3) break;

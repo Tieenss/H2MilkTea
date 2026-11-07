@@ -12,6 +12,7 @@ import authUtils from '@/utils/authUtils';
 import { FAQManager } from './components/FAQManager';
 import { RecipeNotesManager } from './components/RecipeNotesManager';
 import { AIAuditLogViewer } from './components/AIAuditLogViewer';
+import { RAGKnowledgeManager } from './components/RAGKnowledgeManager';
 
 interface AISettingsConfig {
   enabled: boolean;
@@ -244,13 +245,16 @@ export default function AISettingsPage() {
         </Button>
       </div>
 
-      {/* 4. Quản lý FAQ tùy biến */}
+      {/* 4. Kho Tri Thức RAG Nội Bộ Dự Án (Anti-Hallucination & Simulator) */}
+      <RAGKnowledgeManager isAdmin={isAdmin} />
+
+      {/* 5. Quản lý FAQ tùy biến */}
       <FAQManager isAdmin={isAdmin} />
 
-      {/* 5. Sổ tay Công thức, Thành phần & Cảnh báo Dị ứng (P2) */}
+      {/* 6. Sổ tay Công thức, Thành phần & Cảnh báo Dị ứng (P2) */}
       <RecipeNotesManager isAdmin={isAdmin} />
 
-      {/* 6. Nhật ký Kiểm toán AI (AI Audit Log & Độ chuẩn xác) */}
+      {/* 7. Nhật ký Kiểm toán AI (AI Audit Log & Độ chuẩn xác) */}
       <AIAuditLogViewer />
 
       {/* 7. Tổng hợp Khả năng đã kích hoạt (P0, P1 & P2) */}

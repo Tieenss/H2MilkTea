@@ -52,3 +52,58 @@ export function parseDrinkCustomization(text: string): {
     toppings: Array.from(detailed.toppings || []),
   };
 }
+
+/**
+ * Hợp nhất mảng toppings vào chuỗi ghi chú (note) để không bao giờ bị rơi mất topping
+ * khi thêm món từ Chatbot QR vào CartContext.
+ */
+export function buildMergedToppingNote(toppings?: string[], note?: string): string {
+  const cleanNote = (note || '').trim();
+  const validToppings = Array.isArray(toppings)
+    ? toppings.map((t) => String(t || '').trim()).filter(Boolean)
+    : [];
+
+  if (validToppings.length === 0) {
+    return cleanNote;
+  }
+
+  const missingToppings = validToppings.filter(
+    (t) => !cleanNote.toLowerCase().includes(t.toLowerCase())
+  );
+
+  if (missingToppings.length === 0) {
+    return cleanNote;
+  }
+
+  const toppingClause = `Thêm ${missingToppings.join(', ')}`;
+  return cleanNote ? `${toppingClause} · ${cleanNote}` : toppingClause;
+}
+
+/**
+ * Nhận diện yêu cầu gọi phục vụ tại bàn từ tin nhắn của khách hàng QR
+ */
+export function detectServiceCallReason(message: string): string | null {
+  const trimmed = (message || '').trim();
+  if (!trimmed) return null;
+
+  if (/(gọi\s*nhân\s*viên|nhân\s*viên\s*ơi|phục\s*vụ\s*ơi|cần\s*hỗ\s*trợ|hỗ\s*trợ\s*bàn)/i.test(trimmed)) {
+    return 'Cần nhân viên hỗ trợ tại bàn';
+  }
+  if (/(xin\s*(thêm\s*)?(khăn\s*)?giấy|cho\s*(xin\s*)?giấy\s*ăn|hết\s*giấy)/i.test(trimmed)) {
+    return 'Xin thêm khăn giấy tại bàn';
+  }
+  if (/(xin\s*(thêm\s*)?(cốc\s*|ly\s*)?(đá|nước\s*lọc|trà\s*đá)|cho\s*xin\s*thêm\s*đá)/i.test(trimmed)) {
+    return 'Xin thêm đá / nước lọc';
+  }
+  if (/(xin\s*(thêm\s*)?(ống\s*hút|muỗng|thìa|dĩa|nĩa)|rớt\s*ống\s*hút)/i.test(trimmed)) {
+    return 'Xin thêm ống hút / muỗng';
+  }
+  if (/(lau\s*bàn|dọn\s*bàn|bàn\s*(bẩn|dơ|ướt))/i.test(trimmed)) {
+    return 'Nhờ nhân viên lau / dọn bàn';
+  }
+  if (/(tính\s*tiền\s*(tại\s*bàn|giúp|nhé|ơi)|gọi\s*thanh\s*toán|mang\s*hóa\s*đơn|mang\s*bill)/i.test(trimmed)) {
+    return 'Yêu cầu thanh toán tại bàn';
+  }
+
+  return null;
+}
