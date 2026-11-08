@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { MapPin, Plus, Search, X, Layers, Compass } from 'lucide-react';
+import { MapPin, Plus, Search, X, Layers, Compass, ArrowUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -28,7 +28,18 @@ import { TableForm } from './components/TableForm';
 import { BulkQRCodeGenerator } from './components/BulkQRCodeGenerator';
 import { BulkAddTablesDialog } from './components/BulkAddTablesDialog';
 import type { Table, TableFormData } from './types/table';
-import { INITIAL_TABLE_FORM_DATA, TABLE_STATUS, DEFAULT_AREAS, detectTableArea } from './utils/constants';
+import {
+  INITIAL_TABLE_FORM_DATA,
+  TABLE_STATUS,
+  DEFAULT_AREAS,
+  AREA_DISPLAY_ORDER,
+  TABLE_SORT_OPTIONS,
+  detectTableArea,
+  getAreaMeta,
+  sortTables,
+  groupTablesByArea,
+  type TableSortMode
+} from './utils/constants';
 import authUtils from '@/utils/authUtils';
 import { cn } from '@/lib/utils';
 import toast from 'react-hot-toast';
@@ -51,11 +62,12 @@ export default function TablePage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isManager, setIsManager] = useState(false);
   
-  // Filters
+  // Filters & Sorting
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [capacityFilter, setCapacityFilter] = useState<string>('all');
   const [areaFilter, setAreaFilter] = useState<string>('Tất cả');
+  const [sortMode, setSortMode] = useState<TableSortMode>('name-asc');
 
   // Bulk add states & initial config
   const [isBulkDialogOpen, setIsBulkDialogOpen] = useState(false);
@@ -178,9 +190,14 @@ export default function TablePage() {
     deleteTable(table.IDBAN);
   };
 
-  // Filter tables with Area and Status normalization
+  const isTableOccupied = (table: Table): boolean => {
+    const status = (table['Trạng thái'] || '').trim();
+    return status === 'Đang sử dụng' || status === 'Có khách';
+  };
+
+  // Filter and sort tables with Area, Status, Capacity & SortMode
   const filteredTables = useMemo(() => {
-    return tables.filter(table => {
+    const filtered = tables.filter(table => {
       const matchesSearch = 
         table.IDBAN.toLowerCase().includes(searchTerm.toLowerCase()) ||
         table['Tên bàn'].toLowerCase().includes(searchTerm.toLowerCase());
@@ -205,9 +222,22 @@ export default function TablePage() {
 
       return matchesSearch && matchesStatus && matchesArea && matchesCapacity;
     });
-  }, [tables, searchTerm, statusFilter, areaFilter, capacityFilter]);
 
-  // Group tables by status
+    return sortTables(filtered, sortMode, isTableOccupied);
+  }, [tables, searchTerm, statusFilter, areaFilter, capacityFilter, sortMode]);
+
+  // Chia nhóm theo Khu vực khi chọn "Tất cả"
+  const areaGroups = useMemo(() => {
+    return groupTablesByArea(filteredTables, sortMode, isTableOccupied, false);
+  }, [filteredTables, sortMode]);
+
+  const emptyAreaNames = useMemo(() => {
+    if (areaFilter !== 'Tất cả') return [];
+    const populated = new Set(areaGroups.map((g) => g.area));
+    return AREA_DISPLAY_ORDER.filter((a) => !populated.has(a));
+  }, [areaFilter, areaGroups]);
+
+  // Group tables by status for summary bar
   const tablesByStatus = useMemo(() => {
     const grouped = {
       'Đang hoạt động': [] as Table[],
@@ -363,16 +393,16 @@ export default function TablePage() {
         })}
       </div>
 
-      {/* Search & Secondary Filters */}
+      {/* Search & Secondary Filters + Sort Selector */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Bộ lọc và tìm kiếm</CardTitle>
+          <CardTitle className="text-base">Bộ lọc, sắp xếp và tìm kiếm</CardTitle>
           <CardDescription className="text-xs">
-            Lọc và tìm kiếm bàn theo tên, mã bàn, trạng thái hoặc sức chứa
+            Sắp xếp thứ tự bàn tự nhiên (A → Z / Z → A), lọc theo trạng thái hoặc sức chứa
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex flex-col lg:flex-row gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
@@ -392,6 +422,23 @@ export default function TablePage() {
                 </Button>
               )}
             </div>
+
+            {/* Bộ chọn Sắp xếp A -> Z / Z -> A / Ưu tiên bàn có khách */}
+            <Select value={sortMode} onValueChange={(v) => setSortMode(v as TableSortMode)}>
+              <SelectTrigger className="w-full sm:w-[210px]">
+                <div className="flex items-center gap-1.5">
+                  <ArrowUpDown className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                  <SelectValue placeholder="Sắp xếp" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                {TABLE_SORT_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-full sm:w-[180px]">
@@ -419,7 +466,7 @@ export default function TablePage() {
               </SelectContent>
             </Select>
 
-            {(searchTerm || statusFilter !== 'all' || capacityFilter !== 'all' || areaFilter !== 'Tất cả') && (
+            {(searchTerm || statusFilter !== 'all' || capacityFilter !== 'all' || areaFilter !== 'Tất cả' || sortMode !== 'name-asc') && (
               <Button
                 variant="outline"
                 onClick={() => {
@@ -427,36 +474,76 @@ export default function TablePage() {
                   setStatusFilter('all');
                   setCapacityFilter('all');
                   setAreaFilter('Tất cả');
+                  setSortMode('name-asc');
                 }}
               >
                 <X className="h-4 w-4 mr-2" />
-                Xóa bộ lọc
+                Đặt lại
               </Button>
             )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Tables Grid */}
+      {/* Tables Grid: Chia nhóm theo Khu vực khi chọn "Tất cả" */}
       <div className="space-y-6">
-        {statusFilter === 'all' ? (
-          Object.entries(tablesByStatus).map(([status, statusTables]) => {
-            if (statusTables.length === 0) return null;
-            
-            const statusInfo = TABLE_STATUS.find(s => s.value === status);
-            
-            return (
-              <div key={status} className="space-y-4">
-                <div className="flex items-center gap-2">
-                  {statusInfo?.icon && (
-                    <statusInfo.icon className="h-5 w-5 text-gray-600" />
-                  )}
-                  <h4 className="text-lg font-semibold text-gray-800 dark:text-slate-100">
-                    {statusInfo?.label} ({statusTables.length})
-                  </h4>
+        {filteredTables.length === 0 ? (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-16">
+              <MapPin className="h-12 w-12 text-gray-300 mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 dark:text-slate-100 mb-2">
+                {areaFilter !== 'Tất cả'
+                  ? `Khu vực "${areaFilter}" hiện chưa có bàn nào`
+                  : 'Không tìm thấy bàn nào'}
+              </h3>
+              <p className="text-gray-500 dark:text-slate-400 text-center mb-4">
+                Thử điều chỉnh bộ lọc hoặc thêm bàn mới vào khu vực này
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setStatusFilter('all');
+                    setCapacityFilter('all');
+                    setAreaFilter('Tất cả');
+                  }}
+                >
+                  Xem tất cả khu vực
+                </Button>
+                {(isAdmin || isManager) && (
+                  <Button onClick={handleAddNew}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Thêm bàn mới
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        ) : areaFilter === 'Tất cả' ? (
+          <>
+            {areaGroups.map((group) => (
+              <section
+                key={group.area}
+                className="rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white/80 dark:bg-slate-900/50 p-4 space-y-4 shadow-2xs"
+              >
+                <div className={`flex flex-wrap items-center justify-between gap-2 pb-3 border-b ${group.meta.headerBorderClass}`}>
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-lg leading-none">{group.meta.emoji}</span>
+                    <h4 className="text-base font-bold text-slate-800 dark:text-slate-100">
+                      {group.meta.label}
+                    </h4>
+                    <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${group.meta.badgeClass}`}>
+                      {group.tables.length} bàn
+                    </span>
+                  </div>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    Sắp xếp: <strong>{TABLE_SORT_OPTIONS.find((o) => o.value === sortMode)?.label}</strong>
+                  </span>
                 </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {statusTables.map((table) => (
+                  {group.tables.map((table) => (
                     <TableCard
                       key={table.IDBAN}
                       table={table}
@@ -467,62 +554,59 @@ export default function TablePage() {
                     />
                   ))}
                 </div>
+              </section>
+            ))}
+
+            {emptyAreaNames.length > 0 && !searchTerm.trim() && statusFilter === 'all' && capacityFilter === 'all' && (
+              <div className="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl px-4 py-3 flex items-center justify-between flex-wrap gap-2">
+                <span>
+                  Khu vực chưa có bàn:{' '}
+                  <strong className="text-slate-700 dark:text-slate-200">
+                    {emptyAreaNames.map((a) => `${a} (0)`).join(', ')}
+                  </strong>
+                </span>
+                {(isAdmin || isManager) && (
+                  <button
+                    type="button"
+                    onClick={() => setIsBulkDialogOpen(true)}
+                    className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                  >
+                    + Tạo nhanh bàn cho khu vực này
+                  </button>
+                )}
               </div>
-            );
-          })
-        ) : (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h4 className="text-lg font-semibold text-gray-800">
-                Kết quả tìm kiếm ({filteredTables.length} bàn)
-              </h4>
-            </div>
-            {filteredTables.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {filteredTables.map((table) => (
-                  <TableCard
-                    key={table.IDBAN}
-                    table={table}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                    isAdmin={isAdmin}
-                    isManager={isManager}
-                  />
-                ))}
-              </div>
-            ) : (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center py-16">
-                  <MapPin className="h-12 w-12 text-gray-300 mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    Không tìm thấy bàn nào
-                  </h3>
-                  <p className="text-gray-500 text-center mb-4">
-                    Thử điều chỉnh bộ lọc hoặc tìm kiếm với từ khóa khác
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setSearchTerm('');
-                        setStatusFilter('all');
-                        setCapacityFilter('all');
-                        setAreaFilter('Tất cả');
-                      }}
-                    >
-                      Xóa bộ lọc
-                    </Button>
-                    {(isAdmin || isManager) && (
-                      <Button onClick={handleAddNew}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Thêm bàn mới
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
             )}
-          </div>
+          </>
+        ) : (
+          <section className="rounded-xl border border-slate-200/90 dark:border-slate-800 bg-white/80 dark:bg-slate-900/50 p-4 space-y-4 shadow-2xs">
+            <div className={`flex flex-wrap items-center justify-between gap-2 pb-3 border-b ${getAreaMeta(areaFilter).headerBorderClass}`}>
+              <div className="flex items-center gap-2.5">
+                <span className="text-lg leading-none">{getAreaMeta(areaFilter).emoji}</span>
+                <h4 className="text-base font-bold text-slate-800 dark:text-slate-100">
+                  {getAreaMeta(areaFilter).label}
+                </h4>
+                <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${getAreaMeta(areaFilter).badgeClass}`}>
+                  {filteredTables.length} bàn
+                </span>
+              </div>
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                Sắp xếp: <strong>{TABLE_SORT_OPTIONS.find((o) => o.value === sortMode)?.label}</strong>
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {filteredTables.map((table) => (
+                <TableCard
+                  key={table.IDBAN}
+                  table={table}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                  isAdmin={isAdmin}
+                  isManager={isManager}
+                />
+              ))}
+            </div>
+          </section>
         )}
       </div>
 
@@ -530,10 +614,10 @@ export default function TablePage() {
       <Card>
         <CardContent className="py-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="text-sm text-gray-600">
+            <div className="text-sm text-gray-600 dark:text-slate-400">
               Hiển thị {filteredTables.length} trên tổng số {tables.length} bàn
             </div>
-            <div className="flex items-center gap-6 text-sm text-gray-600">
+            <div className="flex items-center gap-6 text-sm text-gray-600 dark:text-slate-400">
               <span className="flex items-center gap-2">
                 <div className="w-3 h-3 bg-green-100 rounded-full"></div>
                 Đang hoạt động: {tablesByStatus['Đang hoạt động'].length}

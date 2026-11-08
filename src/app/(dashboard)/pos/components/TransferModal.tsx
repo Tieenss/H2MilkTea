@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { formatCurrency } from '../utils/formatters';
 import type { Table, CartItem } from '../types/pos';
 import { ArrowRight, AlertTriangle, CheckCircle2, Users, ShoppingBag, Wallet } from 'lucide-react';
+import { sortTables, detectTableArea } from '@/app/(dashboard)/tables/utils/constants';
 
 interface TransferModalProps {
   tables: Table[];
@@ -31,11 +32,17 @@ export const TransferModal: React.FC<TransferModalProps> = ({
 
   const sourceTable = tables.find(t => t.IDBAN === selectedTableId);
 
-  // Lấy danh sách bàn có thể chuyển đến (bao gồm cả bàn trống và bàn đang có đơn để hỗ trợ gộp bàn)
-  const targetTables = tables.filter(table =>
-    table.IDBAN !== selectedTableId &&
-    table['Tên bàn'] !== 'Khách mua về'
-  );
+  // Lấy danh sách bàn có thể chuyển đến và sắp xếp tự nhiên A -> Z (Bàn 01 -> Bàn 02 -> ... -> Bàn 15)
+  const targetTables = useMemo(() => {
+    return sortTables(
+      tables.filter(
+        table =>
+          table.IDBAN !== selectedTableId &&
+          table['Tên bàn'] !== 'Khách mua về'
+      ),
+      'name-asc'
+    );
+  }, [tables, selectedTableId]);
 
   const getTableOrderItems = (table: Table): CartItem[] => {
     const byId = activeOrders.get(table.IDBAN);
@@ -133,7 +140,7 @@ export const TransferModal: React.FC<TransferModalProps> = ({
         <div className="p-4 sm:p-6 flex-1 overflow-y-auto">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-gray-800 dark:text-white">
-              Chọn bàn đích ({targetTables.length} bàn)
+              Chọn bàn đích ({targetTables.length} bàn · Đã xếp A → Z)
             </h3>
             <div className="flex items-center gap-3 text-xs">
               <span className="inline-flex items-center gap-1.5 text-green-700 font-medium">
@@ -317,6 +324,7 @@ const TransferTableCard: React.FC<TransferTableCardProps> = ({
 }) => {
   const isOccupied = existingItems.length > 0;
   const itemCount = existingItems.reduce((sum, item) => sum + item.quantity, 0);
+  const areaName = detectTableArea(table['Tên bàn'], table['Khu vực']);
 
   return (
     <Card
@@ -330,9 +338,14 @@ const TransferTableCard: React.FC<TransferTableCardProps> = ({
       }`}
     >
       <div className="flex items-start justify-between mb-2.5">
-        <h4 className="font-bold text-gray-800 dark:text-white text-base sm:text-lg">
-          {table['Tên bàn']}
-        </h4>
+        <div>
+          <h4 className="font-bold text-gray-800 dark:text-white text-base sm:text-lg">
+            {table['Tên bàn']}
+          </h4>
+          <span className="inline-block text-[10px] px-1.5 py-0.5 rounded bg-black/5 dark:bg-white/10 text-slate-600 dark:text-slate-300 font-medium mt-0.5">
+            {areaName}
+          </span>
+        </div>
         <div
           className={`w-7 h-7 rounded-full flex items-center justify-center ${
             isOccupied

@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -31,6 +31,7 @@ import {
     Cloud,
     CloudOff,
     RefreshCw,
+    Info,
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import {
@@ -42,6 +43,7 @@ import {
     type AppNotification,
 } from '@/utils/notificationStore';
 import { getAppearanceSettings, saveAppearanceSettings } from '@/utils/appearanceSettings';
+import { findActiveNavigationContext } from '@/lib/navigation';
 
 interface HeaderProps {
     onToggleSidebar: () => void;
@@ -51,6 +53,7 @@ interface HeaderProps {
 
 export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }: HeaderProps) {
     const router = useRouter();
+    const pathname = usePathname();
     const [userData, setUserData] = useState<any>(null);
     const [mounted, setMounted] = useState(false);
     const [currentTime, setCurrentTime] = useState<Date | null>(null);
@@ -68,6 +71,8 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
         lastSync: null,
         needsSync: false
     });
+
+    const activeNav = useMemo(() => findActiveNavigationContext(pathname), [pathname]);
 
     // Dark Mode & Elderly Accessibility Mode Toggle Logic
     const [colorMode, setColorMode] = useState<'light' | 'dark' | 'system'>('light');
@@ -268,10 +273,10 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
     const unreadCount = getUnreadCount(notifications);
 
     return (
-        <div className="h-16 bg-white border-b border-gray-200 fixed top-0 left-0 right-0 z-40">
+        <div className="h-16 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 fixed top-0 left-0 right-0 z-40">
             <div className="flex items-center justify-between h-full px-3">
                 {/* Left side */}
-                <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-3 min-w-0">
                     {/* Mobile menu button */}
                     <Button
                         variant="ghost"
@@ -283,7 +288,7 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
                     </Button>
 
                     {/* Logo and title */}
-                    <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-2.5 shrink-0">
                         <div className="w-8 h-8 rounded-lg flex items-center justify-center">
                             <img
                                 src="/logo-h2.png"
@@ -292,16 +297,17 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
                             />
                         </div>
                         <div>
-                            <span className="font-bold text-gray-800">H2 MilkTea</span>
+                            <span className="font-bold text-gray-800 dark:text-slate-100">H2 MilkTea</span>
                         </div>
                     </div>
+
                     {/* Desktop collapse button */}
                     <Button
                         variant="ghost"
                         size="icon"
                         onClick={onToggleSidebar}
-                        className="hidden lg:flex ml-2 transition-all duration-200"
-                        title={sidebarCollapsed ? "Mở rộng thanh menu" : "Thu gọn thanh menu"}
+                        className="hidden lg:flex ml-1 transition-all duration-200"
+                        title={sidebarCollapsed ? "Mở rộng thanh menu bên trái" : "Thu gọn thanh menu bên trái"}
                     >
                         {sidebarCollapsed ? (
                             <ChevronRight className="h-4 w-4" />
@@ -309,6 +315,46 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
                             <ChevronLeft className="h-4 w-4" />
                         )}
                     </Button>
+
+                    {/* Thanh định vị Breadcrumb Ngữ cảnh chức năng đang mở */}
+                    {activeNav.activeItem && (
+                        <div className="hidden sm:flex items-center gap-2 pl-3 border-l border-slate-200 dark:border-slate-800 min-w-0 group relative">
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50/90 dark:bg-indigo-950/60 border border-indigo-200/80 dark:border-indigo-800/70 text-xs">
+                                {activeNav.parentGroup && activeNav.parentGroup.name !== activeNav.activeItem.name && (
+                                    <>
+                                        <span className="text-slate-500 dark:text-slate-400 font-medium hidden md:inline">
+                                            {activeNav.parentGroup.name}
+                                        </span>
+                                        <span className="text-slate-400 hidden md:inline">▸</span>
+                                    </>
+                                )}
+                                <span className="font-bold text-indigo-700 dark:text-indigo-300 truncate max-w-[180px] lg:max-w-[240px]">
+                                    {activeNav.activeItem.name.trim()}
+                                </span>
+                                {activeNav.sectionMeta && (
+                                    <span className="hidden xl:inline-block text-[10px] font-semibold px-1.5 py-0.2 rounded bg-indigo-600 text-white">
+                                        {activeNav.sectionMeta.shortLabel}
+                                    </span>
+                                )}
+                                <Info className="w-3.5 h-3.5 text-indigo-500/80 shrink-0" />
+                            </div>
+
+                            {/* Hộp giải thích nhanh khi di chuột vào Breadcrumb trên Header */}
+                            {activeNav.activeItem.description && (
+                                <div className="absolute left-3 top-full mt-2 w-80 p-3 rounded-xl bg-slate-900 text-white text-xs shadow-2xl border border-slate-700 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 z-50 pointer-events-none">
+                                    <div className="font-bold text-indigo-300 mb-1 flex items-center justify-between">
+                                        <span>{activeNav.activeItem.name.trim()}</span>
+                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/30 text-indigo-200">
+                                            {activeNav.activeItem.tierLabel || 'Đang mở'}
+                                        </span>
+                                    </div>
+                                    <p className="text-slate-200 leading-relaxed text-[11px]">
+                                        {activeNav.activeItem.description}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {/* Right side */}
@@ -371,11 +417,11 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
                         )}
                     </Button>
 
-                                        {/* Notification dropdown (Mục #15: Chấm xanh unread, click điều hướng, dọn thông báo) */}
+                    {/* Notification dropdown (Mục #15: Chấm xanh unread, click điều hướng, dọn thông báo) */}
                     <DropdownMenu open={notificationDropdownOpen} onOpenChange={setNotificationDropdownOpen}>
                         <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="icon" className="relative transition-all duration-200" title="Thông báo hệ thống">
-                                <Bell className="h-5 w-5 text-gray-700" />
+                                <Bell className="h-5 w-5 text-gray-700 dark:text-slate-200" />
                                 {unreadCount > 0 && (
                                     <span className="absolute top-1.5 right-1.5 flex h-3 w-3">
                                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -510,10 +556,10 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
                                     </AvatarFallback>
                                 </Avatar>
                                 <div className="hidden lg:block text-left">
-                                    <p className="text-sm font-medium text-gray-800">
+                                    <p className="text-sm font-medium text-gray-800 dark:text-slate-100">
                                         {userData?.['Họ và Tên'] || 'Người dùng'}
                                     </p>
-                                    <p className="text-xs text-gray-500">
+                                    <p className="text-xs text-gray-500 dark:text-slate-400">
                                         {userData?.username || ''}
                                     </p>
                                 </div>

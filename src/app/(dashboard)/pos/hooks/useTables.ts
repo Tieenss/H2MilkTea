@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import type { Table } from '../types/pos';
 import authUtils from '@/utils/authUtils';
+import { sortTables } from '@/app/(dashboard)/tables/utils/constants';
 
 export const useTables = () => {
   const [tables, setTables] = useState<Table[]>([]);
@@ -16,8 +17,16 @@ export const useTables = () => {
       
       const tableList = Array.isArray(response) ? response : [];
       
-      // Chỉ lấy bàn đang hoạt động
-      const activeTables = tableList.filter(table => table['Trạng thái'] !== 'Bảo trì' && table['Trạng thái'] !== 'Ngưng sử dụng' && table['Trạng thái'] !== 'Ngừng hoạt động');
+      // Chỉ lấy bàn đang hoạt động và sắp xếp tự nhiên A -> Z (Bàn 01 -> Bàn 02 -> ... -> Bàn 15)
+      const activeTables = sortTables(
+        tableList.filter(
+          table =>
+            table['Trạng thái'] !== 'Bảo trì' &&
+            table['Trạng thái'] !== 'Ngưng sử dụng' &&
+            table['Trạng thái'] !== 'Ngừng hoạt động'
+        ),
+        'name-asc'
+      );
       
       setTables(activeTables);
       return activeTables;

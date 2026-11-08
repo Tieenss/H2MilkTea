@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import type { Table, TableFormData } from '../types/table';
 import authUtils from '@/utils/authUtils';
+import { sortTables } from '../utils/constants';
 
 export const useTables = () => {
   const [tables, setTables] = useState<Table[]>([]);
@@ -18,7 +19,7 @@ export const useTables = () => {
       setLoading(true);
       const response = await authUtils.apiRequest('DSBAN', 'getall', {});
       const tableList = Array.isArray(response) ? response : [];
-      setTables(tableList);
+      setTables(sortTables(tableList, 'name-asc'));
     } catch (error) {
       console.error('Error fetching table list:', error);
       toast.error('Lỗi khi tải danh sách bàn');
@@ -58,7 +59,7 @@ export const useTables = () => {
       const result = await authUtils.apiRequest('DSBAN', 'create', formData);
       
       if (!Array.isArray(result) && result.success) {
-        setTables(prev => [...prev, formData as Table]);
+        setTables(prev => sortTables([...prev, formData as Table], 'name-asc'));
         toast.success('Thêm bàn mới thành công!');
       } else if (!Array.isArray(result)) {
         throw new Error(result.message || 'Lỗi khi thêm bàn');
@@ -80,9 +81,14 @@ export const useTables = () => {
       });
       
       if (!Array.isArray(result) && result.success) {
-        setTables(prev => prev.map(table =>
-          table.IDBAN === tableId ? { ...table, ...formData } : table
-        ));
+        setTables(prev =>
+          sortTables(
+            prev.map(table =>
+              table.IDBAN === tableId ? { ...table, ...formData } : table
+            ),
+            'name-asc'
+          )
+        );
         toast.success('Cập nhật thông tin bàn thành công!');
       } else if (!Array.isArray(result)) {
         throw new Error(result.message || 'Lỗi khi cập nhật bàn');
@@ -144,7 +150,7 @@ export const useTables = () => {
       }
 
       if (addedList.length > 0) {
-        setTables(prev => [...prev, ...addedList]);
+        setTables(prev => sortTables([...prev, ...addedList], 'name-asc'));
         toast.success(`Đã thêm thành công ${successCount} bàn mới!`);
       } else {
         toast.error('Không thể thêm bàn hàng loạt');

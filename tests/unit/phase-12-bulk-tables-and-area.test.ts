@@ -1,5 +1,11 @@
-import { describe, it, expect, vi } from 'vitest';
-import { detectTableArea, DEFAULT_AREAS, TABLE_AREA_OPTIONS } from '@/app/(dashboard)/tables/utils/constants';
+import { describe, it, expect } from 'vitest';
+import {
+  detectTableArea,
+  DEFAULT_AREAS,
+  TABLE_AREA_OPTIONS,
+  sortTables,
+  groupTablesByArea
+} from '@/app/(dashboard)/tables/utils/constants';
 import type { Table, TableFormData } from '@/app/(dashboard)/tables/types/table';
 
 describe('Phase 12: Bulk Tables & Area Management', () => {
@@ -153,6 +159,76 @@ describe('Phase 12: Bulk Tables & Area Management', () => {
       expect(checkPermission('Quản lý')).toBe(true);
       expect(checkPermission('Thu ngân')).toBe(false);
       expect(checkPermission('Pha chế')).toBe(false);
+    });
+  });
+
+  describe('Natural Alphanumeric Sorting & Area Grouping', () => {
+    const scrambledTables = [
+      { IDBAN: 'TAKEAWAY', 'Tên bàn': 'Khách mua về', 'Khu vực': 'Mang về', 'Trạng thái sử dụng': 'Trống' },
+      { IDBAN: 'BAN07', 'Tên bàn': 'Bàn 07', 'Khu vực': 'Quầy', 'Trạng thái sử dụng': 'Trống' },
+      { IDBAN: 'BAN10', 'Tên bàn': 'Bàn 10', 'Khu vực': 'Quầy', 'Trạng thái sử dụng': 'Trống' },
+      { IDBAN: 'BAN09', 'Tên bàn': 'Bàn 09', 'Khu vực': 'Quầy', 'Trạng thái sử dụng': 'Trống' },
+      { IDBAN: 'BAN03', 'Tên bàn': 'Bàn 03', 'Khu vực': 'Quầy', 'Trạng thái sử dụng': 'Đang sử dụng' },
+      { IDBAN: 'BAN01', 'Tên bàn': 'Bàn 01', 'Khu vực': 'Quầy', 'Trạng thái sử dụng': 'Đang sử dụng' },
+      { IDBAN: 'BAN02', 'Tên bàn': 'Bàn 2', 'Khu vực': 'Quầy', 'Trạng thái sử dụng': 'Trống' },
+      { IDBAN: 'BAN15', 'Tên bàn': 'Bàn 15', 'Khu vực': 'Quầy', 'Trạng thái sử dụng': 'Trống' },
+    ];
+
+    it('sorts scrambled tables naturally A -> Z (Bàn 01 -> Bàn 2 -> Bàn 03 -> Bàn 07 -> Bàn 09 -> Bàn 10 -> Bàn 15)', () => {
+      const sorted = sortTables(scrambledTables, 'name-asc');
+      expect(sorted.map((t) => t['Tên bàn'])).toEqual([
+        'Bàn 01',
+        'Bàn 2',
+        'Bàn 03',
+        'Bàn 07',
+        'Bàn 09',
+        'Bàn 10',
+        'Bàn 15',
+        'Khách mua về'
+      ]);
+    });
+
+    it('sorts tables Z -> A while keeping takeaway at the end', () => {
+      const sorted = sortTables(scrambledTables, 'name-desc');
+      expect(sorted.map((t) => t['Tên bàn'])).toEqual([
+        'Bàn 15',
+        'Bàn 10',
+        'Bàn 09',
+        'Bàn 07',
+        'Bàn 03',
+        'Bàn 2',
+        'Bàn 01',
+        'Khách mua về'
+      ]);
+    });
+
+    it('sorts occupied tables first (occupied-first), preserving A -> Z within occupied and empty groups', () => {
+      const sorted = sortTables(scrambledTables, 'occupied-first');
+      expect(sorted.slice(0, 2).map((t) => t['Tên bàn'])).toEqual(['Bàn 01', 'Bàn 03']);
+      expect(sorted.slice(2).map((t) => t['Tên bàn'])).toEqual([
+        'Bàn 2',
+        'Bàn 07',
+        'Bàn 09',
+        'Bàn 10',
+        'Bàn 15',
+        'Khách mua về'
+      ]);
+    });
+
+    it('groups tables into separate Area sections and hides empty areas when selectedArea is Tất cả', () => {
+      const groups = groupTablesByArea(scrambledTables, 'name-asc');
+      expect(groups.map((g) => g.area)).toEqual(['Quầy', 'Mang về']);
+      expect(groups[0].tables.map((t) => t['Tên bàn'])).toEqual([
+        'Bàn 01',
+        'Bàn 2',
+        'Bàn 03',
+        'Bàn 07',
+        'Bàn 09',
+        'Bàn 10',
+        'Bàn 15'
+      ]);
+      expect(groups[0].occupiedCount).toBe(2);
+      expect(groups[1].tables.map((t) => t['Tên bàn'])).toEqual(['Khách mua về']);
     });
   });
 });
