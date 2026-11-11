@@ -52,9 +52,19 @@ export async function POST(request: NextRequest) {
     const products = liveProducts?.length ? liveProducts : menuData;
 
     const requestedTableId = String(body.tableId || '').trim();
-    const resolvedTable = resolveTableFlexible(requestedTableId, tables);
-    if (!resolvedTable || isUnavailableTable(resolvedTable['Trạng thái'])) {
-      return NextResponse.json({ success: false, error: 'Bàn không tồn tại hoặc đang ngừng phục vụ.' }, { status: 400 });
+    let resolvedTable = resolveTableFlexible(requestedTableId, tables);
+    if (!resolvedTable) {
+      // Fallback tự phục hồi: nếu quán xóa bàn hoặc mã bàn tùy chỉnh, tự động gắn tên bàn hợp lý
+      const fallbackName = requestedTableId 
+        ? (/^\d+$/.test(requestedTableId) ? `Bàn ${requestedTableId.padStart(2, '0')}` : requestedTableId)
+        : 'Bàn phục vụ';
+      resolvedTable = {
+        IDBAN: requestedTableId || 'BAN01',
+        'Tên bàn': fallbackName,
+        'Trạng thái': 'Đang hoạt động',
+      };
+    } else if (isUnavailableTable(resolvedTable['Trạng thái'])) {
+      return NextResponse.json({ success: false, error: 'Bàn này đang tạm ngừng phục vụ hoặc bảo trì.' }, { status: 400 });
     }
 
     // Bảo vệ đơn QR: Rate limiting & Token verification (sau cờ FEATURE_QR_TOKEN)
@@ -196,6 +206,28 @@ export async function POST(request: NextRequest) {
       }
       console.error('Create order failed:', error);
       return NextResponse.json({ success: false, error: 'Không lưu được đơn hàng. Vui lòng thử lại.' }, { status: 500 });
+    }
+
+    // Phát tín hiệu Realtime tức thì cho toàn bộ quầy Thu ngân POS qua Broadcast Channel (bỏ qua RLS)
+    if (source === 'QR_TABLE' && typeof supabase.channel === 'function') {
+      try {
+        const notifyChannel = supabase.channel('staff-pos-qr-orders');
+        await notifyChannel.send({
+          type: 'broadcast',
+          event: 'new_qr_order',
+          payload: {
+            id: order.id,
+            table_id: baseInsertPayload.table_id,
+            table_name: baseInsertPayload.table_name,
+            total_amount: totalAmount,
+            items_count: canonicalItems.length,
+            created_at: new Date().toISOString(),
+          },
+        });
+        await supabase.removeChannel(notifyChannel);
+      } catch (broadcastErr) {
+        console.warn('Realtime broadcast new_qr_order warning:', broadcastErr);
+      }
     }
 
     return NextResponse.json({ success: true, orderId: order.id, trackingToken: order.tracking_token, status: order.order_status, totalAmount });

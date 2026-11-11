@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { createClient } from '@/lib/supabase/client';
+import toast from 'react-hot-toast';
 
 export interface IncomingOrder {
   id: string;
@@ -39,15 +40,34 @@ function playAlert() {
     const AudioContextClass = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AudioContextClass) return;
     const context = new AudioContextClass();
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    oscillator.connect(gain);
-    gain.connect(context.destination);
-    oscillator.frequency.value = 880;
-    gain.gain.setValueAtTime(0.2, context.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, context.currentTime + 0.35);
-    oscillator.start();
-    oscillator.stop(context.currentTime + 0.35);
+    if (context.state === 'suspended') {
+      context.resume().catch(() => {});
+    }
+
+    // Tiếng chuông reo đôi (Ding-Dong) chuẩn quầy thu ngân
+    const now = context.currentTime;
+    
+    // Nốt 1 (Ding - 880Hz)
+    const osc1 = context.createOscillator();
+    const gain1 = context.createGain();
+    osc1.connect(gain1);
+    gain1.connect(context.destination);
+    osc1.frequency.setValueAtTime(880, now);
+    gain1.gain.setValueAtTime(0.3, now);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+    osc1.start(now);
+    osc1.stop(now + 0.4);
+
+    // Nốt 2 (Dong - 1320Hz) ngân nhẹ
+    const osc2 = context.createOscillator();
+    const gain2 = context.createGain();
+    osc2.connect(gain2);
+    gain2.connect(context.destination);
+    osc2.frequency.setValueAtTime(1320, now + 0.15);
+    gain2.gain.setValueAtTime(0.25, now + 0.15);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+    osc2.start(now + 0.15);
+    osc2.stop(now + 0.65);
   } catch { /* Audio is optional; the visible inbox remains authoritative. */ }
 }
 
@@ -75,13 +95,54 @@ export function QROrderInbox({
     reason: '',
   });
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (notifyOnNew = false) => {
     try {
       const response = await fetch('/api/pos/orders', { cache: 'no-store' });
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || 'Không tải được đơn QR.');
-      setOrders(result.orders);
-      knownIds.current = new Set(result.orders.map((order: IncomingOrder) => order.id));
+      const fetchedOrders: IncomingOrder[] = result.orders || [];
+
+      // Kiểm tra xem có đơn mới chưa từng thấy để phát thông báo chuông & Toast
+      const newOrders = fetchedOrders.filter(
+        o => o.order_status === 'awaiting_confirmation' && !knownIds.current.has(o.id)
+      );
+
+      if (newOrders.length > 0 && (notifyOnNew || knownIds.current.size > 0)) {
+        playAlert();
+        const latest = newOrders[0];
+        toast.custom(
+          (t) => (
+            <div
+              className={`${
+                t.visible ? 'animate-enter' : 'animate-leave'
+              } max-w-md w-full bg-amber-900 text-white shadow-2xl rounded-2xl pointer-events-auto flex ring-2 ring-amber-400 p-3.5 items-center gap-3`}
+            >
+              <div className="w-10 h-10 rounded-xl bg-amber-500/30 flex items-center justify-center shrink-0">
+                <BellRing className="w-6 h-6 text-amber-300 animate-bounce" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-extrabold text-amber-200 uppercase tracking-wide">
+                  Đơn QR mới: {latest.table_name}
+                </p>
+                <p className="text-xs text-amber-100 truncate">
+                  {latest.items?.length || 0} món · {Number(latest.total_amount).toLocaleString('vi-VN')}đ
+                </p>
+              </div>
+              <button
+                onClick={() => toast.dismiss(t.id)}
+                className="p-1 rounded-lg hover:bg-amber-800 text-amber-200 text-xs font-bold"
+              >
+                Đóng
+              </button>
+            </div>
+          ),
+          { duration: 8000, id: `qr-incoming-${latest.id}` }
+        );
+        setIsCollapsed(false);
+      }
+
+      setOrders(fetchedOrders);
+      knownIds.current = new Set(fetchedOrders.map((order: IncomingOrder) => order.id));
       setError('');
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Không tải được đơn QR.');
@@ -89,7 +150,7 @@ export function QROrderInbox({
   }, []);
 
   useEffect(() => {
-    refresh();
+    refresh(false);
     const supabase = createClient();
     const topic = 'staff-pos-qr-orders';
 
@@ -107,17 +168,57 @@ export function QROrderInbox({
     let channel: any = null;
     try {
       channel = supabase.channel(topic)
+        // 1. Lắng nghe broadcast trực tiếp từ client khách hoặc server API (dưới 50ms)
+        .on('broadcast', { event: 'new_qr_order' }, (payload: any) => {
+          const data = payload?.payload || payload;
+          playAlert();
+          setIsCollapsed(false);
+          toast.custom(
+            (t) => (
+              <div
+                className={`${
+                  t.visible ? 'animate-enter' : 'animate-leave'
+                } max-w-md w-full bg-amber-900 text-white shadow-2xl rounded-2xl pointer-events-auto flex ring-2 ring-amber-400 p-3.5 items-center gap-3`}
+              >
+                <div className="w-10 h-10 rounded-xl bg-amber-500/30 flex items-center justify-center shrink-0">
+                  <BellRing className="w-6 h-6 text-amber-300 animate-bounce" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-extrabold text-amber-200 uppercase tracking-wide">
+                    Đơn QR mới: {data?.table_name || 'Bàn khách'}
+                  </p>
+                  <p className="text-xs text-amber-100 truncate">
+                    {data?.total_amount ? `${Number(data.total_amount).toLocaleString('vi-VN')}đ` : 'Đang chờ duyệt'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => toast.dismiss(t.id)}
+                  className="p-1 rounded-lg hover:bg-amber-800 text-amber-200 text-xs font-bold"
+                >
+                  Đóng
+                </button>
+              </div>
+            ),
+            { duration: 8000, id: `qr-incoming-${data?.id || Date.now()}` }
+          );
+          void refresh(false);
+        })
+        // 2. Lắng nghe qua Postgres Changes (WAL CDC)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pos_orders', filter: 'source=eq.QR_TABLE' }, (payload) => {
           const order = payload.new as IncomingOrder & { order_status?: string };
-          if (order.order_status === 'awaiting_confirmation' && !knownIds.current.has(order.id)) playAlert();
-          void refresh();
+          if (order.order_status === 'awaiting_confirmation' && !knownIds.current.has(order.id)) {
+            playAlert();
+            setIsCollapsed(false);
+          }
+          void refresh(true);
         })
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pos_orders', filter: 'source=eq.QR_TABLE' }, (payload) => {
           const updatedOrder = payload.new as IncomingOrder;
           if (updatedOrder?.rejection_reason?.includes('YÊU CẦU HỦY ĐƠN')) {
             playAlert();
+            setIsCollapsed(false);
           }
-          void refresh();
+          void refresh(false);
         })
         .subscribe((status) => setIsConnected(status === 'SUBSCRIBED'));
     } catch (e) {
@@ -129,10 +230,12 @@ export function QROrderInbox({
       if (settledIds.length > 0) {
         setOrders(prev => prev.filter(o => !settledIds.includes(o.id)));
       }
-      void refresh();
+      void refresh(false);
     };
     window.addEventListener('pos_order_settled', handleSettled);
-    const fallback = window.setInterval(refresh, 15000);
+
+    // Fallback polling chu kỳ 4 giây khi mở màn hình POS để đảm bảo luôn nhận đơn ngay
+    const fallback = window.setInterval(() => refresh(true), 4000);
     return () => {
       window.removeEventListener('pos_order_settled', handleSettled);
       window.clearInterval(fallback);

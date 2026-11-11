@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Minus, Plus, Trash2, ShoppingBag, MessageSquare, Send, CheckCircle2 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useTablePresence } from '@/hooks/useTablePresence';
+import { createClient } from '@/lib/supabase/client';
 import toast from 'react-hot-toast';
 
 function CartPageContent() {
@@ -67,7 +68,28 @@ function CartPageContent() {
         setOrderId(data.orderId);
         setOrderSuccess(true);
         clearCart();
-        toast.success('Đặt món thành công!');
+        toast.success('Đặt món thành công! Đang chuyển thông tin đến thu ngân...', { duration: 2500 });
+
+        // Phát tín hiệu broadcast tức thì cho POS để thu ngân nhận thông báo ngay lập tức
+        try {
+          const supabase = createClient();
+          const channel = supabase.channel('staff-pos-qr-orders');
+          channel.subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              channel.send({
+                type: 'broadcast',
+                event: 'new_qr_order',
+                payload: {
+                  id: data.orderId,
+                  table_id: tableParam,
+                  table_name: tableName || tableParam,
+                  total_amount: totalAmount,
+                },
+              });
+            }
+          });
+        } catch {}
+
         if (data.trackingToken) {
           if (typeof window !== 'undefined') {
             try {

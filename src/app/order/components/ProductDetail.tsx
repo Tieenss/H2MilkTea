@@ -5,7 +5,16 @@ import { X, Minus, Plus } from 'lucide-react';
 import type { Product } from '../types/customer-order';
 import { SIZE_OPTIONS, SUGAR_OPTIONS, ICE_OPTIONS } from '../types/customer-order';
 import { useCart } from '../context/CartContext';
+import { buildMergedToppingNote } from '@/lib/ai/customerDrinkParser';
 import toast from 'react-hot-toast';
+
+const AVAILABLE_TOPPINGS = [
+  { name: 'Trân châu đen', price: 5000 },
+  { name: 'Trân châu trắng', price: 5000 },
+  { name: 'Kem cheese', price: 10000 },
+  { name: 'Thạch củ năng', price: 5000 },
+  { name: 'Pudding trứng', price: 5000 },
+];
 
 interface ProductDetailProps {
   product: Product | null;
@@ -18,6 +27,7 @@ export function ProductDetail({ product, isOpen, onClose }: ProductDetailProps) 
   const [size, setSize] = useState<'S' | 'M' | 'L'>('M');
   const [sugar, setSugar] = useState('100%');
   const [ice, setIce] = useState('Vừa đá');
+  const [selectedToppings, setSelectedToppings] = useState<string[]>([]);
   const [note, setNote] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [imgError, setImgError] = useState(false);
@@ -27,18 +37,32 @@ export function ProductDetail({ product, isOpen, onClose }: ProductDetailProps) 
   const basePrice = parseInt(product['Đơn giá']);
   const isFood = ['Ăn vặt', 'Bánh ngọt'].includes(product['Loại sản phẩm']);
   const sizeAdjust = isFood ? 0 : SIZE_OPTIONS.find(s => s.value === size)?.priceAdjust || 0;
-  const unitPrice = basePrice + sizeAdjust;
+  const toppingsAdjust = isFood ? 0 : selectedToppings.reduce((sum, topName) => {
+    const top = AVAILABLE_TOPPINGS.find(t => t.name === topName);
+    return sum + (top?.price || 5000);
+  }, 0);
+  const unitPrice = basePrice + sizeAdjust + toppingsAdjust;
   const totalPrice = unitPrice * quantity;
   const isPlaceholder = product['Hình ảnh']?.includes('placeholder');
   const hasValidImage = product['Hình ảnh'] && !isPlaceholder && !imgError;
 
+  const handleToggleTopping = (toppingName: string) => {
+    setSelectedToppings(prev => 
+      prev.includes(toppingName) 
+        ? prev.filter(t => t !== toppingName)
+        : [...prev, toppingName]
+    );
+  };
+
   const handleAdd = () => {
-    addItem(product, { size, sugar, ice, note, quantity });
+    const mergedNote = isFood ? note : buildMergedToppingNote(selectedToppings, note);
+    addItem(product, { size, sugar, ice, note: mergedNote, quantity });
     toast.success(`Đã thêm ${product['Tên sản phẩm']}`, { duration: 1500 });
     // Reset state
     setSize('M');
     setSugar('100%');
     setIce('Vừa đá');
+    setSelectedToppings([]);
     setNote('');
     setQuantity(1);
     setImgError(false);
@@ -174,6 +198,36 @@ export function ProductDetail({ product, isOpen, onClose }: ProductDetailProps) 
                         {opt.label}
                       </button>
                     ))}
+                  </div>
+                </div>
+
+                {/* Topping Selection */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-sm font-bold text-slate-900">Thêm Topping</label>
+                    <span className="text-[11px] text-slate-500 font-medium">Chọn một hoặc nhiều</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {AVAILABLE_TOPPINGS.map((top) => {
+                      const isSelected = selectedToppings.includes(top.name);
+                      return (
+                        <button
+                          key={top.name}
+                          type="button"
+                          onClick={() => handleToggleTopping(top.name)}
+                          className={`h-10 px-3.5 rounded-xl text-xs font-semibold transition-all duration-150 flex items-center gap-1.5 border
+                            ${isSelected
+                              ? 'bg-orange-50 border-2 border-orange-500 text-orange-700 shadow-xs font-bold'
+                              : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 active:scale-98'
+                            }`}
+                        >
+                          <span>{isSelected ? '✓ ' : '+ '}{top.name}</span>
+                          <span className="text-[10px] opacity-75 font-medium">
+                            +{top.price.toLocaleString('vi-VN')}đ
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </>
