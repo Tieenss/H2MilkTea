@@ -686,8 +686,9 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, className }: Sid
                     style={{
                         top: `${hoverCard.top}px`,
                         left: `${hoverCard.left}px`,
+                        backgroundColor: '#0f172a',
                     }}
-                    className="hidden lg:block fixed z-[9999] w-80 rounded-2xl bg-slate-900/98 dark:bg-slate-900 text-white shadow-2xl border border-slate-700/90 p-3.5 animate-in fade-in zoom-in-95 duration-150"
+                    className="hidden lg:block fixed z-[9999] w-80 rounded-2xl bg-slate-900 dark:bg-slate-950 text-white shadow-2xl shadow-black/50 border border-slate-700/80 p-3.5 animate-in fade-in zoom-in-95 duration-150"
                 >
                     {/* Header của Hover Card */}
                     <div className="flex items-start gap-2.5 pb-2.5 border-b border-slate-800">
