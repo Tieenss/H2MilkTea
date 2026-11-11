@@ -4,6 +4,7 @@ import menuData from '@/data/DMHH.json';
 import tableData from '@/data/DSBAN.json';
 import { createAdminSupabaseClient, getAuthenticatedStaff } from '@/lib/supabase/server';
 import { checkOrderRateLimit, verifyTableQrToken } from '@/lib/qr/token';
+import { resolveTableFlexible } from '@/lib/tableResolver';
 
 type OrderSource = 'POS_COUNTER' | 'QR_TABLE';
 interface IncomingItem {
@@ -51,10 +52,7 @@ export async function POST(request: NextRequest) {
     const products = liveProducts?.length ? liveProducts : menuData;
 
     const requestedTableId = String(body.tableId || '').trim();
-    const normalizedTableId = requestedTableId.toLocaleLowerCase('vi');
-    const resolvedTable = normalizedTableId === 'takeaway'
-      ? tables.find((table) => table.IDBAN === 'Khách mua về')
-      : tables.find((table) => String(table.IDBAN).trim().toLocaleLowerCase('vi') === normalizedTableId);
+    const resolvedTable = resolveTableFlexible(requestedTableId, tables);
     if (!resolvedTable || isUnavailableTable(resolvedTable['Trạng thái'])) {
       return NextResponse.json({ success: false, error: 'Bàn không tồn tại hoặc đang ngừng phục vụ.' }, { status: 400 });
     }

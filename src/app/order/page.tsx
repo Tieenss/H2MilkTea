@@ -2,7 +2,7 @@
 
 import React, { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { MapPin, ArrowRight, Coffee, Clock, Wifi, Sparkles, AlertCircle } from 'lucide-react';
+import { MapPin, ArrowRight, Coffee, Clock, Wifi, Sparkles, AlertCircle, ShoppingBag } from 'lucide-react';
 import { useCart } from './context/CartContext';
 import { StoreFAQModal } from './components/StoreFAQModal';
 
@@ -14,6 +14,12 @@ export default function OrderWelcomePage() {
   );
 }
 
+interface AvailableTableItem {
+  tableId: string;
+  tableName: string;
+  status?: string;
+}
+
 function OrderWelcomeContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -23,44 +29,59 @@ function OrderWelcomeContent() {
   const [isValidTable, setIsValidTable] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [tableError, setTableError] = useState('');
+  const [availableTables, setAvailableTables] = useState<AvailableTableItem[]>([]);
   const [activeOrderToken, setActiveOrderToken] = useState<string | null>(null);
   const [activeOrderItemCount, setActiveOrderItemCount] = useState<number>(0);
   const [showFaqModal, setShowFaqModal] = useState(false);
   const [faqCategory, setFaqCategory] = useState('Tất cả');
 
+  const handleSelectTable = (selectedId: string, selectedName: string) => {
+    setTableId(selectedId);
+    setTableName(selectedName);
+    setIsValidTable(true);
+    setTableInfo(selectedId, selectedName);
+    router.push(`/order/menu?table=${encodeURIComponent(selectedId)}`);
+  };
+
   useEffect(() => {
-    const table = searchParams.get('table');
-    if (!table) {
-      setIsValidTable(false);
-      setIsLoading(false);
-      return;
-    }
+    const tableParam = (
+      searchParams.get('table') ||
+      searchParams.get('tableId') ||
+      searchParams.get('id') ||
+      searchParams.get('ban') ||
+      ''
+    ).trim();
 
-    setTableId(table);
-
-    // Validate table by fetching from API
-    fetch(`/api/customer-order/validate-table?table=${encodeURIComponent(table)}`)
+    // Gọi API validate table (hỗ trợ cả tìm bàn thông minh và lấy danh sách bàn)
+    fetch(`/api/customer-order/validate-table?table=${encodeURIComponent(tableParam)}`)
       .then(res => res.json())
       .then(data => {
-        if (data.valid) {
+        if (Array.isArray(data.availableTables)) {
+          setAvailableTables(data.availableTables);
+        }
+
+        if (data.valid && data.tableId) {
+          const canonicalId = String(data.tableId);
+          const canonicalName = String(data.tableName || canonicalId);
           setIsValidTable(true);
-          setTableName(data.tableName);
-          setTableInfo(table, data.tableName);
+          setTableId(canonicalId);
+          setTableName(canonicalName);
+          setTableInfo(canonicalId, canonicalName);
 
           // Kiểm tra xem bàn hiện tại có đơn đang pha chế / phục vụ hay không
-          fetch(`/api/customer-order/table-cart?tableId=${encodeURIComponent(table)}`, { cache: 'no-store' })
+          fetch(`/api/customer-order/table-cart?tableId=${encodeURIComponent(canonicalId)}`, { cache: 'no-store' })
             .then(cartRes => cartRes.json())
             .then(cartData => {
               if (cartData.success && cartData.activeOrder?.tracking_token) {
                 setActiveOrderToken(cartData.activeOrder.tracking_token);
                 setActiveOrderItemCount(cartData.activeOrder.items?.length || 1);
                 try {
-                  localStorage.setItem(`h2_table_order_token_${table}`, cartData.activeOrder.tracking_token);
+                  localStorage.setItem(`h2_table_order_token_${canonicalId}`, cartData.activeOrder.tracking_token);
                 } catch {}
               } else {
                 // Fallback kiểm tra localStorage
                 try {
-                  const saved = localStorage.getItem(`h2_table_order_token_${table}`);
+                  const saved = localStorage.getItem(`h2_table_order_token_${canonicalId}`);
                   if (saved) {
                     setActiveOrderToken(saved);
                     setActiveOrderItemCount(1);
@@ -71,12 +92,12 @@ function OrderWelcomeContent() {
             .catch(() => {});
         } else {
           setIsValidTable(false);
-          setTableError(data.error || 'Bàn không tồn tại');
+          setTableError(data.error || 'Vui lòng chọn bàn phục vụ bên dưới để đặt món.');
         }
       })
       .catch(() => {
         setIsValidTable(false);
-        setTableError('Không thể xác thực bàn lúc này. Vui lòng thử lại hoặc gọi nhân viên.');
+        setTableError('Không thể xác thực bàn lúc này. Vui lòng chọn bàn từ danh sách hoặc gọi nhân viên.');
       })
       .finally(() => setIsLoading(false));
   }, [searchParams, setTableInfo]);
@@ -103,28 +124,61 @@ function OrderWelcomeContent() {
     );
   }
 
-  // Invalid or Maintenance table
+  // Khi chưa chọn bàn hoặc mã bàn không tìm thấy: Hiển thị bộ chọn bàn thông minh 1-chạm
   if (!isValidTable) {
     const isMaintenance = tableError.toLowerCase().includes('không hoạt động') || tableError.toLowerCase().includes('bảo trì');
 
     return (
-      <div className="min-h-screen flex items-center justify-center px-6 bg-slate-50">
-        <div className="text-center max-w-sm">
-          <div className={`w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-5 ${
-            isMaintenance ? 'bg-amber-100 text-amber-600' : 'bg-rose-100 text-rose-600'
-          }`}>
-            <AlertCircle className="w-10 h-10" />
+      <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8 bg-slate-50">
+        <div className="w-full max-w-md bg-white rounded-3xl p-6 border border-slate-200 shadow-xl text-center">
+          {/* Logo & Header */}
+          <div className="w-16 h-16 rounded-2xl bg-orange-600 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-orange-600/25">
+            <span className="text-white font-black text-2xl">H2</span>
           </div>
-          <h1 className="text-xl font-bold text-slate-900 mb-2">
-            {isMaintenance ? 'Bàn tạm ngừng phục vụ' : 'Không tìm thấy bàn'}
+          <h1 className="text-xl font-bold text-slate-900 mb-1">
+            {isMaintenance ? 'Bàn tạm ngừng phục vụ' : 'Chào mừng đến với H2 MilkTea'}
           </h1>
-          <p className="text-sm text-slate-600 mb-6">
-            {tableError || 'Mã QR không hợp lệ hoặc bàn không tồn tại. Vui lòng quét lại mã QR trên bàn của bạn.'}
+          <p className="text-xs text-slate-500 mb-5">
+            {isMaintenance
+              ? 'Bàn này đang bảo trì. Vui lòng chọn một bàn khác dưới đây để tiếp tục gọi món:'
+              : 'Chọn bàn của bạn hoặc đặt mang về để xem Menu và gọi món tức thì:'}
           </p>
-          <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs">
-            <p className="text-xs text-slate-600 font-medium">
-              💡 {isMaintenance ? 'Vui lòng chọn một bàn trống khác trong quán hoặc gọi nhân viên để được xếp bàn.' : 'Nếu vẫn gặp lỗi, hãy gọi nhân viên quầy thu ngân để được hỗ trợ.'}
-            </p>
+
+          {/* Nhanh: Nút Đặt mang về */}
+          <button
+            onClick={() => handleSelectTable('Khách mua về', 'Khách mua về')}
+            className="w-full mb-4 p-3.5 rounded-2xl bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-800 font-bold text-sm flex items-center justify-center gap-2 shadow-2xs active:scale-[0.98] transition-all cursor-pointer"
+          >
+            <ShoppingBag className="w-4 h-4 text-orange-600" />
+            <span>Tôi đặt mang về (Takeaway)</span>
+          </button>
+
+          {/* Danh sách các bàn đang mở */}
+          {availableTables.length > 0 && (
+            <div className="text-left">
+              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
+                <span>Chọn số bàn tại quán:</span>
+                <span className="text-orange-600 font-semibold">{availableTables.filter(t => t.tableId !== 'Khách mua về').length} bàn</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-64 overflow-y-auto pr-1">
+                {availableTables
+                  .filter(t => t.tableId !== 'Khách mua về')
+                  .map(t => (
+                    <button
+                      key={t.tableId}
+                      onClick={() => handleSelectTable(t.tableId, t.tableName)}
+                      className="p-3 rounded-xl border border-slate-200 hover:border-orange-500 hover:bg-orange-50/50 text-slate-800 hover:text-orange-700 font-bold text-xs flex flex-col items-center justify-center gap-1 transition-all active:scale-95 cursor-pointer shadow-2xs"
+                    >
+                      <MapPin className="w-3.5 h-3.5 text-orange-600" />
+                      <span className="truncate w-full text-center">{t.tableName}</span>
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-5 p-3 rounded-xl bg-slate-50 border border-slate-100 text-[11px] text-slate-500">
+            💡 Bạn cũng có thể quét trực tiếp mã QR dán trên mặt bàn để tự động nhận diện bàn.
           </div>
         </div>
       </div>
@@ -219,7 +273,7 @@ function OrderWelcomeContent() {
             onClick={handleStartOrder}
             className="w-full py-4 rounded-2xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-base
                        shadow-lg shadow-orange-600/25 active:scale-[0.98] transition-transform
-                       flex items-center justify-center gap-2"
+                       flex items-center justify-center gap-2 cursor-pointer"
           >
             <span>Xem Menu & Đặt Món</span>
             <ArrowRight className="w-5 h-5" />
@@ -229,7 +283,7 @@ function OrderWelcomeContent() {
             <button
               onClick={() => router.push(`/order/cart?table=${encodeURIComponent(tableId || '')}`)}
               className="mt-3 w-full py-3.5 rounded-2xl bg-white border border-orange-300 text-orange-700 font-bold text-sm
-                         active:scale-[0.98] transition-transform flex items-center justify-center gap-2 shadow-xs"
+                         active:scale-[0.98] transition-transform flex items-center justify-center gap-2 shadow-xs cursor-pointer"
             >
               <span>Xem giỏ hàng ({totalItems} món)</span>
             </button>
