@@ -287,14 +287,14 @@ export default function CustomerManagementPage() {
   }
 
   return (
-    <div className="h-full flex flex-col space-y-6">
+    <div className="h-full min-w-0 flex flex-col space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-3">
         <h1 className="text-3xl font-bold text-gray-800 flex items-center">
           <Users className="mr-2 h-6 w-6 text-blue-600" />
           Quản lý khách hàng
         </h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button onClick={handleExportData} variant="outline">
             <Download className="w-4 h-4 mr-2" />
             Xuất dữ liệu
@@ -367,7 +367,7 @@ export default function CustomerManagementPage() {
       </Card>
 
       {/* Data Table */}
-      <Card>
+      <Card className="min-w-0 overflow-hidden">
         <CardHeader>
           <CardTitle>Danh sách khách hàng ({filteredCustomers.length})</CardTitle>
           <CardDescription>

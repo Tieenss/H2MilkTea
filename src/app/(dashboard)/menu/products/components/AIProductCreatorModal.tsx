@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/dialog';
 import toast from 'react-hot-toast';
 import type { Product, ProductFormData } from '../types/product';
+import { getSafeImageUrl } from '@/utils/imageUtils';
 
 interface AIProductCreatorModalProps {
   isOpen: boolean;
@@ -531,9 +532,12 @@ export function AIProductCreatorModal({
 
                 <div className="flex flex-col md:flex-row gap-4 items-start">
                   <img
-                    src={generatedProduct.image}
+                    src={getSafeImageUrl(generatedProduct.image)}
                     alt={generatedProduct.name}
-                    className="w-20 h-20 rounded-xl object-cover border border-indigo-200 dark:border-indigo-800 shrink-0 shadow-sm"
+                    className="w-20 h-20 rounded-xl object-cover border border-indigo-200 dark:border-indigo-800 shrink-0 shadow-sm bg-indigo-50"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
                   />
 
                   <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">

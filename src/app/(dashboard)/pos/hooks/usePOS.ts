@@ -171,6 +171,7 @@ export const usePOS = () => {
 
     window.addEventListener('storage', handleStorage);
     window.addEventListener('focus', syncAuthAndSettings);
+    window.addEventListener('h2_auth_changed', syncAuthAndSettings);
     window.addEventListener('h2_vat_settings_changed', syncAuthAndSettings);
 
     let subscription: { unsubscribe: () => void } | null = null;
@@ -178,16 +179,30 @@ export const usePOS = () => {
       const supabase = createClient();
       const { data } = supabase.auth.onAuthStateChange((_event, session) => {
         const storedUser = authUtils.getUserData();
-        if (storedUser) {
-          setNhanvien(resolveStaffDisplayName(storedUser));
-        } else if (session?.user) {
-          setNhanvien(
-            resolveStaffDisplayName({
-              name: session.user.user_metadata?.name,
-              username: session.user.user_metadata?.username,
-              email: session.user.email,
-            })
+        if (session?.user) {
+          const sessionEmail = String(session.user.email || '').toLowerCase().trim();
+          const sessionPrefix = sessionEmail.includes('@') ? sessionEmail.split('@')[0] : sessionEmail;
+          const storedUsername = String(storedUser?.username || '').toLowerCase().trim();
+          const storedEmail = String(storedUser?.Email || storedUser?.email || '').toLowerCase().trim();
+          const isStoredMatching = Boolean(
+            storedUser &&
+              ((storedUsername && storedUsername === sessionPrefix) ||
+                (storedEmail && storedEmail === sessionEmail))
           );
+
+          if (isStoredMatching) {
+            setNhanvien(resolveStaffDisplayName(storedUser));
+          } else {
+            setNhanvien(
+              resolveStaffDisplayName({
+                name: session.user.user_metadata?.name || session.user.user_metadata?.full_name,
+                username: session.user.user_metadata?.username || sessionPrefix,
+                email: session.user.email,
+              })
+            );
+          }
+        } else if (storedUser) {
+          setNhanvien(resolveStaffDisplayName(storedUser));
         } else {
           setNhanvien('Thu ngân');
         }
@@ -200,6 +215,7 @@ export const usePOS = () => {
     return () => {
       window.removeEventListener('storage', handleStorage);
       window.removeEventListener('focus', syncAuthAndSettings);
+      window.removeEventListener('h2_auth_changed', syncAuthAndSettings);
       window.removeEventListener('h2_vat_settings_changed', syncAuthAndSettings);
       subscription?.unsubscribe();
     };
@@ -316,6 +332,7 @@ export const usePOS = () => {
     clearDraft: clearSharedCartDraft,
     cancelPendingAutosave,
     primeTableDraft,
+    syncTableVersion,
   } = useSharedCartDraft({
     tableId: selectedTableId,
     cart,
@@ -763,6 +780,7 @@ export const usePOS = () => {
     table_name?: string;
     items: Array<{ productId: string; productName: string; quantity: number; unitPrice: number; note?: string; size?: string; sugar?: string; ice?: string; unit?: string; image?: string }>;
   }) => {
+    cancelPendingAutosave();
     const convertedIncomingItems: CartItem[] = order.items.map((item) => {
       const foundProduct = products.find(p => p.IDSP === item.productId || p['Tên sản phẩm'] === item.productName);
       const realImage = item.image || foundProduct?.['Hình ảnh'] || undefined;
@@ -784,7 +802,8 @@ export const usePOS = () => {
       ? resolveCartConflict(currentTableCart, convertedIncomingItems, 'merge_quantities')
       : convertedIncomingItems;
 
-    primeTableDraft(order.table_id, mergedCart);
+    const existingCustomer = tableCustomersRef.current.get(order.table_id) || null;
+    primeTableDraft(order.table_id, mergedCart, undefined, existingCustomer);
     setSelectedTableId(order.table_id);
     setCart(mergedCart);
     setActiveOrders((prev) => new Map(prev).set(order.table_id, mergedCart));
@@ -806,9 +825,9 @@ export const usePOS = () => {
       setActivePOSOrderIds((prev) => Array.from(new Set([...prev, order.id])));
     }
 
-    setSelectedCustomer(tableCustomersRef.current.get(order.table_id) || null);
+    setSelectedCustomer(existingCustomer);
     setShowCheckoutModal(true);
-  }, [setSelectedTableId, setCart, setActiveOrders, activeOrders, selectedTableId, cart, activePOSOrderIds, products, primeTableDraft]);
+  }, [setSelectedTableId, setCart, setActiveOrders, activeOrders, selectedTableId, cart, activePOSOrderIds, products, primeTableDraft, cancelPendingAutosave]);
 
   // Nhận đơn QR và nạp món vào giỏ hàng của bàn
   const acceptQrOrder = useCallback((order: {
@@ -816,7 +835,8 @@ export const usePOS = () => {
     table_id: string;
     table_name?: string;
     items: Array<{ productId: string; productName: string; quantity: number; unitPrice: number; note?: string; size?: string; sugar?: string; ice?: string; unit?: string; image?: string }>;
-  }) => {
+  }, serverDraft?: { version?: number; cart?: CartItem[] } | null) => {
+    cancelPendingAutosave();
     const convertedItems: CartItem[] = order.items.map((item) => {
       const foundProduct = products.find(p => p.IDSP === item.productId || p['Tên sản phẩm'] === item.productName);
       const realImage = item.image || foundProduct?.['Hình ảnh'] || undefined;
@@ -838,24 +858,52 @@ export const usePOS = () => {
       ? resolveCartConflict(existingCart, convertedItems, 'merge_quantities')
       : convertedItems;
 
-    primeTableDraft(order.table_id, mergedCart);
+    const existingCustomer = tableCustomersRef.current.get(order.table_id) || null;
+    const hasServerDraft = Boolean(serverDraft && typeof serverDraft.version === 'number');
+    const serverCartItems = Array.isArray(serverDraft?.cart) ? serverDraft!.cart : [];
+
+    // Kiểm tra xem server (/api/pos/orders/decision) đã gộp sẵn toàn bộ món khớp với local chưa
+    const toComparableSig = (items: any[]) =>
+      JSON.stringify(items.map((i) => [String(i.id || ''), Number(i.quantity || 1), String(i.note || '')]));
+    const isServerAlreadySynced =
+      hasServerDraft &&
+      (existingCart.length === 0 || toComparableSig(serverCartItems) === toComparableSig(mergedCart));
+
+    const targetCart = isServerAlreadySynced && serverCartItems.length > 0 ? serverCartItems : mergedCart;
+    const initialVersion = hasServerDraft ? Number(serverDraft!.version) : 1;
+
+    primeTableDraft(order.table_id, targetCart, initialVersion, existingCustomer);
     setSelectedTableId(order.table_id);
-    setCart(mergedCart);
-    setActiveOrders((prev) => new Map(prev).set(order.table_id, mergedCart));
-    void fetch('/api/pos/cart-draft', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        tableId: order.table_id,
-        cart: mergedCart,
-        selectedCustomer: null,
-      }),
-    }).catch((err) => console.warn('Lỗi lưu draft đơn QR:', err));
+    setCart(targetCart);
+    setSelectedCustomer(existingCustomer);
+    setActiveOrders((prev) => new Map(prev).set(order.table_id, targetCart));
+
+    // Chỉ gọi POST /api/pos/cart-draft khi cần đồng bộ thêm món cục bộ chưa có trên server,
+    // và luôn cập nhật lại version thật từ server để tránh lệch version (HTTP 409)
+    if (!isServerAlreadySynced) {
+      void fetch('/api/pos/cart-draft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tableId: order.table_id,
+          cart: mergedCart,
+          selectedCustomer: existingCustomer,
+        }),
+      })
+        .then(async (res) => {
+          if (!res.ok) return;
+          const data = await res.json();
+          if (data?.success && data?.draft?.version) {
+            syncTableVersion(order.table_id, data.draft.version);
+          }
+        })
+        .catch((err) => console.warn('Lỗi lưu draft đơn QR:', err));
+    }
 
     setActivePOSOrderIds((prev) => prev.includes(order.id) ? prev : [...prev, order.id]);
     updateTableStatus(order.table_id, 'Đang sử dụng');
     showNotification(`Đã nhận đơn và gộp các món vào ${order.table_name || 'bàn'}!`);
-  }, [setSelectedTableId, setCart, setActiveOrders, activeOrders, selectedTableId, cart, products, updateTableStatus, showNotification, primeTableDraft]);
+  }, [setSelectedTableId, setCart, setActiveOrders, activeOrders, selectedTableId, cart, products, updateTableStatus, showNotification, primeTableDraft, syncTableVersion, cancelPendingAutosave]);
 
   // Fetch customers
   const fetchCustomers = useCallback(async () => {
@@ -1181,7 +1229,13 @@ export const usePOS = () => {
       cancelPendingAutosave();
 
       const freshUserData = authUtils.getUserData();
-      const activeCashier = freshUserData ? resolveStaffDisplayName(freshUserData) : nhanvien;
+      const freshName = freshUserData ? resolveStaffDisplayName(freshUserData) : '';
+      const activeCashier =
+        freshUserData?.['Họ và Tên'] || freshUserData?.fullName || freshUserData?.name
+          ? freshName
+          : nhanvien && nhanvien !== 'Thu ngân'
+            ? nhanvien
+            : freshName || 'Thu ngân';
       if (activeCashier !== nhanvien) {
         setNhanvien(activeCashier);
       }

@@ -24,7 +24,7 @@ interface ReportKPICardsProps {
 
 export const ReportKPICards: React.FC<ReportKPICardsProps> = ({ data, className }) => {
   const formatCurrency = (amount: number) => {
-    return amount.toLocaleString('vi-VN') + ' ₫';
+    return Math.round(amount).toLocaleString('vi-VN') + ' ₫';
   };
 
   const formatPercentage = (value: number) => {
@@ -153,7 +153,7 @@ export const ReportKPICards: React.FC<ReportKPICardsProps> = ({ data, className 
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-purple-900">
-              {formatCurrency(data.current.averageOrderValue)}
+              {formatCurrency(Math.round(data.current.averageOrderValue))}
             </div>
             <div className="flex items-center gap-1 text-xs mt-1">
               {getGrowthIcon(data.comparison.isAverageOrderValuePositive)}
@@ -163,7 +163,7 @@ export const ReportKPICards: React.FC<ReportKPICardsProps> = ({ data, className 
               <span className="text-muted-foreground">so với kỳ trước</span>
             </div>
             <div className="text-xs text-muted-foreground mt-1">
-              Kỳ trước: {formatCurrency(data.previous.averageOrderValue)}
+              Kỳ trước: {formatCurrency(Math.round(data.previous.averageOrderValue))}
             </div>
           </CardContent>
         </Card>

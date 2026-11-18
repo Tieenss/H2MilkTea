@@ -43,6 +43,19 @@ export const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
   if (!invoice) return null;
 
   const finalTotal = Number( invoice['Tổng tiền']) + Number( invoice['VAT']) - Number( invoice['Giảm giá']);
+  const subtotalAmount = Number(invoice['Tổng tiền']) || 0;
+  const vatAmount = Number(invoice['VAT']) || 0;
+  const vatLabel = (() => {
+    if (vatAmount <= 0) return 'VAT (0%):';
+    if (subtotalAmount > 0) {
+      const pct = (vatAmount / subtotalAmount) * 100;
+      const formattedPct = Math.abs(pct - Math.round(pct)) < 0.05
+        ? String(Math.round(pct))
+        : Number(pct.toFixed(1)).toString();
+      return `VAT (${formattedPct}%):`;
+    }
+    return 'VAT:';
+  })();
 
   const handlePrint = () => {
     printReceipt(invoice, details);
@@ -172,7 +185,7 @@ export const InvoiceDetailsModal: React.FC<InvoiceDetailsModalProps> = ({
                 <span>{formatCurrency(invoice['Tổng tiền'])}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span>VAT (10%):</span>
+                <span>{vatLabel}</span>
                 <span>{formatCurrency(invoice['VAT'])}</span>
               </div>
               {invoice['Giảm giá'] > 0 && (

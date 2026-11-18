@@ -55,15 +55,15 @@ export function SupplierDataTable({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="whitespace-nowrap">ID</TableHead>
-            <TableHead className="min-w-[180px]">Tên nhà cung cấp</TableHead>
-            <TableHead className="whitespace-nowrap">Mã số thuế</TableHead>
-            <TableHead className="min-w-[140px]">Người đại diện</TableHead>
-            <TableHead className="min-w-[170px]">Liên hệ</TableHead>
-            <TableHead className="whitespace-nowrap">Trạng thái</TableHead>
-            <TableHead className="whitespace-nowrap">Đánh giá</TableHead>
-            <TableHead className="whitespace-nowrap">Tổng đặt hàng</TableHead>
-            <TableHead className="whitespace-nowrap text-right sticky right-0 bg-white dark:bg-slate-900 z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.08)]">
+            <TableHead className="whitespace-nowrap px-2.5 lg:px-3">ID</TableHead>
+            <TableHead className="min-w-[160px] px-2.5 lg:px-3">Tên nhà cung cấp</TableHead>
+            <TableHead className="whitespace-nowrap px-2.5 lg:px-3">Mã số thuế</TableHead>
+            <TableHead className="min-w-[130px] px-2.5 lg:px-3">Người đại diện</TableHead>
+            <TableHead className="min-w-[155px] px-2.5 lg:px-3">Liên hệ</TableHead>
+            <TableHead className="whitespace-nowrap px-2.5 lg:px-3">Trạng thái</TableHead>
+            <TableHead className="whitespace-nowrap px-2.5 lg:px-3">Đánh giá</TableHead>
+            <TableHead className="whitespace-nowrap px-2.5 lg:px-3">Tổng đặt hàng</TableHead>
+            <TableHead className="whitespace-nowrap px-2.5 lg:px-3 text-right sticky right-0 bg-white dark:bg-slate-900 z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.08)]">
               Thao tác
             </TableHead>
           </TableRow>
@@ -71,59 +71,59 @@ export function SupplierDataTable({
         <TableBody>
           {suppliers.map((supplier) => (
             <TableRow key={supplier.IDNhaCungCap}>
-              <TableCell className="font-medium whitespace-nowrap">
+              <TableCell className="font-medium whitespace-nowrap px-2.5 lg:px-3 py-2.5">
                 {supplier.IDNhaCungCap}
               </TableCell>
-              <TableCell>
+              <TableCell className="px-2.5 lg:px-3 py-2.5">
                 <div>
                   <div className="font-medium">{supplier.TenNhaCungCap}</div>
-                  <div className="text-sm text-muted-foreground line-clamp-1">
+                  <div className="text-xs text-muted-foreground line-clamp-1">
                     {supplier.DiaChi}
                   </div>
                 </div>
               </TableCell>
-              <TableCell className="whitespace-nowrap">{supplier.MaSoThue}</TableCell>
-              <TableCell>
+              <TableCell className="whitespace-nowrap px-2.5 lg:px-3 py-2.5">{supplier.MaSoThue}</TableCell>
+              <TableCell className="px-2.5 lg:px-3 py-2.5">
                 <div>
                   <div className="font-medium whitespace-nowrap">{supplier.NguoiDaiDien}</div>
-                  <div className="text-sm text-muted-foreground whitespace-nowrap">
+                  <div className="text-xs text-muted-foreground whitespace-nowrap">
                     {supplier.SoDienThoaiLienHe}
                   </div>
                 </div>
               </TableCell>
-              <TableCell>
+              <TableCell className="px-2.5 lg:px-3 py-2.5">
                 <div className="flex flex-col gap-1">
-                  <div className="flex items-center gap-1 text-sm whitespace-nowrap">
+                  <div className="flex items-center gap-1 text-xs whitespace-nowrap">
                     <Phone className="h-3 w-3 shrink-0" />
                     {supplier.SoDienThoai}
                   </div>
-                  <div className="flex items-center gap-1 text-sm whitespace-nowrap">
+                  <div className="flex items-center gap-1 text-xs whitespace-nowrap">
                     <Mail className="h-3 w-3 shrink-0" />
                     {supplier.Email}
                   </div>
                 </div>
               </TableCell>
-              <TableCell className="whitespace-nowrap">
-                <Badge className={getStatusColor(supplier.TrangThai)}>
+              <TableCell className="whitespace-nowrap px-2.5 lg:px-3 py-2.5">
+                <Badge className={`${getStatusColor(supplier.TrangThai)} whitespace-nowrap`}>
                   {supplier.TrangThai}
                 </Badge>
               </TableCell>
-              <TableCell className="whitespace-nowrap">
+              <TableCell className="whitespace-nowrap px-2.5 lg:px-3 py-2.5">
                 <div className="flex items-center gap-1">
                   <span className="text-sm">{formatRating(supplier.DanhGia)}</span>
                 </div>
               </TableCell>
-              <TableCell className="whitespace-nowrap">
+              <TableCell className="whitespace-nowrap px-2.5 lg:px-3 py-2.5">
                 <div>
                   <div className="font-medium">
                     {formatCurrency(calculateTotalOrderValue(supplier))}
                   </div>
-                  <div className="text-sm text-muted-foreground">
+                  <div className="text-xs text-muted-foreground">
                     {(supplier.LichSuDatHang || []).length} đơn hàng
                   </div>
                 </div>
               </TableCell>
-              <TableCell className="whitespace-nowrap sticky right-0 bg-white dark:bg-slate-900 z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.08)]">
+              <TableCell className="whitespace-nowrap px-2.5 lg:px-3 py-2.5 sticky right-0 bg-white dark:bg-slate-900 z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.08)]">
                 <div className="flex items-center justify-end gap-1">
                   <Button
                     variant="ghost"

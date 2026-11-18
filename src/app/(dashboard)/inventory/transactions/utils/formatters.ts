@@ -1,4 +1,5 @@
 import { InventoryTransaction } from '../types/inventory';
+import { formatVNDateTime } from '@/utils/dateUtils';
 
 export const formatNumber = (number: number): string => {
   return new Intl.NumberFormat('vi-VN').format(number);
@@ -12,14 +13,7 @@ export const formatCurrency = (amount: number): string => {
 };
 
 export const formatDate = (dateString: string): string => {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('vi-VN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
+  return formatVNDateTime(dateString, dateString || '—');
 };
 
 export const getStatusColor = (status: string): string => {

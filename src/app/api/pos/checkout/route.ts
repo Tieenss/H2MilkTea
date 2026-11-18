@@ -155,12 +155,38 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Dịch vụ dữ liệu chưa sẵn sàng.' }, { status: 503 });
     }
 
-    // Truy vấn danh mục DMHH, CAUHINH, NGUYENLIEU từ Supabase trước (chỉ dùng dmhhData làm fallback nếu DB trống)
-    const [{ data: liveDmhh }, { data: liveCauhinh }, { data: liveNguyenlieu }] = await Promise.all([
+    // Truy vấn danh mục DMHH, CAUHINH, NGUYENLIEU, DSNV từ Supabase trước (chỉ dùng dmhhData làm fallback nếu DB trống)
+    const [{ data: liveDmhh }, { data: liveCauhinh }, { data: liveNguyenlieu }, { data: liveDsnv }] = await Promise.all([
       supabase.from('DMHH').select('*'),
       supabase.from('CAUHINH').select('*'),
       supabase.from('NGUYENLIEU').select('*'),
+      supabase.from('DSNV').select('username, "Họ và Tên", Email, "Phân quyền"'),
     ]);
+
+    const staffEmailLower = String(staff.email || '').toLowerCase().trim();
+    const staffEmailPrefix = staffEmailLower.includes('@') ? staffEmailLower.split('@')[0] : staffEmailLower;
+    const staffUsernameLower = String(staff.user_metadata?.username || '').toLowerCase().trim();
+    const matchedDsnvStaff = Array.isArray(liveDsnv)
+      ? liveDsnv.find((nv: any) => {
+          const nvUser = String(nv?.username || '').toLowerCase().trim();
+          const nvEmail = String(nv?.Email || nv?.email || '').toLowerCase().trim();
+          return (
+            (staffUsernameLower && nvUser === staffUsernameLower) ||
+            (staffEmailPrefix && nvUser === staffEmailPrefix) ||
+            (staffEmailLower && nvEmail === staffEmailLower)
+          );
+        })
+      : null;
+
+    const dsnvStaffName = String(matchedDsnvStaff?.['Họ và Tên'] || '').trim();
+    const rawMetaName = String(staff.user_metadata?.name || staff.user_metadata?.fullName || '').trim();
+    const isGenericFallbackStaff =
+      staff.id === 'staff_pos' && (!rawMetaName || rawMetaName === 'Thu ngân');
+    const authoritativeStaffName = dsnvStaffName || (!isGenericFallbackStaff ? rawMetaName : '');
+    const clientStaffName = String(
+      body.invoice?.['Nhân viên'] || body.invoice?.['Thu ngân'] || body.employee || ''
+    ).trim();
+    const resolvedEmployeeName = authoritativeStaffName || clientStaffName || staffName;
 
     const resolvedCatalogMap = new Map<string, { name: string; unit: string }>(productCatalogMap);
     if (Array.isArray(liveDmhh) && liveDmhh.length > 0) {
@@ -239,7 +265,7 @@ export async function POST(request: NextRequest) {
     const invoiceRecord: Record<string, any> = {
       IDHOADON: invoiceId,
       IDBAN: resolvedTableId,
-      "Nhân viên": body.invoice?.['Nhân viên'] || body.invoice?.['Thu ngân'] || body.employee || staffName,
+      "Nhân viên": resolvedEmployeeName,
       "Khách hàng": customer || body.invoice?.['Khách hàng'] || body.invoice?.['Tên khách hàng'] || 'Khách lẻ',
       "Ngày": body.invoice?.['Ngày'] || formatDate(new Date()),
       "Tổng tiền": total,

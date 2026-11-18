@@ -23,6 +23,29 @@ import { getAppearanceSettings, applyAppearanceSettings } from '@/utils/appearan
 import { buildMergedToppingNote } from '@/lib/ai/customerDrinkParser';
 import type { Product } from '../types/customer-order';
 import { useCart } from '../context/CartContext';
+import { getSafeImageUrl } from '@/utils/imageUtils';
+
+function ChatbotProductThumb({ src, alt }: { src?: string; alt: string }) {
+  const [imgError, setImgError] = useState(false);
+  const safeSrc = getSafeImageUrl(src);
+
+  if (!safeSrc || imgError) {
+    return (
+      <span className="w-11 h-11 rounded-lg bg-orange-100 flex items-center justify-center text-xl">
+        🧋
+      </span>
+    );
+  }
+
+  return (
+    <img
+      src={safeSrc}
+      alt={alt}
+      className="w-11 h-11 rounded-lg object-cover bg-orange-50"
+      onError={() => setImgError(true)}
+    />
+  );
+}
 
 export interface SuggestedProduct {
   id: string;
@@ -730,17 +753,7 @@ export function CustomerChatbot({
                                   className="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer"
                                 >
                                   <div className="relative shrink-0">
-                                    {prod.image ? (
-                                      <img
-                                        src={prod.image}
-                                        alt={prod.name}
-                                        className="w-11 h-11 rounded-lg object-cover bg-orange-50"
-                                      />
-                                    ) : (
-                                      <span className="w-11 h-11 rounded-lg bg-orange-100 flex items-center justify-center text-xl">
-                                        🧋
-                                      </span>
-                                    )}
+                                    <ChatbotProductThumb src={prod.image} alt={prod.name} />
                                     {qty > 1 && (
                                       <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-xs">
                                         x{qty}

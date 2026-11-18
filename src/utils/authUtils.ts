@@ -1392,6 +1392,7 @@ class AuthUtils {
             const now = new Date();
             const expiryTime = new Date(now.getTime() + config.AUTH.TOKEN_DURATION);
             const token = 'Bearer ' + Math.random().toString(36).substring(7);
+            const displayName = userData['Họ và Tên'] || userData.fullName || userData.name || userData.username || 'Thu ngân';
 
             localStorage.setItem(config.AUTH.TOKEN_KEY, token);
             localStorage.setItem(config.AUTH.USER_DATA_KEY, JSON.stringify(userData));
@@ -1402,11 +1403,13 @@ class AuthUtils {
 
             const staffUserCookie = `staffUser=${encodeURIComponent(JSON.stringify({
                 username: userData.username || 'staff',
-                name: userData['Họ và Tên'] || userData.username || 'Thu ngân',
+                name: displayName,
                 role: userData['Vai trò'] || userData['Phân quyền'] || 'Thu ngân',
                 email: userData.Email || userData.email || '',
             }))}; expires=${expiryTime.toUTCString()}; path=/; SameSite=Lax`;
             document.cookie = staffUserCookie;
+
+            window.dispatchEvent(new Event('h2_auth_changed'));
         } catch (error) {
             console.error('Error saving auth data:', error);
         }
@@ -1422,8 +1425,38 @@ class AuthUtils {
             localStorage.removeItem('returnUrl');
             localStorage.removeItem('h2_session_id');
 
+            // Dọn các key phiên Supabase Auth cũ trong localStorage nếu còn sót
+            try {
+                const keysToRemove: string[] = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && key.startsWith('sb-') && key.includes('-auth-token')) {
+                        keysToRemove.push(key);
+                    }
+                }
+                keysToRemove.forEach((key) => localStorage.removeItem(key));
+            } catch {
+                // Bỏ qua nếu localStorage bị hạn chế
+            }
+
             document.cookie = 'authToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
             document.cookie = 'staffUser=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+
+            // Xóa thêm cookie phiên Supabase Auth (sb-*) để tránh dính phiên tài khoản cũ
+            try {
+                const cookies = document.cookie ? document.cookie.split(';') : [];
+                for (const entry of cookies) {
+                    const eqIdx = entry.indexOf('=');
+                    const name = (eqIdx >= 0 ? entry.slice(0, eqIdx) : entry).trim();
+                    if (name.startsWith('sb-')) {
+                        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+                    }
+                }
+            } catch {
+                // Bỏ qua lỗi đọc/xóa cookie
+            }
+
+            window.dispatchEvent(new Event('h2_auth_changed'));
         } catch (error) {
             console.error('Error clearing auth data:', error);
         }
@@ -1472,11 +1505,16 @@ class AuthUtils {
     }
 
     async login(username: string, password: string) {
-        if (!username || !password) {
+        const cleanUsername = String(username || '').trim();
+        if (!cleanUsername || !password) {
             throw new Error('Vui lòng nhập đầy đủ thông tin đăng nhập!');
         }
 
-        const email = username.includes('@') ? username : `${username}@h2.com`;
+        // Dọn sạch phiên cũ trước khi đăng nhập tài khoản mới để tránh dính tên/cookie phiên trước
+        this.clearAuthData();
+
+        const email = cleanUsername.includes('@') ? cleanUsername : `${cleanUsername}@h2.com`;
+        const emailPrefix = email.split('@')[0];
 
         const supabase = createClient();
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -1488,17 +1526,56 @@ class AuthUtils {
             throw new Error('Tên đăng nhập hoặc mật khẩu không đúng!');
         }
 
-        let userData = { email: data.user.email, username: username };
+        let userData: any = { email: data.user.email, username: cleanUsername };
+        let resolvedDsnv: any = null;
         try {
             const { data: dsnvData } = await supabase
                 .from('DSNV')
                 .select('*')
-                .or(`username.eq.${username},Email.eq.${email}`)
-                .single();
+                .or(`username.ilike.${emailPrefix},Email.ilike.${email}`)
+                .maybeSingle();
 
-            if (dsnvData) userData = dsnvData;
+            if (dsnvData) resolvedDsnv = dsnvData;
         } catch (e) {
             console.error("Could not fetch DSNV data", e);
+        }
+
+        // Fallback qua API /api/db?table=DSNV (bỏ qua RLS) nếu truy vấn client không lấy được hồ sơ DSNV
+        if (!resolvedDsnv && this.isBrowser()) {
+            try {
+                const res = await fetch('/api/db?table=DSNV', { cache: 'no-store' });
+                if (res.ok) {
+                    const json = await res.json();
+                    if (json?.success && Array.isArray(json.data)) {
+                        const targetUser = emailPrefix.toLowerCase();
+                        const targetEmail = email.toLowerCase();
+                        resolvedDsnv = json.data.find(
+                            (u: any) =>
+                                String(u?.username || '').trim().toLowerCase() === targetUser ||
+                                String(u?.Email || u?.email || '').trim().toLowerCase() === targetEmail
+                        ) || null;
+                    }
+                }
+            } catch {
+                // Tiếp tục fallback về DSNV_DATA nội bộ nếu mạng lỗi
+            }
+        }
+
+        if (!resolvedDsnv) {
+            const targetUser = emailPrefix.toLowerCase();
+            const targetEmail = email.toLowerCase();
+            resolvedDsnv = (DSNV_DATA as Array<any>).find(
+                (u) =>
+                    String(u?.username || '').trim().toLowerCase() === targetUser ||
+                    String(u?.Email || '').trim().toLowerCase() === targetEmail
+            ) || null;
+        }
+
+        if (resolvedDsnv) {
+            userData = {
+                ...resolvedDsnv,
+                email: data.user.email || resolvedDsnv.Email,
+            };
         }
 
         const sessionId = 'sess_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now();
@@ -1529,9 +1606,15 @@ class AuthUtils {
     }
 
     async logout() {
-        const supabase = createClient();
-        await supabase.auth.signOut();
         this.clearAuthData();
+        try {
+            const supabase = createClient();
+            await supabase.auth.signOut();
+        } catch (err) {
+            console.warn('Lỗi đăng xuất Supabase:', err);
+        } finally {
+            this.clearAuthData();
+        }
         return config.ROUTES.LOGIN;
     }
 

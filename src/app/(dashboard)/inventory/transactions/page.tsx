@@ -17,6 +17,7 @@ import { InventoryDetailsModal } from '@/app/(dashboard)/inventory/transactions/
 import { INVENTORY_TYPES, INVENTORY_STATUS } from '@/app/(dashboard)/inventory/transactions/utils/constants';
 import type { InventoryTransaction, InventoryTransactionFormData } from './types/inventory';
 import authUtils from '@/utils/authUtils';
+import { parseFlexibleDate } from '@/utils/dateUtils';
 import toast from 'react-hot-toast';
 import { AIInventoryQuickModal } from '@/app/(dashboard)/menu/nguyenlieu/components/AIInventoryQuickModal';
 import { ExportDropdownButton } from '@/components/ExportDropdownButton';
@@ -71,7 +72,7 @@ export default function InventoryTransactionsPage() {
       const matchesDate =
         !dateRange ||
         (() => {
-          const transactionDate = authUtils.parseFlexibleDate(transaction.NgayGiaoDich);
+          const transactionDate = parseFlexibleDate(transaction.NgayGiaoDich);
           if (!transactionDate) return true;
           return transactionDate >= dateRange.from && transactionDate <= dateRange.to;
         })();

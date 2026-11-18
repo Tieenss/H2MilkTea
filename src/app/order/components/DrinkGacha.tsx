@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { X, Volume2, VolumeX, Sparkles, ShoppingBag, RotateCw, CheckCircle2 } from 'lucide-react';
 import type { Product } from '../types/customer-order';
 import { useCart } from '../context/CartContext';
+import { getSafeImageUrl } from '@/utils/imageUtils';
 
 export type RarityTier = 'legendary' | 'epic' | 'rare' | 'common';
 
@@ -80,15 +81,38 @@ export interface DrinkGachaProps {
 }
 
 export function getDrinkThumbnail(p: Product): string {
-  if (p['Hình ảnh'] && p['Hình ảnh'].trim() !== '') return p['Hình ảnh'];
+  const safeProductImage = getSafeImageUrl(p['Hình ảnh']);
+  if (safeProductImage) return safeProductImage;
   const name = (p['Tên sản phẩm'] || '').toLowerCase();
   if (name.includes('cà phê') || name.includes('cafe')) {
-    return 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=200&q=80';
+    return getSafeImageUrl('https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=200&q=80');
   }
   if (name.includes('đào') || name.includes('trái cây') || name.includes('chanh') || name.includes('vải') || name.includes('dâu')) {
-    return 'https://images.unsplash.com/photo-1556881286-fc6915169721?w=200&q=80';
+    return getSafeImageUrl('https://images.unsplash.com/photo-1556881286-fc6915169721?w=200&q=80');
   }
-  return 'https://images.unsplash.com/photo-1558857563-b37cf5287e07?w=200&q=80';
+  return getSafeImageUrl('https://images.unsplash.com/photo-1558857563-b37cf5287e07?w=200&q=80');
+}
+
+function GachaItemThumbnail({ src, alt }: { src: string; alt: string }) {
+  const [imgError, setImgError] = useState(false);
+
+  if (!src || imgError) {
+    return (
+      <div className="w-full h-full rounded-lg bg-slate-800/80 flex items-center justify-center text-2xl">
+        🧋
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className="w-full h-full object-cover rounded-lg"
+      loading="lazy"
+      onError={() => setImgError(true)}
+    />
+  );
 }
 
 export function getProductPrice(p: Product): number {
@@ -432,11 +456,9 @@ export function DrinkGacha({ isOpen, onClose, products }: DrinkGachaProps) {
                       </span>
 
                       <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden mb-2 bg-black/40 border border-white/10 p-1">
-                        <img
+                        <GachaItemThumbnail
                           src={getDrinkThumbnail(item.product)}
                           alt={item.product['Tên sản phẩm']}
-                          className="w-full h-full object-cover rounded-lg"
-                          loading="lazy"
                         />
                       </div>
 

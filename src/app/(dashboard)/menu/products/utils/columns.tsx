@@ -29,6 +29,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import type { Product } from '../types/product';
 import { PRODUCT_STATUS } from './constants';
 import { formatCurrency } from './formatters';
+import { getSafeImageUrl } from '@/utils/imageUtils';
 
 interface GetColumnsProps {
   onEdit: (product: Product) => void;
@@ -98,21 +99,22 @@ export const getColumns = ({
       ),
       cell: ({ row }) => {
         const product = row.original;
+        const safeSrc = getSafeImageUrl(product['Hình ảnh']);
         return (
           <div className="flex items-center">
-            <Avatar className="h-12 w-12 mr-3">
+            <Avatar className="h-10 w-10 mr-2.5 shrink-0">
               <AvatarImage
-                src={product['Hình ảnh'] || ''}
+                src={safeSrc}
                 alt={product['Tên sản phẩm']}
                 className="object-cover"
               />
               <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-600 text-white font-semibold">
-                <Package className="h-6 w-6" />
+                <Package className="h-5 w-5" />
               </AvatarFallback>
             </Avatar>
-            <div className="min-w-0">
+            <div className="min-w-0 max-w-[160px] xl:max-w-[230px]">
               <div className="font-medium truncate">{row.getValue('Tên sản phẩm')}</div>
-              <div className="text-sm text-gray-500">
+              <div className="text-xs text-gray-500 truncate">
                 {product['Loại sản phẩm'] || 'Chưa phân loại'}
               </div>
             </div>
@@ -183,9 +185,10 @@ export const getColumns = ({
         const status = PRODUCT_STATUS.find((s) => s.value === row.getValue('Trạng thái'));
         if (!status) return null;
         return (
-          <div className="flex items-center">
-            {status.icon && (<status.icon className="mr-2 h-4 w-4 text-muted-foreground" />)}
+          <div className="flex items-center whitespace-nowrap">
+            {status.icon && (<status.icon className="mr-1.5 h-4 w-4 shrink-0 text-muted-foreground" />)}
             <Badge
+              className="whitespace-nowrap"
               variant={
                 status.value === 'Hoạt động' ? 'default' :
                   status.value === 'Hết hàng' ? 'destructive' : 'secondary'

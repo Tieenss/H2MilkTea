@@ -20,7 +20,6 @@ import { TransferModal } from './components/TransferModal';
 import { NoteModal } from './components/NoteModal';
 import { ReceiptSettings } from './components/ReceiptSettings';
 import { TableQRModal } from './components/TableQRModal';
-import authUtils from '@/utils/authUtils';
 import './styles/pos.css';
 import { CustomerSelectModal } from '@/app/(dashboard)/pos/components/CustomerSelectModal';
 import { QROrderInbox } from './components/QROrderInbox';
@@ -95,10 +94,9 @@ export default function POSPage() {
     resolveConflict,
     canCheckout,
     presenceByTable,
+    nhanvien,
   } = usePOS();
 
-  const userData = authUtils.getUserData();
-  const nhanvien = userData?.['Họ và Tên'] || userData?.username;
   const { isFeatureEnabled } = useFeatureFlags();
   const canUseBarcodeScanner = isFeatureEnabled('pos_barcode_scanner');
   const canUseToppingModal = isFeatureEnabled('pos_topping_modal');

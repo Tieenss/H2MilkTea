@@ -63,6 +63,11 @@ function serializeCart(items: CartItem[]): string {
   return JSON.stringify(items || []);
 }
 
+function buildSyncKey(targetTableId: string | null, items: CartItem[], cust?: Customer | null): string {
+  if (!targetTableId) return '';
+  return `${targetTableId}::${serializeCart(items)}::${JSON.stringify(cust ?? null)}`;
+}
+
 export function useSharedCartDraft({
   tableId,
   cart,
@@ -92,6 +97,7 @@ export function useSharedCartDraft({
   const fetchRequestIdRef = useRef(0);
   const lastLocalMutationAtRef = useRef<number>(0);
   const localMutationSeqRef = useRef<number>(0);
+  const lastSyncedKeyRef = useRef<string>('');
 
   // Kênh Realtime channel Ref để gửi broadcast tức thời của riêng bàn này
   const channelRef = useRef<any>(null);
@@ -119,18 +125,35 @@ export function useSharedCartDraft({
   }, []);
 
   // Prime dữ liệu bàn đích trước khi chuyển bàn để ngăn hiện tượng nháy đơn cũ/rác
-  const primeTableDraft = useCallback((targetTableId: string, cartItems: CartItem[], version?: number) => {
+  const primeTableDraft = useCallback((
+    targetTableId: string,
+    cartItems: CartItem[],
+    version?: number,
+    customer?: Customer | null
+  ) => {
     cancelPendingAutosave();
+    const isSameTable = initializedTableRef.current === targetTableId;
     initializedTableRef.current = targetTableId;
     pendingRemoteCartRef.current = serializeCart(cartItems);
+    lastSyncedKeyRef.current = buildSyncKey(
+      targetTableId,
+      cartItems,
+      customer !== undefined ? customer : (customerRef.current ?? null)
+    );
     cartRef.current = cartItems;
-    versionRef.current = version || 1;
+    versionRef.current = version ?? (isSameTable && versionRef.current > 0 ? versionRef.current : 1);
     lastLocalMutationAtRef.current = Date.now();
     fetchRequestIdRef.current += 1;
     setConflictData(null);
     setStatus('connected');
     setLastSyncAt(new Date());
   }, [cancelPendingAutosave]);
+
+  const syncTableVersion = useCallback((targetTableId: string, version: number) => {
+    if (initializedTableRef.current === targetTableId && Number.isFinite(version) && version > versionRef.current) {
+      versionRef.current = version;
+    }
+  }, []);
 
   const saveMergedDraft = useCallback(async (mergedCart: CartItem[], mergedCustomer: Customer | null, targetVersion: number) => {
     if (!tableId) return;
@@ -148,6 +171,7 @@ export function useSharedCartDraft({
       const result = await response.json();
       if (response.ok && result.success) {
         versionRef.current = result.draft.version;
+        lastSyncedKeyRef.current = buildSyncKey(tableId, result.draft.cart, result.draft.selected_customer ?? null);
         setLastSyncAt(new Date());
         try {
           void channelRef.current?.send({
@@ -191,6 +215,7 @@ export function useSharedCartDraft({
         const diff = diffCartItems(cartRef.current, remoteCart);
         const targetCart = diff.canAutoMerge ? diff.mergedCart : remoteCart;
         pendingRemoteCartRef.current = serializeCart(targetCart);
+        lastSyncedKeyRef.current = buildSyncKey(tableId, targetCart, remoteCustomer);
         setCart(targetCart);
         if (tableId) onRemoteCartRef.current?.(tableId, targetCart);
         setLastSyncAt(new Date());
@@ -209,6 +234,7 @@ export function useSharedCartDraft({
         return;
       }
       pendingRemoteCartRef.current = serializeCart(remoteCart);
+      lastSyncedKeyRef.current = buildSyncKey(tableId, remoteCart, remoteCustomer);
       setCart(remoteCart);
       if (tableId) {
         onRemoteCartRef.current?.(tableId, remoteCart);
@@ -274,6 +300,7 @@ export function useSharedCartDraft({
       // Tự động gộp hai bên an toàn (không ghi đè âm thầm)
       versionRef.current = Math.max(versionRef.current, remoteVersion);
       pendingRemoteCartRef.current = serializeCart(diff.mergedCart);
+      lastSyncedKeyRef.current = buildSyncKey(tableId, diff.mergedCart, remoteCustomer);
       setCart(diff.mergedCart);
       if (tableId) onRemoteCartRef.current?.(tableId, diff.mergedCart);
       setLastSyncAt(new Date());
@@ -348,6 +375,7 @@ export function useSharedCartDraft({
       versionRef.current = 0;
       initializedTableRef.current = null;
       pendingRemoteCartRef.current = null;
+      lastSyncedKeyRef.current = '';
       setConflictData(null);
       return;
     }
@@ -562,6 +590,7 @@ export function useSharedCartDraft({
             const retryResult = await retryRes.json();
             if (retryRes.ok && retryResult.success) {
               versionRef.current = retryResult.draft.version;
+              lastSyncedKeyRef.current = buildSyncKey(targetTableId, retryResult.draft.cart, retryResult.draft.selected_customer ?? null);
               setLastSyncAt(new Date());
               setStatus('connected');
 
@@ -597,6 +626,7 @@ export function useSharedCartDraft({
 
       if (!response.ok || !result.success) throw new Error(result.error || 'Không lưu được giỏ hàng.');
       versionRef.current = result.draft.version;
+      lastSyncedKeyRef.current = buildSyncKey(targetTableId, result.draft.cart, result.draft.selected_customer ?? null);
       setLastSyncAt(new Date());
       setStatus('connected');
 
@@ -644,10 +674,16 @@ export function useSharedCartDraft({
   useEffect(() => {
     if (!tableId || statusRef.current === 'conflict' || isClearingRef.current) return;
     const cartSnapshot = serializeCart(cart);
+    const currentSyncKey = buildSyncKey(tableId, cart, selectedCustomer ?? null);
 
-    // Nếu giỏ hàng vừa được nhận từ server hoặc đã xóa sạch (cart=[] và version=0), không trigger autosave đè
+    // Nếu giỏ hàng vừa được nhận từ server / vừa prime / đã đồng bộ hoặc đã xóa sạch (cart=[] và version=0), không trigger autosave đè
+    if (lastSyncedKeyRef.current === currentSyncKey) {
+      pendingRemoteCartRef.current = null;
+      return;
+    }
     if (pendingRemoteCartRef.current === cartSnapshot) {
       pendingRemoteCartRef.current = null;
+      lastSyncedKeyRef.current = currentSyncKey;
       return;
     }
     if (cart.length === 0 && versionRef.current === 0) {
@@ -703,6 +739,7 @@ export function useSharedCartDraft({
       const result = await response.json();
       if (response.ok && result.success) {
         versionRef.current = result.draft.version;
+        lastSyncedKeyRef.current = buildSyncKey(tableId, result.draft.cart, result.draft.selected_customer ?? null);
         setLastSyncAt(new Date());
         setStatus('connected');
 
@@ -738,6 +775,7 @@ export function useSharedCartDraft({
     if (!tableId) return;
     isClearingRef.current = true;
     pendingRemoteCartRef.current = '[]';
+    lastSyncedKeyRef.current = '';
     versionRef.current = 0;
     setConflictData(null);
 
@@ -786,5 +824,6 @@ export function useSharedCartDraft({
     clearDraft,
     cancelPendingAutosave,
     primeTableDraft,
+    syncTableVersion,
   };
 }

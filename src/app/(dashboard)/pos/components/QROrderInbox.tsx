@@ -77,7 +77,7 @@ export function QROrderInbox({
   activeOrders,
 }: { 
   onSettle: (order: IncomingOrder) => void;
-  onAccept?: (order: IncomingOrder) => void;
+  onAccept?: (order: IncomingOrder, serverDraft?: any) => void;
   activeOrders?: Map<string, any>;
 }) {
   const [orders, setOrders] = useState<IncomingOrder[]>([]);
@@ -259,7 +259,7 @@ export function QROrderInbox({
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.error || 'Không xử lý được đơn.');
       if (decision === 'accept' && onAccept) {
-        onAccept(order);
+        onAccept(order, result.draft);
       }
       if (decision === 'cancel') {
         window.dispatchEvent(new CustomEvent('pos_order_cancelled', {

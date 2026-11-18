@@ -108,7 +108,7 @@ export function DataTable<TData, TValue>({
   });
 
   return (
-    <div className="w-full space-y-4">
+    <div className="w-full min-w-0 space-y-4">
       <DataTableToolbar
         table={table}
         categories={categories}
@@ -125,31 +125,36 @@ export function DataTable<TData, TValue>({
       />
 
       {/* Scrollable table container */}
-      <div className="rounded-md border">
-        <div className="relative h-[600px] overflow-auto">
-          <table className="min-w-full table-auto">
+      <div className="w-full rounded-md border overflow-hidden">
+        <div className="relative w-full max-h-[600px] overflow-x-auto overflow-y-auto">
+          <table className="w-full min-w-full table-auto">
             <thead className="sticky top-0 z-20 bg-gray-50">
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <th 
-                      key={header.id}
-                      className="whitespace-nowrap border-b-2 border-gray-200 bg-gray-50 px-4 py-3 text-left text-sm font-medium text-gray-900"
-                      style={{
-                        position: 'sticky',
-                        top: 0,
-                        backgroundColor: 'rgb(249 250 251)',
-                        zIndex: 20,
-                      }}
-                    >
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                    </th>
-                  ))}
+                  {headerGroup.headers.map((header) => {
+                    const isActions = header.column.id === 'actions';
+                    return (
+                      <th 
+                        key={header.id}
+                        className={`whitespace-nowrap border-b-2 border-gray-200 bg-gray-50 px-2.5 lg:px-3 py-2.5 text-left text-sm font-medium text-gray-900 ${
+                          isActions ? 'sticky right-0 z-30 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.08)]' : ''
+                        }`}
+                        style={{
+                          position: 'sticky',
+                          top: 0,
+                          backgroundColor: 'rgb(249 250 251)',
+                          zIndex: isActions ? 30 : 20,
+                        }}
+                      >
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                      </th>
+                    );
+                  })}
                 </tr>
               ))}
             </thead>
@@ -162,17 +167,22 @@ export function DataTable<TData, TValue>({
                       index % 2 === 0 ? 'bg-white' : 'bg-gray-25'
                     }`}
                   >
-                    {row.getVisibleCells().map((cell) => (
-                      <td 
-                        key={cell.id}
-                        className="whitespace-nowrap border-b border-gray-100 px-4 py-3 text-sm text-gray-900"
-                      >
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
-                      </td>
-                    ))}
+                    {row.getVisibleCells().map((cell) => {
+                      const isActions = cell.column.id === 'actions';
+                      return (
+                        <td 
+                          key={cell.id}
+                          className={`whitespace-nowrap border-b border-gray-100 px-2.5 lg:px-3 py-2.5 text-sm text-gray-900 ${
+                            isActions ? 'sticky right-0 z-10 bg-white shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.08)]' : ''
+                          }`}
+                        >
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext()
+                          )}
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))
               ) : (

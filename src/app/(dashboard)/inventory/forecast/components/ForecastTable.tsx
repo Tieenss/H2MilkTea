@@ -3,7 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import type { ForecastData } from '../types/forecast';
-import { formatCurrency, formatPercentage, getAccuracyBadge, getStatusColor } from '../utils/formatters';
+import { formatCurrency, formatPercentage, getAccuracyBadge, getForecastMethodLabel, getStatusColor } from '../utils/formatters';
 
 interface ForecastTableProps {
   data: ForecastData[];
@@ -44,32 +44,32 @@ export function ForecastTable({ data, loading, canEdit }: ForecastTableProps) {
   };
 
   return (
-    <div className="rounded-md border">
+    <div className="w-full rounded-md border overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>ID Dự báo</TableHead>
-            <TableHead>Nguyên liệu</TableHead>
-            <TableHead>Ngày dự báo</TableHead>
-            <TableHead>Số lượng dự báo</TableHead>
-            <TableHead>Số lượng thực tế</TableHead>
-            <TableHead>Chênh lệch</TableHead>
-            <TableHead>Tỷ lệ chính xác</TableHead>
-            <TableHead>Phương pháp</TableHead>
-            <TableHead>Giá trị dự báo</TableHead>
-            <TableHead>Trạng thái</TableHead>
+            <TableHead className="whitespace-nowrap">ID Dự báo</TableHead>
+            <TableHead className="min-w-[160px]">Nguyên liệu</TableHead>
+            <TableHead className="whitespace-nowrap">Ngày dự báo</TableHead>
+            <TableHead className="whitespace-nowrap">Số lượng dự báo</TableHead>
+            <TableHead className="whitespace-nowrap">Số lượng thực tế</TableHead>
+            <TableHead className="whitespace-nowrap">Chênh lệch</TableHead>
+            <TableHead className="whitespace-nowrap">Tỷ lệ chính xác</TableHead>
+            <TableHead className="whitespace-nowrap">Phương pháp</TableHead>
+            <TableHead className="whitespace-nowrap">Giá trị dự báo</TableHead>
+            <TableHead className="whitespace-nowrap">Trạng thái</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {data.map((forecast) => (
             <TableRow key={forecast.IDDuBao}>
-              <TableCell className="font-medium">
+              <TableCell className="font-medium whitespace-nowrap">
                 {forecast.IDDuBao}
               </TableCell>
               <TableCell>
                 <div>
-                  <div className="font-medium">{forecast.TenNguyenLieu}</div>
-                  <div className="text-sm text-muted-foreground">
+                  <div className="font-medium">{forecast.TenNguyenLieu || forecast.IDNguyenLieu}</div>
+                  <div className="text-xs text-muted-foreground">
                     {forecast.DonViTinh}
                   </div>
                 </div>
@@ -101,9 +101,9 @@ export function ForecastTable({ data, loading, canEdit }: ForecastTableProps) {
                   {formatPercentage(forecast.TyLeChinhXac)}
                 </Badge>
               </TableCell>
-              <TableCell>
+              <TableCell className="whitespace-nowrap">
                 <div className="text-sm">
-                  {forecast.PhuongPhapDuBao}
+                  {getForecastMethodLabel(forecast.PhuongPhapDuBao)}
                 </div>
               </TableCell>
               <TableCell>

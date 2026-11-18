@@ -189,7 +189,7 @@ export default function SuppliersPage() {
   };
 
   return (
-    <div className="w-full max-w-full p-4 md:p-6 space-y-6">
+    <div className="w-full max-w-full min-w-0 space-y-6">
       {/* Header */}
       <div className="flex flex-wrap justify-between items-center gap-3">
         <div>
@@ -198,7 +198,7 @@ export default function SuppliersPage() {
             Quản lý thông tin nhà cung cấp và lịch sử đặt hàng
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button onClick={handleExportData} variant="outline">
             <Download className="h-4 w-4 mr-2" />
             Xuất dữ liệu
@@ -280,7 +280,7 @@ export default function SuppliersPage() {
       </Card>
 
       {/* Data Table */}
-      <Card>
+      <Card className="min-w-0 overflow-hidden">
         <CardHeader>
           <CardTitle>Danh sách Nhà cung cấp</CardTitle>
           <CardDescription>

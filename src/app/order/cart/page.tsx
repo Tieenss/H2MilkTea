@@ -7,7 +7,26 @@ import { useCart } from '../context/CartContext';
 import { ServiceCallButton } from '../components/ServiceCallButton';
 import { useTablePresence } from '@/hooks/useTablePresence';
 import { createClient } from '@/lib/supabase/client';
+import { getSafeImageUrl } from '@/utils/imageUtils';
 import toast from 'react-hot-toast';
+
+function CartItemImage({ src, alt }: { src?: string; alt: string }) {
+  const [imgError, setImgError] = useState(false);
+  const safeSrc = getSafeImageUrl(src);
+
+  if (!safeSrc || imgError) {
+    return <div className="w-full h-full flex items-center justify-center text-2xl">🥤</div>;
+  }
+
+  return (
+    <img
+      src={safeSrc}
+      alt={alt}
+      className="w-full h-full object-cover"
+      onError={() => setImgError(true)}
+    />
+  );
+}
 
 function CartPageContent() {
   const router = useRouter();
@@ -262,18 +281,10 @@ function CartPageContent() {
             <div className="flex gap-3">
               {/* Product Image */}
               <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-orange-50 to-amber-50 overflow-hidden flex-shrink-0">
-                {item.product['Hình ảnh'] && !item.product['Hình ảnh'].includes('placeholder') ? (
-                  <img
-                    src={item.product['Hình ảnh']}
-                    alt={item.product['Tên sản phẩm']}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none';
-                    }}
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-2xl">🥤</div>
-                )}
+                <CartItemImage
+                  src={item.product['Hình ảnh']}
+                  alt={item.product['Tên sản phẩm']}
+                />
               </div>
 
               {/* Product Info */}

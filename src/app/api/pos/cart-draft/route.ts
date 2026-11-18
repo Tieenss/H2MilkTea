@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminSupabaseClient, getAuthenticatedStaff } from '@/lib/supabase/server';
+import { getSafeStaffUuid } from '@/lib/supabase/uuid';
 
 const MAX_CART_ITEMS = 50;
 
@@ -49,6 +50,7 @@ export async function POST(request: NextRequest) {
   if (!supabase) return NextResponse.json({ success: false, error: 'Dịch vụ dữ liệu chưa sẵn sàng.' }, { status: 503 });
 
   const now = new Date().toISOString();
+  const safeStaffUuid = getSafeStaffUuid(staff.id);
 
   try {
     const { data: existingDraft } = await supabase
@@ -65,7 +67,7 @@ export async function POST(request: NextRequest) {
           cart,
           selected_customer: selectedCustomer ?? existingDraft.selected_customer,
           version: nextVersion,
-          updated_by: staff.id,
+          updated_by: safeStaffUuid,
           updated_at: now,
         })
         .eq('table_id', tableId)
@@ -87,13 +89,36 @@ export async function POST(request: NextRequest) {
         cart,
         selected_customer: selectedCustomer,
         version: 1,
-        updated_by: staff.id,
+        updated_by: safeStaffUuid,
         updated_at: now,
       })
       .select('*')
       .single();
 
     if (insertError) {
+      // Nếu race condition khiến dòng vừa được tạo song song (duplicate key), tự động chuyển sang update
+      const { data: concurrentDraft } = await supabase
+        .from('pos_cart_drafts')
+        .select('*')
+        .eq('table_id', tableId)
+        .maybeSingle();
+      if (concurrentDraft) {
+        const { data: retried, error: retryErr } = await supabase
+          .from('pos_cart_drafts')
+          .update({
+            cart,
+            selected_customer: selectedCustomer ?? concurrentDraft.selected_customer,
+            version: Number(concurrentDraft.version || 0) + 1,
+            updated_by: safeStaffUuid,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('table_id', tableId)
+          .select('*')
+          .maybeSingle();
+        if (!retryErr && retried) {
+          return NextResponse.json({ success: true, draft: retried });
+        }
+      }
       console.warn('Insert cart draft on POST failed:', insertError);
       return NextResponse.json({ success: false, error: 'Không thể khởi tạo giỏ hàng.' }, { status: 409 });
     }
@@ -125,6 +150,8 @@ export async function PUT(request: NextRequest) {
   const supabase = createAdminSupabaseClient();
   if (!supabase) return NextResponse.json({ success: false, error: 'Dịch vụ dữ liệu chưa sẵn sàng.' }, { status: 503 });
 
+  const safeStaffUuid = getSafeStaffUuid(staff.id);
+
   // 1. Nếu client truyền expectedVersion > 0: Phải là UPDATE bản ghi hiện có
   if (expectedVersion !== null && expectedVersion > 0) {
     const nextVersion = expectedVersion + 1;
@@ -134,7 +161,7 @@ export async function PUT(request: NextRequest) {
         cart,
         selected_customer: selectedCustomer,
         version: nextVersion,
-        updated_by: staff.id,
+        updated_by: safeStaffUuid,
         updated_at: new Date().toISOString(),
       })
       .eq('table_id', tableId)
@@ -197,7 +224,7 @@ export async function PUT(request: NextRequest) {
       cart,
       selected_customer: selectedCustomer,
       version: 1,
-      updated_by: staff.id,
+      updated_by: safeStaffUuid,
       updated_at: new Date().toISOString(),
     })
     .select('*')

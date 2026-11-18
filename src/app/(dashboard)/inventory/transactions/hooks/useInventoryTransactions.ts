@@ -6,6 +6,7 @@ import {
 } from '../types/inventory';
 import { generateTransactionId, calculateTotalAmount } from '../utils/formatters';
 import authUtils from '@/utils/authUtils';
+import { parseFlexibleDate } from '@/utils/dateUtils';
 import { JsonFileManager } from '@/utils/jsonFileManager';
 
 export const useInventoryTransactions = () => {
@@ -27,7 +28,7 @@ export const useInventoryTransactions = () => {
     const currentDay = now.getDate();
 
     const monthlyTransactions = data.filter((t) => {
-      const transactionDate = authUtils.parseFlexibleDate(t.NgayGiaoDich);
+      const transactionDate = parseFlexibleDate(t.NgayGiaoDich);
       return (
         transactionDate &&
         transactionDate.getMonth() === currentMonth &&
@@ -36,7 +37,7 @@ export const useInventoryTransactions = () => {
     });
 
     const dailyTransactions = data.filter((t) => {
-      const transactionDate = authUtils.parseFlexibleDate(t.NgayGiaoDich);
+      const transactionDate = parseFlexibleDate(t.NgayGiaoDich);
       return (
         transactionDate &&
         transactionDate.getDate() === currentDay &&

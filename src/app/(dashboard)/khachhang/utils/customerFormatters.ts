@@ -1,62 +1,20 @@
 // utils/customerFormatters.ts
 import { CUSTOMER_TYPES, CUSTOMER_STATUS } from './customerConstants';
-
-// Hàm chuyển đổi định dạng ngày từ DD/MM/YYYY hoặc DD/MM/YYYY HH:mm:ss sang Date object
-const parseVietnameseDate = (dateString: string): Date | null => {
-  if (!dateString || dateString.trim() === '') return null;
-  
-  try {
-    // Nếu đã là định dạng ISO hoặc có thể parse trực tiếp
-    const directParse = new Date(dateString);
-    if (!isNaN(directParse.getTime())) {
-      return directParse;
-    }
-    
-    // Xử lý định dạng DD/MM/YYYY hoặc DD/MM/YYYY HH:mm:ss
-    const parts = dateString.trim().split(' ');
-    const datePart = parts[0];
-    const timePart = parts[1] || '00:00:00';
-    
-    const [day, month, year] = datePart.split('/').map(num => parseInt(num, 10));
-    const [hour, minute, second] = timePart.split(':').map(num => parseInt(num, 10));
-    
-    if (isNaN(day) || isNaN(month) || isNaN(year)) {
-      return null;
-    }
-    
-    const date = new Date(year, month - 1, day, hour || 0, minute || 0, second || 0);
-    return isNaN(date.getTime()) ? null : date;
-  } catch {
-    return null;
-  }
-};
+import {
+  parseFlexibleDate,
+  formatVNDate,
+  formatVNDateTime,
+  formatRelativeTimeVN
+} from '@/utils/dateUtils';
 
 export const formatCustomerDate = (dateString: string): string => {
   if (!dateString) return 'Chưa cập nhật';
-  
-  const date = parseVietnameseDate(dateString);
-  if (!date) return 'Không hợp lệ';
-  
-  return date.toLocaleDateString('vi-VN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  });
+  return formatVNDate(dateString, 'Không hợp lệ');
 };
 
 export const formatCustomerDateTime = (dateString: string): string => {
   if (!dateString) return 'Chưa cập nhật';
-  
-  const date = parseVietnameseDate(dateString);
-  if (!date) return 'Không hợp lệ';
-  
-  return date.toLocaleString('vi-VN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
+  return formatVNDateTime(dateString, 'Không hợp lệ');
 };
 
 export const getCustomerTypeColor = (type: string): string => {
@@ -88,38 +46,7 @@ export const calculateCustomerTier = (points: number): string => {
 
 export const getTimeAgo = (dateString: string): string => {
   if (!dateString || dateString.trim() === '') return 'Chưa có';
-
-  const date = parseVietnameseDate(dateString);
-  if (!date) return 'Không xác định';
-  
-  try {
-    const now = new Date();
-    const diffInMs = now.getTime() - date.getTime();
-    
-    // Nếu ngày trong tương lai hoặc quá xa trong quá khứ
-    if (diffInMs < 0) return 'Trong tương lai';
-    
-    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
-
-    if (diffInDays === 0) {
-      return 'Hôm nay';
-    } else if (diffInDays === 1) {
-      return 'Hôm qua';
-    } else if (diffInDays < 7) {
-      return `${diffInDays} ngày trước`;
-    } else if (diffInDays < 30) {
-      const weeks = Math.floor(diffInDays / 7);
-      return `${weeks} tuần trước`;
-    } else if (diffInDays < 365) {
-      const months = Math.floor(diffInDays / 30);
-      return `${months} tháng trước`;
-    } else {
-      const years = Math.floor(diffInDays / 365);
-      return `${years} năm trước`;
-    }
-  } catch {
-    return 'Không xác định';
-  }
+  return formatRelativeTimeVN(dateString, 'Không xác định');
 };
 
 export const validateCustomerData = (customer: any): string[] => {
@@ -147,7 +74,7 @@ export const generateCustomerId = (): string => {
 export const calculateAge = (birthDate: string): number => {
   if (!birthDate) return 0;
   
-  const birth = parseVietnameseDate(birthDate);
+  const birth = parseFlexibleDate(birthDate);
   if (!birth) return 0;
   
   try {

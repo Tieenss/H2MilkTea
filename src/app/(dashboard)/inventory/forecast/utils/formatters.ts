@@ -1,4 +1,14 @@
 import type { ForecastData } from '../types/forecast';
+import { FORECAST_METHODS } from './constants';
+
+const FORECAST_METHOD_LABEL_MAP = new Map(
+  FORECAST_METHODS.map((item) => [item.value, item.label])
+);
+
+// Get Vietnamese label for forecast method
+export const getForecastMethodLabel = (method: string): string => {
+  return FORECAST_METHOD_LABEL_MAP.get(method) || method;
+};
 
 // Format currency
 export const formatCurrency = (amount: number): string => {
@@ -99,10 +109,13 @@ export const generateForecastData = (
   materialName: string,
   historicalData: number[],
   period: number,
-  method: string
+  method: string,
+  unit: string = 'Kg',
+  startIndex: number = 1
 ): ForecastData[] => {
   const forecasts: ForecastData[] = [];
   const today = new Date();
+  const methodLabel = getForecastMethodLabel(method);
   
   for (let i = 1; i <= period; i++) {
     const forecastDate = new Date(today);
@@ -128,8 +141,9 @@ export const generateForecastData = (
     const weekdayFactor = calculateWeekdayFactor(forecastDate.getDay());
     forecastValue *= seasonalFactor * weekdayFactor;
     
+    const globalIndex = startIndex + i - 1;
     const forecast: ForecastData = {
-      IDDuBao: `DB${String(i).padStart(3, '0')}`,
+      IDDuBao: `DB${String(globalIndex).padStart(3, '0')}`,
       IDNguyenLieu: materialId,
       TenNguyenLieu: materialName,
       NgayDuBao: forecastDate.toLocaleDateString('vi-VN'),
@@ -138,10 +152,10 @@ export const generateForecastData = (
       ChenhLech: 0,
       TyLeChinhXac: 0,
       PhuongPhapDuBao: method,
-      DonViTinh: 'Kg',
+      DonViTinh: unit,
       DonGia: 45000,
       GiaTriDuBao: Math.round(forecastValue * 45000),
-      GhiChu: `Dự báo ${method} cho ${materialName}`,
+      GhiChu: `Dự báo ${methodLabel} cho ${materialName}`,
       TrangThai: 'Đang thực hiện'
     };
     
@@ -200,7 +214,7 @@ export const exportForecastData = (forecasts: ForecastData[]) => {
       forecast.SoLuongThucTe,
       forecast.ChenhLech,
       forecast.TyLeChinhXac,
-      forecast.PhuongPhapDuBao,
+      getForecastMethodLabel(forecast.PhuongPhapDuBao),
       forecast.DonViTinh,
       forecast.DonGia,
       forecast.GiaTriDuBao,

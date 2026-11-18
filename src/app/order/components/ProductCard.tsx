@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plus } from 'lucide-react';
 import type { Product } from '../types/customer-order';
+import { getSafeImageUrl } from '@/utils/imageUtils';
 
 interface ProductCardProps {
   product: Product;
@@ -14,9 +15,21 @@ interface ProductCardProps {
 export function ProductCard({ product, onSelect, onQuickAdd, viewMode = 'grid' }: ProductCardProps) {
   const [imgError, setImgError] = useState(false);
   const [imgLoaded, setImgLoaded] = useState(false);
+  const imgRef = useRef<HTMLImageElement | null>(null);
   const price = parseInt(product['Đơn giá']) || 0;
-  const isPlaceholder = product['Hình ảnh']?.includes('placeholder');
-  const hasValidImage = product['Hình ảnh'] && !isPlaceholder && !imgError;
+  const safeImageUrl = getSafeImageUrl(product['Hình ảnh']);
+  const hasValidImage = Boolean(safeImageUrl) && !imgError;
+
+  useEffect(() => {
+    setImgError(false);
+    setImgLoaded(false);
+  }, [safeImageUrl]);
+
+  useEffect(() => {
+    if (imgRef.current && imgRef.current.complete && imgRef.current.naturalWidth > 0) {
+      setImgLoaded(true);
+    }
+  }, [safeImageUrl]);
 
   // Chế độ xem Danh sách (List View - Dễ nhìn & thao tác nhanh trên điện thoại)
   if (viewMode === 'list') {
@@ -28,7 +41,7 @@ export function ProductCard({ product, onSelect, onQuickAdd, viewMode = 'grid' }
         <div className="relative w-20 h-20 rounded-xl bg-slate-100 overflow-hidden shrink-0">
           {hasValidImage ? (
             <img
-              src={product['Hình ảnh']}
+              src={safeImageUrl}
               alt={product['Tên sản phẩm']}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
               onError={() => setImgError(true)}
@@ -86,7 +99,8 @@ export function ProductCard({ product, onSelect, onQuickAdd, viewMode = 'grid' }
                 <div className="absolute inset-0 animate-pulse bg-slate-200" />
               )}
               <img
-                src={product['Hình ảnh']}
+                ref={imgRef}
+                src={safeImageUrl}
                 alt={product['Tên sản phẩm']}
                 className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
                 onLoad={() => setImgLoaded(true)}

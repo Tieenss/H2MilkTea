@@ -34,8 +34,8 @@ export const MaterialInventoryStats: React.FC<MaterialInventoryStatsProps> = ({ 
   const totalTon = stats.reduce((sum, item) => sum + item['Số lượng tồn'], 0);
   const totalGiaTri = stats.reduce((sum, item) => sum + item['Giá trị tồn'], 0);
   
-  const lowStockMaterials = stats.filter(item => item['Số lượng tồn'] <= 10);
-  const outOfStockMaterials = stats.filter(item => item['Số lượng tồn'] === 0);
+  const outOfStockMaterials = stats.filter(item => item['Số lượng tồn'] <= 0);
+  const lowStockMaterials = stats.filter(item => item['Số lượng tồn'] > 0 && item['Số lượng tồn'] <= 10);
 
   return (
     <div className="space-y-6">
@@ -131,13 +131,11 @@ export const MaterialInventoryStats: React.FC<MaterialInventoryStatsProps> = ({ 
                 <div>
                   <h4 className="font-medium text-orange-700 mb-2">Sắp hết hàng:</h4>
                   <div className="flex flex-wrap gap-2">
-                    {lowStockMaterials
-                      .filter(item => item['Số lượng tồn'] > 0)
-                      .map((item) => (
-                        <Badge key={item.IDNguyenLieu} variant="secondary" className="bg-orange-100 text-orange-800">
-                          {item['Tên nguyên liệu']} ({item['Số lượng tồn']} {item['Đơn vị tính']})
-                        </Badge>
-                      ))}
+                    {lowStockMaterials.map((item) => (
+                      <Badge key={item.IDNguyenLieu} variant="secondary" className="bg-orange-100 text-orange-800">
+                        {item['Tên nguyên liệu']} ({item['Số lượng tồn']} {item['Đơn vị tính']})
+                      </Badge>
+                    ))}
                   </div>
                 </div>
               )}
@@ -169,8 +167,8 @@ export const MaterialInventoryStats: React.FC<MaterialInventoryStatsProps> = ({ 
               </thead>
               <tbody>
                 {stats.map((item) => {
-                  const isLowStock = item['Số lượng tồn'] <= 10;
-                  const isOutOfStock = item['Số lượng tồn'] === 0;
+                  const isOutOfStock = item['Số lượng tồn'] <= 0;
+                  const isLowStock = item['Số lượng tồn'] > 0 && item['Số lượng tồn'] <= 10;
                   
                   return (
                     <tr key={item.IDNguyenLieu} className="border-b hover:bg-gray-50">

@@ -63,7 +63,7 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
   selectedTableId,
   selectedCustomer,
   selectedTableName,
-  employee = 'Admin',
+  employee = 'Thu ngân',
   sharedCartStatus = 'connected',
   canCheckout = true,
   canUseKitchenPrint = true,

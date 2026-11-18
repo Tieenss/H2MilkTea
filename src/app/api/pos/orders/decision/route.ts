@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminSupabaseClient, getAuthenticatedStaff } from '@/lib/supabase/server';
+import { getSafeStaffUuid } from '@/lib/supabase/uuid';
 
 function subtractItems(currentCart: any[], itemsToRemove: any[]): any[] {
   if (!Array.isArray(currentCart) || currentCart.length === 0) return [];
@@ -86,8 +87,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Khi chấp nhận đơn QR: Tự động lưu/gộp các món vào pos_cart_drafts để tất cả máy POS và khách đều thấy giỏ thật
+    let savedDraft: any = null;
     if (decision === 'accept' && current.table_id && Array.isArray(current.items)) {
       try {
+        const safeStaffUuid = getSafeStaffUuid(staff.id);
         const { data: existingDraft } = await supabase
           .from('pos_cart_drafts')
           .select('*')
@@ -119,20 +122,23 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          await supabase.from('pos_cart_drafts').update({
+          const { data: updatedDraft } = await supabase.from('pos_cart_drafts').update({
             cart: mergedCart,
             version: Number(existingDraft.version || 0) + 1,
+            updated_by: safeStaffUuid,
             updated_at: now,
-          }).eq('table_id', current.table_id);
+          }).eq('table_id', current.table_id).select('*').maybeSingle();
+          savedDraft = updatedDraft;
         } else {
           // Khởi tạo giỏ hàng bàn mới trên DB
-          await supabase.from('pos_cart_drafts').insert({
+          const { data: insertedDraft } = await supabase.from('pos_cart_drafts').insert({
             table_id: current.table_id,
             cart: formattedOrderItems,
             version: 1,
-            updated_by: staff.id,
+            updated_by: safeStaffUuid,
             updated_at: now,
-          });
+          }).select('*').maybeSingle();
+          savedDraft = insertedDraft;
         }
       } catch (acceptCartErr) {
         console.warn('Lỗi tự động nạp giỏ hàng bàn khi nhận đơn QR:', acceptCartErr);
@@ -179,7 +185,7 @@ export async function POST(request: NextRequest) {
       } });
       await supabase.removeChannel(channel);
     }
-    return NextResponse.json({ success: true, order: updated, clearedTableId: decision === 'cancel' ? current.table_id : null });
+    return NextResponse.json({ success: true, order: updated, draft: savedDraft, clearedTableId: decision === 'cancel' ? current.table_id : null });
   } catch (error) {
     console.error('QR order decision failed:', error);
     return NextResponse.json({ success: false, error: 'Không thể xử lý đơn QR.' }, { status: 500 });

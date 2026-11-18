@@ -361,9 +361,9 @@ export const CustomerDataTable: React.FC<CustomerDataTableProps> = ({
   });
 
   return (
-    <div className="space-y-4">
+    <div className="w-full min-w-0 space-y-4">
       {/* Search Input */}
-      <div className="flex items-center space-x-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Input
           placeholder="Tìm kiếm khách hàng..."
           value={globalFilter ?? ''}
@@ -376,22 +376,30 @@ export const CustomerDataTable: React.FC<CustomerDataTableProps> = ({
       </div>
 
       {/* Scrollable Table */}
-      <div className="border rounded-md">
-        <div className="relative max-h-[600px] overflow-auto">
+      <div className="w-full border rounded-md overflow-x-auto">
+        <div className="relative w-full max-h-[600px] overflow-auto">
           <Table>
-            <TableHeader className="sticky top-0 bg-background z-10">
+            <TableHeader className="sticky top-0 bg-background z-20">
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id} className="border-b">
-                  {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id} className="bg-muted/50 border-r last:border-r-0">
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                    </TableHead>
-                  ))}
+                  {headerGroup.headers.map((header) => {
+                    const isActions = header.column.id === 'actions';
+                    return (
+                      <TableHead
+                        key={header.id}
+                        className={`bg-muted/50 border-r last:border-r-0 px-2.5 lg:px-3 py-2.5 whitespace-nowrap ${
+                          isActions ? 'sticky right-0 z-30 bg-muted text-right shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.08)]' : ''
+                        }`}
+                      >
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                      </TableHead>
+                    );
+                  })}
                 </TableRow>
               ))}
             </TableHeader>
@@ -403,11 +411,19 @@ export const CustomerDataTable: React.FC<CustomerDataTableProps> = ({
                     data-state={row.getIsSelected() && "selected"}
                     className="hover:bg-muted/50"
                   >
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id} className="border-r last:border-r-0">
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </TableCell>
-                    ))}
+                    {row.getVisibleCells().map((cell) => {
+                      const isActions = cell.column.id === 'actions';
+                      return (
+                        <TableCell
+                          key={cell.id}
+                          className={`border-r last:border-r-0 px-2.5 lg:px-3 py-2.5 whitespace-nowrap ${
+                            isActions ? 'sticky right-0 z-10 bg-background text-right shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.08)]' : ''
+                          }`}
+                        >
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </TableCell>
+                      );
+                    })}
                   </TableRow>
                 ))
               ) : (

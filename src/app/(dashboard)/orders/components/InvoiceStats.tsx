@@ -15,27 +15,30 @@ export const InvoiceStatsComponent: React.FC<InvoiceStatsProps> = ({ stats }) =>
   const { todayOrdersCount, loading } = useTodayOrdersContext();
   
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
-      <Card>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      <Card className="min-w-0">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Tổng hóa đơn</CardTitle>
-          <FileText className="h-4 w-4 text-muted-foreground" />
+          <CardTitle className="text-sm font-medium truncate">Tổng hóa đơn</CardTitle>
+          <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
         </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{stats.totalInvoices}</div>
+        <CardContent className="min-w-0">
+          <div className="text-lg sm:text-xl xl:text-2xl font-bold truncate">{stats.totalInvoices}</div>
           <p className="text-xs text-muted-foreground">
             Tổng số hóa đơn trong hệ thống
           </p>
         </CardContent>
       </Card>
       
-      <Card>
+      <Card className="min-w-0">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Doanh thu</CardTitle>
-          <DollarSign className="h-4 w-4 text-muted-foreground" />
+          <CardTitle className="text-sm font-medium truncate">Doanh thu</CardTitle>
+          <DollarSign className="h-4 w-4 text-muted-foreground shrink-0" />
         </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-green-600">
+        <CardContent className="min-w-0">
+          <div
+            className="text-lg sm:text-xl xl:text-lg 2xl:text-2xl font-bold text-green-600 truncate"
+            title={formatCurrency(stats.totalRevenue)}
+          >
             {formatCurrency(stats.totalRevenue)}
           </div>
           <p className="text-xs text-muted-foreground">
@@ -44,52 +47,52 @@ export const InvoiceStatsComponent: React.FC<InvoiceStatsProps> = ({ stats }) =>
         </CardContent>
       </Card>
       
-      <Card>
+      <Card className="min-w-0">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Chờ xác nhận</CardTitle>
-          <Clock className="h-4 w-4 text-muted-foreground" />
+          <CardTitle className="text-sm font-medium truncate">Chờ xác nhận</CardTitle>
+          <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
         </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-yellow-600">{stats.pendingInvoices}</div>
+        <CardContent className="min-w-0">
+          <div className="text-lg sm:text-xl xl:text-2xl font-bold text-yellow-600 truncate">{stats.pendingInvoices}</div>
           <p className="text-xs text-muted-foreground">
             Hóa đơn chờ xác nhận
           </p>
         </CardContent>
       </Card>
       
-      <Card>
+      <Card className="min-w-0">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Đã hoàn thành</CardTitle>
-          <CheckCircle className="h-4 w-4 text-muted-foreground" />
+          <CardTitle className="text-sm font-medium truncate">Đã hoàn thành</CardTitle>
+          <CheckCircle className="h-4 w-4 text-muted-foreground shrink-0" />
         </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-blue-600">{stats.completedInvoices}</div>
+        <CardContent className="min-w-0">
+          <div className="text-lg sm:text-xl xl:text-2xl font-bold text-blue-600 truncate">{stats.completedInvoices}</div>
           <p className="text-xs text-muted-foreground">
             Hóa đơn đã thanh toán
           </p>
         </CardContent>
       </Card>
       
-      <Card className="border-rose-200 bg-rose-50/20">
+      <Card className="border-rose-200 bg-rose-50/20 min-w-0">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-rose-900">Đã hủy (Kiểm toán)</CardTitle>
-          <XCircle className="h-4 w-4 text-rose-500" />
+          <CardTitle className="text-sm font-medium text-rose-900 truncate">Đã hủy (Kiểm toán)</CardTitle>
+          <XCircle className="h-4 w-4 text-rose-500 shrink-0" />
         </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-rose-600">{stats.cancelledInvoices}</div>
-          <p className="text-xs text-rose-600/90 font-medium">
+        <CardContent className="min-w-0">
+          <div className="text-lg sm:text-xl xl:text-2xl font-bold text-rose-600 truncate">{stats.cancelledInvoices}</div>
+          <p className="text-xs text-rose-600/90 font-medium truncate" title={`Thất thoát: ${formatCurrency(stats.cancelledLossRevenue || 0)}`}>
             Thất thoát: {formatCurrency(stats.cancelledLossRevenue || 0)}
           </p>
         </CardContent>
       </Card>
       
-      <Card>
+      <Card className="min-w-0">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Hôm nay</CardTitle>
-          <Calendar className="h-4 w-4 text-muted-foreground" />
+          <CardTitle className="text-sm font-medium truncate">Hôm nay</CardTitle>
+          <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
         </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-purple-600">
+        <CardContent className="min-w-0">
+          <div className="text-lg sm:text-xl xl:text-2xl font-bold text-purple-600 truncate">
             {loading ? (
               <div className="animate-pulse bg-gray-200 h-8 w-8 rounded"></div>
             ) : (

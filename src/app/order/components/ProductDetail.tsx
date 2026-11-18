@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Minus, Plus } from 'lucide-react';
 import type { Product } from '../types/customer-order';
 import { SIZE_OPTIONS, SUGAR_OPTIONS, ICE_OPTIONS, AVAILABLE_TOPPINGS } from '../types/customer-order';
 import { useCart } from '../context/CartContext';
 import { buildMergedToppingNote } from '@/lib/ai/customerDrinkParser';
+import { getSafeImageUrl } from '@/utils/imageUtils';
 import toast from 'react-hot-toast';
 
 interface ProductDetailProps {
@@ -24,6 +25,12 @@ export function ProductDetail({ product, isOpen, onClose }: ProductDetailProps) 
   const [quantity, setQuantity] = useState(1);
   const [imgError, setImgError] = useState(false);
 
+  const safeImageUrl = getSafeImageUrl(product?.['Hình ảnh']);
+
+  useEffect(() => {
+    setImgError(false);
+  }, [product?.IDSP, safeImageUrl]);
+
   if (!isOpen || !product) return null;
 
   const basePrice = parseInt(product['Đơn giá']);
@@ -35,8 +42,7 @@ export function ProductDetail({ product, isOpen, onClose }: ProductDetailProps) 
   }, 0);
   const unitPrice = basePrice + sizeAdjust + toppingsAdjust;
   const totalPrice = unitPrice * quantity;
-  const isPlaceholder = product['Hình ảnh']?.includes('placeholder');
-  const hasValidImage = product['Hình ảnh'] && !isPlaceholder && !imgError;
+  const hasValidImage = Boolean(safeImageUrl) && !imgError;
 
   const handleToggleTopping = (toppingName: string) => {
     setSelectedToppings(prev => 
@@ -105,7 +111,7 @@ export function ProductDetail({ product, isOpen, onClose }: ProductDetailProps) 
           <div className="relative h-56 bg-slate-100">
             {hasValidImage ? (
               <img
-                src={product['Hình ảnh']}
+                src={safeImageUrl}
                 alt={product['Tên sản phẩm']}
                 className="w-full h-full object-cover"
                 onError={() => setImgError(true)}

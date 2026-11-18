@@ -117,7 +117,13 @@ const normalizeText = (val: string): string =>
   val
     .normalize('NFC')
     .toLowerCase()
+    .replace(/\s+/g, ' ')
     .trim();
+
+const formatShortOrderCode = (orderId: string): string => {
+  const cleaned = String(orderId || '').replace(/[^a-zA-Z0-9]/g, '');
+  return (cleaned || String(orderId || '')).slice(-6).toUpperCase();
+};
 
 const detectStation = (itemName: string, category?: string): 'bar' | 'kitchen' => {
   const text = `${itemName} ${category || ''}`.toLowerCase();
@@ -275,7 +281,7 @@ const getDefaultSeedKitchenOrders = (): KitchenOrder[] => {
       notes: 'Khách xin thêm khăn giấy, làm gấp giúp bàn 2',
       items: [
         {
-          id: 'SP001',
+          id: 'DEMO-SP001',
           name: 'Trà sữa truyền thống trân châu đường đen',
           quantity: 2,
           unit: 'Ly',
@@ -283,7 +289,7 @@ const getDefaultSeedKitchenOrders = (): KitchenOrder[] => {
           station: 'bar',
         },
         {
-          id: 'SP005',
+          id: 'DEMO-SP005',
           name: 'Trà đào cam sả',
           quantity: 1,
           unit: 'Ly',
@@ -291,7 +297,7 @@ const getDefaultSeedKitchenOrders = (): KitchenOrder[] => {
           station: 'bar',
         },
         {
-          id: 'SP012',
+          id: 'DEMO-SP012',
           name: 'Bánh Tiramisu Cacao',
           quantity: 1,
           unit: 'Phần',
@@ -312,7 +318,7 @@ const getDefaultSeedKitchenOrders = (): KitchenOrder[] => {
       isSample: true,
       items: [
         {
-          id: 'SP003',
+          id: 'DEMO-SP003',
           name: 'Matcha Latte Kem Cheese',
           quantity: 2,
           unit: 'Ly',
@@ -320,7 +326,7 @@ const getDefaultSeedKitchenOrders = (): KitchenOrder[] => {
           station: 'bar',
         },
         {
-          id: 'SP015',
+          id: 'DEMO-SP015',
           name: 'Bánh Sừng Bò Croissant Bơ Tỏi',
           quantity: 2,
           unit: 'Cái',
@@ -342,7 +348,7 @@ const getDefaultSeedKitchenOrders = (): KitchenOrder[] => {
       notes: 'Đóng túi đôi mang đi, kèm 3 ống hút lớn',
       items: [
         {
-          id: 'SP008',
+          id: 'DEMO-SP008',
           name: 'Hồng trà macchiato',
           quantity: 3,
           unit: 'Ly',
@@ -472,19 +478,38 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
   const openRecipeModal = useCallback(
     (item: KitchenOrderItem, order?: KitchenOrder) => {
       const targetName = normalizeText(item.name);
-      const matchedProduct = productsList.find(
-        (p: any) =>
-          String(p.IDSP) === String(item.id) ||
-          normalizeText(String(p['Tên sản phẩm'] || '')) === targetName
-      );
-      const resolvedProductId = matchedProduct?.IDSP || item.id;
+      const targetId = String(item.id || '').trim();
 
-      const matchedConfigs = bomConfigs.filter(
-        (cfg: any) =>
-          (String(cfg.IDSP) === String(resolvedProductId) ||
-            normalizeText(String(cfg['Tên sản phẩm'] || '')) === targetName) &&
-          cfg['Trạng thái'] !== 'Ngừng hoạt động'
-      );
+      // Ưu tiên khớp 100% tên sản phẩm; chỉ khớp IDSP khi không bị lệch tên (tránh ID mẫu SP003 của Matcha Latte trúng SP003 Cafe đen đá)
+      const matchedByName = targetName
+        ? productsList.find((p: any) => normalizeText(String(p['Tên sản phẩm'] || '')) === targetName)
+        : undefined;
+      const matchedById = targetId
+        ? productsList.find((p: any) => String(p.IDSP || '').trim() === targetId)
+        : undefined;
+      const isIdNameConsistent =
+        !matchedById ||
+        !targetName ||
+        normalizeText(String(matchedById['Tên sản phẩm'] || '')) === targetName;
+
+      const matchedProduct = matchedByName || (isIdNameConsistent ? matchedById : undefined);
+      const resolvedProductId = matchedProduct
+        ? String(matchedProduct.IDSP || '').trim()
+        : (isIdNameConsistent ? targetId : '');
+
+      const matchedConfigs = bomConfigs.filter((cfg: any) => {
+        if (cfg['Trạng thái'] === 'Ngừng hoạt động') return false;
+        const cfgName = normalizeText(String(cfg['Tên sản phẩm'] || ''));
+        const cfgId = String(cfg.IDSP || '').trim();
+
+        if (cfgName && targetName) {
+          return cfgName === targetName;
+        }
+        if (resolvedProductId && cfgId === resolvedProductId) {
+          return !cfgName || !targetName || cfgName === targetName;
+        }
+        return false;
+      });
 
       const bomLines: BomRecipeLine[] = matchedConfigs.map((cfg: any) => {
         const mat = materialsList.find((m: any) => String(m.IDNguyenLieu) === String(cfg.IDNguyenLieu));
@@ -702,7 +727,7 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
         : status === 'ready'
         ? 'Chờ phục vụ'
         : 'Đã hoàn tất';
-    toast.success(`Đơn #${orderId.slice(-6)}: ${statusLabel}`);
+    toast.success(`Đơn #${formatShortOrderCode(orderId)}: ${statusLabel}`);
 
     // Đơn mẫu (MO-, #MO-, KDS-, demo-, isSample) chỉ cập nhật trong state/localStorage, không gọi PATCH /api/orders tránh 404
     if (isSampleOrder(orderId, targetOrder)) {
@@ -770,7 +795,7 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
 
       const tableNum = Math.floor(Math.random() * 12) + 1;
       const newOrder: KitchenOrder = {
-        id: `KDS-${Date.now().toString().slice(-5)}`,
+        id: `KDS-${Date.now().toString().slice(-6)}`,
         tableId: `T${String(tableNum).padStart(2, '0')}`,
         tableName: `Bàn ${String(tableNum).padStart(2, '0')} - Khu Chính`,
         employee: currentUser?.name || 'POS Thu Ngân',
@@ -788,7 +813,7 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
       saveLocalOrders(updated);
       if (soundEnabled) playNotificationSound();
       await fetchOrders(false);
-      toast.success(`Đã tạo đơn mẫu #${newOrder.id} cho ${newOrder.tableName}!`);
+      toast.success(`Đã tạo đơn mẫu #${formatShortOrderCode(newOrder.id)} cho ${newOrder.tableName}!`);
     } catch (error) {
       console.error('Error generating sample order:', error);
       toast.error('Không thể tạo đơn mẫu');
@@ -1646,7 +1671,7 @@ export const KitchenDisplay: React.FC<KitchenDisplayProps> = ({
                               )}
                             </div>
                             <div className="flex items-center gap-1.5 mt-1 text-[11px] text-slate-500 flex-wrap">
-                              <span className="font-mono font-semibold text-slate-700">#{order.id.slice(-6)}</span>
+                              <span className="font-mono font-semibold text-slate-700">#{formatShortOrderCode(order.id)}</span>
                               <span>•</span>
                               <Badge
                                 className={`text-[10px] px-1.5 py-0 ${

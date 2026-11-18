@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
+import { formatVNDate } from '@/utils/dateUtils';
 import type { Stocktake } from '../types/stocktake';
 
 interface StocktakeDetailsModalProps {
@@ -90,7 +91,7 @@ export function StocktakeDetailsModal({
             <div>
               <h3 className="font-medium text-sm text-gray-500 mb-1">Ngày kiểm kê</h3>
               <p className="text-sm">
-                {new Date(stocktake.NgayKiemKe).toLocaleDateString('vi-VN')}
+                {formatVNDate(stocktake.NgayKiemKe)}
               </p>
             </div>
             <div>

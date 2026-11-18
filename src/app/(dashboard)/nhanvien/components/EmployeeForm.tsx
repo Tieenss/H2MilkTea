@@ -29,6 +29,7 @@ import { cn } from '@/lib/utils';
 import type { Employee, EmployeeFormData } from '../types/employee';
 import { navigation, NavigationItem } from '@/lib/navigation';
 import authUtils from '@/utils/authUtils';
+import { parseFlexibleDate } from '@/utils/dateUtils';
 
 interface EmployeeFormProps {
   employee?: Employee | null;
@@ -319,11 +320,11 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({
   }, []);
   // Memoize dates để tránh re-render không cần thiết
   const birthDate = useMemo(() => {
-    return formData['Ngày sinh'] ? new Date(formData['Ngày sinh']) : undefined;
+    return parseFlexibleDate(formData['Ngày sinh']) ?? undefined;
   }, [formData['Ngày sinh']]);
 
   const startDate = useMemo(() => {
-    return formData['Ngày vào làm'] ? new Date(formData['Ngày vào làm']) : undefined;
+    return parseFlexibleDate(formData['Ngày vào làm']) ?? undefined;
   }, [formData['Ngày vào làm']]);
 
   // Tối ưu selectedPermissions để tránh reset form
@@ -345,7 +346,7 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({
 
   // Utility functions
   const dateToString = useCallback((date: Date | undefined): string => {
-    return date ? format(date, 'yyyy-MM-dd') : '';
+    return date && !isNaN(date.getTime()) ? format(date, 'yyyy-MM-dd') : '';
   }, []);
 
   // Form handlers

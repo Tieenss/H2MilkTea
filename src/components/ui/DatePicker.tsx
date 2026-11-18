@@ -43,8 +43,12 @@ const DatePicker = React.memo<DatePickerProps>(({
     className,
     showMonthYearPicker = true
 }) => {
+    const validDate = useMemo(() => {
+        return date && !isNaN(date.getTime()) ? date : undefined;
+    }, [date]);
+
     const [isOpen, setIsOpen] = useState(false);
-    const [currentMonth, setCurrentMonth] = useState<Date>(date || new Date());
+    const [currentMonth, setCurrentMonth] = useState<Date>(validDate || new Date());
 
     const handleDateSelect = useCallback((selectedDate: Date | undefined) => {
         onDateChange(selectedDate);
@@ -52,8 +56,8 @@ const DatePicker = React.memo<DatePickerProps>(({
     }, [onDateChange]);
 
     const formattedDate = useMemo(() => {
-        return date ? format(date, "dd/MM/yyyy", { locale: vi }) : null;
-    }, [date]);
+        return validDate ? format(validDate, "dd/MM/yyyy", { locale: vi }) : null;
+    }, [validDate]);
 
     const handleMonthChange = useCallback((month: string) => {
         const newDate = new Date(currentMonth);
@@ -95,7 +99,7 @@ const DatePicker = React.memo<DatePickerProps>(({
                         variant="outline"
                         className={cn(
                             "w-full justify-start text-left font-normal h-10",
-                            !date && "text-muted-foreground"
+                            !validDate && "text-muted-foreground"
                         )}
                         disabled={disabled}
                     >
@@ -145,7 +149,7 @@ const DatePicker = React.memo<DatePickerProps>(({
 
                         <Calendar
                             mode="single"
-                            selected={date}
+                            selected={validDate}
                             onSelect={handleDateSelect}
                             month={currentMonth}
                             onMonthChange={setCurrentMonth}

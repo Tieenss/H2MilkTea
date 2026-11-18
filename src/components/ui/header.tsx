@@ -123,8 +123,22 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
         }
         setUserData(user);
         setCurrentTime(new Date());
+
+        const syncUser = () => {
+            const freshUser = authUtils.getUserData();
+            if (freshUser) {
+                setUserData(freshUser);
+            }
+        };
+        window.addEventListener('h2_auth_changed', syncUser);
+        window.addEventListener('storage', syncUser);
+
         const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-        return () => clearInterval(timer);
+        return () => {
+            clearInterval(timer);
+            window.removeEventListener('h2_auth_changed', syncUser);
+            window.removeEventListener('storage', syncUser);
+        };
     }, [router]);
 
     // Đồng bộ danh sách thông báo từ store
@@ -172,8 +186,8 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
         return () => clearInterval(statusTimer);
     }, []);
 
-    const handleLogout = () => {
-        authUtils.logout();
+    const handleLogout = async () => {
+        await authUtils.logout();
         toast.success('Đăng xuất thành công!');
         window.location.href = '/';
     };

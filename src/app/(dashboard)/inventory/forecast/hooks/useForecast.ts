@@ -69,12 +69,16 @@ export function useForecast() {
           }, 0);
         });
         
+        const materialName = material['Tên nguyên liệu'] || material.TenNguyenLieu || materialId;
+        const materialUnit = material['Đơn vị tính'] || material.DonViTinh || 'Kg';
         const forecasts = generateForecastData(
           materialId,
-          material.TenNguyenLieu,
+          materialName,
           historicalQuantities,
           30,
-          'moving_average'
+          'moving_average',
+          materialUnit,
+          forecastData.length + 1
         );
         forecastData.push(...forecasts);
       });
@@ -129,6 +133,11 @@ export function useForecast() {
         return acc;
       }, {});
       
+      const completedForecasts = forecastData.filter(item => item.TrangThai === 'Hoàn thành');
+      const maxCompletedNum = completedForecasts.reduce((max, item) => {
+        const num = parseInt(String(item.IDDuBao || '').replace(/\D/g, ''), 10);
+        return Number.isFinite(num) ? Math.max(max, num) : max;
+      }, 0);
       const newForecasts: ForecastData[] = [];
       
       materialsData.forEach((material: any) => {
@@ -152,18 +161,22 @@ export function useForecast() {
           }, 0);
         });
         
+        const materialName = material['Tên nguyên liệu'] || material.TenNguyenLieu || materialId;
+        const materialUnit = material['Đơn vị tính'] || material.DonViTinh || 'Kg';
         const forecasts = generateForecastData(
           materialId,
-          material.TenNguyenLieu,
+          materialName,
           historicalQuantities,
           filter.period,
-          filter.method
+          filter.method,
+          materialUnit,
+          maxCompletedNum + newForecasts.length + 1
         );
         newForecasts.push(...forecasts);
       });
       
       // Update existing forecasts with new ones
-      const updatedData = [...forecastData.filter(item => item.TrangThai === 'Hoàn thành'), ...newForecasts];
+      const updatedData = [...completedForecasts, ...newForecasts];
       setForecastData(updatedData);
       calculateStats(updatedData);
       

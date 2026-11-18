@@ -20,6 +20,7 @@ import { getColumns } from './utils/columns';
 import type { Product, ProductFormData } from './types/product';
 import { INITIAL_PRODUCT_FORM_DATA } from './utils/constants';
 import authUtils from '@/utils/authUtils';
+import { getSafeImageUrl } from '@/utils/imageUtils';
 import toast from 'react-hot-toast';
 import { ImportModal } from './components/ImportModal';
 import { AIProductCreatorModal } from './components/AIProductCreatorModal';
@@ -50,6 +51,7 @@ export default function ProductPage() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [isDuplicateCheckerOpen, setIsDuplicateCheckerOpen] = useState(false);
+  const [viewImageError, setViewImageError] = useState(false);
 
   // Đếm nhanh số lượng sản phẩm bị trùng mã hoặc trùng tên để hiển thị badge
   const duplicateCountBadge = useMemo(() => {
@@ -142,6 +144,7 @@ export default function ProductPage() {
 
   const handleView = (product: Product) => {
     setViewingProduct(product);
+    setViewImageError(false);
     setIsViewDialogOpen(true);
   };
 
@@ -251,7 +254,7 @@ export default function ProductPage() {
   }
 
   return (
-    <div className="h-full flex flex-col space-y-6">
+    <div className="h-full min-w-0 flex flex-col space-y-6">
       {/* Header */}
       <div className="flex flex-wrap justify-between items-center gap-3">
         <h3 className="text-3xl font-bold text-gray-800 flex items-center">
@@ -356,7 +359,7 @@ export default function ProductPage() {
       <ProductStats products={products} />
 
       {/* Data Table */}
-      <Card>
+      <Card className="min-w-0 overflow-hidden">
         <CardHeader>
           <CardTitle>Danh sách sản phẩm</CardTitle>
           <CardDescription>Quản lý tất cả sản phẩm trong hệ thống của bạn.</CardDescription>
@@ -438,11 +441,12 @@ export default function ProductPage() {
                   <div>
                     <label className="text-sm font-medium text-gray-500">Hình ảnh</label>
                     <div className="w-32 h-32 border rounded-lg overflow-hidden bg-gray-50 flex items-center justify-center">
-                      {viewingProduct['Hình ảnh'] ? (
+                      {getSafeImageUrl(viewingProduct['Hình ảnh']) && !viewImageError ? (
                         <img
-                          src={viewingProduct['Hình ảnh']}
+                          src={getSafeImageUrl(viewingProduct['Hình ảnh'])}
                           alt={viewingProduct['Tên sản phẩm']}
                           className="w-full h-full object-cover"
+                          onError={() => setViewImageError(true)}
                         />
                       ) : (
                         <Package className="h-12 w-12 text-gray-300" />
