@@ -114,3 +114,10 @@ Hệ thống sử dụng mô hình **Kiểm thử Hợp nhất (Hybrid QA Matrix
 11. **`MOD-AI-RAG-SEC`**: Cô lập tuyệt đối các chunk hướng dẫn vận hành POS nội bộ (`/user-guide#pos`, `/user-guide#shortcuts`) khỏi phạm vi `Khách hàng QR` trong `ragEngine.ts`.
 12. **`MOD-REP-PROD-EDGE`, `MOD-REP-COMP-EDGE`**: Bổ sung cột **Giá vốn BOM (COGS)** & **Biên lợi nhuận gộp (%)** tại `/reports/products`; bổ sung 3 khối/tab **Kho & NVL**, **Nhân Sự**, **Khách Hàng** tại `/reports/comprehensive`.
 13. **`MOD-FOR-EDGE`, `MOD-APP-EDGE`, `MOD-STAFF-EDGE`, `MOD-GUIDE-EDGE`, `MOD-NOTI-EDGE` & UI Kho**: Phân trang `30 dòng/trang` cho bảng dự báo 1.560 dòng tại `/inventory/forecast`; xóa nút đóng `X` trùng lặp trên modal Kho; đồng bộ nền sáng modal Nhà cung cấp; thay chuỗi `$\ge$` bằng `≥ 48px` tại `/settings/appearance`; thêm nút mở nhanh `Quyền View` tại `/nhanvien`; sửa tìm kiếm `/user-guide` và thêm tab `Gọi phục vụ` tại `/notifications`.
+
+---
+
+## 6. Nhật ký Đồng bộ Mã nguồn & Triển khai (Deployment Sync Log)
+- **Nhánh triển khai:** `exp/thesis-perfect` (đồng bộ trực tiếp với remote `origin/exp/thesis-perfect`).
+- **Phương thức xác thực:** Windows Credential Manager (`git:https://github.com`) kết hợp Personal Access Token (PAT).
+- **Trạng thái:** Toàn bộ mã nguồn đã chuẩn hóa, tài liệu kỹ thuật và kết quả 114 kịch bản kiểm thử đã được đồng bộ lên GitHub thành công.
