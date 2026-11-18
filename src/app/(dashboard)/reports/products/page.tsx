@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -32,6 +32,7 @@ import { useReportData, ReportFilters } from '@/hooks/useReportData';
 import { ReportFilters as ReportFiltersComponent } from '@/components/ReportFilters';
 import { ExportDropdownButton } from '@/components/ExportDropdownButton';
 import { ExportColumn } from '@/utils/exportUtils';
+import AuthUtils from '@/utils/authUtils';
 import toast from 'react-hot-toast';
 
 ChartJS.register(
@@ -62,6 +63,132 @@ const ProductsReport = () => {
   }), [dateRange, categories, paymentMethods, minAmount, maxAmount]);
 
   const { data, loading, error, refresh, reseedTestDatabase } = useReportData(filters);
+  const [costMeta, setCostMeta] = useState<{
+    productUnitCostMap: Map<string, number>;
+    bomProductIds: Set<string>;
+    bomEstimatedUnitCostMap: Map<string, number>;
+  }>({
+    productUnitCostMap: new Map(),
+    bomProductIds: new Set(),
+    bomEstimatedUnitCostMap: new Map(),
+  });
+
+  const loadCostMetadata = useCallback(async () => {
+    try {
+      const [sanPhamRes, cauHinhRes, nhapXuatRes] = await Promise.all([
+        AuthUtils.getAllSanPham(),
+        AuthUtils.getAllCauHinh(),
+        AuthUtils.getAllNhapXuatKho(),
+      ]);
+
+      const sanPhams: any[] = Array.isArray(sanPhamRes) ? sanPhamRes : (sanPhamRes?.data || []);
+      const cauHinhs: any[] = Array.isArray(cauHinhRes) ? cauHinhRes : (cauHinhRes?.data || []);
+      const transactions: any[] = Array.isArray(nhapXuatRes) ? nhapXuatRes : (nhapXuatRes?.data || []);
+
+      const productUnitCostMap = new Map<string, number>();
+      for (const sp of sanPhams) {
+        const id = String(sp?.IDSP || '').trim();
+        const cost = Number(sp?.['Giá vốn']);
+        if (id && Number.isFinite(cost) && cost > 0) {
+          productUnitCostMap.set(id, cost);
+        }
+      }
+
+      // Tính giá nhập gần nhất của từng nguyên liệu từ NHAPXUATKHO
+      const ingredientPriceMap = new Map<string, number>();
+      for (const tx of transactions) {
+        if (tx?.LoaiGiaoDich !== 'Nhập kho' || !Array.isArray(tx?.ChiTiet)) continue;
+        for (const line of tx.ChiTiet) {
+          const matId = String(line?.IDNguyenLieu || '').trim();
+          const unitPrice = Number(line?.DonGia);
+          if (matId && Number.isFinite(unitPrice) && unitPrice > 0) {
+            ingredientPriceMap.set(matId, unitPrice);
+          }
+        }
+      }
+
+      const bomProductIds = new Set<string>();
+      const bomEstimatedUnitCostMap = new Map<string, number>();
+      for (const cfg of cauHinhs) {
+        if (cfg?.['Trạng thái'] && cfg['Trạng thái'] !== 'Hoạt động') continue;
+        const spId = String(cfg?.IDSP || '').trim();
+        const matId = String(cfg?.IDNguyenLieu || '').trim();
+        if (!spId) continue;
+        bomProductIds.add(spId);
+        const qtyNeeded = Number(cfg?.['Số lượng quy đổi'] || cfg?.['Số lượng cần']) || 0;
+        const matPrice = ingredientPriceMap.get(matId) || 0;
+        if (qtyNeeded > 0 && matPrice > 0) {
+          bomEstimatedUnitCostMap.set(
+            spId,
+            (bomEstimatedUnitCostMap.get(spId) || 0) + qtyNeeded * matPrice
+          );
+        }
+      }
+
+      setCostMeta({ productUnitCostMap, bomProductIds, bomEstimatedUnitCostMap });
+    } catch (err) {
+      console.warn('Không thể tải metadata giá vốn BOM:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadCostMetadata();
+  }, [loadCostMetadata]);
+
+  const enrichedProducts = useMemo(() => {
+    if (!data) return [];
+    return data.current.products.map((product) => {
+      const safeQty = Math.max(1, Number(product.quantity) || 0);
+      const safeRevenue = Number.isFinite(product.revenue) ? product.revenue : 0;
+      const declaredUnitCost = costMeta.productUnitCostMap.get(product.id) || 0;
+      const bomUnitCost = costMeta.bomEstimatedUnitCostMap.get(product.id) || 0;
+      const hasBomRecord = costMeta.bomProductIds.has(product.id);
+
+      let cogs = 0;
+      let cogsLabel = 'Chưa có BOM (0 ₫)';
+      let isEstimated = false;
+
+      if (declaredUnitCost > 0) {
+        cogs = Math.round(declaredUnitCost * safeQty);
+        cogsLabel = hasBomRecord ? 'BOM & Giá vốn SP' : 'Giá vốn SP';
+      } else if (bomUnitCost > 0) {
+        cogs = Math.round(bomUnitCost * safeQty);
+        cogsLabel = 'Định mức BOM';
+      } else if (safeRevenue > 0) {
+        cogs = Math.round(safeRevenue * 0.35);
+        cogsLabel = 'Ước tính 35% (Chưa có BOM)';
+        isEstimated = true;
+      }
+
+      const grossProfit = safeRevenue - cogs;
+      const rawMargin = safeRevenue > 0 ? (grossProfit / safeRevenue) * 100 : 0;
+      const grossMarginPct = Number.isFinite(rawMargin) ? rawMargin : 0;
+
+      return {
+        ...product,
+        avgPrice: Math.round(safeRevenue / safeQty),
+        cogs,
+        cogsLabel,
+        isEstimated,
+        grossProfit,
+        grossMarginPct,
+      };
+    });
+  }, [data, costMeta]);
+
+  const totals = useMemo(() => {
+    const totalRevenue = enrichedProducts.reduce((s, p) => s + p.revenue, 0);
+    const totalCogs = enrichedProducts.reduce((s, p) => s + p.cogs, 0);
+    const totalGrossProfit = totalRevenue - totalCogs;
+    const rawMargin = totalRevenue > 0 ? (totalGrossProfit / totalRevenue) * 100 : 0;
+    return {
+      totalQty: enrichedProducts.reduce((s, p) => s + p.quantity, 0),
+      totalRevenue,
+      totalCogs,
+      totalGrossProfit,
+      overallMarginPct: Number.isFinite(rawMargin) ? rawMargin : 0,
+    };
+  }, [enrichedProducts]);
 
   const chartData = useMemo(() => {
     if (!data) return null;
@@ -124,7 +251,12 @@ const ProductsReport = () => {
 
   const handleSeedDemo = async () => {
     const res = await reseedTestDatabase();
+    await loadCostMetadata();
     toast.success(`Đã đồng bộ ${res.invoices} hóa đơn & ${res.details} chi tiết sản phẩm!`);
+  };
+
+  const handleRefreshAll = async () => {
+    await Promise.all([refresh(), loadCostMetadata()]);
   };
 
   const exportColumns: ExportColumn[] = [
@@ -135,20 +267,27 @@ const ProductsReport = () => {
     { key: 'quantity', label: 'Số lượng bán', align: 'right' },
     { key: 'avgPrice', label: 'Đơn giá TB', align: 'right', format: (v) => `${Number(v || 0).toLocaleString('vi-VN')} ₫` },
     { key: 'revenue', label: 'Doanh thu (VNĐ)', align: 'right', format: (v) => `${Number(v || 0).toLocaleString('vi-VN')} ₫` },
+    { key: 'cogs', label: 'Giá Vốn (BOM COGS)', align: 'right', format: (v) => `${Number(v || 0).toLocaleString('vi-VN')} ₫` },
+    { key: 'cogsLabel', label: 'Nguồn Giá Vốn', align: 'left' },
+    { key: 'grossProfit', label: 'Lợi Nhuận Gộp', align: 'right', format: (v) => `${Number(v || 0).toLocaleString('vi-VN')} ₫` },
+    { key: 'grossMarginPct', label: 'Biên LN (%)', align: 'right', format: (v) => `${Number(v || 0).toFixed(1)}%` },
   ];
 
   const exportRows = useMemo(() => {
-    if (!data) return [];
-    return data.current.products.map((p, idx) => ({
+    return enrichedProducts.map((p, idx) => ({
       stt: idx + 1,
       id: p.id,
       name: p.name,
       category: p.category,
       quantity: p.quantity,
-      avgPrice: Math.round(p.revenue / Math.max(1, p.quantity)),
+      avgPrice: p.avgPrice,
       revenue: p.revenue,
+      cogs: p.cogs,
+      cogsLabel: p.cogsLabel,
+      grossProfit: p.grossProfit,
+      grossMarginPct: Number(p.grossMarginPct.toFixed(1)),
     }));
-  }, [data]);
+  }, [enrichedProducts]);
 
   if (loading) {
     return (
@@ -191,7 +330,7 @@ const ProductsReport = () => {
             <Database className="h-4 w-4 mr-2" />
             Đồng bộ DB Mẫu (Test)
           </Button>
-          <Button variant="outline" size="sm" onClick={refresh}>
+          <Button variant="outline" size="sm" onClick={handleRefreshAll}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Làm mới
           </Button>
@@ -199,11 +338,13 @@ const ProductsReport = () => {
             data={exportRows}
             columns={exportColumns}
             filename="Bao_Cao_Hieu_Suat_San_Pham"
-            title="BÁO CÁO PHÂN TÍCH DOANH THU THEO SẢN PHẨM & DANH MỤC"
+            title="BÁO CÁO PHÂN TÍCH DOANH THU & LỢI NHUẬN GỘP THEO SẢN PHẨM"
             subtitle={`Số sản phẩm phát sinh doanh thu: ${data.current.products.length} món`}
             summaryStats={[
               { label: 'Tổng sản phẩm bán ra', value: `${data.current.products.length} món` },
-              { label: 'Tổng doanh thu món', value: `${data.current.revenue.toLocaleString('vi-VN')} ₫` },
+              { label: 'Tổng doanh thu món', value: `${totals.totalRevenue.toLocaleString('vi-VN')} ₫` },
+              { label: 'Tổng giá vốn (COGS)', value: `${totals.totalCogs.toLocaleString('vi-VN')} ₫` },
+              { label: 'Lợi nhuận gộp / Biên LN', value: `${totals.totalGrossProfit.toLocaleString('vi-VN')} ₫ (${totals.overallMarginPct.toFixed(1)}%)` },
             ]}
           />
         </div>
@@ -466,39 +607,101 @@ const ProductsReport = () => {
         <TabsContent value="details" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-purple-900">Bảng Dữ Liệu Sản Phẩm</CardTitle>
+              <CardTitle className="text-purple-900">Bảng Dữ Liệu Sản Phẩm, Giá Vốn BOM & Biên Lợi Nhuận</CardTitle>
+              <CardDescription>
+                Hiển thị doanh thu, giá vốn theo khai báo sản phẩm / định mức BOM (hoặc ước tính chuẩn 35% với món mới chưa khai báo BOM) và biên lợi nhuận gộp.
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b">
-                      <th className="text-left p-2">STT</th>
-                      <th className="text-left p-2">Tên Sản Phẩm</th>
-                      <th className="text-left p-2">Danh Mục</th>
-                      <th className="text-right p-2">Số Lượng</th>
-                      <th className="text-right p-2">Doanh Thu</th>
-                      <th className="text-right p-2">Giá TB/Ly</th>
+                    <tr className="border-b bg-purple-50/60">
+                      <th className="text-left p-2.5">STT</th>
+                      <th className="text-left p-2.5">Tên Sản Phẩm</th>
+                      <th className="text-left p-2.5">Danh Mục</th>
+                      <th className="text-right p-2.5">Số Lượng</th>
+                      <th className="text-right p-2.5">Doanh Thu</th>
+                      <th className="text-right p-2.5">Giá TB/Ly</th>
+                      <th className="text-right p-2.5">Giá Vốn (BOM COGS)</th>
+                      <th className="text-right p-2.5">Lợi Nhuận Gộp / Biên LN (%)</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {data.current.products.map((product, index) => (
-                      <tr key={index} className="border-b hover:bg-gray-50">
-                        <td className="p-2 font-medium">{index + 1}</td>
-                        <td className="p-2 font-medium">{product.name}</td>
-                        <td className="p-2">
-                          <Badge variant="outline" className="text-xs">{product.category}</Badge>
-                        </td>
-                        <td className="p-2 text-right font-bold">{product.quantity}</td>
-                        <td className="p-2 text-right font-bold text-purple-900">
-                          {product.revenue.toLocaleString('vi-VN')} ₫
-                        </td>
-                        <td className="p-2 text-right text-gray-600">
-                          {Math.round(product.revenue / Math.max(1, product.quantity)).toLocaleString('vi-VN')} ₫
+                    {enrichedProducts.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="p-8 text-center text-gray-500">
+                          Chưa có dữ liệu bán hàng sản phẩm trong kỳ này.
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      enrichedProducts.map((product, index) => (
+                        <tr key={product.id || index} className="border-b hover:bg-gray-50">
+                          <td className="p-2.5 font-medium">{index + 1}</td>
+                          <td className="p-2.5 font-medium">{product.name}</td>
+                          <td className="p-2.5">
+                            <Badge variant="outline" className="text-xs">{product.category}</Badge>
+                          </td>
+                          <td className="p-2.5 text-right font-bold">{product.quantity}</td>
+                          <td className="p-2.5 text-right font-bold text-purple-900">
+                            {product.revenue.toLocaleString('vi-VN')} ₫
+                          </td>
+                          <td className="p-2.5 text-right text-gray-600">
+                            {product.avgPrice.toLocaleString('vi-VN')} ₫
+                          </td>
+                          <td className="p-2.5 text-right">
+                            <div className="font-semibold text-amber-800">
+                              {product.cogs.toLocaleString('vi-VN')} ₫
+                            </div>
+                            <span
+                              className={`inline-block text-[10px] px-1.5 py-0.5 rounded mt-0.5 ${
+                                product.isEstimated
+                                  ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                  : 'bg-slate-100 text-slate-600'
+                              }`}
+                            >
+                              {product.cogsLabel}
+                            </span>
+                          </td>
+                          <td className="p-2.5 text-right">
+                            <div
+                              className={`font-bold ${
+                                product.grossProfit >= 0 ? 'text-emerald-700' : 'text-red-600'
+                              }`}
+                            >
+                              {product.grossProfit.toLocaleString('vi-VN')} ₫
+                            </div>
+                            <Badge
+                              variant="outline"
+                              className={`text-[11px] mt-0.5 ${
+                                product.grossMarginPct >= 50
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  : product.grossMarginPct >= 30
+                                  ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                  : 'bg-amber-50 text-amber-700 border-amber-200'
+                              }`}
+                            >
+                              {product.grossMarginPct.toFixed(1)}%
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
+                  {enrichedProducts.length > 0 && (
+                    <tfoot>
+                      <tr className="bg-purple-50/80 font-bold border-t-2 border-purple-200">
+                        <td colSpan={3} className="p-2.5 text-purple-900">Tổng cộng ({enrichedProducts.length} món)</td>
+                        <td className="p-2.5 text-right">{totals.totalQty}</td>
+                        <td className="p-2.5 text-right text-purple-900">{totals.totalRevenue.toLocaleString('vi-VN')} ₫</td>
+                        <td className="p-2.5 text-right text-gray-500">—</td>
+                        <td className="p-2.5 text-right text-amber-800">{totals.totalCogs.toLocaleString('vi-VN')} ₫</td>
+                        <td className="p-2.5 text-right text-emerald-700">
+                          {totals.totalGrossProfit.toLocaleString('vi-VN')} ₫ ({totals.overallMarginPct.toFixed(1)}%)
+                        </td>
+                      </tr>
+                    </tfoot>
+                  )}
                 </table>
               </div>
             </CardContent>

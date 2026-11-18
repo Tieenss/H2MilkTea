@@ -51,78 +51,80 @@ export function SupplierDataTable({
   }
 
   return (
-    <div className="rounded-md border">
+    <div className="w-full rounded-md border overflow-x-auto">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>ID</TableHead>
-            <TableHead>Tên nhà cung cấp</TableHead>
-            <TableHead>Mã số thuế</TableHead>
-            <TableHead>Người đại diện</TableHead>
-            <TableHead>Liên hệ</TableHead>
-            <TableHead>Trạng thái</TableHead>
-            <TableHead>Đánh giá</TableHead>
-            <TableHead>Tổng đặt hàng</TableHead>
-            <TableHead>Thao tác</TableHead>
+            <TableHead className="whitespace-nowrap">ID</TableHead>
+            <TableHead className="min-w-[180px]">Tên nhà cung cấp</TableHead>
+            <TableHead className="whitespace-nowrap">Mã số thuế</TableHead>
+            <TableHead className="min-w-[140px]">Người đại diện</TableHead>
+            <TableHead className="min-w-[170px]">Liên hệ</TableHead>
+            <TableHead className="whitespace-nowrap">Trạng thái</TableHead>
+            <TableHead className="whitespace-nowrap">Đánh giá</TableHead>
+            <TableHead className="whitespace-nowrap">Tổng đặt hàng</TableHead>
+            <TableHead className="whitespace-nowrap text-right sticky right-0 bg-white dark:bg-slate-900 z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.08)]">
+              Thao tác
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {suppliers.map((supplier) => (
             <TableRow key={supplier.IDNhaCungCap}>
-              <TableCell className="font-medium">
+              <TableCell className="font-medium whitespace-nowrap">
                 {supplier.IDNhaCungCap}
               </TableCell>
               <TableCell>
                 <div>
                   <div className="font-medium">{supplier.TenNhaCungCap}</div>
-                  <div className="text-sm text-muted-foreground">
+                  <div className="text-sm text-muted-foreground line-clamp-1">
                     {supplier.DiaChi}
                   </div>
                 </div>
               </TableCell>
-              <TableCell>{supplier.MaSoThue}</TableCell>
+              <TableCell className="whitespace-nowrap">{supplier.MaSoThue}</TableCell>
               <TableCell>
                 <div>
-                  <div className="font-medium">{supplier.NguoiDaiDien}</div>
-                  <div className="text-sm text-muted-foreground">
+                  <div className="font-medium whitespace-nowrap">{supplier.NguoiDaiDien}</div>
+                  <div className="text-sm text-muted-foreground whitespace-nowrap">
                     {supplier.SoDienThoaiLienHe}
                   </div>
                 </div>
               </TableCell>
               <TableCell>
                 <div className="flex flex-col gap-1">
-                  <div className="flex items-center gap-1 text-sm">
-                    <Phone className="h-3 w-3" />
+                  <div className="flex items-center gap-1 text-sm whitespace-nowrap">
+                    <Phone className="h-3 w-3 shrink-0" />
                     {supplier.SoDienThoai}
                   </div>
-                  <div className="flex items-center gap-1 text-sm">
-                    <Mail className="h-3 w-3" />
+                  <div className="flex items-center gap-1 text-sm whitespace-nowrap">
+                    <Mail className="h-3 w-3 shrink-0" />
                     {supplier.Email}
                   </div>
                 </div>
               </TableCell>
-              <TableCell>
+              <TableCell className="whitespace-nowrap">
                 <Badge className={getStatusColor(supplier.TrangThai)}>
                   {supplier.TrangThai}
                 </Badge>
               </TableCell>
-              <TableCell>
+              <TableCell className="whitespace-nowrap">
                 <div className="flex items-center gap-1">
                   <span className="text-sm">{formatRating(supplier.DanhGia)}</span>
                 </div>
               </TableCell>
-              <TableCell>
+              <TableCell className="whitespace-nowrap">
                 <div>
                   <div className="font-medium">
                     {formatCurrency(calculateTotalOrderValue(supplier))}
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    {supplier.LichSuDatHang.length} đơn hàng
+                    {(supplier.LichSuDatHang || []).length} đơn hàng
                   </div>
                 </div>
               </TableCell>
-              <TableCell>
-                <div className="flex gap-1">
+              <TableCell className="whitespace-nowrap sticky right-0 bg-white dark:bg-slate-900 z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.08)]">
+                <div className="flex items-center justify-end gap-1">
                   <Button
                     variant="ghost"
                     size="sm"

@@ -1,7 +1,3 @@
-import { useReceiptSettings } from '@/hooks/useReceiptSettings';
-import ReceiptPreview, { sampleReceiptData } from '@/components/ReceiptPreview';
-import type { CartItem } from '../types/pos';
-
 export interface ReceiptData {
   receiptNumber: string;
   date: Date;
@@ -16,12 +12,112 @@ export interface ReceiptData {
     notes?: string;
   }>;
   subtotal: number;
+  vat?: number;
   discount: number;
   total: number;
   paid: number;
   change: number;
   notes?: string;
   paymentType?: string;
+  enableVAT?: boolean;
+}
+
+const DEFAULT_COMPANY_INFO = {
+  name: 'H2 MILKTEA',
+  address: 'Phúc Xuân, Trung Giã, Hà Nội',
+  phone: '0985561909',
+  email: 'contact@h2milktea.vn',
+  taxCode: '',
+  website: 'h2milktea.vn',
+};
+
+function createDefaultK80ReceiptSettings() {
+  const posTemplate = {
+    paperSize: '80mm',
+    fontSize: 'medium',
+    showLogo: true,
+    showQR: true,
+    showSignature: false,
+    enableVAT: false,
+    headerText: 'HÓA ĐƠN BÁN HÀNG',
+    footerText: 'Cảm ơn quý khách!',
+    companyInfo: { ...DEFAULT_COMPANY_INFO },
+  };
+
+  return {
+    paperSize: '80mm',
+    fontSize: 'medium',
+    customWidth: 80,
+    customHeight: 200,
+    enableVAT: false,
+    templates: {
+      pos: posTemplate,
+      kitchen: {
+        paperSize: '80mm',
+        fontSize: 'medium',
+        showLogo: false,
+        showQR: false,
+        showSignature: false,
+        enableVAT: false,
+        headerText: 'PHIẾU BẾP / PHA CHẾ',
+        footerText: 'Vui lòng kiểm tra kỹ topping & đá/đường',
+        companyInfo: { ...DEFAULT_COMPANY_INFO },
+      },
+      order: { ...posTemplate },
+      report: {
+        paperSize: 'A4',
+        fontSize: 'small',
+        showCharts: true,
+        showSummary: true,
+        headerText: 'BÁO CÁO',
+        landscape: true,
+      },
+    },
+  };
+}
+
+function getOrInitReceiptSettings(): { settings: any; company: any } {
+  const defaultSettings = createDefaultK80ReceiptSettings();
+  let settings: any = null;
+  let company: any = null;
+
+  try {
+    const savedSettings = localStorage.getItem('gigapos-receipt-settings');
+    if (savedSettings) {
+      settings = JSON.parse(savedSettings);
+    }
+  } catch {
+    settings = null;
+  }
+
+  try {
+    const savedCompany = localStorage.getItem('gigapos-company-info');
+    if (savedCompany) {
+      company = JSON.parse(savedCompany);
+    }
+  } catch {
+    company = null;
+  }
+
+  if (!settings || !settings.templates || !settings.templates.pos) {
+    settings = defaultSettings;
+    try {
+      localStorage.setItem('gigapos-receipt-settings', JSON.stringify(settings));
+    } catch {
+      // Bỏ qua lỗi ghi localStorage
+    }
+  }
+
+  if (!company || !company.name) {
+    company = settings?.templates?.pos?.companyInfo || { ...DEFAULT_COMPANY_INFO };
+    try {
+      localStorage.setItem('gigapos-company-info', JSON.stringify(company));
+    } catch {
+      // Bỏ qua lỗi ghi localStorage
+    }
+  }
+
+  return { settings, company };
 }
 
 export const printReceiptWithSettings = async (
@@ -29,18 +125,12 @@ export const printReceiptWithSettings = async (
   templateType: 'pos' | 'kitchen' | 'order' | 'report' = 'pos'
 ): Promise<void> => {
   try {
-    // Get receipt settings
-    const savedSettings = localStorage.getItem('gigapos-receipt-settings');
-    const settings = savedSettings ? JSON.parse(savedSettings) : null;
-    const companyInfo = localStorage.getItem('gigapos-company-info');
-    const company = companyInfo ? JSON.parse(companyInfo) : null;
+    const { settings, company } = getOrInitReceiptSettings();
+    const template =
+      settings.templates?.[templateType] ||
+      settings.templates?.pos ||
+      createDefaultK80ReceiptSettings().templates.pos;
 
-    if (!settings || !company) {
-      throw new Error('Chưa cấu hình mẫu in. Vui lòng vào Cài đặt mẫu in để thiết lập.');
-    }
-
-    const template = settings.templates[templateType];
-    
     // Generate receipt HTML based on template settings
     const receiptHtml = generateReceiptHtml(receiptData, template, company, templateType);
     
@@ -96,11 +186,19 @@ const generateReceiptHtml = (
   const width = paperWidths[paperSize as keyof typeof paperWidths] || '80mm';
   const baseFontSize = fontSizes[fontSize as keyof typeof fontSizes] || '12px';
 
-  if (templateType === 'pos') {
+  if (templateType === 'pos' || templateType === 'order') {
     return generatePOSReceiptHtml(receiptData, template, company, width, baseFontSize);
-  } 
-  // Default fallback if templateType is not handled
-  return '<!DOCTYPE html><html><body><div>Không hỗ trợ loại mẫu in này.</div></body></html>';
+  }
+  if (templateType === 'kitchen') {
+    return generatePOSReceiptHtml(
+      { ...receiptData, subtotal: 0, discount: 0, total: 0, paid: 0, change: 0 },
+      { ...template, headerText: template.headerText || 'PHIẾU BẾP / PHA CHẾ', showQR: false },
+      company,
+      width,
+      baseFontSize
+    );
+  }
+  return generatePOSReceiptHtml(receiptData, template, company, width, baseFontSize);
 };
 
 const generatePOSReceiptHtml = (
@@ -339,6 +437,12 @@ const generatePOSReceiptHtml = (
                 <span>Tạm tính:</span>
                 <span>${formatCurrency(receiptData.subtotal)}</span>
             </div>
+            ${(template.enableVAT === true || (receiptData.vat ?? 0) > 0) ? `
+            <div class="total-row">
+                <span>VAT:</span>
+                <span>${formatCurrency(receiptData.vat ?? 0)}</span>
+            </div>
+            ` : ''}
             ${receiptData.discount > 0 ? `
             <div class="total-row">
                 <span>Giảm giá:</span>

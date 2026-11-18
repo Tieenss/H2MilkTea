@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -92,22 +92,42 @@ export function StocktakeFormModal({
   };
 
   const handleItemChange = (index: number, field: keyof StocktakeDetail, value: any) => {
+    const errorKey = `item_${index}_${field}`;
+
+    // Chặn số âm hoặc giá trị không hợp lệ cho các trường số (MOD-STK-EDGE)
+    if (field === 'SoLuongThucTe' || field === 'SoLuongTheoSo' || field === 'DonGia') {
+      const numericVal = typeof value === 'number' ? value : parseFloat(String(value));
+      if (Number.isNaN(numericVal) || numericVal < 0) {
+        setErrors((prev) => ({
+          ...prev,
+          [errorKey]: 'Số lượng và đơn giá phải lớn hơn hoặc bằng 0',
+        }));
+        return;
+      }
+      setErrors((prev) => {
+        if (!prev[errorKey]) return prev;
+        const next = { ...prev };
+        delete next[errorKey];
+        return next;
+      });
+    }
+
     setFormData(prev => ({
       ...prev,
       ChiTiet: prev.ChiTiet.map((item, i) => {
         if (i === index) {
           const updatedItem = { ...item, [field]: value };
-          
+
           // Auto-calculate discrepancy
           if (field === 'SoLuongThucTe' || field === 'SoLuongTheoSo') {
             updatedItem.ChenhLech = updatedItem.SoLuongThucTe - updatedItem.SoLuongTheoSo;
           }
-          
+
           // Auto-calculate discrepancy value
           if (field === 'ChenhLech' || field === 'DonGia') {
             updatedItem.GiaTriChenhLech = (updatedItem.ChenhLech || 0) * (updatedItem.DonGia || 0);
           }
-          
+
           return updatedItem;
         }
         return item;
@@ -179,16 +199,8 @@ export function StocktakeFormModal({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
-            <span>{isEditing ? 'Chỉnh sửa kiểm kê' : 'Thêm kiểm kê mới'}</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onClose}
-              className="h-8 w-8 p-0"
-            >
-              <X className="h-4 w-4" />
-            </Button>
+          <DialogTitle className="pr-8">
+            {isEditing ? 'Chỉnh sửa kiểm kê' : 'Thêm kiểm kê mới'}
           </DialogTitle>
         </DialogHeader>
 
@@ -299,7 +311,7 @@ export function StocktakeFormModal({
                 Chưa có mặt hàng nào. Vui lòng thêm mặt hàng để kiểm kê.
               </div>
             ) : (
-              <div className="rounded-md border">
+              <div className="rounded-md border overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -338,8 +350,20 @@ export function StocktakeFormModal({
                         <TableCell>
                           <Input
                             type="number"
+                            min="0"
+                            step="0.01"
                             value={item.SoLuongTheoSo}
-                            onChange={(e) => handleItemChange(index, 'SoLuongTheoSo', Number(e.target.value))}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              if (raw === '') {
+                                handleItemChange(index, 'SoLuongTheoSo', 0);
+                                return;
+                              }
+                              handleItemChange(index, 'SoLuongTheoSo', Number(raw));
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === '-') e.preventDefault();
+                            }}
                             className={errors[`item_${index}_SoLuongTheoSo`] ? 'border-red-500' : ''}
                           />
                           {errors[`item_${index}_SoLuongTheoSo`] && (
@@ -349,8 +373,20 @@ export function StocktakeFormModal({
                         <TableCell>
                           <Input
                             type="number"
+                            min="0"
+                            step="0.01"
                             value={item.SoLuongThucTe}
-                            onChange={(e) => handleItemChange(index, 'SoLuongThucTe', Number(e.target.value))}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              if (raw === '') {
+                                handleItemChange(index, 'SoLuongThucTe', 0);
+                                return;
+                              }
+                              handleItemChange(index, 'SoLuongThucTe', Number(raw));
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === '-') e.preventDefault();
+                            }}
                             className={errors[`item_${index}_SoLuongThucTe`] ? 'border-red-500' : ''}
                           />
                           {errors[`item_${index}_SoLuongThucTe`] && (
@@ -365,8 +401,20 @@ export function StocktakeFormModal({
                         <TableCell>
                           <Input
                             type="number"
+                            min="0"
+                            step="1000"
                             value={item.DonGia}
-                            onChange={(e) => handleItemChange(index, 'DonGia', Number(e.target.value))}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              if (raw === '') {
+                                handleItemChange(index, 'DonGia', 0);
+                                return;
+                              }
+                              handleItemChange(index, 'DonGia', Number(raw));
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === '-') e.preventDefault();
+                            }}
                             className={errors[`item_${index}_DonGia`] ? 'border-red-500' : ''}
                           />
                           {errors[`item_${index}_DonGia`] && (

@@ -30,9 +30,66 @@ class GoogleDriveUtils {
   private isInitialized = false;
   private accessToken: string | null = null;
   private tokenClient: any = null;
+  private initializedClientId: string | null = null;
   private folderId: string | null = null;
   private initializationError: string | null = null;
   private autoBackupIntervalId: any = null;
+
+  constructor() {
+    GOOGLE_DRIVE_CONFIG.onClientIdChange(() => {
+      this.resetClient();
+    });
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('h2-google-client-id-changed', () => {
+        this.resetClient();
+      });
+      window.addEventListener('storage', (e) => {
+        if (e.key === 'h2_custom_google_client_id') {
+          this.resetClient();
+        }
+      });
+    }
+  }
+
+  resetClient(): void {
+    this.isInitialized = false;
+    this.tokenClient = null;
+    this.initializedClientId = null;
+    this.initializationError = null;
+  }
+
+  private formatOAuthError(errorCode?: string, fallbackMessage?: string): string {
+    const raw = `${errorCode || ''} ${fallbackMessage || ''}`.toLowerCase();
+    const origin =
+      typeof window !== 'undefined' ? window.location.origin : 'https://h2milktea.vercel.app';
+
+    if (raw.includes('popup_closed_by_user') || raw.includes('popup_closed')) {
+      return 'Bạn đã đóng cửa sổ đăng nhập Google trước khi hoàn tất. Vui lòng bấm kết nối lại và chọn tài khoản Google để tiếp tục.';
+    }
+
+    if (raw.includes('access_denied')) {
+      return 'Bạn đã từ chối cấp quyền truy cập Google Drive (access_denied). Vui lòng nhấn "Cho phép" tại màn hình cấp quyền của Google để sử dụng tính năng sao lưu.';
+    }
+
+    if (raw.includes('idpiframe_initialization_failed')) {
+      return `Không thể khởi tạo phiên đăng nhập Google (idpiframe_initialization_failed). Vui lòng bật Cookie bên thứ ba (Third-party cookies), tắt chế độ ẩn danh/chặn quảng cáo hoặc kiểm tra Authorized JavaScript origin "${origin}" trên Google Cloud Console.`;
+    }
+
+    if (raw.includes('redirect_uri_mismatch') || raw.includes('origin_mismatch')) {
+      return `Origin "${origin}" chưa được khai báo trong mục "Authorized JavaScript origins" trên Google Cloud Console (redirect_uri_mismatch). Hãy sao chép origin từ hộp hướng dẫn và thêm vào OAuth 2.0 Client ID.`;
+    }
+
+    if (raw.includes('popup_failed_to_open')) {
+      return 'Trình duyệt đã chặn cửa sổ Pop-up đăng nhập Google. Vui lòng bật cho phép Pop-up cho trang web này rồi thử lại.';
+    }
+
+    if (errorCode) {
+      return `Lỗi xác thực Google OAuth (${errorCode}): ${fallbackMessage || 'Vui lòng kiểm tra lại cấu hình Client ID và Authorized JavaScript origin.'}`;
+    }
+
+    return fallbackMessage || 'Cửa sổ đăng nhập Google đã bị đóng hoặc gặp lỗi xác thực.';
+  }
 
   // 1. Khởi tạo Google Identity Services
   async initializeGoogleAPI(): Promise<boolean> {
@@ -44,8 +101,16 @@ class GoogleDriveUtils {
         return false;
       }
 
+      const currentClientId = GOOGLE_DRIVE_CONFIG.CLIENT_ID;
+      if (this.initializedClientId && this.initializedClientId !== currentClientId) {
+        this.isInitialized = false;
+        this.tokenClient = null;
+      }
+
       const configValidation = this.validateConfiguration();
       if (!configValidation.isValid) {
+        this.isInitialized = false;
+        this.tokenClient = null;
         this.initializationError = `Cấu hình chưa hợp lệ: ${configValidation.errors.join(', ')}`;
         return false;
       }
@@ -56,13 +121,14 @@ class GoogleDriveUtils {
       // Khởi tạo Token Client
       if (window.google?.accounts?.oauth2) {
         this.tokenClient = window.google.accounts.oauth2.initTokenClient({
-          client_id: GOOGLE_DRIVE_CONFIG.CLIENT_ID,
+          client_id: currentClientId,
           scope: GOOGLE_DRIVE_CONFIG.SCOPES,
           callback: () => {}, // Sẽ override theo từng promise request
           error_callback: (err: any) => {
             console.error('Google OAuth popup error:', err);
           },
         });
+        this.initializedClientId = currentClientId;
         this.isInitialized = true;
         return true;
       } else {
@@ -121,9 +187,16 @@ class GoogleDriveUtils {
   // 2. Đăng nhập và xin cấp quyền OAuth2 Access Token
   async signIn(): Promise<{ success: boolean; user?: any; error?: string }> {
     try {
-      if (!this.isInitialized) {
+      const currentClientId = GOOGLE_DRIVE_CONFIG.CLIENT_ID;
+
+      // Luôn kiểm tra Client ID hiện tại, reset và khởi tạo lại nếu Client ID đã thay đổi
+      if (!this.isInitialized || !this.tokenClient || this.initializedClientId !== currentClientId) {
+        this.isInitialized = false;
+        this.tokenClient = null;
         const ok = await this.initializeGoogleAPI();
-        if (!ok) return { success: false, error: this.initializationError || 'Khởi tạo thất bại' };
+        if (!ok || !this.tokenClient) {
+          return { success: false, error: this.initializationError || 'Khởi tạo thất bại' };
+        }
       }
 
       return new Promise((resolve) => {
@@ -133,8 +206,19 @@ class GoogleDriveUtils {
           if (isSettled) return;
           isSettled = true;
 
-          if (response.error) {
-            resolve({ success: false, error: `Google OAuth Error: ${response.error}` });
+          if (response?.error) {
+            resolve({
+              success: false,
+              error: this.formatOAuthError(response.error, response.error_description),
+            });
+            return;
+          }
+
+          if (!response?.access_token) {
+            resolve({
+              success: false,
+              error: 'Không nhận được Access Token từ Google. Vui lòng thử đăng nhập lại.',
+            });
             return;
           }
 
@@ -169,9 +253,10 @@ class GoogleDriveUtils {
         this.tokenClient.error_callback = (err: any) => {
           if (isSettled) return;
           isSettled = true;
+          const code = err?.type || err?.error || err?.code;
           resolve({
             success: false,
-            error: err?.message || 'Cửa sổ đăng nhập Google đã bị đóng hoặc bị chặn',
+            error: this.formatOAuthError(code, err?.message),
           });
         };
 
@@ -179,7 +264,10 @@ class GoogleDriveUtils {
         this.tokenClient.requestAccessToken({ prompt: 'consent' });
       });
     } catch (error: any) {
-      return { success: false, error: error.message || 'Lỗi đăng nhập Google Drive' };
+      return {
+        success: false,
+        error: this.formatOAuthError(error?.error || error?.type, error?.message || 'Lỗi đăng nhập Google Drive'),
+      };
     }
   }
 
@@ -405,11 +493,12 @@ class GoogleDriveUtils {
           });
         }
 
-        if (backupPayload.tables) {
+        const tablesPayload = backupPayload.tables || backupPayload.data;
+        if (tablesPayload) {
           await fetch('/api/backup/restore', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tables: backupPayload.tables }),
+            body: JSON.stringify({ data: tablesPayload }),
           });
         }
 
@@ -515,12 +604,13 @@ class GoogleDriveUtils {
       isInitialized: this.isInitialized,
       isSignedIn: this.isSignedIn(),
       hasToken: !!this.accessToken,
+      initializedClientId: this.initializedClientId,
       config: GOOGLE_DRIVE_CONFIG.getDebugInfo(),
     };
   }
 
   async forceReinitialize(): Promise<boolean> {
-    this.isInitialized = false;
+    this.resetClient();
     return await this.initializeGoogleAPI();
   }
 }

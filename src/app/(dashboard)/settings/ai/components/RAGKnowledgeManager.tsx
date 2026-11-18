@@ -238,6 +238,8 @@ export function RAGKnowledgeManager({ isAdmin }: RAGKnowledgeManagerProps) {
         return 'bg-emerald-100 text-emerald-800 border-emerald-200';
       case 'bom_config':
         return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'menu_public':
+        return 'bg-cyan-100 text-cyan-800 border-cyan-200';
     }
   };
 
@@ -251,6 +253,8 @@ export function RAGKnowledgeManager({ isAdmin }: RAGKnowledgeManagerProps) {
         return '🧋 Sổ tay Barista';
       case 'bom_config':
         return '📦 Định mức Kho (BOM)';
+      case 'menu_public':
+        return '🥤 Menu & Giá bán công khai';
     }
   };
 

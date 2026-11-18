@@ -187,9 +187,9 @@ describe('QR Order Lifecycle & Security (Phase 1 & 2)', () => {
       expect(orderInsertAttempt).toBe(2);
       expect(insertedOrderPayloads[0]).toHaveProperty('expires_at');
       expect(insertedOrderPayloads[1]).not.toHaveProperty('expires_at');
-      // 1 ly M (20.000đ) + 1 ly L (25.000đ) = subtotal 45.000đ, VAT 10% = 4.500đ, total = 49.500đ
+      // 1 ly M (20.000đ) + 1 ly L (25.000đ) = subtotal 45.000đ, VAT mặc định = 0% (0đ), total = 45.000đ
       expect(insertedOrderPayloads[1].subtotal).toBe(45000);
-      expect(insertedOrderPayloads[1].total_amount).toBe(49500);
+      expect(insertedOrderPayloads[1].total_amount).toBe(45000);
     });
   });
 

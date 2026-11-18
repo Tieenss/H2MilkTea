@@ -33,11 +33,40 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import toast from 'react-hot-toast';
 import { getAppearanceSettings, applyAppearanceSettings } from '@/utils/appearanceSettings';
-import defaultTables from '@/data/DSBAN.json';
-import defaultInvoices from '@/data/HOADON.json';
-import defaultIngredients from '@/data/NGUYENLIEU.json';
 import authUtils from '@/utils/authUtils';
 import { detectTableArea, DEFAULT_AREAS } from '@/app/(dashboard)/tables/utils/constants';
+
+async function fetchLiveTableData(
+  tableName: 'DSBAN' | 'HOADON' | 'NGUYENLIEU' | 'NHAPXUATKHO'
+): Promise<{ rows: any[]; source: 'api' | 'local' }> {
+  try {
+    const res = await fetch(`/api/db?table=${encodeURIComponent(tableName)}`, {
+      cache: 'no-store',
+    });
+    if (res.ok) {
+      const json = await res.json();
+      if (json?.success && Array.isArray(json.data)) {
+        return { rows: json.data, source: 'api' };
+      }
+    }
+  } catch {
+    // Fallback to runtime localStorage cache when offline or API unavailable
+  }
+
+  try {
+    const localDataStr = typeof window !== 'undefined' ? localStorage.getItem('demoData') : null;
+    if (localDataStr) {
+      const parsed = JSON.parse(localDataStr);
+      if (Array.isArray(parsed?.[tableName])) {
+        return { rows: parsed[tableName], source: 'local' };
+      }
+    }
+  } catch {
+    // Ignore localStorage parse error
+  }
+
+  return { rows: [], source: 'local' };
+}
 
 export interface AssistantOrderItem {
   productId: string;
@@ -723,7 +752,7 @@ export function GlobalAssistant() {
   };
 
   // 4.5 BỘ NHẬN DIỆN LỆNH TỨC THỜI (0.01 GIÂY - 100% FREE - KHÔNG TỐN TOKEN AI)
-  const parseAndExecuteInstantCommand = (rawText: string): boolean => {
+  const parseAndExecuteInstantCommand = async (rawText: string): Promise<boolean> => {
     const text = rawText.trim().toLowerCase();
 
     // Lệnh 1: In tem nhãn dán ly
@@ -977,19 +1006,21 @@ export function GlobalAssistant() {
       return true;
     }
 
-    // Lệnh 6.6: Tra cứu trạng thái bàn theo khu vực
+    // Lệnh 6.6: Tra cứu trạng thái bàn theo khu vực (Ưu tiên dữ liệu live từ /api/db)
     if (/(danh\s*sách\s*bàn|bàn\s*khu|bàn\s*trống|tình\s*trạng\s*bàn)/i.test(text)) {
-      let allTables: any[] = [];
-      try {
-        const localDataStr = typeof window !== 'undefined' ? localStorage.getItem('demoData') : null;
-        if (localDataStr) {
-          const parsed = JSON.parse(localDataStr);
-          if (Array.isArray(parsed?.DSBAN)) allTables = parsed.DSBAN;
-        }
-      } catch {}
+      const { rows: allTables, source: tableSource } = await fetchLiveTableData('DSBAN');
 
       if (allTables.length === 0) {
-        allTables = defaultTables as any[];
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content:
+              '⚠️ Hiện chưa lấy được danh sách bàn từ hệ thống `/api/db`. Vui lòng kiểm tra kết nối hoặc mở trang **Quản lý bàn (`/tables`)**.',
+            source: 'rule',
+          },
+        ]);
+        return true;
       }
 
       const areaStats: Record<string, { total: number; active: number; empty: number }> = {
@@ -1023,14 +1054,14 @@ export function GlobalAssistant() {
           role: 'assistant',
           content: `📊 **TÌNH TRẠNG CÁC KHU VỰC BÀN HIỆN TẠI:**\n\n` +
             summaryLines +
-            `\n\n💡 **Gợi ý:** Bạn có thể ra lệnh *"tạo bàn nhanh khu phòng hát"* hoặc *"mở bàn 01"* để thao tác ngay!`,
+            `\n\n💡 **Gợi ý:** Bạn có thể ra lệnh *"tạo bàn nhanh khu phòng hát"* hoặc *"mở bàn 01"* để thao tác ngay! *[Nguồn: ${tableSource === 'api' ? 'Dữ liệu Live /api/db (DSBAN)' : 'Bộ nhớ cục bộ'}]*`,
           source: 'rule',
         },
       ]);
       return true;
     }
 
-    // Lệnh 6.7: Truy vấn Báo cáo Doanh thu Live (Phân quyền Admin & Quản lý)
+    // Lệnh 6.7: Truy vấn Báo cáo Doanh thu Live (Phân quyền Admin & Quản lý, lấy từ /api/db)
     if (
       /(doanh\s*thu\s*(hôm\s*nay|thế\s*nào|hiện\s*tại|tổng)?|hôm\s*nay\s*bán\s*được\s*bao\s*nhiêu|báo\s*cáo\s*nhanh\s*doanh\s*thu|tổng\s*doanh\s*thu)/i.test(text) &&
       !/(mở|vào|đến|chuyển\s*sang|đi\s*tới)\s*(trang|màn\s*hình)?\s*báo\s*cáo/i.test(text)
@@ -1055,35 +1086,59 @@ export function GlobalAssistant() {
         return true;
       }
 
-      let invoices: any[] = [];
-      try {
-        const localDataStr = typeof window !== 'undefined' ? localStorage.getItem('demoData') : null;
-        if (localDataStr) {
-          const parsed = JSON.parse(localDataStr);
-          if (Array.isArray(parsed?.HOADON)) invoices = parsed.HOADON;
-        }
-      } catch {}
+      const { rows: invoices, source: invSource } = await fetchLiveTableData('HOADON');
+
       if (invoices.length === 0) {
-        invoices = defaultInvoices as any[];
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content:
+              '📈 **CHƯA CÓ DỮ LIỆU HÓA ĐƠN TRONG HỆ THỐNG**\n' +
+              'Hiện tại bảng `HOADON` trên `/api/db` chưa ghi nhận giao dịch nào.',
+            source: 'rule',
+          },
+        ]);
+        return true;
       }
 
-      const paidInvoices = invoices.filter(
-        (inv) => !inv['Trạng thái'] || inv['Trạng thái'] === 'Đã thanh toán'
-      );
+      const isPaidStatus = (s: any) => {
+        const norm = String(s || '').trim();
+        return !norm || norm === 'Đã thanh toán' || norm === 'Đã hoàn thành' || norm === 'Hoàn thành';
+      };
+
+      const paidInvoices = invoices.filter((inv) => isPaidStatus(inv['Trạng thái']));
       const canceledInvoices = invoices.filter((inv) =>
         String(inv['Trạng thái'] || '').toLowerCase().includes('hủy')
       );
 
+      const now = new Date();
+      let todayRevenue = 0;
+      let todayOrders = 0;
       let totalRevenue = 0;
       let cashRevenue = 0;
       let transferRevenue = 0;
 
       for (const inv of paidInvoices) {
         const amount =
-          Number(String(inv['Tổng tiền'] || inv['Khách trả'] || 0).replace(/[^0-9.-]+/g, '')) || 0;
+          Number(String(inv['Tổng tiền'] ?? inv['Khách trả'] ?? 0).replace(/[^0-9.-]+/g, '')) || 0;
         totalRevenue += amount;
-        const payType = String(inv['Loại thanh toán'] || '').toLowerCase();
-        if (payType.includes('chuyển khoản') || payType.includes('qr')) {
+
+        const rawDate = inv['Ngày'] || inv['Thời gian'];
+        const parsedDate = rawDate ? authUtils.parseFlexibleDate(String(rawDate)) : null;
+        if (
+          parsedDate &&
+          !isNaN(parsedDate.getTime()) &&
+          parsedDate.getDate() === now.getDate() &&
+          parsedDate.getMonth() === now.getMonth() &&
+          parsedDate.getFullYear() === now.getFullYear()
+        ) {
+          todayRevenue += amount;
+          todayOrders += 1;
+        }
+
+        const payType = String(inv['Loại thanh toán'] || inv['Hình thức thanh toán'] || '').toLowerCase();
+        if (payType.includes('chuyển khoản') || payType.includes('qr') || payType.includes('vietqr')) {
           transferRevenue += amount;
         } else {
           cashRevenue += amount;
@@ -1098,47 +1153,78 @@ export function GlobalAssistant() {
           role: 'assistant',
           content:
             `📈 **BÁO CÁO DOANH THU TRỰC TIẾP (LIVE BI):**\n\n` +
-            `• **Tổng doanh thu thuần:** **${totalRevenue.toLocaleString('vi-VN')} đ**\n` +
+            `• **Doanh thu hôm nay:** **${todayRevenue.toLocaleString('vi-VN')} đ** (${todayOrders} đơn)\n` +
+            `• **Tổng doanh thu thuần ghi nhận:** **${totalRevenue.toLocaleString('vi-VN')} đ**\n` +
             `• **Số hóa đơn thành công:** ${paidInvoices.length} đơn (Hủy: ${canceledInvoices.length} đơn)\n` +
             `• **Giá trị trung bình/đơn (AOV):** ${avgOrder.toLocaleString('vi-VN')} đ\n` +
             `• **Tiền mặt:** ${cashRevenue.toLocaleString('vi-VN')} đ\n` +
             `• **Chuyển khoản / VietQR:** ${transferRevenue.toLocaleString('vi-VN')} đ\n\n` +
-            `💡 *[Nguồn: Dữ liệu Hóa đơn Hệ thống (HOADON)]*`,
+            `💡 *[Nguồn: ${invSource === 'api' ? 'Dữ liệu Live /api/db (HOADON)' : 'Bộ nhớ cục bộ'}]*`,
           source: 'rule',
         },
       ]);
       return true;
     }
 
-    // Lệnh 6.8: Cảnh báo Nguyên liệu sắp hết / Kiểm tra tồn kho Live (NGUYENLIEU)
+    // Lệnh 6.8: Cảnh báo Nguyên liệu sắp hết / Kiểm tra tồn kho Live (Lấy từ /api/db)
     if (
       /(nguyên\s*liệu\s*(nào\s*)?(sắp\s*hết|cần\s*nhập|cảnh\s*báo)|kiểm\s*tra\s*tồn\s*kho|cảnh\s*báo\s*tồn\s*kho)/i.test(text)
     ) {
-      let ingredients: any[] = [];
-      try {
-        const localDataStr = typeof window !== 'undefined' ? localStorage.getItem('demoData') : null;
-        if (localDataStr) {
-          const parsed = JSON.parse(localDataStr);
-          if (Array.isArray(parsed?.NGUYENLIEU)) ingredients = parsed.NGUYENLIEU;
-        }
-      } catch {}
+      const [{ rows: ingredients, source: ingSource }, { rows: transactions }] = await Promise.all([
+        fetchLiveTableData('NGUYENLIEU'),
+        fetchLiveTableData('NHAPXUATKHO'),
+      ]);
+
       if (ingredients.length === 0) {
-        ingredients = defaultIngredients as any[];
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content:
+              '📦 **CHƯA CÓ DỮ LIỆU NGUYÊN LIỆU TỪ HỆ THỐNG**\n' +
+              'Không tìm thấy danh mục `NGUYENLIEU` trên `/api/db`. Vui lòng kiểm tra lại tại mục **Kho hàng (`/inventory`)**.',
+            source: 'rule',
+          },
+        ]);
+        return true;
       }
 
-      const lowStockList = ingredients.filter((item) => {
-        const currentQty = Number(item['Số lượng tồn'] ?? item['Tồn kho'] ?? item['Số lượng cảnh báo'] ?? 0);
+      // Tổng hợp nhập/xuất theo IDNguyenLieu nếu bản ghi NGUYENLIEU chưa lưu trực tiếp Số lượng tồn
+      const netStockMap = new Map<string, number>();
+      for (const tx of transactions) {
+        const type = String(tx?.LoaiGiaoDich || '');
+        const sign = type === 'Nhập kho' ? 1 : type === 'Xuất kho' ? -1 : 0;
+        if (!sign || !Array.isArray(tx?.ChiTiet)) continue;
+        for (const line of tx.ChiTiet) {
+          const matId = String(line?.IDNguyenLieu || '');
+          const qty = Number(line?.SoLuong) || 0;
+          if (matId) {
+            netStockMap.set(matId, (netStockMap.get(matId) || 0) + sign * qty);
+          }
+        }
+      }
+
+      const enriched = ingredients.map((item) => {
+        const id = String(item.IDNguyenLieu || '');
+        const hasExplicitStock = item['Số lượng tồn'] !== undefined || item['Tồn kho'] !== undefined;
+        const currentQty = hasExplicitStock
+          ? Number(item['Số lượng tồn'] ?? item['Tồn kho'] ?? 0)
+          : (netStockMap.get(id) ?? 0);
         const warnThreshold = Number(item['Số lượng cảnh báo'] ?? 5);
-        return currentQty <= warnThreshold;
+        return {
+          ...item,
+          _computedStock: currentQty,
+          _warnThreshold: warnThreshold,
+          _isLow: currentQty <= warnThreshold,
+        };
       });
 
-      const previewItems = (lowStockList.length > 0 ? lowStockList : ingredients).slice(0, 6);
+      const lowStockList = enriched.filter((item) => item._isLow);
+      const previewItems = (lowStockList.length > 0 ? lowStockList : enriched).slice(0, 6);
       const lines = previewItems
         .map((it) => {
-          const stock = it['Số lượng tồn'] ?? it['Tồn kho'] ?? it['Số lượng cảnh báo'] ?? '0';
-          const warn = it['Số lượng cảnh báo'] || '5';
           const unit = it['Đơn vị tính'] || '';
-          return `• **${it['Tên nguyên liệu']}** (\`${it.IDNguyenLieu}\`): Tồn **${stock} ${unit}** *(Ngưỡng cảnh báo: ${warn} ${unit})*`;
+          return `• **${it['Tên nguyên liệu']}** (\`${it.IDNguyenLieu}\`): Tồn **${it._computedStock} ${unit}** *(Ngưỡng cảnh báo: ${it._warnThreshold} ${unit})*`;
         })
         .join('\n');
 
@@ -1147,9 +1233,9 @@ export function GlobalAssistant() {
         {
           role: 'assistant',
           content:
-            `📦 **KIỂM TRA TỒN KHO & NGUYÊN LIỆU CẦN LƯU Ý (${lowStockList.length}/${ingredients.length} mặt hàng chạm ngưỡng):**\n\n` +
+            `📦 **KIỂM TRA TỒN KHO & NGUYÊN LIỆU CẦN LƯU Ý (${lowStockList.length}/${enriched.length} mặt hàng chạm ngưỡng):**\n\n` +
             lines +
-            `\n\n💡 Bạn có thể vào mục **Kho hàng (\`/inventory\`)** để lập phiếu nhập kho hoặc kiểm kê định kỳ. *[Nguồn: Dữ liệu Kho (NGUYENLIEU)]*`,
+            `\n\n💡 Bạn có thể vào mục **Kho hàng (\`/inventory\`)** để lập phiếu nhập kho hoặc kiểm kê định kỳ. *[Nguồn: ${ingSource === 'api' ? 'Dữ liệu Live /api/db (NGUYENLIEU)' : 'Bộ nhớ cục bộ'}]*`,
           source: 'rule',
         },
       ]);
@@ -1254,7 +1340,7 @@ export function GlobalAssistant() {
     setInputValue('');
 
     // Kiểm tra và thực thi tức thời qua Local Intent Parser
-    const executedLocally = parseAndExecuteInstantCommand(text);
+    const executedLocally = await parseAndExecuteInstantCommand(text);
     if (executedLocally) {
       return;
     }
@@ -1279,22 +1365,19 @@ export function GlobalAssistant() {
 
       try {
         const activeTableId = typeof window !== 'undefined' ? localStorage.getItem('h2_pos_active_table_id') : null;
-        const localDataStr = typeof window !== 'undefined' ? localStorage.getItem('demoData') : null;
-        if (localDataStr) {
-          const parsed = JSON.parse(localDataStr);
-          if (parsed && Array.isArray(parsed.DSBAN) && parsed.DSBAN.length > 0) {
-            clientTables = parsed.DSBAN
-              .filter((t: any) => t['Trạng thái'] === 'Đang hoạt động' || !t['Trạng thái'])
-              .map((t: any) => ({
-                id: String(t.IDBAN || ''),
-                name: String(t['Tên bàn'] || ''),
-              }))
-              .filter((t: any) => t.id && t.name);
+        const { rows: liveTables } = await fetchLiveTableData('DSBAN');
+        if (liveTables.length > 0) {
+          clientTables = liveTables
+            .filter((t: any) => t['Trạng thái'] === 'Đang hoạt động' || !t['Trạng thái'])
+            .map((t: any) => ({
+              id: String(t.IDBAN || ''),
+              name: String(t['Tên bàn'] || ''),
+            }))
+            .filter((t: any) => t.id && t.name);
 
-            if (activeTableId && clientTables) {
-              const foundTbl = clientTables.find((t) => t.id === activeTableId);
-              if (foundTbl) activeTableName = foundTbl.name;
-            }
+          if (activeTableId && clientTables) {
+            const foundTbl = clientTables.find((t) => t.id === activeTableId);
+            if (foundTbl) activeTableName = foundTbl.name;
           }
         }
         if (!activeTableName && activeTableId) {

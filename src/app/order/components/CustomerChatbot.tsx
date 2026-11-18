@@ -448,6 +448,7 @@ export function CustomerChatbot({
       ice: isFood ? '' : (suggested.ice || '100% đá'),
       note: mergedNote,
       quantity: qty,
+      toppings: isFood ? [] : suggested.toppings,
     });
 
     setAddedItemIds((prev) => ({ ...prev, [suggested.id]: true }));
@@ -485,6 +486,7 @@ export function CustomerChatbot({
         ice: isFood ? '' : (suggested.ice || '100% đá'),
         note: mergedNote,
         quantity: qty,
+        toppings: isFood ? [] : suggested.toppings,
       });
       totalAdded += qty;
     }

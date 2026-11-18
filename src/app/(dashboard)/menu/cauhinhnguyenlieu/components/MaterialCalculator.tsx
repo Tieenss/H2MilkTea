@@ -16,7 +16,21 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { Product, Material, ProductMaterial } from '../types/productMaterial';
 
-import { formatNumber, parseNumber } from '../utils/formatters';
+import { formatNumber } from '../utils/formatters';
+
+const parseDecimal = (value: unknown): number => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (value === null || value === undefined) return 0;
+  let str = String(value).trim().replace(/\s+/g, '');
+  if (!str) return 0;
+  if (str.includes(',') && str.includes('.')) {
+    str = str.replace(/\./g, '').replace(',', '.');
+  } else if (str.includes(',')) {
+    str = str.replace(/,/g, '.');
+  }
+  const num = parseFloat(str);
+  return Number.isFinite(num) ? num : 0;
+};
 
 interface MaterialCalculatorProps {
   isOpen: boolean;
@@ -35,30 +49,69 @@ export const MaterialCalculator: React.FC<MaterialCalculatorProps> = ({
 }) => {
   const [selectedProduct, setSelectedProduct] = useState<string>('');
   const [quantity, setQuantity] = useState<number>(1);
+  const [quantityInput, setQuantityInput] = useState<string>('1');
+  const [quantityError, setQuantityError] = useState<string>('');
   const [calculationResults, setCalculationResults] = useState<any[]>([]);
 
   // Get materials for selected product
   const productConfigs = useMemo(() => {
     if (!selectedProduct) return [];
-    return productMaterials.filter(config => 
+    return productMaterials.filter(config =>
       config.IDSP === selectedProduct && config['Trạng thái'] === 'Hoạt động'
     );
   }, [selectedProduct, productMaterials]);
 
+  const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+
+    // Chặn số âm
+    if (raw.includes('-')) {
+      setQuantityError('Số lượng phải lớn hơn 0!');
+      return;
+    }
+
+    if (raw.trim() === '') {
+      setQuantityInput('');
+      setQuantity(0);
+      setQuantityError('Số lượng phải lớn hơn 0!');
+      return;
+    }
+
+    const sanitized = raw.replace(/[^0-9.,]/g, '');
+    setQuantityInput(sanitized);
+
+    const parsed = parseDecimal(sanitized);
+    if (parsed <= 0) {
+      setQuantity(0);
+      setQuantityError('Số lượng phải lớn hơn 0!');
+    } else {
+      setQuantity(parsed);
+      setQuantityError('');
+    }
+  };
+
   // Calculate material needs
   const calculateMaterials = () => {
-    if (!selectedProduct || quantity <= 0) {
+    if (quantity <= 0) {
+      setQuantityError('Số lượng phải lớn hơn 0!');
+      setCalculationResults([]);
+      return;
+    }
+    if (!selectedProduct) {
       setCalculationResults([]);
       return;
     }
 
     const results = productConfigs.map(config => {
       const material = materials.find(m => m.IDNguyenLieu === config.IDNguyenLieu);
-      const totalNeeded = (config['Số lượng cần'] || 0) * quantity;
-      const totalInBaseUnit = totalNeeded * (material?.['Hệ số quy đổi'] || 1);
+      const neededPerUnit = parseDecimal(config['Số lượng cần']);
+      const conversionRatio = parseDecimal(material?.['Hệ số quy đổi']) || 1;
+      const totalNeeded = neededPerUnit * quantity;
+      const totalInBaseUnit = totalNeeded * conversionRatio;
 
       return {
         ...config,
+        'Số lượng cần': neededPerUnit,
         materialInfo: material,
         totalNeeded,
         totalInBaseUnit,
@@ -72,6 +125,10 @@ export const MaterialCalculator: React.FC<MaterialCalculatorProps> = ({
 
   // Auto calculate when inputs change
   React.useEffect(() => {
+    if (!selectedProduct || quantity <= 0) {
+      setCalculationResults([]);
+      return;
+    }
     calculateMaterials();
   }, [selectedProduct, quantity, productConfigs]);
 
@@ -92,7 +149,7 @@ export const MaterialCalculator: React.FC<MaterialCalculatorProps> = ({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-y-auto pr-1">
           <div className="space-y-6">
             {/* Input Section */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -127,17 +184,29 @@ export const MaterialCalculator: React.FC<MaterialCalculatorProps> = ({
                   </Label>
                   <Input
                     id="quantity"
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={quantity}
-                    onChange={(e) => setQuantity(parseNumber(e.target.value) || 1)}
-                    placeholder="Nhập số lượng cần sản xuất"
-                    className="h-10"
+                    type="text"
+                    inputMode="decimal"
+                    value={quantityInput}
+                    onChange={handleQuantityChange}
+                    onKeyDown={(e) => {
+                      if (e.key === '-') {
+                        e.preventDefault();
+                        setQuantityError('Số lượng phải lớn hơn 0!');
+                      }
+                    }}
+                    placeholder="Nhập số lượng cần sản xuất (lớn hơn 0)"
+                    className={`h-10 ${quantityError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
                   />
-                  <p className="text-xs text-gray-500">
-                    Nhập số lượng {selectedProductInfo?.['Tên sản phẩm'] || 'sản phẩm'} cần sản xuất
-                  </p>
+                  {quantityError ? (
+                    <p className="text-xs font-medium text-red-600 flex items-center gap-1" role="alert">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                      <span>{quantityError}</span>
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-500">
+                      Nhập số lượng {selectedProductInfo?.['Tên sản phẩm'] || 'sản phẩm'} cần sản xuất (hỗ trợ dấu . hoặc ,)
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -217,7 +286,7 @@ export const MaterialCalculator: React.FC<MaterialCalculatorProps> = ({
                               </span>
                             </div>
                           </div>
-                          
+
                           <div className="pt-2 border-t">
                             <div className="text-xs text-gray-500 space-y-1">
                               <div>Mã NVL: {result.IDNguyenLieu}</div>
@@ -234,11 +303,12 @@ export const MaterialCalculator: React.FC<MaterialCalculatorProps> = ({
                       <AlertCircle className="h-12 w-12 text-gray-400 mb-4" />
                       <div className="text-center">
                         <h4 className="text-lg font-medium text-gray-600 mb-2">
-                          Chưa có cấu hình nguyên vật liệu
+                          {quantity <= 0 ? 'Số lượng sản xuất chưa hợp lệ' : 'Chưa có cấu hình nguyên vật liệu'}
                         </h4>
                         <p className="text-gray-500">
-                          Sản phẩm này chưa được cấu hình nguyên vật liệu.
-                          Vui lòng thêm cấu hình trước khi tính toán.
+                          {quantity <= 0
+                            ? 'Số lượng phải lớn hơn 0!'
+                            : 'Sản phẩm này chưa được cấu hình nguyên vật liệu. Vui lòng thêm cấu hình trước khi tính toán.'}
                         </p>
                       </div>
                     </CardContent>
@@ -276,7 +346,11 @@ export const MaterialCalculator: React.FC<MaterialCalculatorProps> = ({
           <Button variant="outline" onClick={onClose}>
             Đóng
           </Button>
-          <Button onClick={calculateMaterials} className="bg-purple-600 hover:bg-purple-700">
+          <Button
+            onClick={calculateMaterials}
+            disabled={quantity <= 0}
+            className="bg-purple-600 hover:bg-purple-700"
+          >
             <Calculator className="h-4 w-4 mr-2" />
             Tính toán lại
           </Button>

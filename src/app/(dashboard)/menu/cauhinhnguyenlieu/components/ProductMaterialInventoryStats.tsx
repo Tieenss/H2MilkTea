@@ -1,20 +1,20 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Package, TrendingUp, TrendingDown, Settings, BarChart3 } from 'lucide-react';
-import { ProductMaterialInventoryStats } from '../hooks/useProductMaterialInventory';
-import { formatNumber } from '../utils/formatters';
+import { Package, TrendingUp, TrendingDown, Settings, BarChart3, Coins } from 'lucide-react';
+import { ProductMaterialInventoryStats as InventoryStatItem } from '../hooks/useProductMaterialInventory';
+import { formatCurrency, formatNumber } from '../utils/formatters';
 
 interface ProductMaterialInventoryStatsProps {
-  stats: ProductMaterialInventoryStats[];
+  stats: InventoryStatItem[];
   loading: boolean;
 }
 
 export const ProductMaterialInventoryStats: React.FC<ProductMaterialInventoryStatsProps> = ({ stats, loading }) => {
   if (loading) {
     return (
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {[1, 2, 3, 4].map((i) => (
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        {[1, 2, 3, 4, 5].map((i) => (
           <Card key={i}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Đang tải...</CardTitle>
@@ -32,7 +32,11 @@ export const ProductMaterialInventoryStats: React.FC<ProductMaterialInventorySta
   const totalSold = stats.reduce((sum, item) => sum + item['Số lượng bán'], 0);
   const totalMaterialsUsed = stats.reduce((sum, item) => sum + item['Tổng NVL sử dụng'], 0);
   const totalMaterialsConsumed = stats.reduce((sum, item) => sum + item['Tổng NVL tiêu thụ'], 0);
-  
+  const avgEstimatedCogs =
+    totalProducts > 0
+      ? Math.round(stats.reduce((sum, item) => sum + (item['Giá vốn ước tính'] || 0), 0) / totalProducts)
+      : 0;
+
   const bestSellers = stats.filter(item => item['Trạng thái'] === 'Bán chạy');
   const goodSellers = stats.filter(item => item['Trạng thái'] === 'Bán tốt');
   const lowSellers = stats.filter(item => item['Trạng thái'] === 'Ít bán');
@@ -40,7 +44,7 @@ export const ProductMaterialInventoryStats: React.FC<ProductMaterialInventorySta
   return (
     <div className="space-y-6">
       {/* Thống kê tổng quan */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Tổng sản phẩm</CardTitle>
@@ -76,7 +80,7 @@ export const ProductMaterialInventoryStats: React.FC<ProductMaterialInventorySta
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-blue-600">
-              {formatNumber(totalMaterialsUsed)}
+              {formatNumber(Math.round(totalMaterialsUsed * 1000) / 1000)}
             </div>
             <p className="text-xs text-muted-foreground">
               Tổng NVL cần cho 1 sản phẩm
@@ -91,10 +95,25 @@ export const ProductMaterialInventoryStats: React.FC<ProductMaterialInventorySta
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-600">
-              {formatNumber(totalMaterialsConsumed)}
+              {formatNumber(Math.round(totalMaterialsConsumed * 1000) / 1000)}
             </div>
             <p className="text-xs text-muted-foreground">
               Tổng NVL đã tiêu thụ
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Giá vốn TB (COGS)</CardTitle>
+            <Coins className="h-4 w-4 text-amber-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-amber-600">
+              {formatCurrency(avgEstimatedCogs)}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Giá vốn ước tính / sản phẩm
             </p>
           </CardContent>
         </Card>
@@ -199,9 +218,9 @@ export const ProductMaterialInventoryStats: React.FC<ProductMaterialInventorySta
       {/* Bảng thống kê chi tiết */}
       <Card>
         <CardHeader>
-          <CardTitle>Thống kê chi tiết cấu hình NVL</CardTitle>
+          <CardTitle>Thống kê chi tiết cấu hình NVL & Giá vốn ước tính (COGS)</CardTitle>
           <CardDescription>
-            Số lượng bán và tiêu thụ nguyên vật liệu theo sản phẩm
+            Số lượng bán, tiêu thụ nguyên vật liệu và giá vốn ước tính theo sản phẩm
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -213,6 +232,7 @@ export const ProductMaterialInventoryStats: React.FC<ProductMaterialInventorySta
                   <th className="text-right p-2 font-medium">NVL sử dụng</th>
                   <th className="text-right p-2 font-medium">Số lượng bán</th>
                   <th className="text-right p-2 font-medium">NVL tiêu thụ</th>
+                  <th className="text-right p-2 font-medium">Giá vốn ước tính (COGS)</th>
                   <th className="text-center p-2 font-medium">Trạng thái</th>
                 </tr>
               </thead>
@@ -232,7 +252,11 @@ export const ProductMaterialInventoryStats: React.FC<ProductMaterialInventorySta
                         return 'bg-gray-100 text-gray-800';
                     }
                   };
-                  
+
+                  const cogs = item['Giá vốn ước tính'] || 0;
+                  const sellPrice = item['Đơn giá bán'] || 0;
+                  const cogsRatio = sellPrice > 0 ? Math.round((cogs / sellPrice) * 100) : 0;
+
                   return (
                     <tr key={item.IDSP} className="border-b hover:bg-gray-50">
                       <td className="p-2 font-medium">{item['Tên sản phẩm']}</td>
@@ -244,6 +268,16 @@ export const ProductMaterialInventoryStats: React.FC<ProductMaterialInventorySta
                       </td>
                       <td className="p-2 text-right font-medium">
                         {formatNumber(item['Tổng NVL tiêu thụ'])}
+                      </td>
+                      <td className="p-2 text-right">
+                        <div className="font-semibold text-amber-700">
+                          {formatCurrency(cogs)}
+                        </div>
+                        {sellPrice > 0 && (
+                          <div className="text-[11px] text-gray-500">
+                            {cogsRatio}% giá bán ({formatCurrency(sellPrice)})
+                          </div>
+                        )}
                       </td>
                       <td className="p-2 text-center">
                         <Badge variant="default" className={getStatusColor(item['Trạng thái'])}>
@@ -260,4 +294,4 @@ export const ProductMaterialInventoryStats: React.FC<ProductMaterialInventorySta
       </Card>
     </div>
   );
-}; 
+};

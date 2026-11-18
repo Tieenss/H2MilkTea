@@ -11,6 +11,7 @@ import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/client';
 import toast from 'react-hot-toast';
 import { CustomerChatbot } from '../components/CustomerChatbot';
+import { ServiceCallButton } from '../components/ServiceCallButton';
 
 interface TrackedItem {
   productId?: string;
@@ -234,38 +235,48 @@ function CustomerOrderStatusContent() {
   return (
     <main className="mx-auto flex min-h-screen max-w-lg flex-col bg-gray-50/50 pb-28 text-gray-900">
       {/* Top Header */}
-      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-orange-100 bg-white/95 px-4 py-3 backdrop-blur-md">
-        <div className="flex items-center gap-2.5">
-          <button
-            onClick={() => router.push(order?.table_id ? `/order/menu?table=${encodeURIComponent(order.table_id)}` : '/order/menu')}
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-gray-100 text-gray-600 active:scale-90 transition-transform"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-          <div>
-            <h1 className="text-sm font-bold text-gray-900">
-              {order ? `Giỏ Hàng & Hóa Đơn ${order.table_name}` : 'Quản Lý Đơn Hàng'}
-            </h1>
-            <p className="text-[11px] text-gray-500">
-              {order ? `#${order.id.slice(-8).toUpperCase()}` : 'H2 MilkTea'}
-            </p>
+      <header className="sticky top-0 z-30 border-b border-orange-100 bg-white/95 px-4 py-3 backdrop-blur-md space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => router.push(order?.table_id ? `/order/menu?table=${encodeURIComponent(order.table_id)}` : '/order/menu')}
+              className="flex h-9 w-9 items-center justify-center rounded-xl bg-gray-100 text-gray-600 active:scale-90 transition-transform"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <div>
+              <h1 className="text-sm font-bold text-gray-900">
+                {order ? `Giỏ Hàng & Hóa Đơn ${order.table_name}` : 'Quản Lý Đơn Hàng'}
+              </h1>
+              <p className="text-[11px] text-gray-500">
+                {order ? `#${order.id.slice(-8).toUpperCase()}` : 'H2 MilkTea'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+              isConnected ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
+            }`}>
+              {isConnected ? <Wifi className="h-3 w-3 text-green-600 animate-pulse" /> : <WifiOff className="h-3 w-3" />}
+              {isConnected ? 'Realtime' : 'Đồng bộ'}
+            </span>
+            <button
+              onClick={refreshOrder}
+              aria-label="Làm mới trạng thái"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 active:scale-90"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-            isConnected ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
-          }`}>
-            {isConnected ? <Wifi className="h-3 w-3 text-green-600 animate-pulse" /> : <WifiOff className="h-3 w-3" />}
-            {isConnected ? 'Realtime' : 'Đồng bộ'}
-          </span>
-          <button
-            onClick={refreshOrder}
-            aria-label="Làm mới trạng thái"
-            className="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 active:scale-90"
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-          </button>
+        <div className="flex justify-end">
+          <ServiceCallButton
+            tableId={order?.table_id || 'Khách tại quán'}
+            tableName={order?.table_name || 'Khách tại quán'}
+            className="w-full sm:w-auto"
+          />
         </div>
       </header>
 
@@ -472,7 +483,7 @@ function CustomerOrderStatusContent() {
                     <span className="font-medium text-gray-800">{Number(order.subtotal || 0).toLocaleString('vi-VN')}đ</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Thuế GTGT (VAT 10%)</span>
+                    <span>Thuế GTGT ({Number(order.vat_amount || 0) > 0 ? 'VAT 10%' : 'VAT 0%'})</span>
                     <span className="font-medium text-gray-800">{Number(order.vat_amount || 0).toLocaleString('vi-VN')}đ</span>
                   </div>
                   <div className="flex items-baseline justify-between border-t border-gray-100 pt-3">

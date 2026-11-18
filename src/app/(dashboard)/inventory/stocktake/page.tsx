@@ -309,6 +309,7 @@ export default function StocktakePage() {
           setIsEditing(true);
           setShowFormModal(true);
         }}
+        canEdit={isAdmin || isManager}
       />
 
       <StocktakeFormModal
@@ -321,6 +322,7 @@ export default function StocktakePage() {
         }}
         onSubmit={handleFormSubmit}
         isEditing={isEditing}
+        loading={loading}
       />
     </div>
   );

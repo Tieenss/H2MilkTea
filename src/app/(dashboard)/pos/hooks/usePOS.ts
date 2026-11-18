@@ -73,6 +73,15 @@ import { useSharedCartDraft, type CartDraft } from './useSharedCartDraft';
 import { useTablePresence } from '@/hooks/useTablePresence';
 import { createClient } from '@/lib/supabase/client';
 import { getVatSettings } from '@/utils/vatSettings';
+import { useFeatureFlags } from '@/lib/settings/useFeatureFlags';
+
+function resolveStaffDisplayName(user: any): string {
+  if (!user || typeof user !== 'object') return 'Thu ngân';
+  const fullName = String(user['Họ và Tên'] || user.fullName || user.name || '').trim();
+  const username = String(user.username || '').trim();
+  const email = String(user.email || user.Email || '').trim();
+  return fullName || username || email || 'Thu ngân';
+}
 
 // Helper function to format date to Vietnamese format (DD/MM/YYYY HH:mm:ss)
 const formatToVietnameseDateTime = (date: Date): string => {
@@ -140,9 +149,61 @@ function subtractItemsFromCart(currentCart: CartItem[], itemsToRemove: any[]): C
 
 // Import customer types và utils
 export const usePOS = () => {
-  // Get user data
-  const userData = authUtils.getUserData();
-  const nhanvien = userData?.['Họ và Tên'] || userData?.username || 'Thu ngân';
+  // Đọc động thông tin nhân viên từ phiên đăng nhập hiện tại (tránh dính tên Admin cũ khi đổi tài khoản)
+  const [nhanvien, setNhanvien] = useState<string>(() => resolveStaffDisplayName(authUtils.getUserData()));
+  const { isFeatureEnabled } = useFeatureFlags();
+  const [vatSettings, setVatSettings] = useState(() => getVatSettings());
+  const isVatFeatureEnabled = isFeatureEnabled('enableVat');
+
+  useEffect(() => {
+    const syncAuthAndSettings = () => {
+      setNhanvien(resolveStaffDisplayName(authUtils.getUserData()));
+      setVatSettings(getVatSettings());
+    };
+
+    syncAuthAndSettings();
+
+    const handleStorage = (e: StorageEvent) => {
+      if (!e.key || e.key === 'userData' || e.key === 'h2_vat_settings') {
+        syncAuthAndSettings();
+      }
+    };
+
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('focus', syncAuthAndSettings);
+    window.addEventListener('h2_vat_settings_changed', syncAuthAndSettings);
+
+    let subscription: { unsubscribe: () => void } | null = null;
+    try {
+      const supabase = createClient();
+      const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+        const storedUser = authUtils.getUserData();
+        if (storedUser) {
+          setNhanvien(resolveStaffDisplayName(storedUser));
+        } else if (session?.user) {
+          setNhanvien(
+            resolveStaffDisplayName({
+              name: session.user.user_metadata?.name,
+              username: session.user.user_metadata?.username,
+              email: session.user.email,
+            })
+          );
+        } else {
+          setNhanvien('Thu ngân');
+        }
+      });
+      subscription = data.subscription;
+    } catch {
+      // Bỏ qua nếu chưa khởi tạo Supabase client
+    }
+
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('focus', syncAuthAndSettings);
+      window.removeEventListener('h2_vat_settings_changed', syncAuthAndSettings);
+      subscription?.unsubscribe();
+    };
+  }, []);
 
   // Customer state & per-table customer map
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -411,6 +472,9 @@ export const usePOS = () => {
 
   // Nạp toàn bộ giỏ hàng nháp của tất cả các bàn ngay khi vào POS (Mục #18)
   const fetchAllCartDrafts = useCallback(async () => {
+    if (!authUtils.isAuthenticated()) {
+      return [];
+    }
     try {
       const res = await fetch('/api/pos/cart-draft', { cache: 'no-store' });
       const result = await res.json();
@@ -867,14 +931,19 @@ export const usePOS = () => {
         status: currentTable['Trạng thái']
       } : null;
 
+      const vatRate = isVatFeatureEnabled
+        ? ((vatSettings.enabled && vatSettings.ratePercent > 0 ? vatSettings.ratePercent : 10) / 100)
+        : 0;
+      const displayVat = total * vatRate;
+
       customerDisplayWindow.current.postMessage({
         type: 'updateCart',
         cart: cartData,
         totals: {
           subtotal: total,
-          vat: total * 0.1,
+          vat: displayVat,
           discount: 0,
-          total: total * 1.1
+          total: total + displayVat
         },
         tableInfo: tableData,
         customer: selectedCustomer
@@ -882,7 +951,7 @@ export const usePOS = () => {
     } catch (error) {
       console.error('Lỗi khi cập nhật màn hình phụ:', error);
     }
-  }, [cart, tables, selectedTableId, selectedCustomer]);
+  }, [cart, tables, selectedTableId, selectedCustomer, isVatFeatureEnabled, vatSettings]);
 
   // Cart operations
   const addToCart = useCallback((
@@ -1111,40 +1180,75 @@ export const usePOS = () => {
       showLoading('Đang xử lý thanh toán...');
       cancelPendingAutosave();
 
+      const freshUserData = authUtils.getUserData();
+      const activeCashier = freshUserData ? resolveStaffDisplayName(freshUserData) : nhanvien;
+      if (activeCashier !== nhanvien) {
+        setNhanvien(activeCashier);
+      }
+
+      const activeVatRate = isVatFeatureEnabled
+        ? ((vatSettings.enabled && vatSettings.ratePercent > 0 ? vatSettings.ratePercent : 10) / 100)
+        : 0;
+      const computedSubtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      const resolvedSubtotal = Number(paymentData.subtotal ?? computedSubtotal) || 0;
+      const resolvedVat = Number(paymentData.vat ?? (resolvedSubtotal * activeVatRate)) || 0;
+
+      let computedCustomerDiscount = 0;
+      if (selectedCustomer) {
+        const customerType = selectedCustomer['Loại khách hàng'];
+        if (customerType === 'Khách kim cương') computedCustomerDiscount = resolvedSubtotal * 0.2;
+        else if (customerType === 'Khách VIP') computedCustomerDiscount = resolvedSubtotal * 0.1;
+      }
+      const resolvedCustomerDiscount = Number(paymentData.customerDiscount ?? computedCustomerDiscount) || 0;
+      const extraDiscount = Math.max(0, Number(paymentData.discount) || 0);
+      const totalDiscount = Math.min(
+        resolvedSubtotal + resolvedVat,
+        Number(paymentData.totalDiscount ?? (resolvedCustomerDiscount + extraDiscount)) || 0
+      );
+      const resolvedTotal = Math.max(0, Number(paymentData.total ?? (resolvedSubtotal + resolvedVat - totalDiscount)) || 0);
+
       const invoiceId = paymentData.id || generateId('INV');
       const payType = paymentData.paymentType || paymentData.paymentMethod || 'Tiền mặt';
       const isDebt = payType === 'Ghi nợ' || (paymentData.debtAmount && paymentData.debtAmount > 0);
-      const paidAmount = isDebt ? (Number(paymentData.paidAmount) || 0) : (Number(paymentData.paidAmount) || paymentData.total);
-      const debtAmount = isDebt ? Math.max(0, paymentData.total - paidAmount) : 0;
-      const invoiceStatus = isDebt ? (debtAmount >= paymentData.total ? 'Ghi nợ' : 'Nợ một phần') : 'Đã hoàn thành';
+      const paidAmount = isDebt ? (Number(paymentData.paidAmount) || 0) : (Number(paymentData.paidAmount) || resolvedTotal);
+      const debtAmount = isDebt ? Math.max(0, resolvedTotal - paidAmount) : 0;
+      const resolvedChange = isDebt ? 0 : Math.max(0, Number(paymentData.change ?? (paidAmount - resolvedTotal)) || 0);
+      const invoiceStatus = isDebt ? (debtAmount >= resolvedTotal ? 'Ghi nợ' : 'Nợ một phần') : 'Đã thanh toán';
 
       const invoice = {
         IDHD: invoiceId,
         IDHOADON: invoiceId,
         'Thời gian': formatToVietnameseDateTime(new Date()),
         'Tổng số lượng': cart.reduce((sum, item) => sum + item.quantity, 0),
-        'Tổng tiền': paymentData.total,
+        'Tổng tiền': resolvedSubtotal,
+        'VAT': resolvedVat,
+        'Giảm giá': totalDiscount,
         'Ghi chú': paymentData.note || '',
         'Mã bàn': selectedTableId || 'Khách mua về',
-        'Thu ngân': nhanvien,
+        'Thu ngân': activeCashier,
+        'Nhân viên': activeCashier,
         'Trạng thái': invoiceStatus,
         'Hình thức thanh toán': payType,
         'Loại thanh toán': payType,
         'Mã khách hàng': selectedCustomer ? (selectedCustomer.IDKHACHHANG || selectedCustomer.IDKH || '') : '',
         'Tên khách hàng': selectedCustomer ? selectedCustomer['Tên khách hàng'] : 'Khách lẻ',
         'Số điện thoại': selectedCustomer ? selectedCustomer['Số điện thoại'] : '',
-        'Ưu đãi': paymentData.customerDiscount || 0,
+        'Ưu đãi': totalDiscount,
         'Tiền khách đưa': paidAmount,
         'Khách trả': paidAmount,
-        'Tiền thối': isDebt ? 0 : (paymentData.change || 0),
-        'Tiền thừa': isDebt ? 0 : (paymentData.change || 0),
+        'Tiền thối': resolvedChange,
+        'Tiền thừa': resolvedChange,
         'Tiền nợ': debtAmount,
         'Đã thanh toán': paidAmount
       };
 
-      const details = cart.map(item => ({
+      const details = cart.map((item, idx) => ({
+        IDHOADONDETAIL: `${invoiceId}_${item.id}_${idx + 1}`,
         IDHD: invoiceId,
+        IDHOADON: invoiceId,
         IDSP: item.id,
+        'Tên sản phẩm': item.name,
+        'Đơn vị tính': item.unit || 'Ly',
         'Số lượng': item.quantity,
         'Đơn giá': item.price,
         'Thành tiền': item.price * item.quantity,
@@ -1161,17 +1265,17 @@ export const usePOS = () => {
         details,
         linkedOrderIds: activePOSOrderIds,
         orderIds: activePOSOrderIds,
-        totalAmount: paymentData.total,
-        employee: nhanvien,
+        totalAmount: resolvedSubtotal,
+        employee: activeCashier,
         idempotencyKey: invoiceId,
         paymentForm: {
           customer: selectedCustomer ? selectedCustomer['Tên khách hàng'] : 'Khách lẻ',
-          discount: paymentData.customerDiscount || 0,
+          discount: totalDiscount,
           paidAmount,
           note: paymentData.note || '',
           paymentType: payType,
           debtAmount,
-          totalAmount: paymentData.total,
+          totalAmount: resolvedSubtotal,
         },
       };
 
@@ -1206,22 +1310,24 @@ export const usePOS = () => {
         }
       }
 
-      // Cập nhật đồng bộ cache offline / in-memory để báo cáo đọc mượt
-      try {
-        await saveInvoice(invoice, details);
-      } catch (cacheErr) {
-        console.warn('Lỗi đồng bộ cache hóa đơn:', cacheErr);
+      // Chỉ lưu cục bộ qua saveInvoice khi giao dịch rơi vào chế độ ngoại tuyến (tránh nhân đôi HOADONDETAIL & trừ kho 2 lần)
+      if (isOfflineTransaction) {
+        try {
+          await saveInvoice(invoice, details);
+        } catch (cacheErr) {
+          console.warn('Lỗi đồng bộ cache hóa đơn ngoại tuyến:', cacheErr);
+        }
       }
 
       if (selectedCustomer) {
-        await updateCustomerAfterPurchase(selectedCustomer, paymentData.total, invoiceId, debtAmount);
+        await updateCustomerAfterPurchase(selectedCustomer, resolvedTotal, invoiceId, debtAmount);
       }
 
       try {
         const receiptData = {
           receiptNumber: invoiceId,
           date: new Date(),
-          cashier: nhanvien,
+          cashier: activeCashier,
           customer: selectedCustomer ? selectedCustomer['Tên khách hàng'] : 'Khách lẻ',
           customerInfo: selectedCustomer ? {
             name: selectedCustomer['Tên khách hàng'],
@@ -1237,13 +1343,14 @@ export const usePOS = () => {
             total: item.price * item.quantity,
             notes: item.note
           })),
-          subtotal: paymentData.subtotal,
-          vat: paymentData.vat,
-          discount: paymentData.customerDiscount || 0,
-          total: paymentData.total,
-          paid: paymentData.paidAmount,
-          change: paymentData.change,
-          paymentMethod: paymentData.paymentMethod || 'Tiền mặt',
+          subtotal: resolvedSubtotal,
+          vat: resolvedVat,
+          discount: totalDiscount,
+          total: resolvedTotal,
+          paid: paidAmount,
+          change: resolvedChange,
+          paymentType: payType,
+          paymentMethod: payType,
           notes: paymentData.note
         };
 
@@ -1312,7 +1419,7 @@ export const usePOS = () => {
     } finally {
       setIsProcessingPayment(false);
     }
-  }, [cart, selectedTableId, selectedTableName, nhanvien, selectedCustomer, activePOSOrderIds, saveInvoice, updateCustomerAfterPurchase, clearSharedCartDraft, activeOrders, setActiveOrders, updateTableStatus, clearLocalCart, showNotification, showLoading, cancelPendingAutosave]);
+  }, [cart, selectedTableId, selectedTableName, nhanvien, selectedCustomer, activePOSOrderIds, saveInvoice, updateCustomerAfterPurchase, clearSharedCartDraft, activeOrders, setActiveOrders, updateTableStatus, clearLocalCart, showNotification, showLoading, cancelPendingAutosave, isVatFeatureEnabled, vatSettings]);
 
   // Data synchronization (Mục #18 & Tối ưu thông báo số lượng chi tiết)
   const syncData = useCallback(async () => {
@@ -1436,9 +1543,10 @@ export const usePOS = () => {
     };
   }, []);
 
-  // Calculate totals (Tính VAT động theo cấu hình hệ thống - Mục #4)
-  const vatSettings = getVatSettings();
-  const vatRate = vatSettings.enabled ? (vatSettings.ratePercent / 100) : 0;
+  // Calculate totals (Mặc định VAT = 0% trừ khi bật công tắc enableVat trong Feature Flags)
+  const vatRate = isVatFeatureEnabled
+    ? ((vatSettings.enabled && vatSettings.ratePercent > 0 ? vatSettings.ratePercent : 10) / 100)
+    : 0;
   const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const vat = subtotal * vatRate;
   let total = subtotal + vat;
@@ -1516,6 +1624,7 @@ export const usePOS = () => {
     resetFilters,
     updateCartItemNote,
     updateItemsPrintStatus,
+    updateItemsKitchenStatus,
     sendToKitchen,
     settleQrOrder,
     acceptQrOrder,
@@ -1526,6 +1635,7 @@ export const usePOS = () => {
     total: finalTotal,
     customerDiscount,
     selectedTableName,
+    nhanvien,
 
     // Utilities
     showNotification

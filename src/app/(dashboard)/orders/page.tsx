@@ -15,11 +15,77 @@ import { InvoiceDetailsModal } from './components/InvoiceDetailsModal';
 import { CancelInvoiceModal } from './components/CancelInvoiceModal';
 import { printReceipt } from './utils/invoicePrint';
 import { INVOICE_STATUS, PAYMENT_METHODS } from './utils/invoiceConstants';
-import type { Invoice } from './types/invoice';
+import type { Invoice, InvoiceDetail } from './types/invoice';
 import authUtils from '@/utils/authUtils';
 import toast from 'react-hot-toast';
 import { ExportDropdownButton } from '@/components/ExportDropdownButton';
 import { useTodayOrdersContext } from '@/context/TodayOrdersContext';
+
+/**
+ * Khử trùng lặp các bản ghi HOADONDETAIL cũ bị nhân đôi do lỗi gọi saveInvoice sau checkout
+ * (ví dụ: `${invoiceId}_${IDSP}` vs `${invoiceId}_${IDSP}_xxxx` có cùng thông tin món).
+ */
+function deduplicateInvoiceDetails(details: InvoiceDetail[]): InvoiceDetail[] {
+  if (!Array.isArray(details) || details.length <= 1) return details || [];
+
+  const seenIds = new Set<string>();
+  const uniqueById: InvoiceDetail[] = [];
+  for (const d of details) {
+    const id = String(d?.IDHOADONDETAIL || '').trim();
+    if (id && seenIds.has(id)) continue;
+    if (id) seenIds.add(id);
+    uniqueById.push(d);
+  }
+
+  const groups = new Map<string, InvoiceDetail[]>();
+  for (const d of uniqueById) {
+    const invId = String(d?.IDHOADON || (d as any)?.IDHD || '').trim();
+    const spId = String(d?.IDSP || '').trim();
+    const price = Number(d?.['Đơn giá']) || 0;
+    const qty = Number(d?.['Số lượng']) || 0;
+    const note = String(d?.['Ghi chú'] || '').trim();
+    const sig = `${invId}::${spId}::${price}::${qty}::${note}`;
+    const list = groups.get(sig) || [];
+    list.push(d);
+    groups.set(sig, list);
+  }
+
+  const deduped: InvoiceDetail[] = [];
+  for (const group of groups.values()) {
+    if (group.length === 1) {
+      deduped.push(group[0]);
+      continue;
+    }
+
+    const invId = String(group[0]?.IDHOADON || (group[0] as any)?.IDHD || '').trim();
+    const spId = String(group[0]?.IDSP || '').trim();
+    const baseId = `${invId}_${spId}`;
+    const escapedBase = baseId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const legacySuffixRegex = new RegExp(`^${escapedBase}_\\d{4,}$`);
+    const canonicalSeqRegex = new RegExp(`^${escapedBase}_\\d{1,3}$`);
+
+    const hasCanonical = group.some((d) => {
+      const id = String(d?.IDHOADONDETAIL || '').trim();
+      return id === baseId || canonicalSeqRegex.test(id);
+    });
+    const hasLegacySuffix = group.some((d) =>
+      legacySuffixRegex.test(String(d?.IDHOADONDETAIL || '').trim())
+    );
+
+    if (hasCanonical && hasLegacySuffix) {
+      const kept = group.filter(
+        (d) => !legacySuffixRegex.test(String(d?.IDHOADONDETAIL || '').trim())
+      );
+      deduped.push(...(kept.length > 0 ? kept : [group[0]]));
+    } else if (group.every((d) => legacySuffixRegex.test(String(d?.IDHOADONDETAIL || '').trim()))) {
+      deduped.push(group[0]);
+    } else {
+      deduped.push(...group);
+    }
+  }
+
+  return deduped;
+}
 
 export default function InvoiceManagementPage() {
   const router = useRouter();
@@ -114,7 +180,8 @@ export default function InvoiceManagementPage() {
 
   const handlePrintInvoice = async (invoice: Invoice) => {
     try {
-      const details = await fetchInvoiceDetails(invoice.IDHOADON);
+      const rawDetails = await fetchInvoiceDetails(invoice.IDHOADON);
+      const details = deduplicateInvoiceDetails(rawDetails);
       await printReceipt(invoice, details);
       toast.success('In hóa đơn thành công!');
     } catch (error) {
@@ -190,6 +257,12 @@ export default function InvoiceManagementPage() {
     () => exportRows.reduce((sum, r) => sum + r.ThanhTien, 0),
     [exportRows]
   );
+
+  const selectedInvoiceDetails = useMemo(() => {
+    if (!selectedInvoice) return [];
+    const raw = invoiceDetails.get(selectedInvoice.IDHOADON) || [];
+    return deduplicateInvoiceDetails(raw);
+  }, [selectedInvoice, invoiceDetails]);
 
   if (loading) {
     return (
@@ -346,7 +419,7 @@ export default function InvoiceManagementPage() {
       {/* Details Modal */}
       <InvoiceDetailsModal
         invoice={selectedInvoice}
-        details={selectedInvoice ? invoiceDetails.get(selectedInvoice.IDHOADON) || [] : []}
+        details={selectedInvoiceDetails}
         isOpen={showDetailsModal}
         onClose={() => {
           setShowDetailsModal(false);

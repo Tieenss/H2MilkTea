@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminSupabaseClient, getAuthenticatedStaff } from '@/lib/supabase/server';
 import dmhhData from '@/data/DMHH.json';
+import { parseFlexibleDecimal, validateDiscountInput } from '@/utils/numberValidation';
 
 interface CheckoutBody {
   tableId?: string;
@@ -97,7 +98,7 @@ export async function POST(request: NextRequest) {
 
     const staffName = staff.user_metadata?.name || staff.user_metadata?.username || staff.email || 'Thu ngân';
     const customer = paymentForm?.customer || body.invoice?.['Khách hàng'] || body.invoice?.['Tên khách hàng'] || 'Khách lẻ';
-    const discount = Number(paymentForm?.discount ?? body.invoice?.['Giảm giá'] ?? body.invoice?.['Ưu đãi'] ?? 0);
+    const rawDiscount = paymentForm?.discount ?? body.invoice?.['Giảm giá'] ?? body.invoice?.['Ưu đãi'] ?? 0;
     const cartSubtotal = rawCart.reduce(
       (sum, item) => sum + Number(item.price ?? item['Đơn giá'] ?? 0) * Number(item.quantity ?? item['Số lượng'] ?? 1),
       0
@@ -109,9 +110,18 @@ export async function POST(request: NextRequest) {
     const total = Number(
       paymentForm?.totalAmount ?? body.totalAmount ?? body.invoice?.['Tổng tiền'] ?? cartSubtotal
     );
-    const vat = Number(body.invoice?.['VAT'] || 0);
-    // Trong usePOS.ts, body.totalAmount / body.invoice['Tổng tiền'] đã bao gồm VAT và trừ giảm giá (finalTotal).
-    // Nếu không truyền VAT riêng, không cộng/trừ trùng để tránh lệch finalAmount.
+    const vat = Number(body.invoice?.['VAT'] ?? 0);
+
+    const discountValidation = validateDiscountInput(rawDiscount, Math.max(0, total + vat));
+    if (!discountValidation.valid) {
+      return NextResponse.json(
+        { success: false, error: discountValidation.error || 'Số tiền giảm giá không hợp lệ.' },
+        { status: 400 }
+      );
+    }
+    const discount = discountValidation.value;
+
+    // Trong usePOS.ts, body.totalAmount / body.invoice['Tổng tiền'] có thể truyền subtotal (nếu kèm VAT) hoặc finalTotal.
     const finalAmount = hasExplicitTotal
       ? body.invoice?.['VAT'] !== undefined
         ? Math.max(0, total + vat - discount)
@@ -145,6 +155,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Dịch vụ dữ liệu chưa sẵn sàng.' }, { status: 503 });
     }
 
+    // Truy vấn danh mục DMHH, CAUHINH, NGUYENLIEU từ Supabase trước (chỉ dùng dmhhData làm fallback nếu DB trống)
+    const [{ data: liveDmhh }, { data: liveCauhinh }, { data: liveNguyenlieu }] = await Promise.all([
+      supabase.from('DMHH').select('*'),
+      supabase.from('CAUHINH').select('*'),
+      supabase.from('NGUYENLIEU').select('*'),
+    ]);
+
+    const resolvedCatalogMap = new Map<string, { name: string; unit: string }>(productCatalogMap);
+    if (Array.isArray(liveDmhh) && liveDmhh.length > 0) {
+      for (const item of liveDmhh as any[]) {
+        const id = String(item?.IDSP || '').trim();
+        if (id) {
+          resolvedCatalogMap.set(id, {
+            name: String(item?.['Tên sản phẩm'] || resolvedCatalogMap.get(id)?.name || '').trim(),
+            unit: String(item?.['Đơn vị tính'] || resolvedCatalogMap.get(id)?.unit || 'Ly').trim() || 'Ly',
+          });
+        }
+      }
+    }
+
     const change =
       body.invoice?.['Tiền thừa'] !== undefined
         ? Number(body.invoice['Tiền thừa'])
@@ -156,30 +186,6 @@ export async function POST(request: NextRequest) {
 
     const resolvedTableId = tableId || body.invoice?.['Mã bàn'] || body.invoice?.IDBAN || 'Khách mua về';
 
-    // Chuẩn bị payload hóa đơn theo đúng schema bảng HOADON (TUYỆT ĐỐI không spread ...body.invoice)
-    const invoiceRecord: Record<string, any> = {
-      IDHOADON: invoiceId,
-      IDBAN: resolvedTableId,
-      "Nhân viên": body.invoice?.['Nhân viên'] || body.invoice?.['Thu ngân'] || body.employee || staffName,
-      "Khách hàng": customer || body.invoice?.['Khách hàng'] || body.invoice?.['Tên khách hàng'] || 'Khách lẻ',
-      "Ngày": body.invoice?.['Ngày'] || formatDate(new Date()),
-      "Tổng tiền": total,
-      "VAT": vat,
-      "Giảm giá": discount || Number(body.invoice?.['Ưu đãi'] || 0),
-      "Khách trả": paidAmount,
-      "Tiền thừa": change,
-      "Ghi chú": note,
-      "Trạng thái": body.invoice?.['Trạng thái'] || (isDebt ? 'Ghi nợ' : 'Đã thanh toán'),
-      "Trạng thái sự dụng bàn":
-        body.invoice?.['Trạng thái sự dụng bàn'] ||
-        (tableName === 'Khách mua về' || resolvedTableId === 'Khách mua về' ? 'Mang về' : 'Đã trả bàn'),
-      "Loại thanh toán": paymentType,
-      "Hóa đơn chi tiết": rawCart
-        .map((item: any, idx: number) => `${invoiceId}_${item.id || item.IDSP || idx + 1}`)
-        .join(' , '),
-    };
-    delete invoiceRecord.idempotency_key;
-
     // Chuẩn bị danh sách chi tiết hóa đơn: chỉ giữ đúng 9 cột hợp lệ của bảng HOADONDETAIL
     const sourceDetails = Array.isArray(body.details) && body.details.length > 0 ? body.details : rawCart;
     const detailsRecords = sourceDetails.map((d: any, idx: number) => {
@@ -187,7 +193,7 @@ export async function POST(request: NextRequest) {
       const matchedCartItem =
         rawCart.find((c: any) => String(c?.id || c?.IDSP || '').trim() === rawId) || rawCart[idx] || {};
       const resolvedId = rawId || String(matchedCartItem?.id || matchedCartItem?.IDSP || idx + 1).trim();
-      const catalogItem = productCatalogMap.get(resolvedId);
+      const catalogItem = resolvedCatalogMap.get(resolvedId);
 
       const productName =
         String(
@@ -217,7 +223,7 @@ export async function POST(request: NextRequest) {
       const itemNote = String(d?.['Ghi chú'] ?? d?.note ?? matchedCartItem?.note ?? matchedCartItem?.['Ghi chú'] ?? '');
 
       return {
-        IDHOADONDETAIL: String(d?.IDHOADONDETAIL || `${invoiceId}_${resolvedId}`),
+        IDHOADONDETAIL: String(d?.IDHOADONDETAIL || `${invoiceId}_${resolvedId}_${idx + 1}`),
         IDHOADON: invoiceId,
         IDSP: resolvedId,
         "Tên sản phẩm": productName,
@@ -228,6 +234,28 @@ export async function POST(request: NextRequest) {
         "Ghi chú": itemNote,
       };
     });
+
+    // Chuẩn bị payload hóa đơn theo đúng schema bảng HOADON (TUYỆT ĐỐI không spread ...body.invoice)
+    const invoiceRecord: Record<string, any> = {
+      IDHOADON: invoiceId,
+      IDBAN: resolvedTableId,
+      "Nhân viên": body.invoice?.['Nhân viên'] || body.invoice?.['Thu ngân'] || body.employee || staffName,
+      "Khách hàng": customer || body.invoice?.['Khách hàng'] || body.invoice?.['Tên khách hàng'] || 'Khách lẻ',
+      "Ngày": body.invoice?.['Ngày'] || formatDate(new Date()),
+      "Tổng tiền": total,
+      "VAT": vat,
+      "Giảm giá": discount,
+      "Khách trả": paidAmount,
+      "Tiền thừa": change,
+      "Ghi chú": note,
+      "Trạng thái": body.invoice?.['Trạng thái'] || (isDebt ? 'Ghi nợ' : 'Đã thanh toán'),
+      "Trạng thái sự dụng bàn":
+        body.invoice?.['Trạng thái sự dụng bàn'] ||
+        (tableName === 'Khách mua về' || resolvedTableId === 'Khách mua về' ? 'Mang về' : 'Đã trả bàn'),
+      "Loại thanh toán": paymentType,
+      "Hóa đơn chi tiết": detailsRecords.map((d) => d.IDHOADONDETAIL).join(' , '),
+    };
+    delete invoiceRecord.idempotency_key;
 
     // 1. Thử gọi RPC pos_pay_order trong Postgres (Single-transaction)
     try {
@@ -292,11 +320,69 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Không thể lưu hóa đơn: ' + invoiceError.message }, { status: 500 });
     }
 
-    // 2.3 Bulk insert chi tiết hóa đơn
-    const { error: detailsError } = await supabase.from('HOADONDETAIL').insert(detailsRecords);
+    // 2.3 Upsert chi tiết hóa đơn theo IDHOADONDETAIL để đảm bảo không bao giờ nhân đôi dòng
+    const detailsTable = supabase.from('HOADONDETAIL') as any;
+    const { error: detailsError } =
+      typeof detailsTable.upsert === 'function'
+        ? await detailsTable.upsert(detailsRecords, { onConflict: 'IDHOADONDETAIL' })
+        : await detailsTable.insert(detailsRecords);
     if (detailsError) {
-      console.error('Lỗi insert HOADONDETAIL:', detailsError);
+      console.error('Lỗi upsert HOADONDETAIL:', detailsError);
       return NextResponse.json({ success: false, error: 'Không thể lưu chi tiết hóa đơn: ' + detailsError.message }, { status: 500 });
+    }
+
+    // 2.3b Khấu trừ tồn kho BOM nguyên liệu theo CAUHINH đúng 01 lần duy nhất cho số lượng bán
+    // (Chỉ cập nhật NGUYENLIEU['Số lượng tồn'] nếu cột này tồn tại trên DB; không ghi đúp NHAPXUATKHO vì useMaterialInventory đã trừ theo HOADONDETAIL)
+    if (Array.isArray(liveCauhinh) && liveCauhinh.length > 0 && Array.isArray(liveNguyenlieu) && liveNguyenlieu.length > 0) {
+      try {
+        const materialUsageMap = new Map<string, number>();
+        for (const detail of detailsRecords) {
+          const soldQty = Number(detail['Số lượng']) || 0;
+          if (soldQty <= 0) continue;
+          const productConfigs = liveCauhinh.filter(
+            (cfg: any) => String(cfg?.IDSP || '').trim() === detail.IDSP && cfg?.['Trạng thái'] !== 'Ngừng hoạt động'
+          );
+          for (const cfg of productConfigs) {
+            const idNVL = String(cfg?.IDNguyenLieu || '').trim();
+            if (!idNVL) continue;
+            const convertedQty = parseFlexibleDecimal(cfg['Số lượng quy đổi']);
+            const baseNeededQty = parseFlexibleDecimal(cfg['Số lượng cần']);
+            const amountPerUnit =
+              !Number.isNaN(convertedQty) && convertedQty > 0
+                ? convertedQty
+                : !Number.isNaN(baseNeededQty) && baseNeededQty > 0
+                  ? baseNeededQty
+                  : 0;
+            if (amountPerUnit > 0) {
+              materialUsageMap.set(idNVL, (materialUsageMap.get(idNVL) || 0) + soldQty * amountPerUnit);
+            }
+          }
+        }
+
+        if (materialUsageMap.size > 0) {
+          const materialMap = new Map<string, any>();
+          for (const mat of liveNguyenlieu as any[]) {
+            const id = String(mat?.IDNguyenLieu || '').trim();
+            if (id) materialMap.set(id, mat);
+          }
+
+          for (const [idNVL, usedAmount] of materialUsageMap.entries()) {
+            const mat = materialMap.get(idNVL);
+            if (mat && Object.prototype.hasOwnProperty.call(mat, 'Số lượng tồn') && mat['Số lượng tồn'] !== undefined) {
+              const currentStock = parseFlexibleDecimal(mat['Số lượng tồn']);
+              if (!Number.isNaN(currentStock)) {
+                const nextStock = Math.max(0, Math.round((currentStock - usedAmount) * 1000) / 1000);
+                await supabase
+                  .from('NGUYENLIEU')
+                  .update({ 'Số lượng tồn': nextStock })
+                  .eq('IDNguyenLieu', idNVL);
+              }
+            }
+          }
+        }
+      } catch (bomErr) {
+        console.warn('Khấu trừ tồn kho BOM (fallback) gặp cảnh báo:', bomErr);
+      }
     }
 
     // 2.4 Cập nhật trạng thái bàn về 'Trống'

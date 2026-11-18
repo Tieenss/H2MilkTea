@@ -99,10 +99,18 @@ export function SupplierFormModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const validation = validateSupplierForm(formData);
-    if (!validation.isValid) {
-      setErrors(validation.errors);
+    const allErrors = [...validation.errors];
+
+    // Kiểm tra thêm định dạng số điện thoại (9-11 chữ số)
+    const phoneDigits = (formData.SoDienThoai || '').replace(/[\s.-]/g, '');
+    if (formData.SoDienThoai?.trim() && !/^(0|\+84)[0-9]{8,10}$/.test(phoneDigits)) {
+      allErrors.push('Số điện thoại không đúng định dạng (ví dụ: 0901234567)');
+    }
+
+    if (allErrors.length > 0) {
+      setErrors(allErrors);
       return;
     }
 
@@ -123,25 +131,28 @@ export function SupplierFormModal({
     }
   };
 
+  const lightInputClass =
+    'bg-white text-slate-900 border-slate-300 placeholder:text-slate-400 focus-visible:ring-indigo-500 dark:bg-white dark:text-slate-900 dark:border-slate-300';
+
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-white text-slate-900 border-slate-200 dark:bg-white dark:text-slate-900 dark:border-slate-200 shadow-xl">
         <DialogHeader>
-          <DialogTitle>
+          <DialogTitle className="text-slate-900 dark:text-slate-900">
             {isEditing ? 'Chỉnh sửa Nhà cung cấp' : 'Thêm Nhà cung cấp mới'}
           </DialogTitle>
-          <DialogDescription>
-            {isEditing 
+          <DialogDescription className="text-slate-500 dark:text-slate-500">
+            {isEditing
               ? 'Cập nhật thông tin nhà cung cấp'
               : 'Nhập thông tin chi tiết của nhà cung cấp mới'
             }
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6 text-slate-900">
           {/* Error messages */}
           {errors.length > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-md p-4">
+            <div className="bg-red-50 border border-red-200 rounded-md p-4" role="alert">
               <h4 className="text-sm font-medium text-red-800 mb-2">Có lỗi xảy ra:</h4>
               <ul className="text-sm text-red-700 space-y-1">
                 {errors.map((error, index) => (
@@ -153,128 +164,136 @@ export function SupplierFormModal({
 
           {/* Basic Information */}
           <div className="space-y-4">
-            <h3 className="text-lg font-medium">Thông tin cơ bản</h3>
-            
+            <h3 className="text-lg font-medium text-slate-900">Thông tin cơ bản</h3>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="tenNhaCungCap">Tên nhà cung cấp *</Label>
+                <Label htmlFor="tenNhaCungCap" className="text-slate-700">Tên nhà cung cấp *</Label>
                 <Input
                   id="tenNhaCungCap"
                   value={formData.TenNhaCungCap}
                   onChange={(e) => handleInputChange('TenNhaCungCap', e.target.value)}
                   placeholder="Nhập tên nhà cung cấp"
+                  className={lightInputClass}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="maSoThue">Mã số thuế *</Label>
+                <Label htmlFor="maSoThue" className="text-slate-700">Mã số thuế *</Label>
                 <Input
                   id="maSoThue"
                   value={formData.MaSoThue}
                   onChange={(e) => handleInputChange('MaSoThue', e.target.value)}
                   placeholder="Nhập mã số thuế"
+                  className={lightInputClass}
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="diaChi">Địa chỉ *</Label>
+              <Label htmlFor="diaChi" className="text-slate-700">Địa chỉ *</Label>
               <Input
                 id="diaChi"
                 value={formData.DiaChi}
                 onChange={(e) => handleInputChange('DiaChi', e.target.value)}
                 placeholder="Nhập địa chỉ đầy đủ"
+                className={lightInputClass}
               />
             </div>
           </div>
 
           {/* Contact Information */}
           <div className="space-y-4">
-            <h3 className="text-lg font-medium">Thông tin liên hệ</h3>
-            
+            <h3 className="text-lg font-medium text-slate-900">Thông tin liên hệ</h3>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="soDienThoai">Số điện thoại *</Label>
+                <Label htmlFor="soDienThoai" className="text-slate-700">Số điện thoại *</Label>
                 <Input
                   id="soDienThoai"
                   value={formData.SoDienThoai}
                   onChange={(e) => handleInputChange('SoDienThoai', e.target.value)}
                   placeholder="Nhập số điện thoại"
+                  className={lightInputClass}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="email">Email *</Label>
+                <Label htmlFor="email" className="text-slate-700">Email *</Label>
                 <Input
                   id="email"
                   type="email"
                   value={formData.Email}
                   onChange={(e) => handleInputChange('Email', e.target.value)}
                   placeholder="Nhập email"
+                  className={lightInputClass}
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="nguoiDaiDien">Người đại diện *</Label>
+                <Label htmlFor="nguoiDaiDien" className="text-slate-700">Người đại diện *</Label>
                 <Input
                   id="nguoiDaiDien"
                   value={formData.NguoiDaiDien}
                   onChange={(e) => handleInputChange('NguoiDaiDien', e.target.value)}
                   placeholder="Nhập tên người đại diện"
+                  className={lightInputClass}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="soDienThoaiLienHe">SĐT liên hệ</Label>
+                <Label htmlFor="soDienThoaiLienHe" className="text-slate-700">SĐT liên hệ</Label>
                 <Input
                   id="soDienThoaiLienHe"
                   value={formData.SoDienThoaiLienHe}
                   onChange={(e) => handleInputChange('SoDienThoaiLienHe', e.target.value)}
                   placeholder="Nhập số điện thoại liên hệ"
+                  className={lightInputClass}
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="emailLienHe">Email liên hệ</Label>
+              <Label htmlFor="emailLienHe" className="text-slate-700">Email liên hệ</Label>
               <Input
                 id="emailLienHe"
                 type="email"
                 value={formData.EmailLienHe}
                 onChange={(e) => handleInputChange('EmailLienHe', e.target.value)}
                 placeholder="Nhập email liên hệ"
+                className={lightInputClass}
               />
             </div>
           </div>
 
           {/* Business Information */}
           <div className="space-y-4">
-            <h3 className="text-lg font-medium">Thông tin kinh doanh</h3>
-            
+            <h3 className="text-lg font-medium text-slate-900">Thông tin kinh doanh</h3>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="ngayHopTac">Ngày hợp tác</Label>
+                <Label htmlFor="ngayHopTac" className="text-slate-700">Ngày hợp tác</Label>
                 <div className="relative">
-                  <Calendar className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Calendar className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                   <Input
                     id="ngayHopTac"
                     value={formData.NgayHopTac}
                     onChange={(e) => handleInputChange('NgayHopTac', e.target.value)}
                     placeholder="dd/mm/yyyy"
-                    className="pl-10"
+                    className={`pl-10 ${lightInputClass}`}
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="trangThai">Trạng thái</Label>
+                <Label htmlFor="trangThai" className="text-slate-700">Trạng thái</Label>
                 <Select value={formData.TrangThai} onValueChange={(value) => handleInputChange('TrangThai', value)}>
-                  <SelectTrigger>
+                  <SelectTrigger className={lightInputClass}>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-white text-slate-900 border-slate-200">
                     {SUPPLIER_STATUS.map(status => (
                       <SelectItem key={status.value} value={status.value}>
                         {status.label}
@@ -285,12 +304,12 @@ export function SupplierFormModal({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="danhGia">Đánh giá</Label>
+                <Label htmlFor="danhGia" className="text-slate-700">Đánh giá</Label>
                 <Select value={formData.DanhGia.toString()} onValueChange={(value) => handleInputChange('DanhGia', parseInt(value))}>
-                  <SelectTrigger>
+                  <SelectTrigger className={lightInputClass}>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-white text-slate-900 border-slate-200">
                     {[5, 4, 3, 2, 1].map(rating => (
                       <SelectItem key={rating} value={rating.toString()}>
                         {rating} sao
@@ -303,12 +322,12 @@ export function SupplierFormModal({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="thoiGianGiaoHang">Thời gian giao hàng</Label>
+                <Label htmlFor="thoiGianGiaoHang" className="text-slate-700">Thời gian giao hàng</Label>
                 <Select value={formData.ThoiGianGiaoHang} onValueChange={(value) => handleInputChange('ThoiGianGiaoHang', value)}>
-                  <SelectTrigger>
+                  <SelectTrigger className={lightInputClass}>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-white text-slate-900 border-slate-200">
                     {DELIVERY_TIMES.map(time => (
                       <SelectItem key={time} value={time}>
                         {time}
@@ -319,12 +338,12 @@ export function SupplierFormModal({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="phuongThucThanhToan">Phương thức thanh toán</Label>
+                <Label htmlFor="phuongThucThanhToan" className="text-slate-700">Phương thức thanh toán</Label>
                 <Select value={formData.PhuongThucThanhToan} onValueChange={(value) => handleInputChange('PhuongThucThanhToan', value)}>
-                  <SelectTrigger>
+                  <SelectTrigger className={lightInputClass}>
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-white text-slate-900 border-slate-200">
                     {PAYMENT_METHODS.map(method => (
                       <SelectItem key={method} value={method}>
                         {method}
@@ -336,23 +355,24 @@ export function SupplierFormModal({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="ghiChu">Ghi chú</Label>
+              <Label htmlFor="ghiChu" className="text-slate-700">Ghi chú</Label>
               <Textarea
                 id="ghiChu"
                 value={formData.GhiChu}
                 onChange={(e) => handleInputChange('GhiChu', e.target.value)}
                 placeholder="Nhập ghi chú về nhà cung cấp"
                 rows={3}
+                className={lightInputClass}
               />
             </div>
           </div>
 
           {/* Form Actions */}
-          <div className="flex justify-end gap-3 pt-6 border-t">
-            <Button type="button" variant="outline" onClick={handleClose} disabled={isSubmitting}>
+          <div className="flex justify-end gap-3 pt-6 border-t border-slate-200">
+            <Button type="button" variant="outline" onClick={handleClose} disabled={isSubmitting} className="bg-white text-slate-700 border-slate-300 hover:bg-slate-50">
               Hủy
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting} className="bg-indigo-600 hover:bg-indigo-700 text-white">
               {isSubmitting ? 'Đang lưu...' : (isEditing ? 'Cập nhật' : 'Thêm mới')}
             </Button>
           </div>

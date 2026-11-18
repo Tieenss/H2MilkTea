@@ -412,6 +412,29 @@ const SettingDataPage = () => {
     }
   };
 
+  // Seed 60-day synchronized test database
+  const handleSeedSynchronizedData = async () => {
+    try {
+      setLoading(true);
+      const result = AuthUtils.seedSynchronizedTestDatabase();
+      if (result?.success) {
+        setMessage({ type: 'success', text: result.message });
+        toast.success(result.message);
+        await loadData();
+      } else {
+        const errMsg = result?.message || 'Không thể đồng bộ dữ liệu mẫu 60 ngày';
+        setMessage({ type: 'error', text: errMsg });
+        toast.error(errMsg);
+      }
+    } catch (error) {
+      const errMsg = 'Lỗi đồng bộ dữ liệu mẫu: ' + (error as Error).message;
+      setMessage({ type: 'error', text: errMsg });
+      toast.error(errMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Force reload
   const handleForceReload = async () => {
     try {
@@ -752,7 +775,17 @@ const SettingDataPage = () => {
                   </div>
                 </div>
 
-                <div className="pt-4 border-t">
+                <div className="pt-4 border-t space-y-2.5">
+                  <Button
+                    type="button"
+                    onClick={handleSeedSynchronizedData}
+                    disabled={loading}
+                    className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold"
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                    🔄 Đồng bộ dữ liệu mẫu 60 ngày
+                  </Button>
+
                   <Button 
                     onClick={async () => {
                       try {
@@ -848,6 +881,26 @@ const SettingDataPage = () => {
         </TabsContent>
          {/* Updated Management Tab */}
         <TabsContent value="management" className="space-y-4">
+          <Card className="border-indigo-200 bg-gradient-to-r from-indigo-50/90 to-purple-50/90">
+            <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-indigo-950">Khởi tạo & Đồng bộ dữ liệu mẫu kiểm thử (60 ngày)</h3>
+                <p className="text-xs text-indigo-700">
+                  Tạo đầy đủ hóa đơn, chi tiết bán hàng, BOM nguyên liệu và dữ liệu kho đồng bộ trong 60 ngày gần nhất.
+                </p>
+              </div>
+              <Button
+                type="button"
+                onClick={handleSeedSynchronizedData}
+                disabled={loading}
+                className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold shrink-0"
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                🔄 Đồng bộ dữ liệu mẫu 60 ngày
+              </Button>
+            </CardContent>
+          </Card>
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Import/Export JSON */}
             <Card>

@@ -8,7 +8,8 @@ export type SystemFeatureKey =
   | 'pos_ai_assistant'
   | 'pos_offline_queue'
   | 'pos_kitchen_print'
-  | 'pos_customer_Create';
+  | 'pos_customer_Create'
+  | 'enableVat';
 
 export type FeatureCategory = 'POS & Bán hàng' | 'Bếp & QR' | 'Hệ thống & AI';
 
@@ -93,6 +94,15 @@ export const SYSTEM_FEATURE_DEFINITIONS: FeatureFlagItem[] = [
     allowedRoles: [...DEFAULT_ALLOWED_ROLES],
   },
   {
+    key: 'enableVat',
+    name: 'Thuế VAT mặc định (10%)',
+    description:
+      'Áp dụng thuế giá trị gia tăng (VAT 10%) mặc định trên hóa đơn POS và đơn QR. Mặc định tắt (0%) để phù hợp vận hành thực tế tại quán.',
+    category: 'POS & Bán hàng',
+    enabledGlobally: false,
+    allowedRoles: [...DEFAULT_ALLOWED_ROLES],
+  },
+  {
     key: 'pos_qr_inbox',
     name: 'Tiếp nhận đơn QR tại bàn',
     description:
@@ -156,6 +166,15 @@ export function normalizeFeatureConfig(raw?: Partial<SystemFeaturesPayload> | nu
     for (const item of SYSTEM_FEATURE_DEFINITIONS) {
       if (typeof raw.flags[item.key] === 'boolean') {
         base.flags[item.key] = raw.flags[item.key];
+      }
+    }
+    // Hỗ trợ alias defaultVatEnabled / enable_vat nếu có cấu hình cũ
+    const rawFlagsAny = raw.flags as Record<string, any>;
+    if (typeof rawFlagsAny.enableVat !== 'boolean') {
+      if (typeof rawFlagsAny.defaultVatEnabled === 'boolean') {
+        base.flags.enableVat = rawFlagsAny.defaultVatEnabled;
+      } else if (typeof rawFlagsAny.enable_vat === 'boolean') {
+        base.flags.enableVat = rawFlagsAny.enable_vat;
       }
     }
   }

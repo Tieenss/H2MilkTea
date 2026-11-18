@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { MapPin, ArrowRight, Coffee, Clock, Wifi, Sparkles, AlertCircle, ShoppingBag } from 'lucide-react';
 import { useCart } from './context/CartContext';
 import { StoreFAQModal } from './components/StoreFAQModal';
+import { ServiceCallButton } from './components/ServiceCallButton';
 
 export default function OrderWelcomePage() {
   return (
@@ -45,10 +46,10 @@ function OrderWelcomeContent() {
 
   useEffect(() => {
     const tableParam = (
-      searchParams.get('table') ||
-      searchParams.get('tableId') ||
-      searchParams.get('id') ||
-      searchParams.get('ban') ||
+      searchParams?.get('table') ||
+      searchParams?.get('tableId') ||
+      searchParams?.get('id') ||
+      searchParams?.get('ban') ||
       ''
     ).trim();
 
@@ -180,6 +181,14 @@ function OrderWelcomeContent() {
           <div className="mt-5 p-3 rounded-xl bg-slate-50 border border-slate-100 text-[11px] text-slate-500">
             💡 Bạn cũng có thể quét trực tiếp mã QR dán trên mặt bàn để tự động nhận diện bàn.
           </div>
+
+          <div className="mt-3 flex justify-center">
+            <ServiceCallButton
+              tableId={tableId || 'Khách tại quán'}
+              tableName={tableName || 'Khách tại quán'}
+              className="w-full"
+            />
+          </div>
         </div>
       </div>
     );
@@ -188,6 +197,17 @@ function OrderWelcomeContent() {
   // Welcome page
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
+      {/* Top Toolbar */}
+      <div className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-orange-100 px-4 py-2.5">
+        <div className="max-w-sm mx-auto flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+            <MapPin className="w-3.5 h-3.5 text-orange-600 shrink-0" />
+            <span className="truncate">{tableName}</span>
+          </div>
+          <ServiceCallButton tableId={tableId || undefined} tableName={tableName} />
+        </div>
+      </div>
+
       {/* Hero Section */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
         <div className="relative z-10 text-center max-w-sm w-full">

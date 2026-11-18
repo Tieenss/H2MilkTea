@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Edit, X } from 'lucide-react';
+import { Edit } from 'lucide-react';
 import { formatCurrency, formatDate, getStatusColor, getTransactionTypeColor } from '../utils/formatters';
 import { InventoryTransaction } from '../types/inventory';
 
@@ -26,17 +26,12 @@ export const InventoryDetailsModal: React.FC<InventoryDetailsModalProps> = ({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
+          <DialogTitle className="flex items-center justify-between pr-8">
             <span>Chi tiết giao dịch kho</span>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={onEdit}>
-                <Edit className="h-4 w-4 mr-1" />
-                Chỉnh sửa
-              </Button>
-              <Button variant="ghost" size="sm" onClick={onClose}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
+            <Button variant="outline" size="sm" onClick={onEdit}>
+              <Edit className="h-4 w-4 mr-1" />
+              Chỉnh sửa
+            </Button>
           </DialogTitle>
           <DialogDescription>
             Thông tin chi tiết về giao dịch kho
@@ -98,7 +93,7 @@ export const InventoryDetailsModal: React.FC<InventoryDetailsModalProps> = ({
           {/* Transaction Details */}
           <div>
             <h3 className="text-lg font-semibold mb-3">Chi tiết mặt hàng</h3>
-            <div className="rounded-md border">
+            <div className="rounded-md border overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>

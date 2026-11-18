@@ -7,6 +7,7 @@ import {
   getSafeStaffUuid,
 } from '@/lib/supabase/server';
 import {
+  isCustomerAllowedChunk,
   retrieveProjectKnowledge,
   type ProjectKnowledgeChunk,
 } from '@/lib/ai/ragEngine';
@@ -47,18 +48,26 @@ export async function GET(request: NextRequest) {
         })
       : [];
 
+    const visibleChunks =
+      roleScope === 'customer' ? chunks.filter((chunk) => isCustomerAllowedChunk(chunk)) : chunks;
+
     return NextResponse.json({
       success: true,
       isAdmin: canManage,
-      chunks,
+      chunks: visibleChunks,
       ...(query ? { retrievedResults } : {}),
     });
   } catch (error) {
     console.error('Lỗi khi tải RAG Chunks:', error);
+    const roleScopeParam = request.nextUrl.searchParams.get('roleScope');
+    const fallbackChunks =
+      roleScopeParam === 'customer'
+        ? (defaultChunks as ProjectKnowledgeChunk[]).filter((chunk) => isCustomerAllowedChunk(chunk))
+        : (defaultChunks as ProjectKnowledgeChunk[]);
     return NextResponse.json({
       success: true,
       isAdmin: false,
-      chunks: defaultChunks as ProjectKnowledgeChunk[],
+      chunks: fallbackChunks,
     });
   }
 }

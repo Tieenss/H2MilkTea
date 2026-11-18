@@ -41,7 +41,7 @@ export function SupplierDetailsModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white text-slate-900 border-slate-200 dark:bg-white dark:text-slate-900 dark:border-slate-200">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Building2 className="h-5 w-5" />
@@ -230,30 +230,32 @@ export function SupplierDetailsModal({
                   <div className="text-sm text-muted-foreground">
                     Hiển thị {recentOrders.length} đơn hàng gần nhất
                   </div>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Ngày đặt</TableHead>
-                        <TableHead>Tổng tiền</TableHead>
-                        <TableHead>Trạng thái</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {recentOrders.map((order, index) => (
-                        <TableRow key={index}>
-                          <TableCell>{order.NgayDat}</TableCell>
-                          <TableCell className="font-medium">
-                            {formatCurrency(order.TongTien)}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">
-                              {order.TrangThai}
-                            </Badge>
-                          </TableCell>
+                  <div className="overflow-x-auto rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Ngày đặt</TableHead>
+                          <TableHead>Tổng tiền</TableHead>
+                          <TableHead>Trạng thái</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {recentOrders.map((order, index) => (
+                          <TableRow key={index}>
+                            <TableCell>{order.NgayDat}</TableCell>
+                            <TableCell className="font-medium">
+                              {formatCurrency(order.TongTien)}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">
+                                {order.TrangThai}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </div>
               )}
             </CardContent>

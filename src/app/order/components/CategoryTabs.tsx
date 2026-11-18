@@ -32,7 +32,7 @@ export function CategoryTabs({ categories, activeCategory, onCategoryChange, cat
   const allCategories = ['Tất cả', ...categories];
 
   return (
-    <div className="sticky top-[57px] z-40 bg-white/90 backdrop-blur-lg border-b border-orange-50">
+    <div className="bg-white/95 border-b border-orange-50">
       <div
         ref={scrollRef}
         className="flex gap-2 px-4 py-3 overflow-x-auto scrollbar-hide"

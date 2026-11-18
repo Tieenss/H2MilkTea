@@ -1,15 +1,30 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import type { CartItem, Product } from '../types/customer-order';
-import { SIZE_OPTIONS } from '../types/customer-order';
+import type { CartItem, Product, ToppingOption } from '../types/customer-order';
+import {
+  SIZE_OPTIONS,
+  normalizeToppings,
+  extractToppingsFromNote,
+  calculateToppingsPrice,
+} from '../types/customer-order';
+
+interface AddItemOptions {
+  size: 'S' | 'M' | 'L';
+  sugar: string;
+  ice: string;
+  note: string;
+  quantity: number;
+  toppings?: Array<string | ToppingOption>;
+  toppingsAdjust?: number;
+}
 
 interface CartContextType {
   items: CartItem[];
   tableId: string;
   tableName: string;
   setTableInfo: (id: string, name: string) => void;
-  addItem: (product: Product, options: { size: 'S' | 'M' | 'L'; sugar: string; ice: string; note: string; quantity: number }) => void;
+  addItem: (product: Product, options: AddItemOptions) => void;
   removeItem: (itemId: string) => void;
   updateQuantity: (itemId: string, quantity: number) => void;
   clearCart: () => void;
@@ -41,11 +56,23 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           const isFood = ['Ăn vặt', 'Bánh ngọt'].includes(item.product?.['Loại sản phẩm'] || '');
           const normalizedSize: 'M' | 'L' = item.size === 'L' ? 'L' : 'M';
           const sizeAdjust = isFood ? 0 : (normalizedSize === 'L' ? 5000 : 0);
+          const toppingsList = isFood
+            ? []
+            : Array.isArray(item.toppings) && item.toppings.length > 0
+              ? normalizeToppings(item.toppings)
+              : extractToppingsFromNote(item.note);
+          const toppingsAdjust = isFood
+            ? 0
+            : typeof item.toppingsAdjust === 'number' && Number.isFinite(item.toppingsAdjust)
+              ? Math.max(0, item.toppingsAdjust)
+              : calculateToppingsPrice(toppingsList);
           const basePrice = parseInt(item.product?.['Đơn giá'] || '0', 10) || 0;
           return {
             ...item,
             size: normalizedSize,
-            unitPrice: basePrice + sizeAdjust,
+            toppings: toppingsList,
+            toppingsAdjust,
+            unitPrice: basePrice + sizeAdjust + toppingsAdjust,
           };
         });
         setItems(normalized);
@@ -81,15 +108,28 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const addItem = useCallback((
     product: Product,
-    options: { size: 'S' | 'M' | 'L'; sugar: string; ice: string; note: string; quantity: number }
+    options: AddItemOptions
   ) => {
     const isFood = ['Ăn vặt', 'Bánh ngọt'].includes(product['Loại sản phẩm']);
     const normalizedSize: 'M' | 'L' = options.size === 'L' ? 'L' : 'M';
     const sizeAdjust = isFood ? 0 : SIZE_OPTIONS.find(s => s.value === normalizedSize)?.priceAdjust || 0;
-    const unitPrice = parseInt(product['Đơn giá'], 10) + sizeAdjust;
+    const normalizedToppings = isFood
+      ? []
+      : Array.isArray(options.toppings) && options.toppings.length > 0
+        ? normalizeToppings(options.toppings)
+        : extractToppingsFromNote(options.note);
+    const toppingsAdjust = isFood
+      ? 0
+      : typeof options.toppingsAdjust === 'number' && Number.isFinite(options.toppingsAdjust)
+        ? Math.max(0, options.toppingsAdjust)
+        : calculateToppingsPrice(normalizedToppings);
+    const basePrice = parseInt(String(product['Đơn giá'] || '0'), 10) || 0;
+    const unitPrice = basePrice + sizeAdjust + toppingsAdjust;
 
-    // Generate unique id based on product + options
-    const optionKey = `${product.IDSP}_${normalizedSize}_${options.sugar}_${options.ice}`;
+    // Generate unique id based on product + options + toppings + note để không gộp nhầm món khác topping
+    const toppingKey = normalizedToppings.map(t => t.name).sort().join(',');
+    const noteKey = (options.note || '').trim();
+    const optionKey = `${product.IDSP}_${normalizedSize}_${options.sugar}_${options.ice}_${toppingKey}_${noteKey}`;
 
     setItems(prev => {
       const existingIndex = prev.findIndex(item => item.id === optionKey);
@@ -100,6 +140,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           ...updated[existingIndex],
           quantity: updated[existingIndex].quantity + options.quantity,
           note: options.note || updated[existingIndex].note,
+          toppings: normalizedToppings,
+          toppingsAdjust,
           unitPrice,
         };
         return updated;
@@ -113,6 +155,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         sugar: options.sugar,
         ice: options.ice,
         note: options.note,
+        toppings: normalizedToppings,
+        toppingsAdjust,
         unitPrice,
       }];
     });

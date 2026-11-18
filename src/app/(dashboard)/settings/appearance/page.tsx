@@ -52,7 +52,11 @@ export default function AppearanceSettingsPage() {
   const handleReset = () => {
     setSettings(DEFAULT_APPEARANCE_SETTINGS);
     saveAppearanceSettings(DEFAULT_APPEARANCE_SETTINGS);
-    toast.success('Đã khôi phục cài đặt giao diện về mặc định!');
+    toast.success('Đã khôi phục cài đặt giao diện về mặc định!', {
+      id: 'appearance-toast',
+      position: 'bottom-right',
+      duration: 2500,
+    });
   };
 
   if (!mounted) {
@@ -102,17 +106,6 @@ export default function AppearanceSettingsPage() {
                 </p>
               </div>
             </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleReset}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-xs"
-              >
-                <RotateCcw className="w-4 h-4 text-gray-500" />
-                Khôi phục mặc định
-              </button>
-            </div>
           </div>
         </div>
       </div>
@@ -126,9 +119,19 @@ export default function AppearanceSettingsPage() {
               : 'bg-white border-gray-200 text-gray-900'
           }`}
         >
-          <div className="flex items-center gap-2 font-semibold mb-3 text-sm" style={{ color: currentTheme.primaryHex }}>
-            <Sparkles className="w-4 h-4" />
-            Xem trước trực tiếp (Live Preview)
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <div className="flex items-center gap-2 font-semibold text-sm" style={{ color: currentTheme.primaryHex }}>
+              <Sparkles className="w-4 h-4" />
+              Xem trước trực tiếp (Live Preview)
+            </div>
+            <button
+              type="button"
+              onClick={handleReset}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-xs"
+            >
+              <RotateCcw className="w-4 h-4 text-gray-500" />
+              Khôi phục mặc định
+            </button>
           </div>
           <div
             className={`p-5 rounded-xl border shadow-inner space-y-3 ${
@@ -205,9 +208,18 @@ export default function AppearanceSettingsPage() {
                   const next = !settings.elderlyMode;
                   handleUpdate('elderlyMode', next);
                   if (next) {
-                    toast.success('👓 Đã kích hoạt Chế độ Người cao tuổi: Chữ to, nút bấm lớn, dễ thao tác!');
+                    toast.success('👓 Đã kích hoạt Chế độ Người cao tuổi: Chữ to, nút bấm lớn, dễ thao tác!', {
+                      id: 'appearance-toast',
+                      position: 'bottom-right',
+                      duration: 2500,
+                    });
                   } else {
-                    toast('Đã chuyển về giao diện tiêu chuẩn', { icon: 'ℹ️' });
+                    toast('Đã chuyển về giao diện tiêu chuẩn', {
+                      icon: 'ℹ️',
+                      id: 'appearance-toast',
+                      position: 'bottom-right',
+                      duration: 2200,
+                    });
                   }
                 }}
                 className={`relative inline-flex h-8 w-16 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-hidden focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 ${
@@ -239,7 +251,7 @@ export default function AppearanceSettingsPage() {
                 <CheckCircle2 className="w-4 h-4" /> 2. Nút Bấm Khổ Lớn
               </div>
               <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
-                Mọi nút bấm và ô nhập có chiều cao $\ge$ 48px, chạm ngón tay cực nhạy và chống bấm nhầm trên màn hình cảm ứng.
+                Mọi nút bấm và ô nhập có chiều cao ≥ 48px, chạm ngón tay cực nhạy và chống bấm nhầm trên màn hình cảm ứng.
               </p>
             </div>
 
@@ -287,7 +299,11 @@ export default function AppearanceSettingsPage() {
                   type="button"
                   onClick={() => {
                     handleUpdate('colorMode', modeKey);
-                    toast.success(`Đã chuyển sang ${item.label}`);
+                    toast.success(`Đã chuyển sang ${item.label}`, {
+                      id: 'appearance-toast',
+                      position: 'bottom-right',
+                      duration: 2200,
+                    });
                   }}
                   className={`p-4 rounded-xl border-2 text-left transition-all ${
                     isSelected
@@ -331,7 +347,11 @@ export default function AppearanceSettingsPage() {
                   type="button"
                   onClick={() => {
                     handleUpdate('themeColor', themeKey);
-                    toast.success(`Đã đổi chủ đề: ${theme.name}`);
+                    toast.success(`Đã đổi chủ đề: ${theme.name}`, {
+                      id: 'appearance-toast',
+                      position: 'bottom-right',
+                      duration: 2200,
+                    });
                   }}
                   className={`p-3.5 rounded-xl border-2 text-left transition-all ${
                     isSelected
@@ -374,7 +394,11 @@ export default function AppearanceSettingsPage() {
                   type="button"
                   onClick={() => {
                     handleUpdate('fontFamily', key);
-                    toast.success(`Đã đổi font sang ${font.name}`);
+                    toast.success(`Đã đổi font sang ${font.name}`, {
+                      id: 'appearance-toast',
+                      position: 'bottom-right',
+                      duration: 2200,
+                    });
                   }}
                   className={`p-4 rounded-xl border-2 text-left transition-all ${
                     isSelected
@@ -418,7 +442,11 @@ export default function AppearanceSettingsPage() {
                   type="button"
                   onClick={() => {
                     handleUpdate('fontSize', sizeKey);
-                    toast.success(`Cỡ chữ web: ${item.label}`);
+                    toast.success(`Cỡ chữ web: ${item.label}`, {
+                      id: 'appearance-toast',
+                      position: 'bottom-right',
+                      duration: 2200,
+                    });
                   }}
                   className={`p-4 rounded-xl border-2 text-center transition-all ${
                     isSelected
@@ -459,7 +487,11 @@ export default function AppearanceSettingsPage() {
                   type="button"
                   onClick={() => {
                     handleUpdate('chatbotFontSize', botSizeKey);
-                    toast.success(`Cỡ chữ Chatbot: ${item.label}`);
+                    toast.success(`Cỡ chữ Chatbot: ${item.label}`, {
+                      id: 'appearance-toast',
+                      position: 'bottom-right',
+                      duration: 2200,
+                    });
                   }}
                   className={`p-4 rounded-xl border-2 text-left transition-all ${
                     isSelected

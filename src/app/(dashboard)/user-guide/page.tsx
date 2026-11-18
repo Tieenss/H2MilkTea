@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   BookOpen, 
   Search, 
@@ -23,7 +23,8 @@ import {
   Lightbulb,
   Star,
   Gift,
-  Bot
+  Bot,
+  X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,10 +40,35 @@ interface Section {
   color: string;
 }
 
+const SECTION_KEYWORDS: Record<string, string[]> = {
+  introduction: ['tổng quan', 'giới thiệu', 'h2 milktea', 'hệ thống', 'pos'],
+  login: ['đăng nhập', 'tài khoản', 'mật khẩu', 'dashboard', 'trình duyệt'],
+  pos: ['pos', 'bán hàng', 'chọn bàn', 'giỏ hàng', 'thanh toán', 'ưu đãi', 'f2', 'f4'],
+  orders: ['đơn hàng', 'hóa đơn', 'in hóa đơn', 'chờ xác nhận', 'đã thanh toán', 'hủy đơn'],
+  customers: ['khách hàng', 'thành viên', 'vip', 'kim cương', 'tích điểm', 'giảm giá'],
+  menu: ['menu', 'sản phẩm', 'món mới', 'đơn giá', 'đồ uống', 'trà sữa'],
+  reports: ['báo cáo', 'thống kê', 'doanh thu', 'biểu đồ', 'xuất excel'],
+  settings: ['cài đặt', 'máy in', 'vat', 'k80', 'k57', 'mẫu in', 'cấu hình'],
+  shortcuts: ['phím tắt', 'shortcut', 'hotkey', 'f1', 'f2', 'f3', 'f4', 'f5', 'esc'],
+  mobile: ['di động', 'mobile', 'qr', 'quét mã', 'điện thoại', 'responsive'],
+  troubleshooting: ['lỗi', 'xử lý lỗi', 'mất mạng', 'offline', 'không in được', 'xung đột'],
+  support: ['hỗ trợ', 'kỹ thuật', 'hotline', 'email', 'liên hệ', 'faq'],
+  'ai-assistant': ['trợ lý ai', 'ai', 'chatbot', 'giọng nói', 'microphone', 'rag'],
+};
+
+function normalizeGuideText(text: string): string {
+  return (text || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/đ/g, 'd')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export default function UserGuidePage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeSection, setActiveSection] = useState('introduction');
-  const [searchResults, setSearchResults] = useState<string[]>([]);
 
   // Scroll to section
   const scrollToSection = (sectionId: string) => {
@@ -52,21 +78,6 @@ export default function UserGuidePage() {
       element.scrollIntoView({ behavior: 'smooth' });
     }
   };
-
-  // Search functionality
-  useEffect(() => {
-    if (searchTerm) {
-      const results = sections
-        .filter(section => 
-          section.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          section.id.toLowerCase().includes(searchTerm.toLowerCase())
-        )
-        .map(section => section.id);
-      setSearchResults(results);
-    } else {
-      setSearchResults([]);
-    }
-  }, [searchTerm]);
 
   const sections: Section[] = [
     {
@@ -1040,6 +1051,20 @@ export default function UserGuidePage() {
     },
   ];
 
+  const normalizedQuery = normalizeGuideText(searchTerm);
+  const filteredSections = normalizedQuery
+    ? sections.filter((section) => {
+        const titleNorm = normalizeGuideText(section.title);
+        const idNorm = normalizeGuideText(section.id);
+        const kws = (SECTION_KEYWORDS[section.id] || []).map((k) => normalizeGuideText(k));
+        return (
+          titleNorm.includes(normalizedQuery) ||
+          idNorm.includes(normalizedQuery) ||
+          kws.some((kw) => kw.includes(normalizedQuery))
+        );
+      })
+    : sections;
+
   return (
     <div className="min-h-screen">
       {/* Header */}
@@ -1061,8 +1086,18 @@ export default function UserGuidePage() {
                   placeholder="Tìm kiếm..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 w-64"
+                  className="pl-10 pr-8 w-64"
                 />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm('')}
+                    aria-label="Xóa từ khóa tìm kiếm"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
               </div>
               <Button variant="outline" size="sm">
                 <Download className="w-4 h-4 mr-2" />
@@ -1088,40 +1123,61 @@ export default function UserGuidePage() {
                   placeholder="Tìm kiếm..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 pr-8"
                 />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm('')}
+                    aria-label="Xóa từ khóa tìm kiếm"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </div>
 
             <nav className="space-y-1">
-              {sections.map((section) => {
-                const Icon = section.icon;
-                const isActive = activeSection === section.id;
-                const isSearchResult = searchResults.length > 0 && searchResults.includes(section.id);
-                const shouldShow = searchResults.length === 0 || isSearchResult;
-                
-                if (!shouldShow) return null;
-                
-                return (
-                  <button
-                    key={section.id}
-                    onClick={() => scrollToSection(section.id)}
-                    className={`
-                      w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors
-                      ${isActive 
-                        ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-600' 
-                        : 'text-gray-700 hover:bg-gray-50'
-                      }
-                    `}
+              {filteredSections.length === 0 ? (
+                <div className="p-4 text-center text-sm text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-200 space-y-2">
+                  <p>Không tìm thấy mục hướng dẫn nào khớp với từ khóa</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSearchTerm('')}
+                    className="text-xs"
                   >
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${section.color}`}>
-                      <Icon className="w-4 h-4 text-white" />
-                    </div>
-                    <span className="font-medium">{section.title}</span>
-                    {isActive && <ChevronRight className="w-4 h-4 ml-auto" />}
-                  </button>
-                );
-              })}
+                    Xóa bộ lọc
+                  </Button>
+                </div>
+              ) : (
+                filteredSections.map((section) => {
+                  const Icon = section.icon;
+                  const isActive = activeSection === section.id;
+
+                  return (
+                    <button
+                      key={section.id}
+                      onClick={() => scrollToSection(section.id)}
+                      className={`
+                        w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors
+                        ${isActive 
+                          ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-600' 
+                          : 'text-gray-700 hover:bg-gray-50'
+                        }
+                      `}
+                    >
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${section.color}`}>
+                        <Icon className="w-4 h-4 text-white" />
+                      </div>
+                      <span className="font-medium">{section.title}</span>
+                      {isActive && <ChevronRight className="w-4 h-4 ml-auto" />}
+                    </button>
+                  );
+                })
+              )}
             </nav>
           </div>
         </aside>
@@ -1129,17 +1185,34 @@ export default function UserGuidePage() {
         {/* Main Content */}
         <main className="flex-1 lg:ml-0">
           <div className="max-w-4xl mx-auto px-6 py-8">
-            {sections.map((section) => (
-              <section key={section.id} id={section.id} className="mb-16 scroll-mt-20">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${section.color}`}>
-                    <section.icon className="w-6 h-6 text-white" />
+            {filteredSections.length === 0 ? (
+              <Card className="border-dashed border-gray-300 bg-gray-50/70">
+                <CardContent className="py-12 text-center space-y-3">
+                  <Search className="w-10 h-10 text-gray-300 mx-auto" />
+                  <h3 className="text-lg font-semibold text-gray-800">
+                    Không tìm thấy mục hướng dẫn nào khớp với từ khóa
+                  </h3>
+                  <p className="text-sm text-gray-500">
+                    Từ khóa &ldquo;{searchTerm}&rdquo; không khớp với tài liệu hướng dẫn nào. Vui lòng thử từ khóa khác (ví dụ: POS, phím tắt, máy in, QR, khách hàng...).
+                  </p>
+                  <Button type="button" variant="outline" onClick={() => setSearchTerm('')}>
+                    Hiển thị lại tất cả hướng dẫn
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              filteredSections.map((section) => (
+                <section key={section.id} id={section.id} className="mb-16 scroll-mt-20">
+                  <div className="flex items-center gap-3 mb-6">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${section.color}`}>
+                      <section.icon className="w-6 h-6 text-white" />
+                    </div>
+                    <h2 className="text-3xl font-bold text-gray-800">{section.title}</h2>
                   </div>
-                  <h2 className="text-3xl font-bold text-gray-800">{section.title}</h2>
-                </div>
-                {section.content}
-              </section>
-            ))}
+                  {section.content}
+                </section>
+              ))
+            )}
           </div>
         </main>
       </div>

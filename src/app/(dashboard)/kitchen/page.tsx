@@ -1,15 +1,27 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { UtensilsCrossed, ArrowLeft, Settings, ShieldAlert } from 'lucide-react';
+import { UtensilsCrossed, ArrowLeft, Settings, ShieldAlert, UserCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { KitchenDisplay } from './components/KitchenDisplay';
+import { KitchenDisplay } from '@/app/(dashboard)/pos/components/kitchen/KitchenDisplay';
 import { useFeatureFlags } from '@/lib/settings/useFeatureFlags';
+import authUtils from '@/utils/authUtils';
 
 export default function KitchenPage() {
   const { isFeatureEnabled, isLoading } = useFeatureFlags();
   const isKitchenEnabled = isFeatureEnabled('pos_kitchen_print');
+  const [userInfo, setUserInfo] = useState<{ name: string; role: string } | null>(null);
+
+  useEffect(() => {
+    const userData = authUtils.getUserData();
+    if (userData) {
+      setUserInfo({
+        name: userData['Họ và Tên'] || userData.fullName || userData.username || 'Nhân viên Bếp',
+        role: userData['Phân quyền'] || userData.role || 'Pha chế',
+      });
+    }
+  }, []);
 
   if (isLoading) {
     return (
@@ -27,6 +39,13 @@ export default function KitchenPage() {
           <div className="w-16 h-16 mx-auto bg-orange-100 dark:bg-orange-950/50 rounded-2xl flex items-center justify-center text-orange-600 dark:text-orange-400 shadow-inner">
             <UtensilsCrossed className="w-8 h-8" />
           </div>
+
+          {userInfo && (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
+              <UserCircle2 className="w-3.5 h-3.5 text-indigo-600" />
+              <span>{userInfo.name} • {userInfo.role}</span>
+            </div>
+          )}
 
           <div className="space-y-2">
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">

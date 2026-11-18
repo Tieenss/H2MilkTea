@@ -9,10 +9,11 @@ import { Badge } from '@/components/ui/badge';
 import { X, Gift, ChevronDown, ChevronUp } from 'lucide-react';
 import { formatCurrency, formatInputCurrency, formatPoints, getNumericValue } from '../utils/formatters';
 import { PAYMENT_TYPES } from '../utils/constants';
-import { QRBankSelector, type Bank } from './QRBankSelector';
+import { QRBankSelector, DEFAULT_STORE_BANK, DEFAULT_STORE_ACCOUNT_NUMBER, DEFAULT_STORE_ACCOUNT_NAME, type Bank } from './QRBankSelector';
 import type { CartItem } from '../types/pos';
 import { Customer } from '@/app/(dashboard)/khachhang/types/customer';
 import { getCustomerTypeColor } from '@/app/(dashboard)/khachhang/utils/customerFormatters';
+import { validateDiscountInput } from '@/utils/numberValidation';
 
 interface CheckoutModalProps {
   cart: CartItem[];
@@ -58,16 +59,18 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   const [finalTotal, setFinalTotal] = useState(total);
   const [change, setChange] = useState(0);
+  const [discountInputStr, setDiscountInputStr] = useState('0');
+  const [discountError, setDiscountError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showQRCode, setShowQRCode] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [isMobile, setIsMobile] = useState(false);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
 
-  // QR Code configuration
-  const [selectedBank, setSelectedBank] = useState<Bank | null>(null);
-  const [accountNumber, setAccountNumber] = useState('');
-  const [accountName, setAccountName] = useState('');
+  // QR Code configuration (mặc định tài khoản quán để tab VietQR luôn hiển thị QR ngay lập tức)
+  const [selectedBank, setSelectedBank] = useState<Bank | null>(DEFAULT_STORE_BANK);
+  const [accountNumber, setAccountNumber] = useState(DEFAULT_STORE_ACCOUNT_NUMBER);
+  const [accountName, setAccountName] = useState(DEFAULT_STORE_ACCOUNT_NAME);
 
   const paidAmountRef = useRef<HTMLInputElement>(null);
   const discountRef = useRef<HTMLInputElement>(null);
@@ -100,22 +103,45 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   // Calculate final totals when discount changes
   useEffect(() => {
-    const newFinalTotal = total - formData.discount;
+    const safeDiscount = Math.min(Math.max(0, total), Math.max(0, formData.discount));
+    const newFinalTotal = Math.max(0, total - safeDiscount);
     setFinalTotal(newFinalTotal);
 
-    const newChange = Math.max(0, formData.paidAmount - newFinalTotal);
-    setChange(newChange);
-  }, [total, formData.discount, formData.paidAmount]);
+    if (['Chuyển khoản', 'VietQR', 'Thẻ'].includes(formData.paymentType)) {
+      if (formData.paidAmount !== newFinalTotal) {
+        setFormData(prev => ({ ...prev, paidAmount: newFinalTotal }));
+      }
+      if (paidAmountRef.current) {
+        paidAmountRef.current.value = new Intl.NumberFormat('vi-VN').format(newFinalTotal);
+        paidAmountRef.current.dataset.value = newFinalTotal.toString();
+      }
+      setChange(0);
+    } else {
+      const newChange = Math.max(0, formData.paidAmount - newFinalTotal);
+      setChange(newChange);
+    }
+  }, [total, formData.discount, formData.paidAmount, formData.paymentType]);
 
-  // Tự động nạp thông tin tài khoản ngân hàng quán từ cấu hình CompanyInfo
+  // Tự động nạp thông tin tài khoản ngân hàng quán từ cấu hình savedBankInfo hoặc CompanyInfo
   useEffect(() => {
     try {
+      const savedBankStr = localStorage.getItem('savedBankInfo');
+      if (savedBankStr) {
+        const parsed = JSON.parse(savedBankStr);
+        if (parsed?.bank && parsed?.accountNumber && parsed?.accountName) {
+          setSelectedBank(parsed.bank);
+          setAccountNumber(parsed.accountNumber);
+          setAccountName(parsed.accountName);
+          return;
+        }
+      }
+
       const savedInfoStr = localStorage.getItem('gigapos-company-info');
       if (savedInfoStr) {
         const savedInfo = JSON.parse(savedInfoStr);
-        if (savedInfo.bankAccount) setAccountNumber(savedInfo.bankAccount);
-        if (savedInfo.bankAccountHolder) setAccountName(savedInfo.bankAccountHolder);
-        if (savedInfo.bankName) {
+        if (savedInfo.bankAccount && savedInfo.bankAccountHolder && savedInfo.bankName) {
+          setAccountNumber(savedInfo.bankAccount);
+          setAccountName(savedInfo.bankAccountHolder);
           setSelectedBank({
             id: 'saved-bank',
             name: savedInfo.bankName,
@@ -154,8 +180,16 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   };
 
   const handleDiscountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const discount = parseFloat(e.target.value) || 0;
-    handleInputChange('discount', discount);
+    const rawValue = e.target.value;
+    setDiscountInputStr(rawValue);
+
+    const validation = validateDiscountInput(rawValue, total);
+    if (!validation.valid) {
+      setDiscountError(validation.error || 'Giảm giá không hợp lệ!');
+    } else {
+      setDiscountError(null);
+    }
+    handleInputChange('discount', validation.value);
   };
 
   const handlePaidAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -218,8 +252,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       return;
     }
 
-    if (formData.discount < 0 || formData.discount > (subtotal + vat)) {
-      alert('Giảm giá không hợp lệ!');
+    const discountCheck = validateDiscountInput(discountInputStr, total);
+    if (!discountCheck.valid) {
+      setDiscountError(discountCheck.error || 'Giảm giá không hợp lệ!');
+      discountRef.current?.focus();
+      return;
+    }
+
+    if (formData.discount < 0 || formData.discount > total) {
+      setDiscountError('Giảm giá không hợp lệ!');
       return;
     }
 
@@ -237,7 +278,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       await onProcessPayment({
         customer: formData.customer,
         discount: formData.discount,
+        customerDiscount,
+        totalDiscount: customerDiscount + formData.discount,
+        subtotal,
+        vat,
+        total: finalTotal,
         paidAmount: formData.paidAmount,
+        change,
         note: formData.note,
         paymentType: formData.paymentType,
         debtAmount: isDebt ? Math.max(0, finalTotal - formData.paidAmount) : 0,
@@ -255,6 +302,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       setIsProcessing(false);
     }
   };
+
+  const vatPercent = subtotal > 0 ? Math.round((vat / subtotal) * 100) : 0;
 
   // Mobile Layout
   if (isMobile) {
@@ -281,7 +330,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
           {/* Mobile Content */}
           <div className="overflow-y-auto max-h-[calc(90vh-80px)] pb-20">
-            <form onSubmit={handleSubmit} className="space-y-4 p-4">
+            <form id="checkout-form-mobile" onSubmit={handleSubmit} className="space-y-4 p-4">
               {/* Order Summary - Collapsible */}
               <div className="bg-gray-50 rounded-lg border">
                 <button
@@ -384,7 +433,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   <span className="font-medium">{formatCurrency(subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-gray-700 text-sm">
-                  <span>VAT ({subtotal > 0 ? Math.round((vat / subtotal) * 100) : 10}%):</span>
+                  <span>VAT ({vatPercent}%):</span>
                   <span className="font-medium">{formatCurrency(vat)}</span>
                 </div>
                 {customerDiscount > 0 && (
@@ -478,13 +527,18 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   <Input
                     ref={discountRef}
                     id="discount"
-                    type="number"
-                    value={formData.discount}
+                    type="text"
+                    inputMode="decimal"
+                    value={discountInputStr}
                     onChange={handleDiscountChange}
-                    min="0"
-                    max={subtotal + vat}
-                    className="mt-1 touch-target"
+                    placeholder="0"
+                    className={`mt-1 touch-target ${discountError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
                   />
+                  {discountError && (
+                    <p role="alert" className="text-xs text-red-600 mt-1 font-medium">
+                      {discountError}
+                    </p>
+                  )}
                 </div>
 
                 {/* Paid Amount */}
@@ -752,8 +806,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             </Button>
             <Button
               type="submit"
+              form="checkout-form-mobile"
               disabled={
                 isProcessing ||
+                Boolean(discountError) ||
                 (formData.paymentType === 'Ghi nợ'
                   ? (!selectedCustomer || formData.customer === 'Khách lẻ' || formData.paidAmount > finalTotal)
                   : formData.paidAmount < finalTotal)
@@ -894,7 +950,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                <span className="font-medium">{formatCurrency(subtotal)}</span>
              </div>
              <div className="flex justify-between text-gray-700">
-               <span>VAT ({subtotal > 0 ? Math.round((vat / subtotal) * 100) : 10}%):</span>
+               <span>VAT ({vatPercent}%):</span>
                <span className="font-medium">{formatCurrency(vat)}</span>
              </div>
              {customerDiscount > 0 && (
@@ -992,13 +1048,18 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                <Input
                  ref={discountRef}
                  id="discount"
-                 type="number"
-                 value={formData.discount}
+                 type="text"
+                 inputMode="decimal"
+                 value={discountInputStr}
                  onChange={handleDiscountChange}
-                 min="0"
-                 max={subtotal + vat}
-                 className="mt-1"
+                 placeholder="0"
+                 className={`mt-1 ${discountError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
                />
+               {discountError && (
+                 <p role="alert" className="text-xs text-red-600 mt-1 font-medium">
+                   {discountError}
+                 </p>
+               )}
              </div>
 
              {/* Paid Amount */}
@@ -1172,6 +1233,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                type="submit"
                disabled={
                  isProcessing ||
+                 Boolean(discountError) ||
                  (formData.paymentType === 'Ghi nợ'
                    ? (!selectedCustomer || formData.customer === 'Khách lẻ' || formData.paidAmount > finalTotal)
                    : formData.paidAmount < finalTotal)

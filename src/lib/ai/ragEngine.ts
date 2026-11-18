@@ -33,7 +33,7 @@ export interface ProjectKnowledgeChunk {
 
 export interface RetrievedChunk {
   id: string;
-  sourceType: 'project_doc' | 'faq' | 'recipe' | 'bom_config';
+  sourceType: 'project_doc' | 'faq' | 'recipe' | 'bom_config' | 'menu_public';
   title: string;
   category: string;
   content: string;
@@ -84,6 +84,89 @@ export function tokenizeRagQuery(query: string): string[] {
     .filter((token) => token.length >= 2 && !STOP_WORDS.has(token));
 }
 
+const CUSTOMER_PUBLIC_LEGACY_IDS = new Set([
+  'customer-points',
+  'qr-ordering',
+  'allergy-and-recipes',
+]);
+
+const INTERNAL_BLOCKED_ROUTES = [
+  '/user-guide#pos',
+  '/user-guide#shortcuts',
+  '/user-guide#settings',
+  '/user-guide#orders',
+  '/user-guide#reports',
+  '/user-guide#troubleshooting',
+  '/user-guide#login',
+  '/user-guide#introduction',
+  '/user-guide#menu',
+  '/tables',
+  '/pos',
+  '/kitchen',
+  '/inventory',
+  '/menu/cauhinhnguyenlieu',
+  '/menu/products',
+  '/orders',
+  '/reports',
+  '/receipt-settings',
+  '/settings',
+  '/nhanvien',
+  '/settingdata',
+];
+
+const INTERNAL_BLOCKED_IDS = new Set([
+  'rag-pos-overview',
+  'rag-tables-bulk-and-area',
+  'rag-pos-table-transfer-and-presence',
+  'rag-kitchen-kds-and-feature-toggle',
+  'rag-printer-and-labels',
+  'rag-inventory-and-bom-config',
+  'rag-invoice-security-and-offline',
+  'rag-ai-settings-and-rag-manager',
+  'introduction',
+  'login',
+  'add-product',
+  'edit-price',
+  'shortcuts',
+  'printer-setup',
+  'table-management',
+  'order-management',
+  'reports',
+  'troubleshooting',
+  'bulk-tables-and-areas',
+  'kitchen-kds-mobile',
+]);
+
+const INTERNAL_SENSITIVE_PATTERN =
+  /(gia von|cauhinh|dinh muc tru kho|dinh muc nguyen lieu|bom\b|phim tat|f1\b|f3\b|f4\b|f5\b|esc\b|may in nhiet|k80|k57|huy hoa don|doanh thu noi bo|bao cao doanh thu|mat khau nhan vien|man hinh bep|kds\b|tao ban nhanh|chuyen ban|kiem ke kho|nhap xuat kho|sop noi bo|kill switch|audit log|sepay webhook|ngan hang thu huong)/i;
+
+/**
+ * Kiểm tra xem một knowledge chunk có được phép hiển thị ở phạm vi Khách hàng QR (`customer`) hay không.
+ * Loại bỏ 100% hướng dẫn vận hành nội bộ POS, shortcuts, quản lý bàn, SOP nhân viên, doanh thu nội bộ và BOM/CAUHINH.
+ */
+export function isCustomerAllowedChunk(chunk: ProjectKnowledgeChunk): boolean {
+  if (!chunk || chunk.isActive === false) return false;
+  if (chunk.roleScope === 'staff') return false;
+  if (INTERNAL_BLOCKED_IDS.has(chunk.id)) return false;
+
+  const route = String(chunk.route || '').trim().toLowerCase();
+  if (
+    route &&
+    INTERNAL_BLOCKED_ROUTES.some((blocked) => route === blocked || route.startsWith(`${blocked}/`) || route.startsWith(`${blocked}?`))
+  ) {
+    return false;
+  }
+
+  const combinedNorm = normalizeRagText(
+    [chunk.title, chunk.category, chunk.content, ...(chunk.steps || [])].join(' ')
+  );
+  if (INTERNAL_SENSITIVE_PATTERN.test(combinedNorm)) {
+    return false;
+  }
+
+  return true;
+}
+
 /**
  * Hợp nhất danh sách Chunks mặc định của dự án và POS_KNOWLEDGE_BASE
  */
@@ -122,6 +205,7 @@ export function getMergedProjectChunks(
             .map(([k, v]) => `${k}: ${v}`)
             .join('; ')
         : '';
+      const isCustomerPublic = CUSTOMER_PUBLIC_LEGACY_IDS.has(topic.id);
       merged.push({
         id: topic.id,
         category: topic.sectionTitle,
@@ -129,7 +213,7 @@ export function getMergedProjectChunks(
         route: `/user-guide#${topic.sectionId}`,
         sectionId: topic.sectionId,
         sectionTitle: topic.sectionTitle,
-        roleScope: 'all',
+        roleScope: isCustomerPublic ? 'all' : 'staff',
         keywords: topic.keywords,
         content: [topic.summary, shortcutsText].filter(Boolean).join(' '),
         steps: topic.steps || (stepsText ? [stepsText] : undefined),
@@ -139,6 +223,72 @@ export function getMergedProjectChunks(
   }
 
   return merged.filter((c) => c.isActive !== false);
+}
+
+/**
+ * Tạo các Chunks công khai cho khách hàng từ danh mục Menu & Topping (chỉ gồm Tên, Loại, Giá bán, Mô tả - KHÔNG lộ Giá vốn/BOM).
+ */
+function buildPublicCustomerMenuChunks(): Array<RetrievedChunk & { keywords: string[] }> {
+  const activeItems = (dmhhData as Array<Record<string, any>>).filter((p) => {
+    const status = String(p['Trạng thái'] || '').toLowerCase();
+    return p['Tên sản phẩm'] && !status.includes('ngừng');
+  });
+
+  const byCategory = new Map<string, Array<{ name: string; price: number; unit: string; desc: string }>>();
+  for (const p of activeItems) {
+    const category = String(p['Loại sản phẩm'] || 'Đồ uống').trim();
+    if (!byCategory.has(category)) {
+      byCategory.set(category, []);
+    }
+    byCategory.get(category)!.push({
+      name: String(p['Tên sản phẩm']).trim(),
+      price: Number(p['Đơn giá']) || 0,
+      unit: String(p['Đơn vị tính'] || 'Ly').trim(),
+      desc: String(p['Mô tả'] || '').trim(),
+    });
+  }
+
+  const results: Array<RetrievedChunk & { keywords: string[] }> = [];
+  for (const [category, items] of byCategory.entries()) {
+    const lines = items.map(
+      (it) =>
+        `• ${it.name}: ${it.price.toLocaleString('vi-VN')}đ/${it.unit}${it.desc ? ` (${it.desc})` : ''}`
+    );
+    results.push({
+      id: `menu-public-${normalizeRagText(category).replace(/\s+/g, '-')}`,
+      sourceType: 'menu_public',
+      title: `Menu & Giá bán nhóm ${category}`,
+      category: `Menu đồ uống - ${category}`,
+      content: `Danh sách món thuộc nhóm ${category} đang phục vụ:\n${lines.join('\n')}`,
+      score: 0,
+      route: '/order/menu',
+      matchedTerms: [],
+      keywords: [
+        'menu',
+        'thực đơn',
+        'giá bán',
+        'bao nhiêu tiền',
+        category.toLowerCase(),
+        ...items.map((it) => it.name.toLowerCase()),
+      ],
+    });
+  }
+
+  results.push({
+    id: 'menu-public-toppings',
+    sourceType: 'menu_public',
+    title: 'Danh sách Topping & Tùy chỉnh Size / Đường / Đá',
+    category: 'Topping & Tùy chỉnh món',
+    content:
+      'Quán hỗ trợ tùy chỉnh miễn phí mức đường (0%, 30%, 50%, 70%, 100%) và mức đá (0%, 30%, 50%, 70%, 100%, Nóng). ' +
+      'Size L cộng thêm phụ thu theo từng món. Các loại topping phổ biến gồm: Trân châu đen, Trân châu trắng, Kem cheese, Pudding trứng, Thạch củ năng.',
+    score: 0,
+    route: '/order/menu',
+    matchedTerms: [],
+    keywords: ['topping', 'trân châu', 'kem cheese', 'pudding', 'thạch củ năng', 'size m', 'size l', 'đường', 'đá'],
+  });
+
+  return results;
 }
 
 /**
@@ -271,12 +421,23 @@ export function retrieveProjectKnowledge(
 
   if (!queryNorm) return [];
 
+  const isCustomerInternalProbe =
+    roleScope === 'customer' &&
+    /(gia von|nhap nguyen lieu|cauhinh|dinh muc|tru kho|bom\b|noi bo|doanh thu|mat khau nhan vien|phim tat|sop\b|huy hoa don|may in|tao ban|chuyen ban|kiem ke|man hinh bep|kds\b)/i.test(
+      queryNorm
+    );
+
+  // Nếu khách hàng QR cố tình dò hỏi dữ liệu nội bộ (giá vốn, BOM, doanh thu, SOP nhân viên...), trả về rỗng hoàn toàn
+  if (isCustomerInternalProbe) {
+    return [];
+  }
+
   const candidates: RetrievedChunk[] = [];
 
   // Nguồn 1: Project Knowledge Chunks (Tài liệu hệ thống & Hướng dẫn nghiệp vụ)
   const projectChunks = getMergedProjectChunks(options?.customChunks);
   for (const chunk of projectChunks) {
-    if (roleScope === 'customer' && chunk.roleScope === 'staff') {
+    if (roleScope === 'customer' && !isCustomerAllowedChunk(chunk)) {
       continue;
     }
     const fullText = [
@@ -307,10 +468,41 @@ export function retrieveProjectKnowledge(
             ? `\nCác bước thực hiện:\n- ${chunk.steps.join('\n- ')}`
             : ''),
         score,
-        citation: formatCitation(chunk.sectionTitle || chunk.category, chunk.sectionId || 'introduction'),
-        route: chunk.route,
+        citation:
+          roleScope === 'customer'
+            ? undefined
+            : formatCitation(chunk.sectionTitle || chunk.category, chunk.sectionId || 'introduction'),
+        route: roleScope === 'customer' ? undefined : chunk.route,
         matchedTerms,
       });
+    }
+  }
+
+  // Nguồn 1b: Menu công khai, Giá bán & Topping dành cho Khách hàng QR
+  if (roleScope === 'customer') {
+    const publicMenuChunks = buildPublicCustomerMenuChunks();
+    for (const mc of publicMenuChunks) {
+      const { score, matchedTerms } = scoreCandidate(
+        query,
+        queryNorm,
+        queryTokens,
+        mc.title,
+        mc.category,
+        mc.keywords,
+        mc.content
+      );
+      if (score > 0) {
+        candidates.push({
+          id: mc.id,
+          sourceType: 'menu_public',
+          title: mc.title,
+          category: mc.category,
+          content: mc.content,
+          score,
+          route: mc.route,
+          matchedTerms,
+        });
+      }
     }
   }
 
@@ -343,19 +535,23 @@ export function retrieveProjectKnowledge(
     }
   }
 
-  // Nguồn 3: Store Recipes & Allergens (Sổ tay Công thức Barista, Dị ứng, Calo, Caffeine)
+  // Nguồn 3: Store Recipes & Allergens (Ở chế độ customer chỉ trả thông tin dị ứng/calo/caffeine công khai, KHÔNG trả định lượng pha chế Barista)
   const recipes =
     Array.isArray(options?.customRecipes) && options!.customRecipes.length > 0
       ? options!.customRecipes
       : (defaultRecipes as StoreRecipeNote[]);
 
   const isDietaryQuery =
-    /(di ung|lactose|sua|gluten|cong thuc|pha che|dinh luong|thanh phan|calo|kcal|an kieng|giam can|tieu duong|caffeine|mat ngu|say ca phe|ba bau|mang thai|tre em)/i.test(
+    /(di ung|lactose|sua|gluten|thanh phan|calo|kcal|an kieng|giam can|tieu duong|caffeine|mat ngu|say ca phe|ba bau|mang thai|tre em)/i.test(
       queryNorm
     );
 
   for (const r of recipes) {
-    const bodyText = `${r.ingredients} ${r.formulaNote} ${(r.allergens || []).join(' ')} Caffeine: ${r.caffeineLevel} Calo: ${r.caloriesEstimate} ${r.dietaryAdvice}`;
+    const bodyText =
+      roleScope === 'customer'
+        ? `${(r.allergens || []).join(' ')} Caffeine: ${r.caffeineLevel} Calo: ${r.caloriesEstimate} ${r.dietaryAdvice}`
+        : `${r.ingredients} ${r.formulaNote} ${(r.allergens || []).join(' ')} Caffeine: ${r.caffeineLevel} Calo: ${r.caloriesEstimate} ${r.dietaryAdvice}`;
+
     let { score, matchedTerms } = scoreCandidate(
       query,
       queryNorm,
@@ -387,20 +583,34 @@ export function retrieveProjectKnowledge(
     }
 
     if (score > 0) {
+      const publicRecipeContent =
+        `Món: ${r.productName} (${r.category})\n` +
+        `- Cảnh báo dị ứng: ${(r.allergens || []).join(', ')}\n` +
+        `- Mức Caffeine: ${r.caffeineLevel} | Calo: ${r.caloriesEstimate}\n` +
+        `- Tư vấn: ${r.dietaryAdvice}`;
+
+      const staffRecipeContent =
+        `Món: ${r.productName} (${r.category})\n` +
+        `- Thành phần: ${r.ingredients}\n` +
+        `- Định lượng chuẩn Barista: ${r.formulaNote}\n` +
+        `- Cảnh báo dị ứng: ${(r.allergens || []).join(', ')}\n` +
+        `- Mức Caffeine: ${r.caffeineLevel} | Calo: ${r.caloriesEstimate}\n` +
+        `- Tư vấn: ${r.dietaryAdvice}`;
+
       candidates.push({
         id: `recipe-${r.id}`,
         sourceType: 'recipe',
-        title: `Công thức & Dinh dưỡng: ${r.productName}`,
-        category: `Sổ tay Barista - ${r.category}`,
-        content:
-          `Món: ${r.productName} (${r.category})\n` +
-          `- Thành phần: ${r.ingredients}\n` +
-          `- Định lượng chuẩn Barista: ${r.formulaNote}\n` +
-          `- Cảnh báo dị ứng: ${(r.allergens || []).join(', ')}\n` +
-          `- Mức Caffeine: ${r.caffeineLevel} | Calo: ${r.caloriesEstimate}\n` +
-          `- Tư vấn: ${r.dietaryAdvice}`,
+        title:
+          roleScope === 'customer'
+            ? `Thông tin dinh dưỡng & dị ứng: ${r.productName}`
+            : `Công thức & Dinh dưỡng: ${r.productName}`,
+        category:
+          roleScope === 'customer'
+            ? `Dinh dưỡng & Dị ứng - ${r.category}`
+            : `Sổ tay Barista - ${r.category}`,
+        content: roleScope === 'customer' ? publicRecipeContent : staffRecipeContent,
         score,
-        citation: formatCitation('Menu & Sản phẩm', 'menu'),
+        citation: roleScope === 'customer' ? undefined : formatCitation('Menu & Sản phẩm', 'menu'),
         matchedTerms,
       });
     }
@@ -449,14 +659,21 @@ export function buildSelectiveRagPrompt(
   });
 
   const bestDocChunk = retrievedChunks.find((c) => c.sourceType === 'project_doc' && c.citation);
+  const customerIsolationNote =
+    options?.roleScope === 'customer'
+      ? '- TUYỆT ĐỐI KHÔNG tiết lộ giá vốn, công thức định lượng pha chế nội bộ (CAUHINH/BOM), doanh thu cửa hàng, phím tắt POS hay hướng dẫn vận hành nhân viên.'
+      : '';
 
   if (retrievedChunks.length === 0) {
     return {
       prompt: [
         'QUY TẮC CHỐNG BỊA ĐẶT (STRICT GROUNDING):',
         '- Chỉ trả lời dựa trên dữ liệu thực đơn, bàn và tính năng có thật của hệ thống H2 MilkTea POS.',
-        '- Nếu người dùng hỏi thông tin không có trong hệ thống, hãy lịch sự thông báo thông tin đó chưa được cấu hình thay vì tự suy diễn.',
-      ].join('\n'),
+        customerIsolationNote,
+        '- Nếu người dùng hỏi thông tin không có trong hệ thống hoặc thuộc dữ liệu nội bộ không được phép chia sẻ, hãy lịch sự từ chối / thông báo thông tin đó chưa được cấu hình thay vì tự suy diễn.',
+      ]
+        .filter(Boolean)
+        .join('\n'),
       retrievedChunks: [],
     };
   }
@@ -476,11 +693,14 @@ export function buildSelectiveRagPrompt(
     'QUY TẮC NGHIÊM NGẶT (ANTI-HALLUCINATION):',
     '1. Khi trả lời câu hỏi hướng dẫn sử dụng, quy trình vận hành, thông tin quán hoặc thành phần đồ uống, BẠN BẮT BUỘC CHỈ SỬ DỤNG thông tin trong các [TÀI LIỆU TRUY XUẤT] dưới đây.',
     '2. TUYỆT ĐỐI KHÔNG tự bịa đặt phím tắt, đường dẫn trang, mật khẩu wifi, giờ mở cửa hay tính năng không nằm trong tài liệu.',
-    '3. Nếu tài liệu có mục "Trích dẫn bắt buộc", hãy giữ nguyên dòng trích dẫn đó ở cuối câu trả lời.',
+    customerIsolationNote ? `3. ${customerIsolationNote.replace(/^- /, '')}` : '',
+    '4. Nếu tài liệu có mục "Trích dẫn bắt buộc", hãy giữ nguyên dòng trích dẫn đó ở cuối câu trả lời.',
     '',
     formattedChunks,
     '=== KẾT THÚC KHO TRI THỨC RAG ===',
-  ].join('\n');
+  ]
+    .filter(Boolean)
+    .join('\n');
 
   return {
     prompt,

@@ -28,19 +28,18 @@ import {
   CloudOff,
   Upload,
   Download,
-  Trash2,
   RefreshCw,
-  CheckCircle2,
-  AlertTriangle,
   User,
-  Calendar,
   FileText,
   KeyRound,
-  ExternalLink,
   ShieldCheck,
+  Copy,
+  Check,
+  DatabaseBackup,
 } from 'lucide-react';
 import GoogleDriveUtils, { GoogleDriveFile } from '@/utils/googleDriveUtils';
 import { GOOGLE_DRIVE_CONFIG } from '@/config/googleDrive';
+import AuthUtils from '@/utils/authUtils';
 import { toast } from 'react-hot-toast';
 
 interface GoogleDriveSyncProps {
@@ -49,6 +48,7 @@ interface GoogleDriveSyncProps {
 
 export const GoogleDriveSync: React.FC<GoogleDriveSyncProps> = ({ onSyncComplete }) => {
   const [loading, setLoading] = useState(false);
+  const [restoringSample, setRestoringSample] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   const [userInfo, setUserInfo] = useState<any>(null);
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
@@ -56,11 +56,14 @@ export const GoogleDriveSync: React.FC<GoogleDriveSyncProps> = ({ onSyncComplete
   const [showBackupList, setShowBackupList] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [customClientId, setCustomClientId] = useState('');
+  const [currentOrigin, setCurrentOrigin] = useState('https://h2milktea.vercel.app');
+  const [copiedOrigin, setCopiedOrigin] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setCustomClientId(localStorage.getItem('h2_custom_google_client_id') || '');
+      setCurrentOrigin(window.location.origin);
     }
     checkAuthStatus();
     loadBackupFiles();
@@ -103,6 +106,26 @@ export const GoogleDriveSync: React.FC<GoogleDriveSyncProps> = ({ onSyncComplete
     }
   };
 
+  const handleCopyOrigin = async (originValue: string = currentOrigin) => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(originValue);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = originValue;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      setCopiedOrigin(true);
+      toast.success(`Đã sao chép Authorized JavaScript origin: ${originValue}`);
+      setTimeout(() => setCopiedOrigin(false), 2000);
+    } catch {
+      toast.error('Không thể tự động sao chép. Vui lòng copy thủ công!');
+    }
+  };
+
   const handleSignIn = async () => {
     try {
       setLoading(true);
@@ -113,7 +136,7 @@ export const GoogleDriveSync: React.FC<GoogleDriveSyncProps> = ({ onSyncComplete
         setShowConfigModal(true);
         setMessage({
           type: 'error',
-          text: 'Vui lòng nhập Google Client ID trước khi kết nối Google Drive!',
+          text: 'Vui lòng nhập Google Client ID hợp lệ trước khi kết nối Google Drive!',
         });
         setLoading(false);
         return;
@@ -196,6 +219,60 @@ export const GoogleDriveSync: React.FC<GoogleDriveSyncProps> = ({ onSyncComplete
     }
   };
 
+  const handleRestoreSampleToCloud = async () => {
+    try {
+      setRestoringSample(true);
+      setMessage({ type: 'info', text: 'Đang khởi tạo và đồng bộ dữ liệu mẫu 60 ngày từ kho backup JSON...' });
+
+      const seedResult = AuthUtils.seedSynchronizedTestDatabase();
+
+      // Thu thập các bảng cốt lõi đã chuẩn hóa để đẩy lên Cloud DB qua /api/backup/restore
+      const cloudTables = ['DMHH', 'DSBAN', 'DSNV', 'HOADON', 'HOADONDETAIL'];
+      const payloadTables: Record<string, any[]> = {};
+
+      await Promise.all(
+        cloudTables.map(async (tableName) => {
+          try {
+            const rows = await AuthUtils.apiRequest(tableName, 'getall', {});
+            if (Array.isArray(rows) && rows.length > 0) {
+              payloadTables[tableName] = rows;
+            }
+          } catch {
+            // Bỏ qua bảng nếu lỗi tạm thời
+          }
+        })
+      );
+
+      let cloudRestored = false;
+      try {
+        const restoreRes = await fetch('/api/backup/restore', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data: payloadTables }),
+        });
+        const restoreJson = await restoreRes.json().catch(() => ({}));
+        cloudRestored = Boolean(restoreRes.ok && restoreJson?.success);
+      } catch {
+        cloudRestored = false;
+      }
+
+      const finalMsg = cloudRestored
+        ? `Khôi phục dữ liệu mẫu gốc lên Cloud DB thành công! (${seedResult.invoices} hóa đơn, ${seedResult.details} chi tiết món)`
+        : `${seedResult.message} (Đã lưu đồng bộ dữ liệu cục bộ; sẵn sàng khi kết nối Cloud DB).`;
+
+      setMessage({ type: 'success', text: finalMsg });
+      toast.success(cloudRestored ? 'Đã khôi phục dữ liệu mẫu gốc lên Cloud DB!' : 'Đã đồng bộ dữ liệu mẫu 60 ngày!');
+      onSyncComplete?.(true, finalMsg);
+    } catch (error: any) {
+      const errMsg = error?.message || 'Lỗi khi khôi phục dữ liệu mẫu gốc';
+      setMessage({ type: 'error', text: errMsg });
+      toast.error(errMsg);
+      onSyncComplete?.(false, errMsg);
+    } finally {
+      setRestoringSample(false);
+    }
+  };
+
   const loadBackupFiles = async () => {
     if (!GoogleDriveUtils.isSignedIn()) return;
     try {
@@ -261,16 +338,17 @@ export const GoogleDriveSync: React.FC<GoogleDriveSyncProps> = ({ onSyncComplete
     }
   };
 
-  const handleSaveCustomClientId = () => {
+  const handleSaveCustomClientId = async () => {
     if (!customClientId.trim()) {
-      localStorage.removeItem('h2_custom_google_client_id');
+      GOOGLE_DRIVE_CONFIG.clearCustomClientId();
       toast.success('Đã xóa Client ID tùy chỉnh');
     } else {
       GOOGLE_DRIVE_CONFIG.setCustomClientId(customClientId);
       toast.success('Đã lưu Google Client ID mới!');
     }
+    GoogleDriveUtils.resetClient();
     setShowConfigModal(false);
-    checkAuthStatus();
+    await checkAuthStatus();
   };
 
   const formatFileSize = (bytes?: string) => {
@@ -381,6 +459,32 @@ export const GoogleDriveSync: React.FC<GoogleDriveSyncProps> = ({ onSyncComplete
             </div>
           )}
 
+          {/* Hộp hướng dẫn Authorized JavaScript origin 1-chạm */}
+          <div className="p-3.5 bg-amber-50/90 rounded-xl border border-amber-200 text-amber-950 text-xs space-y-2">
+            <div className="font-semibold flex items-center gap-1.5 text-amber-900">
+              <ShieldCheck className="w-4 h-4 text-amber-700 shrink-0" />
+              Hướng dẫn liên kết nhanh Google OAuth 2.0
+            </div>
+            <p className="text-[11px] text-amber-800 leading-relaxed">
+              Trên <strong>Google Cloud Console</strong> → <em>Credentials → OAuth 2.0 Client IDs</em>, dán địa chỉ <strong>Authorized JavaScript origin</strong> hiện tại bên dưới:
+            </p>
+            <div className="flex items-center justify-between gap-2 bg-white px-3 py-2 rounded-lg border border-amber-300/80">
+              <code className="font-mono text-[11px] font-semibold text-slate-800 truncate">
+                {currentOrigin}
+              </code>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => handleCopyOrigin(currentOrigin)}
+                className="h-7 px-2.5 text-[11px] font-semibold border-amber-300 bg-amber-100/70 hover:bg-amber-200 text-amber-900 shrink-0 gap-1"
+              >
+                {copiedOrigin ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                {copiedOrigin ? 'Đã copy' : 'Copy Origin'}
+              </Button>
+            </div>
+          </div>
+
           {/* Actions & Auto-sync */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="flex items-center justify-between p-3.5 border border-gray-200 rounded-xl bg-white">
@@ -438,6 +542,24 @@ export const GoogleDriveSync: React.FC<GoogleDriveSyncProps> = ({ onSyncComplete
                 </>
               )}
             </div>
+          </div>
+
+          {/* Khôi phục dữ liệu mẫu gốc không phụ thuộc Google Drive */}
+          <div className="pt-2 border-t border-gray-100">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleRestoreSampleToCloud}
+              disabled={restoringSample || loading}
+              className="w-full border-emerald-300 bg-emerald-50/70 hover:bg-emerald-100 text-emerald-900 font-semibold text-xs py-5 gap-2"
+            >
+              {restoringSample ? (
+                <RefreshCw className="h-4 w-4 animate-spin text-emerald-700" />
+              ) : (
+                <DatabaseBackup className="h-4 w-4 text-emerald-700" />
+              )}
+              📦 Khôi phục Dữ liệu Mẫu Gốc lên Cloud DB (Từ Kho Backup JSON)
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -510,7 +632,7 @@ export const GoogleDriveSync: React.FC<GoogleDriveSyncProps> = ({ onSyncComplete
 
       {/* Google Client ID Modal */}
       <Dialog open={showConfigModal} onOpenChange={setShowConfigModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md bg-white text-gray-900">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-indigo-600">
               <KeyRound className="w-5 h-5" />
@@ -531,32 +653,38 @@ export const GoogleDriveSync: React.FC<GoogleDriveSyncProps> = ({ onSyncComplete
                 value={customClientId}
                 onChange={(e) => setCustomClientId(e.target.value)}
                 placeholder="vd: 123456789-abcdef.apps.googleusercontent.com"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-xs font-mono bg-white text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
               />
             </div>
 
-            <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 space-y-1.5">
+            <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 space-y-2">
               <div className="font-semibold flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-amber-700" />
                 Lưu ý cấu hình Google Cloud Console:
               </div>
-              <p>Thêm 2 địa chỉ sau vào mục <strong>Authorized JavaScript origins</strong>:</p>
-              <ul className="list-disc pl-4 space-y-0.5 font-mono text-[11px]">
-                <li>http://localhost:3000</li>
-                <li className="flex items-center justify-between">
-                    <span>https://h2milktea.vercel.app</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard.writeText('https://h2milktea.vercel.app');
-                        toast.success('Đã sao chép https://h2milktea.vercel.app!');
-                      }}
-                      className="px-2 py-0.5 bg-amber-600 text-white rounded font-sans text-[10px] font-bold hover:bg-amber-700"
-                    >
-                      Copy
-                    </button>
-                  </li>
-              </ul>
+              <p>Thêm địa chỉ sau vào mục <strong>Authorized JavaScript origins</strong>:</p>
+              <div className="flex items-center justify-between gap-2 bg-white px-2.5 py-1.5 rounded-lg border border-amber-300">
+                <span className="font-mono text-[11px] truncate">{currentOrigin}</span>
+                <button
+                  type="button"
+                  onClick={() => handleCopyOrigin(currentOrigin)}
+                  className="px-2 py-0.5 bg-amber-600 text-white rounded font-sans text-[10px] font-bold hover:bg-amber-700 shrink-0"
+                >
+                  Copy Origin
+                </button>
+              </div>
+              {currentOrigin !== 'https://h2milktea.vercel.app' && (
+                <div className="flex items-center justify-between gap-2 font-mono text-[11px] pt-1">
+                  <span>https://h2milktea.vercel.app</span>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyOrigin('https://h2milktea.vercel.app')}
+                    className="px-2 py-0.5 bg-amber-600 text-white rounded font-sans text-[10px] font-bold hover:bg-amber-700 shrink-0"
+                  >
+                    Copy
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -564,7 +692,7 @@ export const GoogleDriveSync: React.FC<GoogleDriveSyncProps> = ({ onSyncComplete
             <Button variant="outline" size="sm" onClick={() => setShowConfigModal(false)}>
               Hủy
             </Button>
-            <Button size="sm" onClick={handleSaveCustomClientId} className="bg-indigo-600 text-white">
+            <Button size="sm" onClick={handleSaveCustomClientId} className="bg-indigo-600 text-white hover:bg-indigo-700">
               Lưu cấu hình
             </Button>
           </DialogFooter>

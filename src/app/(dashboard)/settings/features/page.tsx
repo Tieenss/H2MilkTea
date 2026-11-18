@@ -24,6 +24,7 @@ import {
   Unlock,
   Loader2,
   Info,
+  Percent,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
@@ -60,6 +61,7 @@ const FEATURE_ICONS: Record<SystemFeatureKey, React.ElementType> = {
   pos_offline_queue: WifiOff,
   pos_kitchen_print: Printer,
   pos_customer_Create: UserPlus,
+  enableVat: Percent,
 };
 
 const CATEGORIES: FeatureCategory[] = ['POS & Bán hàng', 'Bếp & QR', 'Hệ thống & AI'];
@@ -213,7 +215,7 @@ export default function SystemFeaturesSettingsPage() {
     if (!isAdmin) return;
     const defaults = createDefaultFeatureConfig();
     setDraftConfig(defaults);
-    toast.success('Đã đặt lại về cấu hình mặc định (Máy quét mã vạch: Tắt, các tính năng POS khác: Bật).');
+    toast.success('Đã đặt lại về cấu hình mặc định (Máy quét mã vạch & Thuế VAT: Tắt, các tính năng POS khác: Bật).');
   };
 
   // Lưu cấu hình lên Supabase & LocalStorage
@@ -487,7 +489,8 @@ export default function SystemFeaturesSettingsPage() {
                                       </span>
                                     ) : (
                                       <span className="flex items-center gap-1">
-                                        <XCircle className="h-3 w-3" /> Đã tắt (Ẩn trên POS)
+                                        <XCircle className="h-3 w-3" />{' '}
+                                        {feature.key === 'enableVat' ? 'Đã tắt (0%)' : 'Đã tắt (Ẩn trên POS)'}
                                       </span>
                                     )}
                                   </Badge>

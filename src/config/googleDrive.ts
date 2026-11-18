@@ -1,5 +1,8 @@
 // config/googleDrive.ts
 
+type ClientIdChangeListener = (newClientId: string) => void;
+const clientIdListeners = new Set<ClientIdChangeListener>();
+
 export const GOOGLE_DRIVE_CONFIG = {
   get CLIENT_ID(): string {
     if (typeof window !== 'undefined') {
@@ -9,10 +12,47 @@ export const GOOGLE_DRIVE_CONFIG = {
     return process.env.NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID || '';
   },
 
-  setCustomClientId(id: string) {
+  onClientIdChange(listener: ClientIdChangeListener): () => void {
+    clientIdListeners.add(listener);
+    return () => {
+      clientIdListeners.delete(listener);
+    };
+  },
+
+  notifyClientIdChange(newId: string) {
+    clientIdListeners.forEach((listener) => {
+      try {
+        listener(newId);
+      } catch (err) {
+        console.error('Error notifying Google Client ID listener:', err);
+      }
+    });
     if (typeof window !== 'undefined') {
-      localStorage.setItem('h2_custom_google_client_id', id.trim());
+      window.dispatchEvent(
+        new CustomEvent('h2-google-client-id-changed', {
+          detail: { clientId: newId },
+        })
+      );
     }
+  },
+
+  setCustomClientId(id: string) {
+    const trimmed = id.trim();
+    if (typeof window !== 'undefined') {
+      if (trimmed) {
+        localStorage.setItem('h2_custom_google_client_id', trimmed);
+      } else {
+        localStorage.removeItem('h2_custom_google_client_id');
+      }
+    }
+    this.notifyClientIdChange(trimmed);
+  },
+
+  clearCustomClientId() {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('h2_custom_google_client_id');
+    }
+    this.notifyClientIdChange(process.env.NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID || '');
   },
 
   SCOPES: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email',

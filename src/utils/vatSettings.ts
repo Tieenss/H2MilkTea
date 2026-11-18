@@ -17,8 +17,8 @@ const VAT_STORAGE_KEY = 'h2_vat_settings';
 const KITCHEN_STORAGE_KEY = 'h2_kitchen_settings';
 
 export const getDefaultVatSettings = (): VatSettings => ({
-  enabled: true,
-  ratePercent: 10,
+  enabled: false,
+  ratePercent: 0,
   pricesIncludeVat: false,
   vatNumber: '0312345678',
   note: 'Thuế giá trị gia tăng áp dụng theo quy định hiện hành',

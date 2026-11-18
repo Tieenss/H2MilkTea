@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { Supplier, SupplierFormData, SupplierStats } from '../types/supplier';
 import { JsonFileManager } from '@/utils/jsonFileManager';
+import authUtils from '@/utils/authUtils';
 
 export function useSuppliers() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -14,13 +15,14 @@ export function useSuppliers() {
     trungBinhDanhGia: 0
   });
 
-  // Fetch suppliers from JSON file
+  // Fetch suppliers from database/JSON
   const fetchSuppliers = async () => {
     try {
       setLoading(true);
       const data = await JsonFileManager.fetchDataFromJson<Supplier>('NHACUNGCAP');
-      setSuppliers(data);
-      calculateStats(data);
+      const list = Array.isArray(data) ? data : [];
+      setSuppliers(list);
+      calculateStats(list);
     } catch (error) {
       console.error('Error fetching suppliers:', error);
     } finally {
@@ -31,7 +33,7 @@ export function useSuppliers() {
   // Calculate statistics
   const calculateStats = (suppliersData: Supplier[]) => {
     const list = Array.isArray(suppliersData) ? suppliersData : [];
-    const stats = {
+    const nextStats = {
       tongNhaCungCap: list.length,
       dangHopTac: list.filter(s => s?.TrangThai === 'Đang hợp tác').length,
       tamNgung: list.filter(s => s?.TrangThai === 'Tạm ngưng').length,
@@ -40,28 +42,35 @@ export function useSuppliers() {
         const history = Array.isArray(supplier?.LichSuDatHang) ? supplier.LichSuDatHang : [];
         return total + history.reduce((sum, order) => sum + (Number(order?.TongTien) || 0), 0);
       }, 0),
-      trungBinhDanhGia: list.length > 0 
-        ? list.reduce((sum, supplier) => sum + (Number(supplier?.DanhGia) || 5), 0) / list.length 
+      trungBinhDanhGia: list.length > 0
+        ? list.reduce((sum, supplier) => sum + (Number(supplier?.DanhGia) || 5), 0) / list.length
         : 5.0
     };
-    setStats(stats);
+    setStats(nextStats);
   };
 
   // Add new supplier
   const addSupplier = async (formData: SupplierFormData) => {
     try {
+      const existingIds = new Set(suppliers.map(s => s.IDNhaCungCap));
+      let counter = suppliers.length + 1;
+      let nextId = `NCC${String(counter).padStart(3, '0')}`;
+      while (existingIds.has(nextId)) {
+        counter++;
+        nextId = `NCC${String(counter).padStart(3, '0')}`;
+      }
+
       const newSupplier: Supplier = {
-        IDNhaCungCap: `NCC${String(suppliers.length + 1).padStart(3, '0')}`,
+        IDNhaCungCap: nextId,
         ...formData,
         LichSuDatHang: []
       };
 
+      await authUtils.apiRequest('NHACUNGCAP', 'create', newSupplier).catch(() => null);
+
       const updatedSuppliers = [...suppliers, newSupplier];
       setSuppliers(updatedSuppliers);
       calculateStats(updatedSuppliers);
-
-      // Save to JSON file (in real app, this would be an API call)
-      await saveSuppliersToFile(updatedSuppliers);
     } catch (error) {
       console.error('Error adding supplier:', error);
       throw error;
@@ -71,17 +80,18 @@ export function useSuppliers() {
   // Update supplier
   const updateSupplier = async (supplierId: string, formData: SupplierFormData) => {
     try {
-      const updatedSuppliers = suppliers.map(supplier => 
-        supplier.IDNhaCungCap === supplierId 
+      await authUtils
+        .apiRequest('NHACUNGCAP', 'update', { IDNhaCungCap: supplierId, ...formData })
+        .catch(() => null);
+
+      const updatedSuppliers = suppliers.map(supplier =>
+        supplier.IDNhaCungCap === supplierId
           ? { ...supplier, ...formData }
           : supplier
       );
-      
+
       setSuppliers(updatedSuppliers);
       calculateStats(updatedSuppliers);
-
-      // Save to JSON file (in real app, this would be an API call)
-      await saveSuppliersToFile(updatedSuppliers);
     } catch (error) {
       console.error('Error updating supplier:', error);
       throw error;
@@ -91,26 +101,17 @@ export function useSuppliers() {
   // Delete supplier
   const deleteSupplier = async (supplierId: string) => {
     try {
+      await authUtils
+        .apiRequest('NHACUNGCAP', 'delete', { IDNhaCungCap: supplierId })
+        .catch(() => null);
+
       const updatedSuppliers = suppliers.filter(supplier => supplier.IDNhaCungCap !== supplierId);
       setSuppliers(updatedSuppliers);
       calculateStats(updatedSuppliers);
-
-      // Save to JSON file (in real app, this would be an API call)
-      await saveSuppliersToFile(updatedSuppliers);
     } catch (error) {
       console.error('Error deleting supplier:', error);
       throw error;
     }
-  };
-
-  // Save suppliers to file (simulated)
-  const saveSuppliersToFile = async (suppliersData: Supplier[]) => {
-    // In a real application, this would be an API call to save data
-    // For now, we'll just simulate the save operation
-    console.log('Saving suppliers to file:', suppliersData);
-    
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 500));
   };
 
   // Load suppliers on component mount
@@ -127,4 +128,4 @@ export function useSuppliers() {
     updateSupplier,
     deleteSupplier
   };
-} 
+}

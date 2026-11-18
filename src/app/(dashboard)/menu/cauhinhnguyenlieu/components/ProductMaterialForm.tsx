@@ -4,22 +4,35 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import {
-  Save, Loader2, X, Hash, Calculator, 
+  Save, Loader2, X, Hash, Calculator,
   Package, Beaker, AlertTriangle, Search,
-  CheckCircle2, Info
+  CheckCircle2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
 import type { ProductMaterial, ProductMaterialFormData, Product, Material } from '../types/productMaterial';
 import { STATUS_OPTIONS } from '../utils/constants';
-import { formatNumber, parseNumber } from '../utils/formatters';
+import { formatNumber } from '../utils/formatters';
+
+const parseDecimal = (value: unknown): number => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (value === null || value === undefined) return 0;
+  let str = String(value).trim().replace(/\s+/g, '');
+  if (!str) return 0;
+  if (str.includes(',') && str.includes('.')) {
+    str = str.replace(/\./g, '').replace(',', '.');
+  } else if (str.includes(',')) {
+    str = str.replace(/,/g, '.');
+  }
+  const num = parseFloat(str);
+  return Number.isFinite(num) ? num : 0;
+};
 
 interface ProductMaterialFormProps {
   config?: ProductMaterial | null;
@@ -53,8 +66,29 @@ export const ProductMaterialForm: React.FC<ProductMaterialFormProps> = ({
   const [productSearch, setProductSearch] = useState('');
   const [materialSearch, setMaterialSearch] = useState('');
   const [isSelfConfig, setIsSelfConfig] = useState(false);
+  const [quantityInput, setQuantityInput] = useState<string>(() => {
+    const initialQty = parseDecimal(formData['Số lượng cần']);
+    return initialQty > 0 ? String(initialQty) : '';
+  });
+  const [quantityError, setQuantityError] = useState<string>('');
 
   const isEditMode = Boolean(config);
+
+  const updateFormData = useCallback((field: keyof ProductMaterialFormData, value: string | number) => {
+    onFormDataChange({ ...formData, [field]: value });
+  }, [formData, onFormDataChange]);
+
+  // Đồng bộ chuỗi hiển thị khi chọn bản ghi sửa hoặc khi bấm thiết lập nhanh
+  useEffect(() => {
+    const num = parseDecimal(formData['Số lượng cần']);
+    const currentParsed = parseDecimal(quantityInput);
+    if (num > 0 && num !== currentParsed) {
+      setQuantityInput(String(num));
+      setQuantityError('');
+    } else if (!config && num === 0 && quantityInput === '') {
+      setQuantityInput('');
+    }
+  }, [config?.IDCauHinh, formData['Số lượng cần']]);
 
   // Auto-generate config ID for new configs
   useEffect(() => {
@@ -62,7 +96,7 @@ export const ProductMaterialForm: React.FC<ProductMaterialFormProps> = ({
       const newId = generateConfigId();
       updateFormData('IDCauHinh', newId);
     }
-  }, [isEditMode, formData.IDCauHinh, generateConfigId]);
+  }, [isEditMode, formData.IDCauHinh, generateConfigId, updateFormData]);
 
   // Update selected material when form data changes
   useEffect(() => {
@@ -74,21 +108,19 @@ export const ProductMaterialForm: React.FC<ProductMaterialFormProps> = ({
 
   // Check if this is a self-config (product as material)
   useEffect(() => {
-    const isSelf = formData.IDSP === formData.IDNguyenLieu;
+    const isSelf = Boolean(formData.IDSP && formData.IDSP === formData.IDNguyenLieu);
     setIsSelfConfig(isSelf);
     if (isSelf) {
       updateFormData('Số lượng cần', 1);
+      setQuantityInput('1');
+      setQuantityError('');
     }
   }, [formData.IDSP, formData.IDNguyenLieu]);
-
-  const updateFormData = useCallback((field: keyof ProductMaterialFormData, value: string | number) => {
-    onFormDataChange({ ...formData, [field]: value });
-  }, [formData, onFormDataChange]);
 
   // Filter functions for search
   const filteredProducts = useMemo(() => {
     if (!productSearch) return products;
-    return products.filter(product => 
+    return products.filter(product =>
       product['Tên sản phẩm'].toLowerCase().includes(productSearch.toLowerCase()) ||
       product.IDSP.toLowerCase().includes(productSearch.toLowerCase()) ||
       product['Loại sản phẩm'].toLowerCase().includes(productSearch.toLowerCase())
@@ -97,7 +129,7 @@ export const ProductMaterialForm: React.FC<ProductMaterialFormProps> = ({
 
   const filteredMaterials = useMemo(() => {
     if (!materialSearch) return materials;
-    return materials.filter(material => 
+    return materials.filter(material =>
       material['Tên nguyên liệu'].toLowerCase().includes(materialSearch.toLowerCase()) ||
       material.IDNguyenLieu.toLowerCase().includes(materialSearch.toLowerCase()) ||
       material['Đơn vị tính'].toLowerCase().includes(materialSearch.toLowerCase())
@@ -106,66 +138,73 @@ export const ProductMaterialForm: React.FC<ProductMaterialFormProps> = ({
 
   // Calculate converted quantity
   const convertedQuantity = useMemo(() => {
-    if (!selectedMaterial || !formData['Số lượng cần']) {
+    const needed = parseDecimal(formData['Số lượng cần']);
+    if (!selectedMaterial || needed <= 0) {
       return 0;
     }
-    return formData['Số lượng cần'] * (selectedMaterial['Hệ số quy đổi'] || 1);
+    return needed * (parseDecimal(selectedMaterial['Hệ số quy đổi']) || 1);
   }, [formData['Số lượng cần'], selectedMaterial]);
 
   const validateForm = useCallback((): string[] => {
     const errors: string[] = [];
+    const needed = parseDecimal(formData['Số lượng cần']);
 
     if (!formData.IDCauHinh?.trim()) errors.push('Mã cấu hình không được để trống');
     if (!formData.IDSP?.trim()) errors.push('Vui lòng chọn sản phẩm');
     if (!formData.IDNguyenLieu?.trim()) errors.push('Vui lòng chọn nguyên vật liệu');
-    if (!formData['Số lượng cần'] || formData['Số lượng cần'] <= 0) errors.push('Số lượng cần phải lớn hơn 0');
+    if (!needed || needed <= 0) errors.push('Số lượng phải lớn hơn 0!');
 
     return errors;
   }, [formData]);
 
-  // Trong ProductMaterialForm.tsx, sửa lại handleSubmit:
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
 
-const handleSubmit = useCallback(async (e: React.FormEvent) => {
-  e.preventDefault();
-
-  if (isSubmitting || (!isAdmin && !isManager)) {
-    if (!isAdmin && !isManager) {
-      toast.error('Bạn không có quyền thực hiện chức năng này!');
-    }
-    return;
-  }
-
-  try {
-    setIsSubmitting(true);
-
-    const errors = validateForm();
-    if (errors.length > 0) {
-      toast.error(errors.join('\n'));
+    if (isSubmitting || (!isAdmin && !isManager)) {
+      if (!isAdmin && !isManager) {
+        toast.error('Bạn không có quyền thực hiện chức năng này!');
+      }
       return;
     }
 
-    // Add unit from selected material
-    const submitData = {
-      ...formData,
-      'Đơn vị sử dụng': selectedMaterial?.['Đơn vị tính'] || formData['Đơn vị sử dụng']
-    };
+    try {
+      setIsSubmitting(true);
 
-    // Chỉ gọi onSubmit, không cần xử lý thêm
-    onSubmit(submitData);
-  } catch (error) {
-    console.error('Error in form submission:', error);
-    toast.error('Có lỗi xảy ra khi xử lý form');
-  } finally {
-    setIsSubmitting(false);
-  }
-}, [isSubmitting, isAdmin, isManager, formData, selectedMaterial, validateForm, onSubmit]);
+      const errors = validateForm();
+      if (errors.length > 0) {
+        if (errors.includes('Số lượng phải lớn hơn 0!')) {
+          setQuantityError('Số lượng phải lớn hơn 0!');
+        }
+        toast.error(errors.join('\n'));
+        return;
+      }
+
+      const parsedQuantity = parseDecimal(formData['Số lượng cần']);
+
+      // Add unit from selected material
+      const submitData = {
+        ...formData,
+        'Số lượng cần': parsedQuantity,
+        'Đơn vị sử dụng': selectedMaterial?.['Đơn vị tính'] || formData['Đơn vị sử dụng']
+      };
+
+      onSubmit(submitData);
+    } catch (error) {
+      console.error('Error in form submission:', error);
+      toast.error('Có lỗi xảy ra khi xử lý form');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [isSubmitting, isAdmin, isManager, formData, selectedMaterial, validateForm, onSubmit]);
+
   const handleSelfConfig = () => {
     if (formData.IDSP) {
       const product = products.find(p => p.IDSP === formData.IDSP);
       if (product) {
-        // Set product as its own material
         updateFormData('IDNguyenLieu', formData.IDSP);
         updateFormData('Số lượng cần', 1);
+        setQuantityInput('1');
+        setQuantityError('');
         toast.success(`Đã thiết lập tự cấu hình cho ${product['Tên sản phẩm']}`);
       }
     } else {
@@ -173,24 +212,54 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
     }
   };
 
+  const handleQuantityChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+
+    // Chặn nhập số âm
+    if (raw.includes('-')) {
+      setQuantityError('Số lượng phải lớn hơn 0!');
+      return;
+    }
+
+    if (raw.trim() === '') {
+      setQuantityInput('');
+      setQuantityError('Số lượng phải lớn hơn 0!');
+      updateFormData('Số lượng cần', 0);
+      return;
+    }
+
+    // Cho phép nhập chữ số và dấu . hoặc ,
+    const sanitized = raw.replace(/[^0-9.,]/g, '');
+    setQuantityInput(sanitized);
+
+    const parsed = parseDecimal(sanitized);
+    if (parsed <= 0) {
+      setQuantityError('Số lượng phải lớn hơn 0!');
+      updateFormData('Số lượng cần', 0);
+    } else {
+      setQuantityError('');
+      updateFormData('Số lượng cần', parsed);
+    }
+  }, [updateFormData]);
+
+  const handleQuickQuantity = useCallback((val: number) => {
+    setQuantityInput(String(val));
+    setQuantityError('');
+    updateFormData('Số lượng cần', val);
+  }, [updateFormData]);
+
   const inputHandlers = useMemo(() => ({
     configId: (e: React.ChangeEvent<HTMLInputElement>) => updateFormData('IDCauHinh', e.target.value),
-    quantity: (e: React.ChangeEvent<HTMLInputElement>) => {
-      const value = parseNumber(e.target.value);
-      updateFormData('Số lượng cần', value);
-    },
     notes: (e: React.ChangeEvent<HTMLTextAreaElement>) => updateFormData('Ghi chú', e.target.value),
     status: (value: string) => updateFormData('Trạng thái', value),
   }), [updateFormData]);
-
-  const selectedProduct = products.find(p => p.IDSP === formData.IDSP);
 
   return (
     <div className="flex flex-col h-full max-h-screen">
       <div className="flex-1 overflow-y-auto">
         <div className="p-3 sm:p-4 md:p-6">
           <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-8">
-            
+
             {/* Self-config notification */}
             {isSelfConfig && (
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
@@ -207,7 +276,7 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
-              
+
               {/* Column 1 - Basic Information */}
               <div className="space-y-4 sm:space-y-6">
                 <div className="space-y-2">
@@ -264,8 +333,8 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
                     </PopoverTrigger>
                     <PopoverContent className="w-full p-0" align="start">
                       <Command>
-                        <CommandInput 
-                          placeholder="Tìm kiếm sản phẩm..." 
+                        <CommandInput
+                          placeholder="Tìm kiếm sản phẩm..."
                           value={productSearch}
                           onValueChange={setProductSearch}
                         />
@@ -295,7 +364,7 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
                       </Command>
                     </PopoverContent>
                   </Popover>
-                  
+
                   {/* Self-config option */}
                   {formData.IDSP && (
                     <div className="mt-2">
@@ -333,8 +402,8 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
                           <div className="flex items-center gap-2">
                             <Beaker className="h-4 w-4 text-green-500" />
                             <span className="truncate">
-                              {materials.find(m => m.IDNguyenLieu === formData.IDNguyenLieu)?.['Tên nguyên liệu'] || 
-                               products.find(p => p.IDSP === formData.IDNguyenLieu)?.['Tên sản phẩm'] || 
+                              {materials.find(m => m.IDNguyenLieu === formData.IDNguyenLieu)?.['Tên nguyên liệu'] ||
+                               products.find(p => p.IDSP === formData.IDNguyenLieu)?.['Tên sản phẩm'] ||
                                'Không tìm thấy'}
                             </span>
                           </div>
@@ -349,8 +418,8 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
                     </PopoverTrigger>
                     <PopoverContent className="w-full p-0" align="start">
                       <Command>
-                        <CommandInput 
-                          placeholder="Tìm kiếm nguyên vật liệu..." 
+                        <CommandInput
+                          placeholder="Tìm kiếm nguyên vật liệu..."
                           value={materialSearch}
                           onValueChange={setMaterialSearch}
                         />
@@ -362,7 +431,7 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
                               <div className="px-2 py-1.5 text-xs font-medium text-gray-500 bg-gray-50">
                                 Sản phẩm (Tự cấu hình)
                               </div>
-                              {products.filter(p => 
+                              {products.filter(p =>
                                 p['Tên sản phẩm'].toLowerCase().includes(materialSearch.toLowerCase()) ||
                                 p.IDSP.toLowerCase().includes(materialSearch.toLowerCase())
                               ).map((product) => (
@@ -393,7 +462,7 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
                               </div>
                             </>
                           )}
-                          
+
                           {/* Regular materials */}
                           {filteredMaterials.map((material) => (
                             <CommandItem
@@ -453,27 +522,39 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
                     <Calculator className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-purple-400" />
                     <Input
                       id="quantity"
-                      type="number"
-                      min="0"
-                      step="0.001"
-                      className="pl-10 h-9 sm:h-10"
-                      value={formData['Số lượng cần'] || ''}
-                      onChange={inputHandlers.quantity}
-                      placeholder="0"
+                      type="text"
+                      inputMode="decimal"
+                      className={`pl-10 h-9 sm:h-10 ${quantityError ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+                      value={quantityInput}
+                      onChange={handleQuantityChange}
+                      onKeyDown={(e) => {
+                        if (e.key === '-') {
+                          e.preventDefault();
+                          setQuantityError('Số lượng phải lớn hơn 0!');
+                        }
+                      }}
+                      placeholder="Nhập định lượng (vd: 0.01 hoặc 0,01)"
                       required
                       disabled={isSelfConfig}
                     />
                   </div>
-                  <p className="text-xs text-gray-500">
-                    {isSelfConfig ? 
-                      'Tự động = 1 (sản phẩm tự cấu hình)' :
-                      `Số lượng ${selectedMaterial?.['Đơn vị tính'] || 'đơn vị'} cần cho 1 sản phẩm`
-                    }
-                  </p>
+                  {quantityError ? (
+                    <p className="text-xs font-medium text-red-600 flex items-center gap-1" role="alert">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                      <span>{quantityError}</span>
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-500">
+                      {isSelfConfig ?
+                        'Tự động = 1 (sản phẩm tự cấu hình)' :
+                        `Số lượng ${selectedMaterial?.['Đơn vị tính'] || 'đơn vị'} cần cho 1 sản phẩm (hỗ trợ dấu . hoặc ,)`
+                      }
+                    </p>
+                  )}
                 </div>
 
                 {/* Conversion Display */}
-                {selectedMaterial && formData['Số lượng cần'] > 0 && !isSelfConfig && (
+                {selectedMaterial && parseDecimal(formData['Số lượng cần']) > 0 && !isSelfConfig && (
                   <div className="p-4 bg-purple-50 rounded-lg">
                     <div className="flex items-center gap-2 mb-3">
                       <Calculator className="h-5 w-5 text-purple-600" />
@@ -483,7 +564,7 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
                       <div className="flex justify-between">
                         <span className="text-purple-700">Đơn vị sử dụng:</span>
                         <span className="font-semibold text-purple-800">
-                          {formatNumber(formData['Số lượng cần'])} {selectedMaterial['Đơn vị tính']}
+                          {formatNumber(parseDecimal(formData['Số lượng cần']))} {selectedMaterial['Đơn vị tính']}
                         </span>
                       </div>
                       <div className="flex justify-between">
@@ -493,7 +574,7 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
                         </span>
                       </div>
                       <div className="text-xs text-purple-600 mt-2 p-2 bg-white rounded border">
-                        Công thức: {formatNumber(formData['Số lượng cần'])} × {formatNumber(selectedMaterial['Hệ số quy đổi'])} = {formatNumber(convertedQuantity)}
+                        Công thức: {formatNumber(parseDecimal(formData['Số lượng cần']))} × {formatNumber(selectedMaterial['Hệ số quy đổi'])} = {formatNumber(convertedQuantity)}
                       </div>
                     </div>
                   </div>
@@ -509,7 +590,7 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
                     rows={4}
                     value={formData['Ghi chú'] || ''}
                     onChange={inputHandlers.notes}
-                    placeholder={isSelfConfig ? 
+                    placeholder={isSelfConfig ?
                       'Ghi chú cho cấu hình tự động...' :
                       'Nhập ghi chú về cấu hình này...'
                     }
@@ -527,7 +608,7 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => updateFormData('Số lượng cần', 1)}
+                        onClick={() => handleQuickQuantity(1)}
                         className="text-xs"
                       >
                         1 đơn vị
@@ -536,7 +617,7 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => updateFormData('Số lượng cần', 0.5)}
+                        onClick={() => handleQuickQuantity(0.5)}
                         className="text-xs"
                       >
                         0.5 đơn vị
@@ -545,7 +626,7 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => updateFormData('Số lượng cần', 0.1)}
+                        onClick={() => handleQuickQuantity(0.1)}
                         className="text-xs"
                       >
                         0.1 đơn vị
@@ -554,7 +635,7 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => updateFormData('Số lượng cần', 0.01)}
+                        onClick={() => handleQuickQuantity(0.01)}
                         className="text-xs"
                       >
                         0.01 đơn vị
@@ -600,7 +681,7 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
         <div className="p-3 sm:p-4 md:p-6">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-3 sm:gap-0 w-full">
             <div className="text-xs sm:text-sm text-gray-500 order-2 sm:order-1">
-              {selectedMaterial && formData['Số lượng cần'] > 0 && !isSelfConfig && (
+              {selectedMaterial && parseDecimal(formData['Số lượng cần']) > 0 && !isSelfConfig && (
                 <span>
                   Tổng cần: {formatNumber(convertedQuantity)} {selectedMaterial['Đơn vị cơ sở']}
                 </span>
@@ -642,6 +723,6 @@ const handleSubmit = useCallback(async (e: React.FormEvent) => {
           </div>
         </div>
       </div>
-     </div>
+    </div>
   );
 };

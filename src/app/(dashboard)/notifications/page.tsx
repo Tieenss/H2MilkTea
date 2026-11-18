@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Bell,
+  BellRing,
   CheckCircle,
   AlertCircle,
   Clock,
@@ -13,12 +14,13 @@ import {
   RotateCcw,
   Search,
   ArrowRight,
-  Filter,
+  Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { toast } from 'react-hot-toast';
+import { createClient } from '@/lib/supabase/client';
 import {
   getStoredNotifications,
   markAsRead,
@@ -28,6 +30,23 @@ import {
   saveNotifications,
   type AppNotification,
 } from '@/utils/notificationStore';
+
+function isStaffCallNotification(n: AppNotification): boolean {
+  const cat = String((n as any).category || '').toLowerCase();
+  const title = String(n.title || '').toLowerCase();
+  const msg = String(n.message || '').toLowerCase();
+  return (
+    cat === 'staff_call' ||
+    cat === 'service_call' ||
+    cat === 'service' ||
+    title.includes('gọi phục vụ') ||
+    title.includes('staff call') ||
+    title.includes('hỗ trợ tại bàn') ||
+    msg.includes('gọi phục vụ') ||
+    msg.includes('hỗ trợ tại bàn') ||
+    msg.includes('gọi nhân viên')
+  );
+}
 
 export default function NotificationsPage() {
   const router = useRouter();
@@ -44,9 +63,46 @@ export default function NotificationsPage() {
     const handleUpdate = () => refresh();
     window.addEventListener('h2_notifications_updated', handleUpdate);
     window.addEventListener('storage', handleUpdate);
+
+    // Lắng nghe Realtime yêu cầu Gọi phục vụ từ khách tại bàn khi đang mở Trung tâm Thông báo
+    let client: ReturnType<typeof createClient> | null = null;
+    let serviceChannel: any = null;
+    try {
+      client = createClient();
+      if (client) {
+        serviceChannel = client
+          .channel('staff-service-calls-notifications')
+          .on('broadcast', { event: 'service-call' }, ({ payload }) => {
+            const tableName = payload?.tableName || `Bàn ${payload?.tableId || ''}`.trim();
+            const reqType = payload?.requestType || 'Hỗ trợ tại bàn';
+            const newItem: AppNotification = {
+              id: `staff-call-${Date.now()}`,
+              title: `Gọi phục vụ - ${tableName}`,
+              message: `${tableName} yêu cầu hỗ trợ tại bàn: ${reqType}`,
+              time: 'Vừa xong',
+              createdAt: payload?.timestamp || new Date().toISOString(),
+              type: 'warning',
+              unread: true,
+              route: '/pos',
+              actionLabel: 'Mở POS hỗ trợ bàn',
+              category: 'staff_call' as any,
+            };
+            const next = [newItem, ...getStoredNotifications()];
+            saveNotifications(next);
+            setNotifications(next);
+          })
+          .subscribe();
+      }
+    } catch {
+      // Bỏ qua nếu chưa cấu hình Supabase Realtime
+    }
+
     return () => {
       window.removeEventListener('h2_notifications_updated', handleUpdate);
       window.removeEventListener('storage', handleUpdate);
+      if (client && serviceChannel) {
+        void client.removeChannel(serviceChannel);
+      }
     };
   }, []);
 
@@ -92,10 +148,11 @@ export default function NotificationsPage() {
 
   // Lọc thông báo
   const filteredNotifications = notifications.filter((n) => {
-    // Lọc theo type hoặc unread
+    // Lọc theo type hoặc category
     if (filterType === 'unread' && !n.unread) return false;
-    if (filterType === 'warning' && n.type !== 'warning') return false;
+    if (filterType === 'warning' && n.category !== 'inventory' && n.type !== 'warning') return false;
     if (filterType === 'order' && n.category !== 'order' && n.category !== 'kitchen') return false;
+    if (filterType === 'staff_call' && !isStaffCallNotification(n)) return false;
     if (filterType === 'inventory' && n.category !== 'inventory') return false;
 
     // Lọc tìm kiếm
@@ -107,6 +164,9 @@ export default function NotificationsPage() {
   });
 
   const unreadCount = notifications.filter((n) => n.unread).length;
+  const warningCount = notifications.filter((n) => n.category === 'inventory' || n.type === 'warning').length;
+  const orderCount = notifications.filter((n) => n.category === 'order' || n.category === 'kitchen').length;
+  const staffCallCount = notifications.filter((n) => isStaffCallNotification(n)).length;
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12">
@@ -191,7 +251,7 @@ export default function NotificationsPage() {
             onClick={() => setFilterType('warning')}
             className="text-xs rounded-xl"
           >
-            Cảnh báo kho
+            Cảnh báo kho ({warningCount})
           </Button>
           <Button
             variant={filterType === 'order' ? 'default' : 'outline'}
@@ -199,7 +259,16 @@ export default function NotificationsPage() {
             onClick={() => setFilterType('order')}
             className="text-xs rounded-xl"
           >
-            Đơn & Bếp
+            Đơn & Bếp ({orderCount})
+          </Button>
+          <Button
+            variant={filterType === 'staff_call' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilterType('staff_call')}
+            className="text-xs rounded-xl flex items-center gap-1.5"
+          >
+            <BellRing className="w-3.5 h-3.5" />
+            Gọi phục vụ ({staffCallCount})
           </Button>
         </div>
 
@@ -219,13 +288,22 @@ export default function NotificationsPage() {
         {filteredNotifications.length === 0 ? (
           <div className="bg-white p-12 text-center rounded-2xl border border-gray-100 shadow-sm">
             <Bell className="w-12 h-12 text-gray-300 mx-auto mb-3 stroke-[1.5]" />
-            <p className="text-gray-500 font-medium">Không tìm thấy thông báo nào</p>
+            <p className="text-gray-600 font-medium">
+              {filterType === 'unread'
+                ? 'Bạn đã xem hết tất cả thông báo'
+                : filterType === 'staff_call'
+                ? 'Hiện chưa có yêu cầu gọi phục vụ tại bàn nào'
+                : 'Không tìm thấy thông báo nào'}
+            </p>
             <p className="text-xs text-gray-400 mt-1">
-              Bạn đã xử lý hết mọi thông báo hoặc bộ lọc không có dữ liệu trùng khớp.
+              {filterType === 'staff_call'
+                ? 'Khi khách tại bàn bấm nút Gọi phục vụ từ menu QR, yêu cầu sẽ hiển thị ngay tại đây.'
+                : 'Bạn đã xử lý hết mọi thông báo hoặc bộ lọc không có dữ liệu trùng khớp.'}
             </p>
           </div>
         ) : (
           filteredNotifications.map((item) => {
+            const isStaffCall = isStaffCallNotification(item);
             const isWarning = item.type === 'warning';
             const isSuccess = item.type === 'success';
 
@@ -235,21 +313,27 @@ export default function NotificationsPage() {
                 onClick={() => handleNavigate(item)}
                 className={`group relative bg-white p-5 rounded-2xl border transition-all duration-200 cursor-pointer hover:shadow-md flex items-start gap-4 ${
                   item.unread
-                    ? 'border-emerald-200 bg-emerald-50/20 shadow-sm'
+                    ? isStaffCall
+                      ? 'border-orange-200 bg-orange-50/25 shadow-sm'
+                      : 'border-emerald-200 bg-emerald-50/20 shadow-sm'
                     : 'border-gray-100 hover:border-gray-200'
                 }`}
               >
                 {/* Icon */}
                 <div
                   className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                    isWarning
+                    isStaffCall
+                      ? 'bg-orange-100 text-orange-700'
+                      : isWarning
                       ? 'bg-amber-100 text-amber-700'
                       : isSuccess
                       ? 'bg-emerald-100 text-emerald-700'
                       : 'bg-blue-100 text-blue-700'
                   }`}
                 >
-                  {isWarning ? (
+                  {isStaffCall ? (
+                    <BellRing className="w-5 h-5" />
+                  ) : isWarning ? (
                     <AlertCircle className="w-5 h-5" />
                   ) : isSuccess ? (
                     <CheckCircle className="w-5 h-5" />
@@ -261,8 +345,13 @@ export default function NotificationsPage() {
                 {/* Content */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center flex-wrap gap-2">
                       <h3 className="font-bold text-gray-900 text-sm">{item.title}</h3>
+                      {isStaffCall && (
+                        <Badge variant="outline" className="text-[11px] bg-orange-50 text-orange-700 border-orange-200">
+                          Gọi phục vụ
+                        </Badge>
+                      )}
                       {item.unread && (
                         <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600 bg-emerald-100/80 px-2 py-0.5 rounded-full">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -284,14 +373,31 @@ export default function NotificationsPage() {
                       <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
                     </span>
 
-                    <button
-                      type="button"
-                      onClick={(e) => handleDeleteOne(item.id, e)}
-                      className="text-xs text-gray-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors"
-                      title="Xóa thông báo này"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      {item.unread && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleMarkAsRead(item.id);
+                            toast.success(isStaffCall ? 'Đã xác nhận hỗ trợ bàn' : 'Đã đánh dấu đã đọc');
+                          }}
+                          className="text-xs text-emerald-700 hover:bg-emerald-50 px-2 py-1 rounded flex items-center gap-1 transition-colors"
+                          title={isStaffCall ? 'Xác nhận đã hỗ trợ' : 'Đánh dấu đã đọc'}
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>{isStaffCall ? 'Đã hỗ trợ' : 'Đã đọc'}</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeleteOne(item.id, e)}
+                        className="text-xs text-gray-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors"
+                        title="Xóa thông báo này"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

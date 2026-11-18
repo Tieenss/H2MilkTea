@@ -3,18 +3,10 @@
 import React, { useState } from 'react';
 import { X, Minus, Plus } from 'lucide-react';
 import type { Product } from '../types/customer-order';
-import { SIZE_OPTIONS, SUGAR_OPTIONS, ICE_OPTIONS } from '../types/customer-order';
+import { SIZE_OPTIONS, SUGAR_OPTIONS, ICE_OPTIONS, AVAILABLE_TOPPINGS } from '../types/customer-order';
 import { useCart } from '../context/CartContext';
 import { buildMergedToppingNote } from '@/lib/ai/customerDrinkParser';
 import toast from 'react-hot-toast';
-
-const AVAILABLE_TOPPINGS = [
-  { name: 'Trân châu đen', price: 5000 },
-  { name: 'Trân châu trắng', price: 5000 },
-  { name: 'Kem cheese', price: 10000 },
-  { name: 'Thạch củ năng', price: 5000 },
-  { name: 'Pudding trứng', price: 5000 },
-];
 
 interface ProductDetailProps {
   product: Product | null;
@@ -56,7 +48,22 @@ export function ProductDetail({ product, isOpen, onClose }: ProductDetailProps) 
 
   const handleAdd = () => {
     const mergedNote = isFood ? note : buildMergedToppingNote(selectedToppings, note);
-    addItem(product, { size, sugar, ice, note: mergedNote, quantity });
+    const selectedToppingObjects = isFood
+      ? []
+      : selectedToppings.map((name) => {
+          const found = AVAILABLE_TOPPINGS.find((t) => t.name === name);
+          return { name, price: found?.price || 5000 };
+        });
+
+    addItem(product, {
+      size,
+      sugar,
+      ice,
+      note: mergedNote,
+      quantity,
+      toppings: selectedToppingObjects,
+      toppingsAdjust,
+    });
     toast.success(`Đã thêm ${product['Tên sản phẩm']}`, { duration: 1500 });
     // Reset state
     setSize('M');

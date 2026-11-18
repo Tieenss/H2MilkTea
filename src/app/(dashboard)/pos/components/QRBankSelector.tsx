@@ -8,7 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 
 // Interface cho Bank từ VietQR API
 interface Bank {
-  id: number;
+  id: number | string;
   name: string;
   code: string;
   bin: string;
@@ -17,6 +17,19 @@ interface Bank {
   transferSupported: number;
   lookupSupported: number;
 }
+
+export const DEFAULT_STORE_BANK: Bank = {
+  id: 970422,
+  name: 'Ngân hàng TMCP Quân đội',
+  code: 'MB',
+  bin: '970422',
+  shortName: 'MBBank',
+  logo: 'https://api.vietqr.io/img/MB.png',
+  transferSupported: 1,
+  lookupSupported: 1,
+};
+export const DEFAULT_STORE_ACCOUNT_NUMBER = '0388888888';
+export const DEFAULT_STORE_ACCOUNT_NAME = 'H2 MILKTEA';
 
 interface QRBankSelectorProps {
   selectedBank: Bank | null;
@@ -42,19 +55,47 @@ export const QRBankSelector: React.FC<QRBankSelectorProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
 
-  // Load saved bank info từ localStorage khi component mount
+  // Load saved bank info từ localStorage khi component mount; fallback tài khoản mặc định của quán
   useEffect(() => {
-    const savedBankInfo = localStorage.getItem('savedBankInfo');
-    if (savedBankInfo) {
-      try {
+    try {
+      const savedBankInfo = localStorage.getItem('savedBankInfo');
+      if (savedBankInfo) {
         const { bank, accountNumber: savedAccountNumber, accountName: savedAccountName } = JSON.parse(savedBankInfo);
-        onBankChange(bank);
-        onAccountNumberChange(savedAccountNumber);
-        onAccountNameChange(savedAccountName);
-      } catch (error) {
-        console.error('Lỗi khi load thông tin ngân hàng đã lưu:', error);
+        if (bank && savedAccountNumber && savedAccountName) {
+          onBankChange(bank);
+          onAccountNumberChange(savedAccountNumber);
+          onAccountNameChange(savedAccountName);
+          return;
+        }
       }
+
+      const savedCompanyStr = localStorage.getItem('gigapos-company-info');
+      if (savedCompanyStr) {
+        const companyInfo = JSON.parse(savedCompanyStr);
+        if (companyInfo?.bankName && companyInfo?.bankAccount && companyInfo?.bankAccountHolder) {
+          onBankChange({
+            id: 'saved-bank',
+            name: companyInfo.bankName,
+            code: companyInfo.bankName,
+            bin: '',
+            shortName: companyInfo.bankName,
+            logo: '',
+            transferSupported: 1,
+            lookupSupported: 1,
+          });
+          onAccountNumberChange(companyInfo.bankAccount);
+          onAccountNameChange(companyInfo.bankAccountHolder);
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('Lỗi khi load thông tin ngân hàng đã lưu:', error);
     }
+
+    // Fallback mặc định VietQR của quán để tab VietQR luôn hiển thị mã QR động ngay lập tức
+    onBankChange(DEFAULT_STORE_BANK);
+    onAccountNumberChange(DEFAULT_STORE_ACCOUNT_NUMBER);
+    onAccountNameChange(DEFAULT_STORE_ACCOUNT_NAME);
   }, [onBankChange, onAccountNumberChange, onAccountNameChange]);
 
   // Fetch danh sách ngân hàng từ VietQR API

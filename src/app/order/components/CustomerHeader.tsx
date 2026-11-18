@@ -4,14 +4,19 @@ import React, { useState, useEffect } from 'react';
 import { ShoppingBag, MapPin, Sparkles } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { StoreFAQModal } from './StoreFAQModal';
+import { ServiceCallButton } from './ServiceCallButton';
 import { getAppearanceSettings, saveAppearanceSettings } from '@/utils/appearanceSettings';
 
 interface CustomerHeaderProps {
   onCartClick?: () => void;
+  tableId?: string;
+  tableName?: string;
 }
 
-export function CustomerHeader({ onCartClick }: CustomerHeaderProps) {
-  const { totalItems, tableName } = useCart();
+export function CustomerHeader({ onCartClick, tableId: propTableId, tableName: propTableName }: CustomerHeaderProps) {
+  const { totalItems, tableId: ctxTableId, tableName: ctxTableName } = useCart();
+  const activeTableId = propTableId || ctxTableId;
+  const activeTableName = propTableName || ctxTableName;
   const [showFaqModal, setShowFaqModal] = useState(false);
   const [elderlyMode, setElderlyMode] = useState<boolean>(false);
 
@@ -42,10 +47,10 @@ export function CustomerHeader({ onCartClick }: CustomerHeaderProps) {
             </div>
             <div>
               <h1 className="text-sm font-bold text-gray-900 leading-tight">H2 MilkTea</h1>
-              {tableName && (
+              {activeTableName && (
                 <div className="flex items-center gap-1 text-xs text-orange-600">
                   <MapPin className="w-3 h-3" />
-                  <span className="font-medium">{tableName}</span>
+                  <span className="font-medium">{activeTableName}</span>
                 </div>
               )}
             </div>
@@ -89,6 +94,15 @@ export function CustomerHeader({ onCartClick }: CustomerHeaderProps) {
               )}
             </button>
           </div>
+        </div>
+
+        {/* Quick 1-Tap Service Call Bar */}
+        <div className="max-w-lg mx-auto px-4 pb-2 flex items-center justify-end">
+          <ServiceCallButton
+            tableId={activeTableId}
+            tableName={activeTableName}
+            className="w-full sm:w-auto"
+          />
         </div>
       </header>
 

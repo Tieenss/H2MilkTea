@@ -42,7 +42,7 @@ function MenuPageContent() {
   const [isGachaOpen, setIsGachaOpen] = useState(false);
   const [isServingDrawerOpen, setIsServingDrawerOpen] = useState(false);
 
-  const tableParam = searchParams.get('table') || tableId;
+  const tableParam = searchParams?.get('table') || tableId;
 
   // Realtime Presence: Báo cho máy POS biết có khách đang xem menu và chọn món tại bàn này (Mục #7)
   useTablePresence({
@@ -210,10 +210,10 @@ function MenuPageContent() {
 
   return (
     <div className="min-h-screen pb-28 max-w-5xl mx-auto bg-white shadow-xs">
-      <CustomerHeader onCartClick={handleViewCart} />
+      <CustomerHeader onCartClick={handleViewCart} tableId={tableParam} />
 
       {/* Search Bar */}
-      <div className="sticky top-[57px] z-45 bg-white/90 backdrop-blur-lg px-4 py-2 border-b border-orange-50">
+      <div className="sticky top-[98px] z-45 bg-white/95 backdrop-blur-lg px-4 py-2 border-b border-orange-50">
         <div className={`relative transition-all duration-200 ${isSearchFocused ? 'scale-[1.02]' : ''}`}>
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input

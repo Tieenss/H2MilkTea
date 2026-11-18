@@ -12,6 +12,68 @@ export interface Product {
   'Trạng thái': string;
 }
 
+export interface ToppingOption {
+  name: string;
+  price: number;
+}
+
+export const AVAILABLE_TOPPINGS: readonly ToppingOption[] = [
+  { name: 'Trân châu đen', price: 5000 },
+  { name: 'Trân châu trắng', price: 5000 },
+  { name: 'Kem cheese', price: 10000 },
+  { name: 'Thạch củ năng', price: 5000 },
+  { name: 'Pudding trứng', price: 5000 },
+];
+
+export function normalizeToppings(
+  toppings?: Array<string | { name: string; price?: number }>
+): ToppingOption[] {
+  if (!Array.isArray(toppings) || toppings.length === 0) return [];
+  const seen = new Set<string>();
+  const result: ToppingOption[] = [];
+
+  for (const raw of toppings) {
+    const rawName = typeof raw === 'string' ? raw : raw?.name;
+    const cleanName = String(rawName || '').trim();
+    if (!cleanName) continue;
+    const matched = AVAILABLE_TOPPINGS.find(
+      (t) => t.name.toLowerCase() === cleanName.toLowerCase()
+    );
+    const canonicalName = matched ? matched.name : cleanName;
+    if (seen.has(canonicalName.toLowerCase())) continue;
+    seen.add(canonicalName.toLowerCase());
+
+    const explicitPrice = typeof raw === 'object' && raw !== null ? Number(raw.price) : NaN;
+    const price =
+      Number.isFinite(explicitPrice) && explicitPrice > 0
+        ? explicitPrice
+        : matched?.price || 5000;
+
+    result.push({ name: canonicalName, price });
+  }
+
+  return result;
+}
+
+export function extractToppingsFromNote(note?: string): ToppingOption[] {
+  const cleanNote = String(note || '').trim();
+  if (!cleanNote) return [];
+  const lower = cleanNote.toLowerCase();
+  const matched: ToppingOption[] = [];
+  for (const top of AVAILABLE_TOPPINGS) {
+    if (lower.includes(top.name.toLowerCase())) {
+      matched.push({ name: top.name, price: top.price });
+    }
+  }
+  return matched;
+}
+
+export function calculateToppingsPrice(
+  toppings?: Array<string | { name: string; price?: number }>
+): number {
+  return normalizeToppings(toppings).reduce((sum, t) => sum + t.price, 0);
+}
+
 export interface CartItem {
   id: string;          // unique id for cart item
   product: Product;
@@ -20,7 +82,9 @@ export interface CartItem {
   sugar: string;       // '0%' | '30%' | '50%' | '70%' | '100%'
   ice: string;         // 'Không đá' | 'Ít đá' | 'Vừa đá' | 'Nhiều đá'
   note: string;
-  unitPrice: number;   // Giá sau khi tính size
+  toppings?: ToppingOption[];
+  toppingsAdjust?: number;
+  unitPrice: number;   // Giá sau khi tính size + topping
 }
 
 export interface TableInfo {

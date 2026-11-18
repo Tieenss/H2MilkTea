@@ -4,6 +4,7 @@ import React, { useRef, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Minus, Plus, Trash2, ShoppingBag, MessageSquare, Send, CheckCircle2 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
+import { ServiceCallButton } from '../components/ServiceCallButton';
 import { useTablePresence } from '@/hooks/useTablePresence';
 import { createClient } from '@/lib/supabase/client';
 import toast from 'react-hot-toast';
@@ -21,7 +22,7 @@ function CartPageContent() {
   const [orderId, setOrderId] = useState('');
   const idempotencyKey = useRef<string | null>(null);
 
-  const tableParam = searchParams.get('table') || tableId;
+  const tableParam = searchParams?.get('table') || tableId;
 
   // Realtime Presence: Khách đang mở giỏ hàng của bàn (Mục #7)
   useTablePresence({
@@ -56,6 +57,7 @@ function CartPageContent() {
             note: item.note,
             unit: item.product['Đơn vị tính'],
             image: item.product['Hình ảnh'] || undefined,
+            toppings: item.toppings,
           })),
           totalAmount,
           note: orderNote,
@@ -184,14 +186,17 @@ function CartPageContent() {
       <div className="min-h-screen flex flex-col">
         {/* Header */}
         <header className="sticky top-0 z-50 backdrop-blur-xl bg-white/80 border-b border-orange-100 shadow-sm">
-          <div className="max-w-lg mx-auto px-4 py-3 flex items-center gap-3">
-            <button
-              onClick={() => router.back()}
-              className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center active:scale-90 transition-transform"
-            >
-              <ArrowLeft className="w-4 h-4 text-gray-600" />
-            </button>
-            <h1 className="text-base font-bold text-gray-900">Giỏ hàng</h1>
+          <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => router.back()}
+                className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center active:scale-90 transition-transform"
+              >
+                <ArrowLeft className="w-4 h-4 text-gray-600" />
+              </button>
+              <h1 className="text-base font-bold text-gray-900">Giỏ hàng</h1>
+            </div>
+            <ServiceCallButton tableId={tableParam} tableName={tableName} />
           </div>
         </header>
 
@@ -218,27 +223,32 @@ function CartPageContent() {
     <div className="min-h-screen pb-32">
       {/* Header */}
       <header className="sticky top-0 z-50 backdrop-blur-xl bg-white/80 border-b border-orange-100 shadow-sm">
-        <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => router.back()}
-              className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center active:scale-90 transition-transform"
-            >
-              <ArrowLeft className="w-4 h-4 text-gray-600" />
-            </button>
-            <div>
-              <h1 className="text-base font-bold text-gray-900">Giỏ hàng</h1>
-              <span className="text-xs text-gray-500">{totalItems} món · {tableName}</span>
+        <div className="max-w-lg mx-auto px-4 py-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => router.back()}
+                className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center active:scale-90 transition-transform"
+              >
+                <ArrowLeft className="w-4 h-4 text-gray-600" />
+              </button>
+              <div>
+                <h1 className="text-base font-bold text-gray-900">Giỏ hàng</h1>
+                <span className="text-xs text-gray-500">{totalItems} món · {tableName}</span>
+              </div>
             </div>
+            <button
+              onClick={() => {
+                if (confirm('Xóa tất cả món trong giỏ?')) clearCart();
+              }}
+              className="text-xs text-red-500 font-medium px-2 py-1 rounded-lg hover:bg-red-50 active:scale-95 transition-all"
+            >
+              Xóa hết
+            </button>
           </div>
-          <button
-            onClick={() => {
-              if (confirm('Xóa tất cả món trong giỏ?')) clearCart();
-            }}
-            className="text-xs text-red-500 font-medium px-2 py-1 rounded-lg hover:bg-red-50 active:scale-95 transition-all"
-          >
-            Xóa hết
-          </button>
+          <div className="flex justify-end">
+            <ServiceCallButton tableId={tableParam} tableName={tableName} className="w-full sm:w-auto" />
+          </div>
         </div>
       </header>
 
@@ -286,15 +296,25 @@ function CartPageContent() {
                     </>
                   )}
                 </div>
+                {item.toppings && item.toppings.length > 0 && (
+                  <p className="text-[11px] text-orange-700 font-medium mt-1">
+                    + {item.toppings.map(t => `${t.name} (+${t.price.toLocaleString('vi-VN')}đ)`).join(', ')}
+                  </p>
+                )}
                 {item.note && (
                   <p className="text-[10px] text-gray-400 mt-1 line-clamp-1">📝 {item.note}</p>
                 )}
 
                 {/* Price & Quantity */}
                 <div className="flex items-center justify-between mt-2">
-                  <span className="text-sm font-bold text-orange-600">
-                    {(item.unitPrice * item.quantity).toLocaleString('vi-VN')}đ
-                  </span>
+                  <div>
+                    <span className="text-sm font-bold text-orange-600">
+                      {(item.unitPrice * item.quantity).toLocaleString('vi-VN')}đ
+                    </span>
+                    <span className="block text-[10px] text-gray-400">
+                      {item.unitPrice.toLocaleString('vi-VN')}đ/ly
+                    </span>
+                  </div>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => updateQuantity(item.id, item.quantity - 1)}

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { X, Edit, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Edit, AlertTriangle, CheckCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -64,29 +64,19 @@ export function StocktakeDetailsModal({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
+          <DialogTitle className="flex items-center justify-between pr-8">
             <span>Chi tiết kiểm kê: {stocktake.IDKiemKe}</span>
-            <div className="flex items-center gap-2">
-              {canEdit && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onEdit}
-                  className="h-8 px-3"
-                >
-                  <Edit className="h-4 w-4 mr-1" />
-                  Chỉnh sửa
-                </Button>
-              )}
+            {canEdit && (
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                onClick={onClose}
-                className="h-8 w-8 p-0"
+                onClick={onEdit}
+                className="h-8 px-3"
               >
-                <X className="h-4 w-4" />
+                <Edit className="h-4 w-4 mr-1" />
+                Chỉnh sửa
               </Button>
-            </div>
+            )}
           </DialogTitle>
         </DialogHeader>
 
@@ -138,7 +128,7 @@ export function StocktakeDetailsModal({
           {/* Chi tiết mặt hàng */}
           <div>
             <h3 className="font-medium text-lg mb-4">Chi tiết mặt hàng</h3>
-            <div className="rounded-md border">
+            <div className="rounded-md border overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -210,10 +200,12 @@ export function StocktakeDetailsModal({
               <div>
                 <p className="text-sm text-gray-500">Tỷ lệ chính xác</p>
                 <p className="text-lg font-medium text-green-600">
-                  {Math.round(
-                    ((stocktake.ChiTiet.length - stocktake.ChiTiet.filter(item => item.ChenhLech !== 0).length) /
-                      stocktake.ChiTiet.length) * 100
-                  )}%
+                  {stocktake.ChiTiet.length > 0
+                    ? Math.round(
+                        ((stocktake.ChiTiet.length - stocktake.ChiTiet.filter(item => item.ChenhLech !== 0).length) /
+                          stocktake.ChiTiet.length) * 100
+                      )
+                    : 100}%
                 </p>
               </div>
             </div>
