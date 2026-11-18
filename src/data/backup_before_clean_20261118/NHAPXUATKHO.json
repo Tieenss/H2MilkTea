@@ -1,0 +1,78 @@
+[
+    {
+        "IDGiaoDich":  "GD001",
+        "LoaiGiaoDich":  "Nhập kho",
+        "NgayGiaoDich":  "04/08/2025 08:30:00",
+        "NhaCungCap":  "Công ty TNHH ABC",
+        "NhanVienThucHien":  "Nguyễn Văn A",
+        "GhiChu":  "Nhập hàng định kỳ tháng 8",
+        "TongTien":  2500000,
+        "TrangThai":  "Hoàn thành",
+        "ChiTiet":  [
+                        {
+                            "DonGia":  45000,
+                            "SoLuong":  50,
+                            "DonViTinh":  "Kg",
+                            "ThanhTien":  2250000,
+                            "IDNguyenLieu":  "NVL001",
+                            "TenNguyenLieu":  "Cà phê hạt Robusta"
+                        },
+                        {
+                            "DonGia":  12500,
+                            "SoLuong":  20,
+                            "DonViTinh":  "Hộp 1L",
+                            "ThanhTien":  250000,
+                            "IDNguyenLieu":  "NVL002",
+                            "TenNguyenLieu":  "Sữa tươi không đường"
+                        }
+                    ]
+    },
+    {
+        "IDGiaoDich":  "GD002",
+        "LoaiGiaoDich":  "Xuất kho",
+        "NgayGiaoDich":  "04/08/2025 14:15:00",
+        "NhaCungCap":  null,
+        "NhanVienThucHien":  "Trần Thị B",
+        "GhiChu":  "Xuất kho cho sản xuất",
+        "TongTien":  0,
+        "TrangThai":  "Hoàn thành",
+        "ChiTiet":  [
+                        {
+                            "DonGia":  0,
+                            "SoLuong":  5,
+                            "DonViTinh":  "Kg",
+                            "ThanhTien":  0,
+                            "IDNguyenLieu":  "NVL001",
+                            "TenNguyenLieu":  "Cà phê hạt Robusta"
+                        }
+                    ]
+    },
+    {
+        "IDGiaoDich":  "GD003",
+        "LoaiGiaoDich":  "Nhập kho",
+        "NgayGiaoDich":  "03/08/2025 10:00:00",
+        "NhaCungCap":  "Công ty XYZ",
+        "NhanVienThucHien":  "Lê Văn C",
+        "GhiChu":  "Nhập syrup và bột matcha",
+        "TongTien":  1800000,
+        "TrangThai":  "Hoàn thành",
+        "ChiTiet":  [
+                        {
+                            "DonGia":  120000,
+                            "SoLuong":  10,
+                            "DonViTinh":  "Chai 750ml",
+                            "ThanhTien":  1200000,
+                            "IDNguyenLieu":  "NVL004",
+                            "TenNguyenLieu":  "Syrup Caramel"
+                        },
+                        {
+                            "DonGia":  40000,
+                            "SoLuong":  15,
+                            "DonViTinh":  "Túi 100g",
+                            "ThanhTien":  600000,
+                            "IDNguyenLieu":  "NVL006",
+                            "TenNguyenLieu":  "Bột Matcha Nhật Bản"
+                        }
+                    ]
+    }
+]

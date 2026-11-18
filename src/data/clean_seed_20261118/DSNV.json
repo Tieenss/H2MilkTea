@@ -1,0 +1,50 @@
+[
+    {
+        "_RowNumber":  2,
+        "username":  "admin",
+        "Họ và Tên":  "Quản trị viên (Admin)",
+        "Chức vụ":  "Quản trị hệ thống",
+        "Phòng":  "Quản trị",
+        "Phân quyền":  "Admin",
+        "Email":  "admin@gmail.com",
+        "Image":  "https://res.cloudinary.com/duv9pccwi/image/upload/v1791942369/nexjip3tvmtovutgjhqn.jpg",
+        "Quyền View":  "",
+        "Số điện thoại":  "0901234567",
+        "Địa chỉ":  "Bắc Sơn - Sóc Sơn, Hà Nội",
+        "Ngày sinh":  "15/05/1999",
+        "Ngày vào làm":  "01/01/2025",
+        "Ghi chú":  "Tài khoản Quản trị viên tối cao"
+    },
+    {
+        "_RowNumber":  3,
+        "username":  "test1",
+        "Họ và Tên":  "Trần Văn Tiến (Test 1)",
+        "Chức vụ":  "Thu ngân \u0026 Quản lý ca",
+        "Phòng":  "Vận hành",
+        "Phân quyền":  "Nhân viên",
+        "Email":  "test1@gmail.com",
+        "Image":  "",
+        "Quyền View":  "Trang chủ, POS Bán hàng, Đơn hàng, Khách hàng, Bàn , Danh sách sản phẩm, Cấu hình nguyên liệu, Nguyên liệu, Nhập/xuất kho, Kiểm kê kho, Nhà cung cấp, Dự báo nhu cầu, Dashboard tổng quan, Báo cáo bán hàng, Báo cáo món bán chạy, Báo cáo nhân viên, Quản lý nhân viên, Cài đặt data, Cài đặt mẫu in, Hướng dẫn sử dụng",
+        "Số điện thoại":  "0838400275",
+        "Địa chỉ":  "Bắc Sơn - Sóc Sơn, Hà Nội",
+        "Ngày sinh":  "20/03/2003",
+        "Ngày vào làm":  "01/10/2026",
+        "Ghi chú":  "Tài khoản kiểm thử Nhân viên 1 (Thu ngân/POS)"
+    },
+    {
+        "_RowNumber":  4,
+        "username":  "test2",
+        "Họ và Tên":  "Trần Văn Đạt (Test 2)",
+        "Chức vụ":  "Pha chế \u0026 Thủ kho",
+        "Phòng":  "Pha chế",
+        "Phân quyền":  "Nhân viên",
+        "Email":  "test2@gmail.com",
+        "Image":  "",
+        "Quyền View":  "Trang chủ, POS Bán hàng, Đơn hàng, Khách hàng, Bàn , Danh sách sản phẩm, Cấu hình nguyên liệu, Nguyên liệu, Nhập/xuất kho, Kiểm kê kho, Nhà cung cấp, Dự báo nhu cầu, Dashboard tổng quan, Báo cáo bán hàng, Báo cáo món bán chạy, Báo cáo nhân viên, Quản lý nhân viên, Cài đặt data, Cài đặt mẫu in, Hướng dẫn sử dụng",
+        "Số điện thoại":  "0838400276",
+        "Địa chỉ":  "Bắc Sơn - Sóc Sơn, Hà Nội",
+        "Ngày sinh":  "06/05/2003",
+        "Ngày vào làm":  "01/10/2026",
+        "Ghi chú":  "Tài khoản kiểm thử Nhân viên 2 (Bếp KDS/Kho)"
+    }
+]

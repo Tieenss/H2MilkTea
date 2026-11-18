@@ -265,31 +265,42 @@ export async function POST(request: NextRequest) {
       }
 
       // 🛡️ BẢO VỆ CHỐNG THẤT THOÁT HÓA ĐƠN:
-      // Tuyệt đối không xóa cứng (hard delete) dữ liệu hóa đơn và chi tiết món.
-      // Chuyển sang lưu trữ vết kiểm toán (Soft Cancel / Audit Trail) để chủ quán & kế toán đối soát.
+      // Mặc định chuyển sang lưu trữ vết kiểm toán (Soft Cancel / Audit Trail) để chủ quán & kế toán đối soát.
+      // Chỉ cho phép xóa cứng (forceHardDelete === true) khi người thực hiện là Quản trị viên (Admin) dọn dữ liệu test.
       if (table === 'HOADON') {
-        const cancelReason = data.cancel_reason || data['Lý do hủy'] || data['Ghi chú'] || 'Quản lý yêu cầu hủy hóa đơn';
-        const cancelledBy = data.cancelled_by || data['Người hủy'] || 'Quản lý';
-        const cancelNote = `[ĐÃ HỦY] ${cancelReason} (Bởi: ${cancelledBy} lúc ${new Date().toLocaleString('vi-VN')})`;
+        if (data?.forceHardDelete === true) {
+          const staffRole = await getStaffRole(supabase, staff);
+          if (!staffRole.isAdmin) {
+            return NextResponse.json({
+              success: false,
+              error: 'Chỉ Quản trị viên (Admin) mới có quyền xóa cứng hóa đơn.'
+            }, { status: 403 });
+          }
+          // Cho phép đi tiếp xuống lệnh DELETE vật lý bên dưới
+        } else {
+          const cancelReason = data.cancel_reason || data['Lý do hủy'] || data['Ghi chú'] || 'Quản lý yêu cầu hủy hóa đơn';
+          const cancelledBy = data.cancelled_by || data['Người hủy'] || 'Quản lý';
+          const cancelNote = `[ĐÃ HỦY] ${cancelReason} (Bởi: ${cancelledBy} lúc ${new Date().toLocaleString('vi-VN')})`;
 
-        const { error: cancelError } = await supabase
-          .from('HOADON')
-          .update({
-            'Trạng thái': 'Đã hủy',
-            'Ghi chú': cancelNote
-          })
-          .eq(pk, targetId);
+          const { error: cancelError } = await supabase
+            .from('HOADON')
+            .update({
+              'Trạng thái': 'Đã hủy',
+              'Ghi chú': cancelNote
+            })
+            .eq(pk, targetId);
 
-        if (cancelError) {
-          console.warn('Supabase HOADON soft delete warning:', cancelError.message);
-          return NextResponse.json({ success: false, error: cancelError.message }, { status: 400 });
+          if (cancelError) {
+            console.warn('Supabase HOADON soft delete warning:', cancelError.message);
+            return NextResponse.json({ success: false, error: cancelError.message }, { status: 400 });
+          }
+
+          return NextResponse.json({
+            success: true,
+            softDeleted: true,
+            message: 'Hóa đơn đã được lưu trữ an toàn dưới dạng Đã hủy để chống thất thoát.'
+          });
         }
-
-        return NextResponse.json({
-          success: true,
-          softDeleted: true,
-          message: 'Hóa đơn đã được lưu trữ an toàn dưới dạng Đã hủy để chống thất thoát.'
-        });
       }
 
       // Xóa giỏ hàng nháp nếu xóa bàn

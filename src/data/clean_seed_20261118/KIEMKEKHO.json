@@ -1,0 +1,91 @@
+[
+    {
+        "IDKiemKe":  "KK001",
+        "NgayKiemKe":  "10/10/2026",
+        "LoaiKiemKe":  "Định kỳ",
+        "NhanVienThucHien":  "Trần Văn Đạt (Test 2)",
+        "TrangThai":  "Hoàn thành",
+        "GhiChu":  "Kiểm kê định kỳ tháng 10/2026",
+        "TongMatHang":  15,
+        "TongGiaTri":  8500000,
+        "ChiTiet":  [
+                        {
+                            "LyDo":  "Hao hụt tự nhiên",
+                            "DonGia":  45000,
+                            "ChenhLech":  -2,
+                            "DonViTinh":  "Kg",
+                            "IDNguyenLieu":  "NVL001",
+                            "SoLuongTheoSo":  45,
+                            "SoLuongThucTe":  43,
+                            "TenNguyenLieu":  "Cà phê hạt Robusta",
+                            "GiaTriChenhLech":  -90000
+                        },
+                        {
+                            "LyDo":  "Khớp sổ sách",
+                            "DonGia":  12500,
+                            "ChenhLech":  0,
+                            "DonViTinh":  "Hộp 1L",
+                            "IDNguyenLieu":  "NVL002",
+                            "SoLuongTheoSo":  18,
+                            "SoLuongThucTe":  18,
+                            "TenNguyenLieu":  "Sữa tươi không đường",
+                            "GiaTriChenhLech":  0
+                        }
+                    ]
+    },
+    {
+        "IDKiemKe":  "KK002",
+        "NgayKiemKe":  "05/11/2026",
+        "LoaiKiemKe":  "Đột xuất",
+        "NhanVienThucHien":  "Trần Văn Tiến (Test 1)",
+        "TrangThai":  "Hoàn thành",
+        "GhiChu":  "Kiểm kê đột xuất đầu tháng 11/2026",
+        "TongMatHang":  12,
+        "TongGiaTri":  6500000,
+        "ChiTiet":  {
+                        "LyDo":  "Vỡ chai trong quá trình vận chuyển",
+                        "DonGia":  120000,
+                        "ChenhLech":  -1,
+                        "DonViTinh":  "Chai 750ml",
+                        "IDNguyenLieu":  "NVL004",
+                        "SoLuongTheoSo":  8,
+                        "SoLuongThucTe":  7,
+                        "TenNguyenLieu":  "Syrup Caramel",
+                        "GiaTriChenhLech":  -120000
+                    }
+    },
+    {
+        "IDKiemKe":  "KK003",
+        "NgayKiemKe":  "16/11/2026",
+        "LoaiKiemKe":  "Định kỳ",
+        "NhanVienThucHien":  "Trần Văn Đạt (Test 2)",
+        "TrangThai":  "Hoàn thành",
+        "GhiChu":  "Kiểm kê định kỳ giữa tháng 11/2026",
+        "TongMatHang":  10,
+        "TongGiaTri":  5200000,
+        "ChiTiet":  [
+                        {
+                            "LyDo":  "Khớp sổ sách",
+                            "DonGia":  110000,
+                            "ChenhLech":  0,
+                            "DonViTinh":  "Túi 500g",
+                            "IDNguyenLieu":  "NVL005",
+                            "SoLuongTheoSo":  18,
+                            "SoLuongThucTe":  18,
+                            "TenNguyenLieu":  "Trà đen (Hồng trà)",
+                            "GiaTriChenhLech":  0
+                        },
+                        {
+                            "LyDo":  "Hao hụt pha chế",
+                            "DonGia":  40000,
+                            "ChenhLech":  -1,
+                            "DonViTinh":  "Túi 100g",
+                            "IDNguyenLieu":  "NVL006",
+                            "SoLuongTheoSo":  15,
+                            "SoLuongThucTe":  14,
+                            "TenNguyenLieu":  "Bột Matcha Nhật Bản",
+                            "GiaTriChenhLech":  -40000
+                        }
+                    ]
+    }
+]

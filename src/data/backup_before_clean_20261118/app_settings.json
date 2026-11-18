@@ -1,0 +1,206 @@
+[
+    {
+        "key":  "ai_assistant_enabled",
+        "value":  true,
+        "updated_by":  "e262bfde-de09-4fe6-a313-c6670ec2a7c9",
+        "updated_at":  "2026-11-18T01:30:32.393+00:00"
+    },
+    {
+        "key":  "ai_assistant_settings",
+        "value":  {
+                      "enabled":  true,
+                      "autoSubmitVoice":  true,
+                      "maxItemQuantity":  10,
+                      "voiceSilenceTimeoutMs":  3000
+                  },
+        "updated_by":  "e262bfde-de09-4fe6-a313-c6670ec2a7c9",
+        "updated_at":  "2026-11-18T01:30:32.393+00:00"
+    },
+    {
+        "key":  "system_features_config",
+        "value":  {
+                      "flags":  {
+                                    "pos_qr_inbox":  true,
+                                    "pos_ai_assistant":  true,
+                                    "pos_kitchen_print":  true,
+                                    "pos_offline_queue":  true,
+                                    "pos_topping_modal":  true,
+                                    "pos_transfer_table":  true,
+                                    "pos_barcode_scanner":  true,
+                                    "pos_customer_Create":  true
+                                },
+                      "updatedAt":  "2026-11-18T01:29:53.921Z",
+                      "updatedBy":  "admin@h2.com",
+                      "staffOverrides":  {
+
+                                         },
+                      "rolePermissions":  {
+                                              "pos_qr_inbox":  [
+                                                                   "Admin",
+                                                                   "Quản trị viên",
+                                                                   "Giám đốc",
+                                                                   "Quản lý",
+                                                                   "Thu ngân",
+                                                                   "Nhân viên",
+                                                                   "Pha chế / Bếp"
+                                                               ],
+                                              "pos_ai_assistant":  [
+                                                                       "Admin",
+                                                                       "Quản trị viên",
+                                                                       "Giám đốc",
+                                                                       "Quản lý",
+                                                                       "Thu ngân",
+                                                                       "Nhân viên",
+                                                                       "Pha chế / Bếp"
+                                                                   ],
+                                              "pos_kitchen_print":  [
+                                                                        "Admin",
+                                                                        "Quản trị viên",
+                                                                        "Giám đốc",
+                                                                        "Quản lý",
+                                                                        "Thu ngân",
+                                                                        "Nhân viên",
+                                                                        "Pha chế / Bếp"
+                                                                    ],
+                                              "pos_offline_queue":  [
+                                                                        "Admin",
+                                                                        "Quản trị viên",
+                                                                        "Giám đốc",
+                                                                        "Quản lý",
+                                                                        "Thu ngân",
+                                                                        "Nhân viên",
+                                                                        "Pha chế / Bếp"
+                                                                    ],
+                                              "pos_topping_modal":  [
+                                                                        "Admin",
+                                                                        "Quản trị viên",
+                                                                        "Giám đốc",
+                                                                        "Quản lý",
+                                                                        "Thu ngân",
+                                                                        "Nhân viên",
+                                                                        "Pha chế / Bếp"
+                                                                    ],
+                                              "pos_transfer_table":  [
+                                                                         "Admin",
+                                                                         "Quản trị viên",
+                                                                         "Giám đốc",
+                                                                         "Quản lý",
+                                                                         "Thu ngân",
+                                                                         "Nhân viên",
+                                                                         "Pha chế / Bếp"
+                                                                     ],
+                                              "pos_barcode_scanner":  [
+                                                                          "Admin",
+                                                                          "Quản trị viên",
+                                                                          "Giám đốc",
+                                                                          "Quản lý",
+                                                                          "Thu ngân",
+                                                                          "Nhân viên",
+                                                                          "Pha chế / Bếp"
+                                                                      ],
+                                              "pos_customer_Create":  [
+                                                                          "Admin",
+                                                                          "Quản trị viên",
+                                                                          "Giám đốc",
+                                                                          "Quản lý",
+                                                                          "Thu ngân",
+                                                                          "Nhân viên",
+                                                                          "Pha chế / Bếp"
+                                                                      ]
+                                          }
+                  },
+        "updated_by":  "e262bfde-de09-4fe6-a313-c6670ec2a7c9",
+        "updated_at":  "2026-11-18T01:29:53.921+00:00"
+    },
+    {
+        "key":  "store_custom_faq",
+        "value":  [
+                      {
+                          "id":  "faq-wifi",
+                          "order":  1,
+                          "answer":  "Tên Wifi: H2_MilkTea_Free (hoặc H2_VIP) - Mật khẩu: 12345678(tám số 8). Quý khách kết nối miễn phí tốc độ cao.",
+                          "category":  "Tiện ích",
+                          "isActive":  true,
+                          "keywords":  [
+                                           "wifi",
+                                           "wi-fi",
+                                           "mạng",
+                                           "pass wifi",
+                                           "mật khẩu wifi",
+                                           "pass mạng"
+                                       ],
+                          "question":  "Mật khẩu Wifi của quán là gì?"
+                      },
+                      {
+                          "id":  "faq-hours",
+                          "order":  2,
+                          "answer":  "Quán mở cửa từ 08:00 sáng đến 22:30 tối tất cả các ngày trong tuần (kể cả Thứ Bảy, Chủ Nhật và ngày Lễ). Giờ chốt nhận order cuối ngày là 22:15.",
+                          "category":  "Hoạt động",
+                          "isActive":  true,
+                          "keywords":  [
+                                           "giờ mở cửa",
+                                           "giờ đóng cửa",
+                                           "mấy giờ mở",
+                                           "mấy giờ đóng",
+                                           "thời gian hoạt động",
+                                           "lễ có mở không"
+                                       ],
+                          "question":  "Giờ mở cửa và đóng cửa của quán?"
+                      },
+                      {
+                          "id":  "faq-parking",
+                          "order":  3,
+                          "answer":  "Quán có bãi gửi xe máy miễn phí ngay trước cửa có bảo vệ trông coi. Xe ô tô quý khách có thể đỗ tại bãi xe đối diện quán (miễn phí cho khách có hóa đơn dùng nước).",
+                          "category":  "Tiện ích",
+                          "isActive":  true,
+                          "keywords":  [
+                                           "gửi xe",
+                                           "bãi xe",
+                                           "đỗ xe",
+                                           "chỗ để xe",
+                                           "xe máy",
+                                           "ô tô",
+                                           "giữ xe"
+                                       ],
+                          "question":  "Chính sách gửi xe và bãi đỗ xe như thế nào?"
+                      },
+                      {
+                          "id":  "faq-payment",
+                          "order":  4,
+                          "answer":  "Quán hỗ trợ thanh toán bằng Tiền mặt, Chuyển khoản quét mã QR (VietQR/MoMo/ZaloPay) và Thẻ ngân hàng (Visa/Mastercard/Napas).",
+                          "category":  "Thanh toán",
+                          "isActive":  true,
+                          "keywords":  [
+                                           "thanh toán",
+                                           "chuyển khoản",
+                                           "quẹt thẻ",
+                                           "momo",
+                                           "qr",
+                                           "tiền mặt",
+                                           "vietqr"
+                                       ],
+                          "question":  "Quán chấp nhận những hình thức thanh toán nào?"
+                      },
+                      {
+                          "id":  "faq-loyalty",
+                          "order":  5,
+                          "answer":  "Quý khách chỉ cần đọc số điện thoại khi order: Khách VIP được tự động giảm giá 10% trên tổng bill; Khách Kim Cương được giảm 20%. Điểm thưởng còn có thể đổi các món topping hoặc voucher nước miễn phí.",
+                          "category":  "Ưu đãi",
+                          "isActive":  true,
+                          "keywords":  [
+                                           "tích điểm",
+                                           "thành viên",
+                                           "vip",
+                                           "kim cương",
+                                           "giảm giá",
+                                           "voucher",
+                                           "khách quen",
+                                           "đọc sđt"
+                                       ],
+                          "question":  "Chính sách tích điểm và ưu đãi thành viên ra sao?"
+                      }
+                  ],
+        "updated_by":  "e262bfde-de09-4fe6-a313-c6670ec2a7c9",
+        "updated_at":  "2026-10-21T04:09:37.252+00:00"
+    }
+]

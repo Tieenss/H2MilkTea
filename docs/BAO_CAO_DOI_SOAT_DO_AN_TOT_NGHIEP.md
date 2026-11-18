@@ -121,3 +121,32 @@ Hệ thống sử dụng mô hình **Kiểm thử Hợp nhất (Hybrid QA Matrix
 - **Nhánh triển khai:** `exp/thesis-perfect` (đồng bộ trực tiếp với remote `origin/exp/thesis-perfect`).
 - **Phương thức xác thực:** Windows Credential Manager (`git:https://github.com`) kết hợp Personal Access Token (PAT).
 - **Trạng thái:** Toàn bộ mã nguồn đã chuẩn hóa, tài liệu kỹ thuật và kết quả 114 kịch bản kiểm thử đã được đồng bộ lên GitHub thành công.
+
+---
+
+## 7. Nhật ký Dọn dẹp & Chuẩn hóa Cloud Database (18/11/2026)
+
+### 7.1. Kho Lưu trữ Backup Riêng Biệt (Không ghi đè `src/data/*.json`)
+- **Bản chụp nguyên trạng trước khi dọn:** `src/data/backup_before_clean_20261118/` (lưu đầy đủ 11 bảng chính + 3 bảng thời gian thực cũ ở chuẩn UTF-8).
+- **Bộ dữ liệu sạch sau chuẩn hóa:** `src/data/clean_seed_20261118/` (xuất trực tiếp từ Cloud DB sau khi kiểm định toán học 100%).
+- **Dữ liệu gốc `src/data/*.json`:** Được giữ nguyên trạng 100%, không ghi đè.
+
+### 7.2. Trạng thái Toàn bộ Hệ thống Bảng Cloud DB sau Dọn dẹp
+| Bảng | Trạng thái sau dọn | Kết quả kiểm định |
+| :--- | :---: | :--- |
+| **`pos_cart_drafts`** | **0 dòng** | Đã xóa sạch giỏ hàng nháp kẹt trên `BAN04`, `BAN05`; toàn bộ sơ đồ bàn về trạng thái trống. |
+| **`pos_orders` (Đơn mở POS QR / Bếp KDS)** | **0 đơn mở** | Đã dọn 7 đơn bếp tồn đọng, đóng toàn bộ đơn `awaiting_confirmation` & `accepted` chưa thanh toán (bảng vẫn giữ lịch sử 65 bản ghi đã kết thúc `completed`/`served`/`paid`). |
+| **`DSNV`** | **3 tài khoản** | Giữ nguyên `admin`, `test1`, `test2` (bảo toàn mật khẩu gốc, chuẩn hóa hồ sơ & `Quyền View`); đã xóa `trantien2k5`, `trandat`. |
+| **`DSBAN`** | **16 bàn** | 100% trạng thái `"Đang hoạt động"`, xóa sạch `"Lịch sử  bàn"` cũ, phân chuẩn 4 khu vực. |
+| **`CAUHINH` (BOM)** | **18 định mức** | Xóa 4 dòng cũ bị `null` tên; nạp mới 18 định mức chuẩn (`CFG001`–`CFG018`) với 0 dòng `null`, đủ đơn vị gốc và hệ số quy đổi. |
+| **`HOADON` & `HOADONDETAIL`** | **22 HĐ / 50 chi tiết** | 20 hóa đơn `"Đã thanh toán"` (`10-11/2026`) có tổng `Tổng tiền = 2.281.000đ` **khớp tuyệt đối 100%** tổng `Thành tiền` của 50 dòng `HOADONDETAIL`; 100% hóa đơn có `VAT = 0`, 0 giá trị `null`. 2 mã test cũ (`INV_TEST_416366`, `INV-TEST-447373`) được chuẩn hóa sang trạng thái `"Đã hủy"` (Soft-Cancel audit trail). |
+| **`KHACHHANG`** | **10 khách hàng** | Đồng bộ lại `Tổng chi tiêu`, `Điểm tích lũy`, `Lần mua cuối`, `Hóa đơn liên quan` khớp với 20 hóa đơn sạch; tất cả ở trạng thái `"Hoạt động"`. |
+| **`NHAPXUATKHO` & `KIEMKEKHO` & `NHACUNGCAP`** | **3 + 3 + 3 dòng** | Đưa ngày giao dịch/kiểm kê về `10-11/2026`, gán `NhanVienThucHien` khớp `DSNV` mới, hoàn thiện phiếu `KK003` và giữ mảng JSON `ChiTiet` chuẩn. |
+
+### 7.3. Thông tin 2 Tài khoản Đã Xóa Phục vụ Test Thủ công Chức năng Thêm Nhân viên
+Khi kiểm thử luồng tạo nhân viên mới tại phân hệ `/nhanvien` (hoặc `/api/auth/create-user`), có thể sử dụng lại bộ thông tin sạch sau:
+
+| Tên đăng nhập (`username`) | Họ và Tên | Email | SĐT | Địa chỉ | Chức vụ / Phòng | Phân quyền | Quyền View |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `trantien2k5` | Trần Văn Tiến | `tiengame2k5@gmail.com` | `0838400274` | `Bắc Sơn-Sóc Sơn` | `RND` / `RND` | `Nhân viên` | `POS Bán hàng, Đơn hàng, Khách hàng` |
+| `trandat` | Trần Văn Đạt | `tiengame2k5@gmail.com` | `0838400274` | *(Trống hoặc tự điền)* | `RND` / `RND` | `Nhân viên` | `POS Bán hàng, Đơn hàng, Khách hàng` |
