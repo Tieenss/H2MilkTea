@@ -57,10 +57,10 @@ export interface AllTemplateSettings {
 const defaultCompanyInfo: CompanyInfo = {
   name: 'H2 MILKTEA & COFFEE',
   brandName: 'H2 MilkTea',
-  address: '123 Đường ABC, Quận 1, TP.HCM',
-  phone: '0901234567',
+  address: 'Số 61, Phúc Xuân, Trung Giã, Hà Nội',
+  phone: '0399939240 - 0985561909',
   email: 'info@h2milktea.com',
-  taxCode: '0123456789',
+  taxCode: '',
   website: 'h2milktea.vercel.app',
   bankName: 'MBBank',
   bankAccount: '',

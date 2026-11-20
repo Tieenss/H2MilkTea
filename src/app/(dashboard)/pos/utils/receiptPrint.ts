@@ -24,11 +24,11 @@ export interface ReceiptData {
 
 const DEFAULT_COMPANY_INFO = {
   name: 'H2 MILKTEA',
-  address: 'Phúc Xuân, Trung Giã, Hà Nội',
-  phone: '0985561909',
+  address: 'Số 61, Phúc Xuân, Trung Giã, Hà Nội',
+  phone: '0399939240 - 0985561909',
   email: 'contact@h2milktea.vn',
   taxCode: '',
-  website: 'h2milktea.vn',
+  website: 'h2milktea.vercel.app',
 };
 
 function createDefaultK80ReceiptSettings() {

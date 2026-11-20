@@ -269,7 +269,7 @@ export async function POST(request: NextRequest) {
     if (isWifiQuery) {
       return NextResponse.json({
         success: true,
-        message: '📶 Wifi của quán: "H2 MilkTea 5G" · Mật khẩu: 88888888 (Tốc độ cao miễn phí). Chúc bạn có trải nghiệm tuyệt vời!',
+        message: '📶 Wifi của quán: "CafeH2" · Mật khẩu: 12345678 (Miễn phí). Chúc bạn có trải nghiệm tuyệt vời!',
         suggestedProducts: [],
       });
     }
@@ -277,7 +277,7 @@ export async function POST(request: NextRequest) {
     if (lower.includes('giờ mở cửa') || lower.includes('mở cửa') || lower.includes('đóng cửa') || (lower.includes('mấy giờ') && lower.includes('đóng'))) {
       return NextResponse.json({
         success: true,
-        message: '⏰ Quán mở cửa từ 07:00 đến 22:30 tất cả các ngày trong tuần. Bạn có thể ghé thưởng thức trà sữa bất cứ lúc nào!',
+        message: '⏰ Quán mở cửa từ 08:00 đến 22:00 tất cả các ngày trong tuần. Bạn có thể ghé thưởng thức trà sữa bất cứ lúc nào!',
         suggestedProducts: [],
       });
     }

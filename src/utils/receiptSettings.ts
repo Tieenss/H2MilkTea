@@ -84,12 +84,12 @@ export const getDefaultSettings = (): ReceiptSettings => {
         headerText: 'HÓA ĐƠN BÁN HÀNG',
         footerText: 'Cảm ơn quý khách!',
         companyInfo: {
-          name: 'GIGA POS SYSTEM',
-          address: '123 Đường ABC, Quận 1, TP.HCM',
-          phone: '0901234567',
-          email: 'info@gigapos.com',
-          taxCode: '0123456789',
-          website: 'www.gigapos.com'
+          name: 'H2 MILKTEA',
+          address: 'Số 61, Phúc Xuân, Trung Giã, Hà Nội',
+          phone: '0399939240 - 0985561909',
+          email: 'contact@h2milktea.vn',
+          taxCode: '',
+          website: 'h2milktea.vercel.app'
         }
       },
       report: {

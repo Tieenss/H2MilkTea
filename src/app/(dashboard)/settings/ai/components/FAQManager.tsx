@@ -370,7 +370,7 @@ export function FAQManager({ isAdmin }: FAQManagerProps) {
                 Câu trả lời chi tiết <span className="text-red-500">*</span>
               </label>
               <Textarea
-                placeholder="VD: Wifi: H2_MilkTea_Free, Pass: 88888888..."
+                placeholder="VD: Wifi: CafeH2, Pass: 12345678..."
                 value={formAnswer}
                 onChange={(e) => setFormAnswer(e.target.value)}
                 rows={4}

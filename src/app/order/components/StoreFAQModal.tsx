@@ -55,7 +55,8 @@ export function StoreFAQModal({ isOpen, onClose, initialCategory }: StoreFAQModa
   function handleCopyWifi() {
     // Tìm mật khẩu wifi từ câu hỏi hoặc câu trả lời
     const wifiFaq = faqs.find((f) => f.question.toLowerCase().includes('wifi') || f.id.includes('wifi'));
-    const pass = '88888888';
+    const match = wifiFaq?.answer?.match(/(?:mật\s*khẩu|pass)\s*[:\-]?\s*([A-Za-z0-9@#._-]+)/i);
+    const pass = match ? match[1] : '12345678';
     navigator.clipboard.writeText(pass);
     setCopiedWifi(true);
     setTimeout(() => setCopiedWifi(false), 2500);

@@ -58,7 +58,7 @@ describe('AI Customer Chat Smart Extraction', () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.success).toBe(true);
-    expect(json.message).toContain('H2 MilkTea 5G');
+    expect(json.message).toContain('CafeH2');
   });
 
   it('does not leak wifi password when asked about admin password or unrelated passwords (VULN-01)', async () => {
@@ -68,7 +68,7 @@ describe('AI Customer Chat Smart Extraction', () => {
 
     expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json.message).not.toContain('H2 MilkTea 5G');
+    expect(json.message).not.toContain('CafeH2');
   });
 
   it('correctly extracts sugar, ice, and size customizations (VULN-02)', async () => {

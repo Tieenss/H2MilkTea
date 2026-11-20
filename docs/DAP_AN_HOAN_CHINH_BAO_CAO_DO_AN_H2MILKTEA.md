@@ -32,14 +32,17 @@
    - Kho mảnh tri thức dự án (`src/data/project_knowledge_chunks.json`): **10** mảnh tri thức chuyên sâu; Cẩm nang FAQ (`src/data/store_faq.json`): **05** mục hỏi đáp tiện ích.
 
 2. Thông tin đơn vị khảo sát (Điền vào Khung đơn vị khảo sát `Table[10]` & `Bảng 3.2` trong Word):
-   - Địa chỉ cửa hàng H2Milktea khảo sát: **Số 68 Phố Triều Khúc, Phường Thanh Xuân Nam, Quận Thanh Xuân, Thành phố Hà Nội** (Khu vực tập trung đông sinh viên cạnh Trường ĐH Công nghệ GTVT - UTT).
-   - Năm/tháng bắt đầu hoạt động: **Tháng 03 năm 2023**.
-   - Khung giờ mở cửa: 08:00 – 22:30 | Hai khung giờ cao điểm trong ngày: **11:30 – 13:30** và **19:00 – 21:30**.
-   - Lưu lượng đơn trung bình: Ngày thường từ **70 – 90** đơn/ngày; Cuối tuần từ **130 – 160** đơn/ngày.
-   - Cơ cấu nhân sự mỗi ca (`Bảng 3.2`):
-     + Chủ quán / Quản lý: **01** người
-     + Nhân viên Thu ngân / Phục vụ quầy POS: **01 – 02** người/ca
-     + Nhân viên Pha chế (Barista / Kitchen): **01 – 02** người/ca
+   - Địa chỉ cửa hàng H2Milktea khảo sát: **Số 61, Phúc Xuân, Trung Giã, Hà Nội**.
+   - Năm/tháng bắt đầu hoạt động: **Tháng 03 năm 2024**.
+   - Khung giờ mở cửa: **08:00 – 22:00** hàng ngày | Hai khung giờ cao điểm trong ngày: **11:30 – 13:30** và **19:00 – 21:30** (hoặc theo khung giờ đông khách thực tế tại quán).
+   - Lưu lượng đơn trung bình: Ngày thường từ **20 – 25** đơn/ngày; Cuối tuần từ **50 – 60** đơn/ngày.
+   - Số điện thoại liên hệ của quán: **0399939240** (Nguyễn Thị Hương) và **0985561909** (Trần Văn Hà).
+   - Tiện ích tại quán: Wi-Fi **`CafeH2`** (Mật khẩu: **`12345678`**); đỗ xe trong sân quán hoặc sát bờ tường quán.
+   - Cơ cấu nhân sự thực tế tại quán (`Bảng 3.2` - tổng 05 người):
+     + Chủ quán / Quản lý: **02 người** (**Nguyễn Thị Hương**, **Trần Văn Hà**)
+     + Thu ngân: **01 người** (**Trần Văn Hà**)
+     + Pha chế (Barista): **02 người** (**Trần Văn Đạt**, **Nguyễn Thị Hương**)
+     + Phục vụ: **02 người** (**Trần Thị Hồng**, **Trần Văn Tiến**)
 
 3. Cơ chế Bảo vệ Tuyến đường (Route Guard) tại `src/middleware.ts`:
    - Danh sách các đường dẫn công khai không cần đăng nhập (`publicRoutes`) trong `middleware.ts` gồm: **`'/'`** (Trang đăng nhập), **`'/not-found'`**, và **`'/order'`** (cùng toàn bộ nhánh con `pathname.startsWith('/order')` như `/order/menu`, `/order/cart`, `/order/status`).
@@ -59,39 +62,31 @@
 - Ô 5: **`129 dòng cấu hình công thức định mức BOM`**
 
 #### B. `Table[10]` (Khung thông tin thực tế đơn vị khảo sát tại Mục 3.1.1 — Trang 22)
-- Địa chỉ thực tế: **`Số 68 Phố Triều Khúc, Phường Thanh Xuân Nam, Quận Thanh Xuân, Thành phố Hà Nội`**
-- Thời gian bắt đầu hoạt động: **`Tháng 03 năm 2023`**
-- Giờ cao điểm thực tế: **`11:30 – 13:30 và 19:00 – 21:30`**
-- Số đơn ngày thường: **`70 – 90 đơn/ngày`**
-- Số đơn cuối tuần: **`130 – 160 đơn/ngày`**
+- Địa chỉ thực tế: **`Số 61, Phúc Xuân, Trung Giã, Hà Nội`**
+- Thời gian bắt đầu hoạt động: **`Tháng 03 năm 2024`**
+- Khung giờ mở cửa phục vụ: **`08:00 – 22:00 hàng ngày`** *(SĐT liên hệ: `0399939240` – `0985561909`)*
+- Số đơn ngày thường: **`20 – 25 đơn/ngày`**
+- Số đơn cuối tuần: **`50 – 60 đơn/ngày`**
 
-#### C. `Table[12]` (`Bảng 3.2`: Cơ cấu nhân sự theo ca — Trang 24)
-- Chủ cửa hàng / Quản lý: **`01 người`**
-- Nhân viên Thu ngân / Phục vụ: **`01 – 02 người/ca`**
-- Nhân viên Pha chế (Barista): **`01 – 02 người/ca`**
+#### C. `Table[12]` (`Bảng 3.2`: Cơ cấu nhân sự thực tế tại quán — Trang 24)
+- Chủ cửa hàng / Quản lý: **`02 người (Nguyễn Thị Hương, Trần Văn Hà)`**
+- Nhân viên Thu ngân / Phục vụ: **`Thu ngân: Trần Văn Hà | Phục vụ: Trần Thị Hồng, Trần Văn Tiến`**
+- Nhân viên Pha chế (Barista): **`02 người (Trần Văn Đạt, Nguyễn Thị Hương)`**
 
-#### D. `Table[18]` (`Bảng 3.8`: Tổng hợp kết quả khảo sát nhu cầu thực tế trên 05 nhóm đối tượng, $N = 50$ phiếu — Trang 31)
+#### D. `Table[18]` (`Bảng 3.8`: Tổng hợp kết quả khảo sát nhu cầu thực tế trên 05 nhóm đối tượng)
+> ⏳ **Trạng thái**: `[CHỜ BẠN THỰC HIỆN KHẢO SÁT THỰC TẾ LẠI]` — Chủ dự án sẽ phát phiếu khảo sát thực tế lại và tự điền số liệu thật vào bảng này sau (không sử dụng số liệu giả lập).
 
-| Nhóm đối tượng khảo sát | Số phiếu thu về ($N$) | Tỷ lệ đồng thuận câu Có/Không trọng tâm | Điểm trung bình câu thang đo Likert (1–5) | Nhận định rút ra từ dữ liệu khảo sát |
-| :--- | :---: | :--- | :--- | :--- |
-| **1. Khách hàng trẻ tuổi (15–30 tuổi)** | **`N1 = 18 phiếu`** | • Thích quét QR gọi món: **`88,9% Có`** (16/18)<br>• Bất tiện khi gọi thêm lượt 2: **`83,3% Có`** (15/18)<br>• Muốn xem nhanh Wi-Fi/FAQ: **`94,4% Có`** (17/18) | • Nhu cầu tùy chỉnh đường/đá/topping: **`4,72/5.0`**<br>• Theo dõi tiến độ đơn trực tiếp: **`4,56/5.0`**<br>• Ưu tiên VietQR & tích điểm: **`4,61/5.0`** | Nhu cầu rất cao về tự đặt món QR không chờ đợi, cá nhân hóa khẩu vị chi tiết và theo dõi tiến độ pha chế thời gian thực. |
-| **2. Khách hàng lớn tuổi (> 40 tuổi)** | **`N2 = 10 phiếu`** | • Từ chối nếu bắt cài App/đăng ký: **`100% Có`** (10/10)<br>• Vẫn cần nhân viên hỗ trợ & hóa đơn giấy: **`90,0% Có`** (9/10) | • Khó khăn khi chữ nhỏ/giao diện rối: **`4,60/5.0`**<br>• Sẵn sàng dùng QR nếu $\le$ 3 bước chạm: **`4,30/5.0`**<br>• Hài lòng khi có tem dán rõ trên cốc: **`4,70/5.0`** | Bắt buộc thiết kế QR Web không đăng nhập, có Chế độ chữ lớn (Trợ năng 2.0) và duy trì song song kênh nhân viên nhập POS + in phiếu K80. |
-| **3. Chủ cửa hàng / Quản lý quán** | **`N3 = 5 phiếu`** | • Ngại chi phí SaaS cố định & khó tùy biến: **`100% Có`** (5/5)<br>• Bắt buộc AI phải có bật/tắt & nhật ký: **`100% Có`** (5/5) | • Lo ngại thất thoát nguyên liệu kho: **`4,80/5.0`**<br>• Mất thời gian đào tạo nhân viên mới: **`4,40/5.0`**<br>• Cần báo cáo từ xa & dự báo nhập kho: **`4,60/5.0`** | Ưu tiên hàng đầu là quản lý định mức BOM chống thất thoát, giám sát doanh thu thời gian thực và kiểm soát chặt phân quyền AI. |
-| **4. Nhân viên pha chế (Barista)** | **`N4 = 7 phiếu`** | • Từng thất lạc/đọc nhầm phiếu giấy: **`100% Có`** (7/7)<br>• Muốn chạm 1 nút báo xong đơn: **`100% Có`** (7/7) | • Áp lực không rõ thứ tự đơn chờ lâu: **`4,71/5.0`**<br>• Hiệu quả của tem nhãn dán từng cốc: **`4,86/5.0`**<br>• Nhu cầu tra công thức chuẩn món mới: **`4,57/5.0`** | Cần màn hình KDS hiển thị thứ tự FIFO có cảnh báo màu đơn trễ, chế độ chạm 1-Tap trên điện thoại và tự động in tem nhãn cốc. |
-| **5. Nhân viên phục vụ / Thu ngân** | **`N5 = 10 phiếu`** | • Từng gặp lỗi ghi đè món / nhầm khi đổi bàn: **`90,0% Có`** (9/10)<br>• Lo ngại bấm thanh toán đúp khi mạng trễ: **`100% Có`** (10/10) | • Lúng túng nhớ giá > 50 món khi mới làm: **`4,50/5.0`**<br>• Tiện lợi của hộp thư duyệt đơn QR: **`4,80/5.0`**<br>• Sẵn sàng dùng AI có bước Xem trước: **`4,70/5.0`** | Cần đồng bộ giỏ hàng đa thiết bị chống ghi đè (OCC), thanh toán chống trùng và Trợ lý AI có thẻ Preview xác nhận. |
+#### E. `Table[20]` (Khung số liệu quan sát hiện trạng Baseline Trước tại Mục 3.2.2)
+> ⏳ **Trạng thái**: `[CHỜ ĐO THỰC TẾ TẠI QUÁN]` — Bấm giờ thực tế quá trình ghi tay và cộng sổ tại quán để điền các số liệu trung thực vào 3 gạch đầu dòng của khung này.
 
-#### E. `Table[20]` (Khung số liệu quan sát hiện trạng Baseline Trước tại Mục 3.2.2 — Trang 32)
-- Thời gian trung bình ghi tay & tính tiền thủ công 01 đơn (3–4 món có tùy chọn đường/đá): **`trung bình 95 – 125 giây/đơn`**
-- Tần suất xảy ra nhầm lẫn ghi chú đường/đá/topping hoặc quên cập nhật đổi bàn giờ cao điểm: **`trung bình 3 – 5 trường hợp/ca cao điểm`**
-- Thời gian cộng sổ đối soát hóa đơn giấy và kiểm tiền cuối ca: **`khoảng 35 – 45 phút/ngày`**
-
-#### F. `Table[24]` (`Bảng 3.12`: Kế hoạch phân bổ các giai đoạn thực hiện đồ án — Trang 38)
-- Giai đoạn 1 (Tuần 1 – Tuần 2): **`10/08/2026 – 23/08/2026`**
-- Giai đoạn 2 (Tuần 3 – Tuần 5): **`24/08/2026 – 13/09/2026`**
-- Giai đoạn 3 (Tuần 6 – Tuần 9): **`14/09/2026 – 11/10/2026`**
-- Giai đoạn 4 (Tuần 10 – Tuần 11): **`12/10/2026 – 25/10/2026`**
-- Giai đoạn 5 (Tuần 12 – Tuần 13): **`26/10/2026 – 08/11/2026`**
-- Giai đoạn 6 (Tuần 14): **`09/11/2026 – 15/11/2026`**
+#### F. `Table[24]` (`Bảng 3.12`: Kế hoạch phân bổ các giai đoạn thực hiện đồ án theo lịch K74 - HTTT 2027)
+- Đăng ký thông tin ĐATN: **`Trước 12/01/2027`** | Phân công hướng dẫn ĐATN: **`12/01/2027 – 18/01/2027`**
+- Giai đoạn 1 — Khảo sát & Đề cương (Nhận phiếu giao nhiệm vụ `18/01 – 24/01/2027`): **`Tuần 1 – Tuần 2 (18/01/2027 – 31/01/2027)`**
+- Giai đoạn 2 — Phân tích & Thiết kế UML, CSDL: **`Tuần 3 – Tuần 5 (01/02/2027 – 21/02/2027)`**
+- Giai đoạn 3 — Xây dựng phân hệ cốt lõi POS, QR, KDS & Thanh toán PayOS + SePay: **`Tuần 6 – Tuần 9 (22/02/2027 – 21/03/2027)`**
+- Giai đoạn 4 — Xây dựng phân hệ Kho BOM, Báo cáo & AI Copilot: **`Tuần 10 – Tuần 11 (22/03/2027 – 04/04/2027)`**
+- Giai đoạn 5 — Kiểm thử, Khảo sát & Đo thực nghiệm tại quán: **`Tuần 12 – Tuần 14 (05/04/2027 – 24/04/2027)`** *(Chốt thời gian làm ĐATN: `18/01/2027 – 24/04/2027`)*
+- Giai đoạn 6 — Nộp báo cáo, Phản biện & Bảo vệ ĐATN: **`25/04/2027 – 16/05/2027`** *(Nộp báo cáo: `25/04 – 29/04/2027`; Phản biện: `03/05 – 09/05/2027`; Bảo vệ ĐATN: `10/05 – 16/05/2027`)*
 
 ---
 
@@ -143,10 +138,12 @@
    - Trong hàm RPC `pos_transfer_table_cart` (`202610180004_pos_core_rpc.sql`), giả sử Thu ngân 1 chuyển từ `BAN01 -> BAN02` cùng lúc Thu ngân 2 chuyển từ `BAN02 -> BAN01`. Làm sao để PostgreSQL không bị Deadlock?
    - Trả lời: Trước khi khóa dòng bằng `SELECT ... FOR UPDATE`, hàm sắp xếp thứ tự khóa 2 bàn theo quy tắc `LEAST(p_source_table_id, p_target_table_id)` trước rồi mới đến `GREATEST(...)`, nghĩa là luôn khóa theo thứ tự **`IDBAN tăng dần (bảng chữ cái / alphabet)`** cố định!
 
-3. Luồng Đối soát Thanh toán Tự động qua SePay Webhook:
-   - Đường dẫn file thực tế trong dự án: **`src/pages/api/payment/sepay-webhook.ts`** ([sepay-webhook.ts](file:///d:/Documents/H2MilkTea/src/pages/api/payment/sepay-webhook.ts)).
-   - Khi SePay gửi gói tin POST sang, hàm xử lý kiểm tra Header `Authorization` có chứa chuỗi `Apikey <token>` (hoặc `Bearer <token>`) khớp với biến môi trường `SEPAY_API_KEY` (hoặc `SEPAY_WEBHOOK_SECRET`).
-   - Tiếp theo, hàm dùng biểu thức chính quy (Regex) quét trường `content` (nội dung chuyển khoản) để tìm mã hóa đơn `HD...` hoặc mã bàn theo cú pháp **`H2 <MãBàn>`** (ví dụ: `H2 BAN01` hoặc `H2 B001`).
+3. Luồng Đối soát Thanh toán Kết hợp PayOS (Tạo mã) & SePay Webhook (Đối soát tự động):
+   - Kiến trúc kết hợp 2 dịch vụ:
+     + **PayOS (`@payos/node` & `@payos/payos-checkout` trong `package.json`)**: Đóng vai trò **tạo mã QR / link thanh toán** chuẩn VietQR NAPAS247 gắn mã thanh toán duy nhất của hóa đơn (`orderCode` / `H2 <MãBàn>` / `HD...`). *(Lưu ý thực tế trong code hiện tại: `CheckoutModal.tsx` đang tạm dùng ảnh QR tĩnh/động qua `https://qr.sepay.vn/img`, chưa viết API route gọi trực tiếp PayOS SDK — cần bổ sung API tạo mã PayOS nếu triển khai luồng kết hợp hoàn chỉnh trên Staging).*
+     + **SePay Webhook ([src/pages/api/payment/sepay-webhook.ts](file:///d:/Documents/H2MilkTea/src/pages/api/payment/sepay-webhook.ts))**: Đóng vai trò **nhận phản hồi (Webhook)** ngay khi tiền chuyển khoản về tài khoản ngân hàng của quán.
+   - Khi SePay gửi gói tin POST sang, hàm xử lý kiểm tra Header `Authorization` có chứa chuỗi `Apikey <token>` (hoặc `Bearer <token>`) khớp với biến môi trường `SEPAY_API_KEY`.
+   - Tiếp theo, hàm dùng biểu thức chính quy (Regex) quét trường `content` (nội dung chuyển khoản) để tìm mã hóa đơn `HD...` hoặc mã bàn theo cú pháp **`H2 <MãBàn>`** (ví dụ: `H2 BAN01` hoặc `H2 B001`), đối chiếu với hóa đơn đã gán mã thanh toán đó.
    - Sau khi cập nhật trạng thái thanh toán xong, Server phát sự kiện broadcast tên là **`'sepay_payment_received'`** trên kênh Realtime **`'pos-all-cart-drafts-global'`** để màn hình POS đang mở tự động đóng hộp thoại thanh toán và báo thành công.
 
 4. Cơ chế Chống thất thoát Hóa đơn (Soft Delete Audit Trail):
@@ -228,53 +225,54 @@
 ## PHẦN 4: ĐÁP ÁN HOÀN CHỈNH BÀI TẬP 5 & CÁC BẢNG KIỂM THỬ CHƯƠNG 4 — BẢNG 4.2, 4.3, 4.4, 4.6 SUS
 *(Thực hiện bởi Subagent 4 — QA Test, Benchmark & SUS Evaluator)*
 
-### 4.1. Đoạn văn `P[568]` & `P[572]` đã sửa sạch lỗi ghép chữ và `Bảng 4.2` (36 Tệp / 260 Kịch bản Vitest)
+### 4.1. Đoạn văn `P[568]` & `P[572]` đã sửa sạch lỗi ghép chữ và `Bảng 4.2` (37 Tệp / 266 Kịch bản Vitest)
 - **Đoạn văn `P[568]` chuẩn**:
-  > *"Kết quả thực thi tự động toàn diện bằng công cụ Vitest (`npx vitest run`) trên kho mã nguồn dự án H2Milktea xác nhận toàn bộ **36 tệp kiểm thử tự động (`36/36 test suites`)** với tổng cộng **260 kịch bản kiểm thử (`260/260 tests`)** đều vượt qua thành công (**100% PASS**) trong tổng thời gian thực thi trung bình là **4,82 giây**."*
+  > *"Kết quả thực thi tự động toàn diện bằng công cụ Vitest (`npx vitest run`) trên kho mã nguồn dự án H2Milktea xác nhận toàn bộ **37 tệp kiểm thử tự động (`37/37 test suites`)** với tổng cộng **266 kịch bản kiểm thử (`266/266 tests`)** đều vượt qua thành công (**100% PASS**) trong tổng thời gian thực thi là **6,95 giây**."*
 - **Đoạn văn `P[572]` chuẩn**:
-  > *"Bên cạnh 260 bài kiểm thử tự động bằng Vitest, **Bảng 4.3 thiết lập danh mục 33 kịch bản kiểm thử tích hợp trọng tâm (`TC-01` đến `TC-33`)** ánh xạ trực tiếp tới các yêu cầu FR/NFR trên đầy đủ 04 vai trò người dùng."*
+  > *"Bên cạnh 266 bài kiểm thử tự động bằng Vitest, **Bảng 4.3 thiết lập danh mục 33 kịch bản kiểm thử tích hợp trọng tâm (`TC-01` đến `TC-33`)** ánh xạ trực tiếp tới các yêu cầu FR/NFR trên đầy đủ 04 vai trò người dùng."*
 
-#### Bảng 4.2: Thống kê 36 bộ kiểm thử tự động Vitest (260 kịch bản kiểm thử — 100% PASS)
+#### Bảng 4.2: Thống kê 37 bộ kiểm thử tự động Vitest (266 kịch bản kiểm thử — 100% PASS)
 
 | TT | Tên tệp kiểm thử trong `tests/unit/` | Số bài test | Phạm vi nghiệp vụ và kỹ thuật được kiểm chứng | Kết quả |
 | :---: | :--- | :---: | :--- | :---: |
 | 1 | `ai-pipeline.test.ts` | 13 | Đường ống xử lý AI 2 tầng, rào chắn an toàn, chặn thanh toán/xóa đơn, chuẩn hóa Preview Card. | 13/13 PASS |
-| 2 | `phase-12-bulk-tables-and-area.test.ts` | 15 | Khởi tạo nhanh dải bàn hàng loạt (`BAN01..BAN15`), chuẩn hóa 04 khu vực phục vụ và phân quyền RBAC tạo bàn. | 15/15 PASS |
+| 2 | `phase-12-bulk-tables-and-area.test.ts` | 12 | Khởi tạo nhanh dải bàn hàng loạt (`BAN01..BAN15`), chuẩn hóa 04 khu vực phục vụ và phân quyền RBAC tạo bàn. | 12/12 PASS |
 | 3 | `phase-4-options-qa.test.ts` | 12 | Tùy biến tham số Size, % đường, % đá, phụ thu Topping và hỏi đáp ngữ cảnh thuộc tính món. | 12/12 PASS |
 | 4 | `cart-conflict.test.ts` | 12 | Kiểm soát xung đột phiên bản OCC, trả mã `HTTP 409 Conflict` và thuật toán hợp nhất giỏ `diffCartItems`. | 12/12 PASS |
 | 5 | `p1-p2-upgrade.test.ts` | 12 | Nâng cấp Trợ lý AI P1 & P2, đồng bộ cỡ chữ chatbot, quản lý ngữ cảnh lịch sử hội thoại. | 12/12 PASS |
 | 6 | `ai-features.test.ts` | 11 | Nhận diện từ viết tắt tiếng Việt bằng Rule Engine (`ts`, `cf`, `bx`), gợi ý món thông minh và Cart Diff. | 11/11 PASS |
 | 7 | `phase-8-9-10-enhancements.test.ts` | 11 | Chuẩn hóa ngày tháng đa định dạng, làm giàu dữ liệu mẫu 60 ngày, kiểm kê kho và dự báo tồn kho. | 11/11 PASS |
-| 8 | `phase-6-system-polish.test.ts` | 10 | Đồng bộ giao diện Dark/Light Mode, Chế độ trợ năng người cao tuổi (Elderly Mode), xử lý lỗi biên. | 10/10 PASS |
-| 9 | `faq.test.ts` | 9 | Tra cứu tiện ích cửa hàng (`store_faq`: mật khẩu Wi-Fi, giờ mở cửa, chính sách gửi xe, thanh toán). | 9/9 PASS |
-| 10 | `patch-0-2710-features.test.ts` | 9 | Tối ưu trải nghiệm quầy POS, phân hạng thành viên CRM (VIP, Diamond), tính điểm thưởng và công nợ. | 9/9 PASS |
-| 11 | `phase-13-rag-and-agent-upgrade.test.ts` | 9 | Bộ máy In-App Hybrid RAG 4 nguồn tri thức, cô lập quyền hạn `roleScope` (`staff` vs `customer`). | 9/9 PASS |
-| 12 | `qr-lifecycle.test.ts` | 8 | Vòng đời đơn hàng QR, định giá Size M/L phía Server, tự phục hồi schema CSDL và chặn sửa giá. | 8/8 PASS |
-| 13 | `sepay-webhook.test.ts` | 8 | Xác thực API Key SePay, bóc tách mã bàn/mã hóa đơn từ nội dung VietQR và phát tín hiệu Realtime POS. | 8/8 PASS |
-| 14 | `ai-settings.test.ts` | 8 | Bật/tắt công tắc ngắt khẩn cấp (Kill-Switch) tại `/settings/ai`, chặn `HTTP 403` với tài khoản thường. | 8/8 PASS |
-| 15 | `pos-search-and-features.test.ts` | 8 | Tìm kiếm mờ (Fuzzy Search) tiếng Việt không dấu, lọc nhanh 11 nhóm danh mục và chiết khấu hóa đơn. | 8/8 PASS |
-| 16 | `qa-bug-reporter-and-test-plan.test.ts` | 8 | Kiểm chứng ma trận kiểm thử kết hợp QA Manual (105 TCs) + Auto Test (36 Suites) và widget báo lỗi QA. | 8/8 PASS |
-| 17 | `phase-7-pos-sync-and-modals.test.ts` | 7 | Đồng bộ trạng thái POS đa khung nhìn thời gian thực và đóng/mở an toàn hệ thống hộp thoại. | 7/7 PASS |
-| 18 | `patch-0-2210-order-sync-gacha.test.ts` | 7 | Đồng bộ tiến độ đơn hàng liên thông quầy - khách, chuông gọi phục vụ tại bàn và vòng quay Gacha. | 7/7 PASS |
-| 19 | `phase-4-labels-kitchen-vat.test.ts` | 7 | In tem nhãn dán cốc trà sữa chuẩn hóa Unicode tiếng Việt, lọc bỏ món ăn vặt, đồng bộ KDS và VAT. | 7/7 PASS |
-| 20 | `phase-12-pos-tables-upgrade.test.ts` | 7 | Thuật toán sắp xếp bàn tự nhiên Natural Sort A $\rightarrow$ Z (`Bàn 01` $\rightarrow$ `Bàn 10`), phân bổ 4 khu vực. | 7/7 PASS |
-| 21 | `api-db.test.ts` | 7 | API cơ sở dữ liệu hợp nhất `/api/db`, phân quyền RBAC đa vai trò và toàn vẹn dữ liệu trên 11 bảng. | 7/7 PASS |
-| 22 | `ai-customer-chat.test.ts` | 7 | Trợ lý AI hội thoại khách hàng (`CustomerChatbot`), tư vấn khẩu vị, bảo toàn danh sách Topping. | 7/7 PASS |
-| 23 | `checkout-api.test.ts` | 6 | API `POST /api/pos/checkout`, khóa `idempotency_key` chống thanh toán trùng và khấu trừ kho BOM. | 6/6 PASS |
-| 24 | `offline-checkout.test.ts` | 6 | Hàng đợi thanh toán ngoại tuyến Local-first (`offlineSyncQueue`), tự động retry đồng bộ khi có mạng. | 6/6 PASS |
-| 25 | `smart-table-resolver.test.ts` | 6 | Thuật toán nhận diện và chuẩn hóa mã bàn thông minh (`resolveTableFlexible`) cho mọi biến thể QR. | 6/6 PASS |
-| 26 | `cart-draft-api.test.ts` | 5 | API `/api/pos/cart-draft` quản lý giỏ hàng nháp theo bàn, tăng `version` và trả `HTTP 409` khi xung đột. | 5/5 PASS |
-| 27 | `settings-features.test.ts` | 5 | Cờ tính năng hệ thống (Feature Flags), quản lý trạng thái bật/tắt module in bếp KDS và in tem nhãn. | 5/5 PASS |
-| 28 | `transfer-table-api.test.ts` | 4 | API `POST /api/pos/transfer-table` thực thi giao dịch chuyển bàn / gộp bàn nguyên tử chống Deadlock. | 4/4 PASS |
-| 29 | `invoice-anti-loss-and-multitenant.test.ts` | 3 | Cơ chế Xóa mềm (Soft Delete) hóa đơn chống thất thoát doanh thu và kiểm thử phân vùng Multi-Tenant. | 3/3 PASS |
-| 30 | `phase-5-global-assistant.test.ts` | 3 | Bong bóng Trợ lý ảo toàn cục (`GlobalAssistant`), nhận diện ngữ cảnh URL trang hiện tại. | 3/3 PASS |
-| 31 | `session-and-pos-enhancements.test.ts` | 3 | Quản lý phiên đăng nhập duy nhất (Single Active Session) và bảo vệ Cookie phân quyền. | 3/3 PASS |
-| 32 | `catalog.test.ts` | 3 | Chuẩn hóa danh mục 53 mặt hàng (`DMHH`), chuẩn hóa Unicode tiếng Việt NFD và khớp F1-Score. | 3/3 PASS |
-| 33 | `kitchen-cleanup.test.ts` | 3 | Điều phối màn hình Bếp KDS (`/kitchen`), cảnh báo SLA đổi màu và tự động dọn đơn khi thanh toán. | 3/3 PASS |
-| 34 | `qr-order-pos-notification.test.ts` | 3 | Luồng thông báo đơn hàng QR đến quầy POS thời gian thực qua kênh Broadcast & Polling 4 giây. | 3/3 PASS |
-| 35 | `sidebar-navigation-ux.test.ts` | 3 | Kiến trúc phân tầng Sidebar 3 khu vực (`core`, `management`, `system`) và thẻ nổi Smart Hover Card. | 3/3 PASS |
-| 36 | `phase-11-ai-product-creator.test.ts` | 2 | Công cụ AI OCR quét ảnh chụp thực đơn giấy, bóc tách tên món, nhóm hàng và đơn giá vào `DMHH`. | 2/2 PASS |
-| **Tổng** | **36 tệp kiểm thử tự động** | **260** | **Thời gian thực thi trung bình: ~4,82 giây** | **260/260 PASS (100%)** |
+| 8 | `dateUtils.test.ts` | 10 | Chuẩn hóa, phân tích và định dạng ngày giờ chuẩn Việt Nam (`dd/MM/yyyy`) cho báo cáo và hóa đơn. | 10/10 PASS |
+| 9 | `phase-6-system-polish.test.ts` | 10 | Đồng bộ giao diện Dark/Light Mode, Chế độ trợ năng người cao tuổi (Elderly Mode), xử lý lỗi biên. | 10/10 PASS |
+| 10 | `faq.test.ts` | 9 | Tra cứu tiện ích cửa hàng (`store_faq`: Wi-Fi `CafeH2`, giờ mở cửa `08:00-22:00`, chỗ để xe, thanh toán). | 9/9 PASS |
+| 11 | `patch-0-2710-features.test.ts` | 9 | Tối ưu trải nghiệm quầy POS, phân hạng thành viên CRM (VIP, Diamond), tính điểm thưởng và công nợ. | 9/9 PASS |
+| 12 | `phase-13-rag-and-agent-upgrade.test.ts` | 9 | Bộ máy In-App Hybrid RAG 4 nguồn tri thức, cô lập quyền hạn `roleScope` (`staff` vs `customer`). | 9/9 PASS |
+| 13 | `qr-lifecycle.test.ts` | 8 | Vòng đời đơn hàng QR, định giá Size M/L phía Server, tự phục hồi schema CSDL và chặn sửa giá. | 8/8 PASS |
+| 14 | `sepay-webhook.test.ts` | 8 | Xác thực API Key SePay, bóc tách mã bàn/mã hóa đơn từ nội dung VietQR và phát tín hiệu Realtime POS. | 8/8 PASS |
+| 15 | `ai-settings.test.ts` | 8 | Bật/tắt công tắc ngắt khẩn cấp (Kill-Switch) tại `/settings/ai`, chặn `HTTP 403` với tài khoản thường. | 8/8 PASS |
+| 16 | `pos-search-and-features.test.ts` | 8 | Tìm kiếm mờ (Fuzzy Search) tiếng Việt không dấu, lọc nhanh 11 nhóm danh mục và chiết khấu hóa đơn. | 8/8 PASS |
+| 17 | `qa-bug-reporter-and-test-plan.test.ts` | 7 | Kiểm chứng ma trận kiểm thử kết hợp QA Manual (105 TCs) + Auto Test và widget báo lỗi QA. | 7/7 PASS |
+| 18 | `phase-7-pos-sync-and-modals.test.ts` | 7 | Đồng bộ trạng thái POS đa khung nhìn thời gian thực và đóng/mở an toàn hệ thống hộp thoại. | 7/7 PASS |
+| 19 | `patch-0-2210-order-sync-gacha.test.ts` | 7 | Đồng bộ tiến độ đơn hàng liên thông quầy - khách, chuông gọi phục vụ tại bàn và vòng quay Gacha. | 7/7 PASS |
+| 20 | `phase-4-labels-kitchen-vat.test.ts` | 7 | In tem nhãn dán cốc trà sữa chuẩn hóa Unicode tiếng Việt, lọc bỏ món ăn vặt, đồng bộ KDS và VAT. | 7/7 PASS |
+| 21 | `phase-12-pos-tables-upgrade.test.ts` | 7 | Thuật toán sắp xếp bàn tự nhiên Natural Sort A $\rightarrow$ Z (`Bàn 01` $\rightarrow$ `Bàn 10`), phân bổ 4 khu vực. | 7/7 PASS |
+| 22 | `api-db.test.ts` | 7 | API cơ sở dữ liệu hợp nhất `/api/db`, phân quyền RBAC đa vai trò và toàn vẹn dữ liệu trên 11 bảng. | 7/7 PASS |
+| 23 | `ai-customer-chat.test.ts` | 7 | Trợ lý AI hội thoại khách hàng (`CustomerChatbot`), tư vấn khẩu vị, bảo toàn danh sách Topping & FAQ. | 7/7 PASS |
+| 24 | `checkout-api.test.ts` | 6 | API `POST /api/pos/checkout`, khóa `idempotency_key` chống thanh toán trùng và khấu trừ kho BOM. | 6/6 PASS |
+| 25 | `offline-checkout.test.ts` | 6 | Hàng đợi thanh toán ngoại tuyến Local-first (`offlineSyncQueue`), tự động retry đồng bộ khi có mạng. | 6/6 PASS |
+| 26 | `smart-table-resolver.test.ts` | 6 | Thuật toán nhận diện và chuẩn hóa mã bàn thông minh (`resolveTableFlexible`) cho mọi biến thể QR. | 6/6 PASS |
+| 27 | `cart-draft-api.test.ts` | 5 | API `/api/pos/cart-draft` quản lý giỏ hàng nháp theo bàn, tăng `version` và trả `HTTP 409` khi xung đột. | 5/5 PASS |
+| 28 | `settings-features.test.ts` | 5 | Cờ tính năng hệ thống (Feature Flags), quản lý trạng thái bật/tắt module in bếp KDS và in tem nhãn. | 5/5 PASS |
+| 29 | `transfer-table-api.test.ts` | 4 | API `POST /api/pos/transfer-table` thực thi giao dịch chuyển bàn / gộp bàn nguyên tử chống Deadlock. | 4/4 PASS |
+| 30 | `invoice-anti-loss-and-multitenant.test.ts` | 3 | Cơ chế Xóa mềm (Soft Delete) hóa đơn chống thất thoát doanh thu và kiểm thử phân vùng Multi-Tenant. | 3/3 PASS |
+| 31 | `phase-5-global-assistant.test.ts` | 3 | Bong bóng Trợ lý ảo toàn cục (`GlobalAssistant`), nhận diện ngữ cảnh URL trang hiện tại. | 3/3 PASS |
+| 32 | `session-and-pos-enhancements.test.ts` | 3 | Quản lý phiên đăng nhập duy nhất (Single Active Session) và bảo vệ Cookie phân quyền. | 3/3 PASS |
+| 33 | `catalog.test.ts` | 3 | Chuẩn hóa danh mục 53 mặt hàng (`DMHH`), chuẩn hóa Unicode tiếng Việt NFD và khớp F1-Score. | 3/3 PASS |
+| 34 | `kitchen-cleanup.test.ts` | 3 | Điều phối màn hình Bếp KDS (`/kitchen`), cảnh báo SLA đổi màu và tự động dọn đơn khi thanh toán. | 3/3 PASS |
+| 35 | `qr-order-pos-notification.test.ts` | 3 | Luồng thông báo đơn hàng QR đến quầy POS thời gian thực qua kênh Broadcast & Polling 4 giây. | 3/3 PASS |
+| 36 | `sidebar-navigation-ux.test.ts` | 3 | Kiến trúc phân tầng Sidebar 3 khu vực (`core`, `management`, `system`) và thẻ nổi Smart Hover Card. | 3/3 PASS |
+| 37 | `phase-11-ai-product-creator.test.ts` | 2 | Công cụ AI OCR quét ảnh chụp thực đơn giấy, bóc tách tên món, nhóm hàng và đơn giá vào `DMHH`. | 2/2 PASS |
+| **Tổng** | **37 tệp kiểm thử tự động** | **266** | **Thời gian thực thi thực tế: 6,95 giây** | **266/266 PASS (100%)** |
 
 ---
 
@@ -318,31 +316,14 @@
 
 ---
 
-### 4.3. Đáp án Điền Đầy Đủ cho `Bảng 4.4` (`Table[75]` — Đo thời gian thực nghiệm Trước và Sau tại quán, Trang 124)
-
-| Mã tác vụ | Mô tả kịch bản tác vụ thực nghiệm tại quán | Thời gian TB Trước (Ghi giấy / Bấm tay) | Thời gian TB Sau (Hệ thống H2Milktea) | Nhận xét / Số lỗi giảm được (Điền vào cột cuối của `Bảng 4.4`) |
-| :---: | :--- | :---: | :---: | :--- |
-| `TV-01` | Lên đơn lẻ 01 món cơ bản tại quầy và thông báo cho quầy pha chế | **`48 giây`** | **`13 giây`** | **`Giảm 72,9% thời gian — Đơn tự động chuyển thẳng sang màn hình KDS, loại bỏ hoàn toàn việc ghi giấy và gọi vọng vào quầy pha chế.`** |
-| `TV-02` | Lên đơn nhóm 4–5 món có tùy chọn Size M/L, % đường, % đá và topping khác nhau | **`112 giây`** | **`24 giây`** | **`Giảm 78,6% thời gian — Tùy chọn trực quan trên modal, tự động cộng phụ thu Size/Topping, giảm từ 3–5 lỗi nhầm ghi chú/ca xuống 0 lỗi.`** |
-| `TV-03` | Nhân viên nhập nhanh đơn 3 món bằng câu lệnh gõ tắt / giọng nói qua Trợ lý AI (kèm bấm Xác nhận) | **`58 giây`** | **`15 giây`** | **`Giảm 74,1% thời gian — Rule Engine 0.01s bóc tách từ viết tắt (ts, dcs, bx) và sinh Preview Card tức thì, thu ngân chỉ cần bấm Xác nhận.`** |
-| `TV-04` | Khách tự quét mã QR tại bàn gửi đơn $\rightarrow$ Thu ngân duyệt $\rightarrow$ Hiện lên màn hình KDS | **`125 giây`** | **`28 giây`** | **`Giảm 77,6% thời gian — Khách tự chọn món trên điện thoại không cần chờ phục vụ mang menu ra bàn; thu ngân duyệt 1 chạm kèm chuông báo.`** |
-| `TV-05` | Xử lý yêu cầu khách đổi bàn đang phục vụ và gọi bổ sung thêm 02 món mới | **`65 giây`** | **`9 giây`** | **`Giảm 86,2% thời gian — Hàm RPC pos_transfer_table_cart chuyển nguyên tử toàn bộ giỏ sang bàn mới, triệt tiêu 100% lỗi tính nhầm bàn.`** |
-| `TV-06` | Tra cứu ưu đãi khách quen CRM, tính tổng tiền thanh toán VietQR / Tiền mặt và xuất phiếu | **`52 giây`** | **`11 giây`** | **`Giảm 78,8% thời gian — Tự động áp giảm giá VIP 10%/Kim cương 20% theo SĐT và đối soát VietQR tự động qua SePay Webhook không cần chụp bill.`** |
+### 4.3. Khung điền `Bảng 4.4` (`Table[75]` — Đo thời gian thực nghiệm Trước và Sau tại quán)
+> ⏳ **Trạng thái**: `[CHỜ BẠN ĐO THỰC NGHIỆM LẠI SAU]` — Chủ dự án sẽ bấm giờ trực tiếp khi thực hiện các tác vụ `TV-01` → `TV-06` tại quán để điền số liệu thật, không sử dụng số liệu ước lượng giả lập.
 
 ---
 
-### 4.4. Đáp án Điền Đầy Đủ cho `Bảng 4.6` (`Table[77]` — Khảo sát tính khả dụng theo thang đo chuẩn SUS, Trang 126)
+### 4.4. Khung điền `Bảng 4.6` (`Table[77]` — Khảo sát tính khả dụng theo thang đo chuẩn SUS)
+> ⏳ **Trạng thái**: `[CHỜ BẠN KHẢO SÁT THỰC TẾ LẠI SAU]` — Khi thu thập đủ phiếu đánh giá SUS từ nhân viên quán (Hương, Hà, Đạt, Hồng, Tiến) và khách dùng thử, áp dụng công thức chuẩn John Brooke (1996) để tính điểm thật:
+> - Câu lẻ (`1, 3, 5, 7, 9`): $\text{Điểm quy đổi} = \text{Điểm TB} - 1$.
+> - Câu chẵn (`2, 4, 6, 8, 10`): $\text{Điểm quy đổi} = 5 - \text{Điểm TB}$.
+> - $\text{Tổng điểm SUS (thang 100)} = \left(\sum_{i=1}^{10} \text{Điểm quy đổi}_i\right) \times 2,5$.
 
-| STT | Nội dung mệnh đề đánh giá theo chuẩn SUS (Brooke, 1996) | Điểm TB (1–5) | Điểm quy đổi thành phần |
-| :---: | :--- | :---: | :---: |
-| **1** | Tôi nghĩ rằng tôi sẽ muốn sử dụng hệ thống H2Milktea này thường xuyên trong ca làm việc. | **`4,52 / 5`** | **`3,52`** *(4,52 - 1)* |
-| **2** | Tôi thấy hệ thống này phức tạp một cách không cần thiết. | **`1,56 / 5`** | **`3,44`** *(5 - 1,56)* |
-| **3** | Tôi cảm thấy hệ thống dễ thao tác và trực quan. | **`4,64 / 5`** | **`3,64`** *(4,64 - 1)* |
-| **4** | Tôi nghĩ mình cần phải có người am hiểu kỹ thuật đứng cạnh hỗ trợ mới dùng được hệ thống. | **`1,48 / 5`** | **`3,52`** *(5 - 1,48)* |
-| **5** | Tôi nhận thấy các phân hệ (QR, POS, KDS, Kho) trong hệ thống được kết nối với nhau rất mạch lạc. | **`4,56 / 5`** | **`3,56`** *(4,56 - 1)* |
-| **6** | Tôi thấy có quá nhiều điểm thiếu nhất quán giữa các màn hình trong hệ thống. | **`1,52 / 5`** | **`3,48`** *(5 - 1,52)* |
-| **7** | Tôi hình dung phần lớn nhân viên mới tại quán nước sẽ học cách sử dụng hệ thống này rất nhanh. | **`4,60 / 5`** | **`3,60`** *(4,60 - 1)* |
-| **8** | Tôi cảm thấy hệ thống cồng kềnh, lúng túng khi thao tác vào lúc đông khách. | **`1,56 / 5`** | **`3,44`** *(5 - 1,56)* |
-| **9** | Tôi cảm thấy tự tin và yên tâm (không sợ bấm nhầm mất đơn) khi làm việc trên hệ thống. | **`4,68 / 5`** | **`3,68`** *(4,68 - 1)* |
-| **10** | Tôi đã phải học quá nhiều kiến thức phức tạp trước khi có thể bắt đầu bán hàng trên hệ thống. | **`1,68 / 5`** | **`3,32`** *(5 - 1,68)* |
-| **Tổng** | **Tổng điểm quy đổi (trên 40) $\times 2,5$ = Điểm SUS trung bình toàn hệ thống (thang 100)** | **`34,60 / 40`** | **`86,50 / 100 điểm (Xếp loại: Xuất sắc / Grade A)`** |

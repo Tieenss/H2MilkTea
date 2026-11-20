@@ -14,10 +14,10 @@ const loadReceiptTemplate = () => {
   
   // Default template
   return {
-    companyName: 'GIGA COFFEE',
-    address: 'Đông Hà, Quảng Trị',
-    phone: '0826438777',
-    website: 'gigacoffee.vn',
+    companyName: 'H2 MILKTEA',
+    address: 'Số 61, Phúc Xuân, Trung Giã, Hà Nội',
+    phone: '0399939240 - 0985561909',
+    website: 'h2milktea.vercel.app',
     footer: 'Cảm ơn quý khách đã mua hàng!\nHẹn gặp lại quý khách',
     fontFamily: 'Arial, sans-serif',
     fontSize: 12,
