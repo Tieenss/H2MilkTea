@@ -243,87 +243,79 @@ textarea,
         font-size: 0.875rem !important;
     }
 
-    /* Optimize tap targets for mobile */
-    button, a, [role="button"] {
-        min-height: 44px;
-        min-width: 44px;
+    /* Better spacing for mobile cards */
+    .mobile-card {
+        padding: 0.75rem !important;
     }
 
-    /*RetryClaude does not have the ability to run the code it generates yet.NPContinueEdit/* Mobile specific styles - continued /
-/ Better spacing for mobile cards */
-.mobile-card {
-padding: 0.75rem !important;
-}
-/* Larger touch areas for quantity controls */
-.quantity-btn {
-    min-width: 36px;
-    min-height: 36px;
-    padding: 8px;
+    /* Larger touch areas for quantity controls */
+    .quantity-btn {
+        min-width: 32px;
+        min-height: 32px;
+        padding: 4px;
+    }
+
+    /* Mobile cart optimization */
+    .mobile-cart-item {
+        padding: 10px;
+        border-radius: 8px;
+        margin-bottom: 8px;
+    }
+
+    /* Bottom sheet for mobile modals */
+    .mobile-modal {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        max-height: 88dvh;
+        border-top-left-radius: 16px;
+        border-top-right-radius: 16px;
+        animation: slideInFromBottom 0.3s ease-out;
+    }
 }
 
-/* Mobile cart optimization */
-.mobile-cart-item {
-    padding: 12px;
-    border-radius: 8px;
-    margin-bottom: 8px;
-}
-
-/* Bottom sheet for mobile modals */
-.mobile-modal {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    max-height: 85vh;
-    border-top-left-radius: 16px;
-    border-top-right-radius: 16px;
-    animation: slideInFromBottom 0.3s ease-out;
-}
-}
 /* Tablet specific styles */
 @media (min-width: 641px) and (max-width: 1024px) {
-.tablet-layout {
-display: grid;
-grid-template-columns: 2fr 1fr;
-gap: 1rem;
+    .tablet-layout {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 1rem;
+    }
 }
-}
+
 /* Large mobile landscape */
 @media (max-width: 1024px) and (orientation: landscape) {
-.landscape-header {
-padding: 0.5rem 1rem;
+    .landscape-header {
+        padding: 0.5rem 1rem;
+    }
+    .landscape-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
 }
-.landscape-grid {
-    grid-template-columns: repeat(4, 1fr);
-}
-}
-/* Touch device optimizations */
+
+/* Touch device optimizations - without forcing every compact icon button to 44px width */
 @media (hover: none) and (pointer: coarse) {
-.touch-target {
-min-height: 44px;
-min-width: 44px;
-}
-button, a, [role="button"] {
-    min-height: 44px;
-    padding: 8px 12px;
-}
+    .touch-target {
+        min-height: 36px;
+    }
 
-/* Remove hover effects on touch devices */
-.product-card:hover {
-    transform: none;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
+    /* Remove hover effects on touch devices */
+    .product-card:hover {
+        transform: none;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
 
-/* Add active states for better feedback */
-.product-card:active {
-    transform: scale(0.98);
-    transition: transform 0.1s ease;
-}
+    /* Add active states for better feedback */
+    .product-card:active {
+        transform: scale(0.98);
+        transition: transform 0.1s ease;
+    }
 
-button:active {
-    transform: scale(0.98);
-    transition: transform 0.1s ease;
-}
+    button:active {
+        transform: scale(0.98);
+        transition: transform 0.1s ease;
+    }
 }
 /* High contrast mode support */
 @media (prefers-contrast: high) {

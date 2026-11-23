@@ -3,9 +3,12 @@
 import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Printer, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Printer, ZoomIn, ZoomOut, RotateCcw, SlidersHorizontal, ChevronDown, ChevronUp } from 'lucide-react';
 import { LabelSettings, PrintableLabelItem } from '@/types/labelSettings';
-import { getLabelDimensions, generateQRCodeDataUrl, printOrderLabels } from '@/utils/labelPrint';
+import { getLabelDimensions, generateQRCodeDataUrl, printOrderLabels, resolveLabelElementSizes } from '@/utils/labelPrint';
+import { formatCurrency } from '@/app/(dashboard)/pos/utils/formatters';
 import toast from 'react-hot-toast';
 
 interface LabelPreviewProps {
@@ -26,14 +29,27 @@ export const defaultSampleItem: PrintableLabelItem = {
   totalItems: 2,
 };
 
-export const LabelPreview: React.FC<LabelPreviewProps> = ({ settings, sampleItem = defaultSampleItem }) => {
+export const LabelPreview: React.FC<LabelPreviewProps> = ({ settings, sampleItem }) => {
   const [zoomScale, setZoomScale] = useState(1.5); // Phóng to 1.5x để dễ nhìn trên màn hình
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [isPrinting, setIsPrinting] = useState(false);
+  const [showSampleEditor, setShowSampleEditor] = useState(false);
 
-  const item: PrintableLabelItem = { ...defaultSampleItem, ...sampleItem };
+  const [customSample, setCustomSample] = useState<PrintableLabelItem>({
+    ...defaultSampleItem,
+    ...sampleItem,
+  });
+
+  useEffect(() => {
+    if (sampleItem) {
+      setCustomSample((prev) => ({ ...prev, ...sampleItem }));
+    }
+  }, [sampleItem]);
+
+  const item = customSample;
   const { width, height } = getLabelDimensions(settings);
   const fields = settings.fields;
+  const sizes = resolveLabelElementSizes(settings);
 
   // 1mm ~ 3.78px trên màn hình 96dpi
   const widthPx = Math.round(width * 3.78 * zoomScale);
@@ -94,7 +110,22 @@ export const LabelPreview: React.FC<LabelPreviewProps> = ({ settings, sampleItem
     }
   };
 
-  const fontMultiplier = (settings.fontSize === 'small' ? 0.85 : settings.fontSize === 'large' ? 1.15 : 1.0) * zoomScale;
+  const applySamplePreset = (mode: 'standard' | 'long') => {
+    if (mode === 'standard') {
+      setCustomSample({ ...defaultSampleItem });
+    } else {
+      setCustomSample({
+        ...defaultSampleItem,
+        name: 'Trà Sữa Ô Long Kem Phô Mai Nướng Đặc Biệt',
+        size: 'XL',
+        sugar: '30%',
+        ice: '50%',
+        toppings: ['Trân châu trắng', 'Kem phô mai', 'Thạch dừa', 'Pudding trứng'],
+        note: 'Không lấy ống hút nhựa, để riêng đá',
+        price: 125000,
+      });
+    }
+  };
 
   return (
     <div className="flex flex-col items-center">
@@ -151,37 +182,45 @@ export const LabelPreview: React.FC<LabelPreviewProps> = ({ settings, sampleItem
             padding: `${Math.round(6 * zoomScale)}px ${Math.round(8 * zoomScale)}px`,
             boxShadow: '0 4px 14px rgba(0,0,0,0.12)',
           }}
-          className="bg-white rounded-sm border border-gray-400 select-none flex flex-col justify-between transition-all duration-200 text-black font-sans relative"
+          className="bg-white rounded-sm border border-gray-400 select-none flex flex-col justify-between transition-all duration-200 text-black font-sans relative overflow-hidden"
         >
           {/* HEADER */}
-          <div className="flex justify-between items-baseline border-b border-black pb-0.5">
+          <div
+            className={`flex items-baseline border-b border-black pb-0.5 ${
+              fields.headerAlign === 'center' ? 'justify-center gap-2' : 'justify-between'
+            }`}
+          >
             <span
-              style={{ fontSize: `${Math.round(10 * fontMultiplier)}px` }}
+              style={{ fontSize: `${Math.round(sizes.storeNameSize * zoomScale * 10) / 10}px` }}
               className="font-extrabold uppercase tracking-tight truncate max-w-[65%]"
             >
               {fields.showStoreName ? fields.storeName : ''}
             </span>
             <div
-              style={{ fontSize: `${Math.round(9 * fontMultiplier)}px` }}
-              className="font-bold flex items-center gap-1"
+              style={{ fontSize: `${Math.round(sizes.tableAndIndexSize * zoomScale * 10) / 10}px` }}
+              className="font-bold flex items-center gap-1 shrink-0"
             >
               {fields.showTable && <span>[Bàn 01]</span>}
-              {fields.showOrderIndex && <span>#1/2</span>}
+              {fields.showOrderIndex && <span>#{item.itemIndex}/{item.totalItems}</span>}
             </div>
           </div>
 
           {/* BODY */}
           <div className="flex-1 flex flex-col justify-start overflow-hidden py-1">
             <div
-              style={{ fontSize: `${Math.round(11 * fontMultiplier)}px` }}
-              className="font-black uppercase line-clamp-1 leading-tight"
+              style={{ fontSize: `${Math.round(sizes.productNameSize * zoomScale * 10) / 10}px` }}
+              className={`${
+                fields.productNameBold !== false ? 'font-black' : 'font-semibold'
+              } uppercase ${
+                fields.productNameWrap !== false ? 'line-clamp-2' : 'line-clamp-1'
+              } leading-tight break-words`}
             >
               {item.name} {item.size && `[${item.size}]`}
             </div>
 
             {fields.showOptions && (item.sugar || item.ice) && (
               <div
-                style={{ fontSize: `${Math.round(9 * fontMultiplier)}px` }}
+                style={{ fontSize: `${Math.round(sizes.optionsSize * zoomScale * 10) / 10}px` }}
                 className="font-semibold text-gray-800 leading-tight mt-0.5"
               >
                 {item.sugar ? `Đường: ${item.sugar}` : ''}
@@ -192,8 +231,8 @@ export const LabelPreview: React.FC<LabelPreviewProps> = ({ settings, sampleItem
 
             {fields.showToppings && item.toppings && item.toppings.length > 0 && (
               <div
-                style={{ fontSize: `${Math.round(8.5 * fontMultiplier)}px` }}
-                className="text-gray-900 leading-tight mt-0.5 line-clamp-1"
+                style={{ fontSize: `${Math.round(sizes.toppingsSize * zoomScale * 10) / 10}px` }}
+                className="text-gray-900 leading-tight mt-0.5 line-clamp-2"
               >
                 {item.toppings.map((t) => `+ ${t}`).join(', ')}
               </div>
@@ -201,7 +240,7 @@ export const LabelPreview: React.FC<LabelPreviewProps> = ({ settings, sampleItem
 
             {fields.showNote && item.note && (
               <div
-                style={{ fontSize: `${Math.round(8 * fontMultiplier)}px` }}
+                style={{ fontSize: `${Math.round(sizes.noteSize * zoomScale * 10) / 10}px` }}
                 className="italic text-gray-700 leading-tight mt-0.5 line-clamp-1"
               >
                 * {item.note}
@@ -217,12 +256,15 @@ export const LabelPreview: React.FC<LabelPreviewProps> = ({ settings, sampleItem
                 <img
                   src={qrDataUrl}
                   alt="QR"
-                  style={{ width: `${Math.round(18 * zoomScale)}px`, height: `${Math.round(18 * zoomScale)}px` }}
-                  className="object-contain"
+                  style={{
+                    width: `${Math.round(sizes.qrCodeSize * zoomScale)}px`,
+                    height: `${Math.round(sizes.qrCodeSize * zoomScale)}px`,
+                  }}
+                  className="object-contain shrink-0"
                 />
               ) : fields.showBarcodeOrQR === 'barcode' ? (
                 <div
-                  style={{ fontSize: `${Math.round(7 * fontMultiplier)}px` }}
+                  style={{ fontSize: `${Math.round(Math.max(6, sizes.metaSize - 0.5) * zoomScale)}px` }}
                   className="font-mono tracking-tighter bg-gray-100 px-1 border border-black"
                 >
                   |||||||||||||||
@@ -230,7 +272,7 @@ export const LabelPreview: React.FC<LabelPreviewProps> = ({ settings, sampleItem
               ) : null}
 
               <div
-                style={{ fontSize: `${Math.round(7.5 * fontMultiplier)}px` }}
+                style={{ fontSize: `${Math.round(sizes.metaSize * zoomScale * 10) / 10}px` }}
                 className="leading-tight text-gray-700"
               >
                 {fields.showDateTime && (
@@ -243,16 +285,16 @@ export const LabelPreview: React.FC<LabelPreviewProps> = ({ settings, sampleItem
             <div className="text-right">
               {fields.showPrice && (
                 <div
-                  style={{ fontSize: `${Math.round(10 * fontMultiplier)}px` }}
-                  className="font-extrabold text-black"
+                  style={{ fontSize: `${Math.round(sizes.priceSize * zoomScale * 10) / 10}px` }}
+                  className={`${fields.priceBold !== false ? 'font-extrabold' : 'font-medium'} text-black leading-tight`}
                 >
-                  35.000 ₫
+                  {formatCurrency(item.price)}
                 </div>
               )}
               {fields.footerMessage && (
                 <div
-                  style={{ fontSize: `${Math.round(6.5 * fontMultiplier)}px` }}
-                  className="italic text-gray-600 line-clamp-1"
+                  style={{ fontSize: `${Math.round(sizes.footerMessageSize * zoomScale * 10) / 10}px` }}
+                  className="italic text-gray-600 line-clamp-1 leading-tight"
                 >
                   {fields.footerMessage}
                 </div>
@@ -260,6 +302,95 @@ export const LabelPreview: React.FC<LabelPreviewProps> = ({ settings, sampleItem
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Bộ công cụ thử nghiệm dữ liệu mẫu (Sample Data Tester) */}
+      <div className="w-full mt-3 border rounded-lg bg-purple-50/40 border-purple-100 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setShowSampleEditor((prev) => !prev)}
+          className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-purple-900 hover:bg-purple-100/50 transition-colors"
+        >
+          <span className="flex items-center gap-1.5">
+            <SlidersHorizontal className="w-3.5 h-3.5 text-purple-600" />
+            Thử nghiệm nội dung mẫu (Kiểm tra tràn chữ)
+          </span>
+          {showSampleEditor ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+        </button>
+
+        {showSampleEditor && (
+          <div className="p-3 pt-1 space-y-2.5 border-t border-purple-100 bg-white">
+            <div className="flex items-center gap-1.5 pb-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => applySamplePreset('standard')}
+                className="h-6 text-[11px] px-2"
+              >
+                Mẫu tiêu chuẩn
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => applySamplePreset('long')}
+                className="h-6 text-[11px] px-2 border-purple-200 text-purple-700 hover:bg-purple-50"
+              >
+                Thử tên món dài & nhiều topping
+              </Button>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[11px] text-gray-600">Tên món thử nghiệm:</Label>
+              <Input
+                value={item.name}
+                onChange={(e) => setCustomSample((s) => ({ ...s, name: e.target.value }))}
+                className="h-7 text-xs"
+                placeholder="Nhập tên món dài để thử..."
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="text-[11px] text-gray-600">Size (M / L / XL):</Label>
+                <Input
+                  value={item.size || ''}
+                  onChange={(e) => setCustomSample((s) => ({ ...s, size: e.target.value }))}
+                  className="h-7 text-xs"
+                  placeholder="L"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[11px] text-gray-600">Giá tiền mẫu (VNĐ):</Label>
+                <Input
+                  type="number"
+                  value={item.price}
+                  onChange={(e) => setCustomSample((s) => ({ ...s, price: Number(e.target.value) || 0 }))}
+                  className="h-7 text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[11px] text-gray-600">Danh sách Topping (phân cách bằng dấu phẩy):</Label>
+              <Input
+                value={(item.toppings || []).join(', ')}
+                onChange={(e) =>
+                  setCustomSample((s) => ({
+                    ...s,
+                    toppings: e.target.value
+                      .split(',')
+                      .map((t) => t.trim())
+                      .filter(Boolean),
+                  }))
+                }
+                className="h-7 text-xs"
+                placeholder="Trân châu hoàng kim, Pudding trứng..."
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Test Print Button */}

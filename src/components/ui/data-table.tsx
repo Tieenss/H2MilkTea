@@ -141,18 +141,18 @@ export function DataTable<TData, TValue>({
     : (searchKey ? (table.getColumn(searchKey)?.getFilterValue() as string) : "") ?? "";
 
   return (
-    <div className="w-full space-y-4">
+    <div className="w-full space-y-3 sm:space-y-4 min-w-0">
       {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex flex-1 flex-col sm:flex-row items-start sm:items-center gap-2">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-4">
+        <div className="flex flex-1 flex-wrap sm:flex-nowrap items-center gap-2 min-w-0">
           {/* Search Input */}
-          <div className="relative w-full sm:max-w-sm">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+          <div className="relative flex-1 min-w-[180px] sm:max-w-sm">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder={searchPlaceholder}
               value={currentSearchValue}
               onChange={(event) => handleSearchChange(event.target.value)}
-              className="pl-8"
+              className="pl-8 h-9 text-xs sm:text-sm"
             />
           </div>
 
@@ -160,27 +160,63 @@ export function DataTable<TData, TValue>({
           <Button
             variant="outline"
             onClick={resetFilters}
-            className="h-8 px-2 lg:px-3"
+            className="h-9 px-2.5 lg:px-3 text-xs whitespace-nowrap shrink-0"
             disabled={
               sorting.length === 0 && 
               columnFilters.length === 0 && 
               currentSearchValue === ""
             }
           >
-            <RotateCcw className="h-4 w-4 mr-2" />
-            Đặt lại
+            <RotateCcw className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+            <span>Đặt lại</span>
           </Button>
+
+          {/* Column Visibility on Mobile inline with Reset */}
+          {enableColumnVisibility && (
+            <div className="flex sm:hidden items-center ml-auto shrink-0">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="h-9 px-2.5 text-xs whitespace-nowrap shrink-0">
+                    <Filter className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                    <span>Cột</span>
+                    <ChevronDown className="h-3.5 w-3.5 ml-1 shrink-0" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-[200px]">
+                  <DropdownMenuLabel>Bật/tắt cột</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {table
+                    .getAllColumns()
+                    .filter((column) => column.getCanHide())
+                    .map((column) => {
+                      return (
+                        <DropdownMenuCheckboxItem
+                          key={column.id}
+                          className="capitalize"
+                          checked={column.getIsVisible()}
+                          onCheckedChange={(value) =>
+                            column.toggleVisibility(!!value)
+                          }
+                        >
+                          {getColumnDisplayName(column.id)}
+                        </DropdownMenuCheckboxItem>
+                      );
+                    })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
         </div>
 
-        {/* Column Visibility */}
+        {/* Column Visibility on Tablet/Desktop */}
         {enableColumnVisibility && (
-          <div className="flex items-center gap-2">
+          <div className="hidden sm:flex items-center gap-2 shrink-0">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="ml-auto h-8">
-                  <Filter className="h-4 w-4 mr-2" />
-                  Cột hiển thị
-                  <ChevronDown className="h-4 w-4 ml-2" />
+                <Button variant="outline" className="ml-auto h-9 text-xs sm:text-sm whitespace-nowrap shrink-0">
+                  <Filter className="h-4 w-4 mr-2 shrink-0" />
+                  <span>Cột hiển thị</span>
+                  <ChevronDown className="h-4 w-4 ml-2 shrink-0" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-[200px]">
@@ -209,9 +245,9 @@ export function DataTable<TData, TValue>({
         )}
       </div>
 
-      {/* Table */}
-      <div className="rounded-md border">
-        <Table>
+      {/* Table with smooth horizontal scrolling on Mobile & Tablet */}
+      <div className="rounded-lg border overflow-x-auto smooth-scroll w-full">
+        <Table className="min-w-[680px] w-full">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
@@ -299,24 +335,27 @@ function DataTablePagination<TData>({
   table,
 }: DataTablePaginationProps<TData>) {
   return (
-    <div className="flex flex-col sm:flex-row items-center justify-between space-y-2 sm:space-y-0 py-4">
-      <div className="flex items-center space-x-2 text-sm text-muted-foreground order-2 sm:order-1">
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 py-2.5 sm:py-4 w-full min-w-0">
+      <div className="flex items-center text-xs sm:text-sm text-muted-foreground order-2 sm:order-1 whitespace-nowrap">
         <span>
-          {table.getFilteredSelectedRowModel().rows.length} trong{" "}
+          {table.getFilteredSelectedRowModel().rows.length} /{" "}
           {table.getFilteredRowModel().rows.length} dòng được chọn
         </span>
       </div>
 
-      <div className="flex items-center space-x-6 lg:space-x-8 order-1 sm:order-2">
-        <div className="flex items-center space-x-2">
-          <p className="text-sm font-medium">Số dòng mỗi trang</p>
+      <div className="flex flex-wrap items-center justify-between sm:justify-end gap-2 sm:gap-4 lg:gap-6 order-1 sm:order-2 w-full sm:w-auto">
+        <div className="flex items-center gap-1.5 shrink-0">
+          <p className="text-xs sm:text-sm font-medium whitespace-nowrap">
+            <span className="hidden xs:inline">Số dòng / trang</span>
+            <span className="xs:hidden">Dòng:</span>
+          </p>
           <Select
             value={`${table.getState().pagination.pageSize}`}
             onValueChange={(value) => {
               table.setPageSize(Number(value));
             }}
           >
-            <SelectTrigger className="h-8 w-[70px]">
+            <SelectTrigger className="h-8 w-[64px] sm:w-[70px] text-xs">
               <SelectValue placeholder={table.getState().pagination.pageSize} />
             </SelectTrigger>
             <SelectContent side="top">
@@ -329,99 +368,101 @@ function DataTablePagination<TData>({
           </Select>
         </div>
 
-        <div className="flex w-[120px] items-center justify-center text-sm font-medium">
-          Trang {table.getState().pagination.pageIndex + 1} / {table.getPageCount()}
-        </div>
+        <div className="flex items-center gap-1.5 sm:gap-2 ml-auto sm:ml-0 shrink-0">
+          <div className="flex items-center justify-center text-xs sm:text-sm font-medium whitespace-nowrap px-1">
+            Trang {table.getState().pagination.pageIndex + 1}/{Math.max(1, table.getPageCount())}
+          </div>
 
-        <div className="flex items-center space-x-2">
-          <Button
-            variant="outline"
-            className="hidden h-8 w-8 p-0 lg:flex"
-            onClick={() => table.setPageIndex(0)}
-            disabled={!table.getCanPreviousPage()}
-          >
-            <span className="sr-only">Đến trang đầu</span>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-              className="h-4 w-4"
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              className="hidden h-8 w-8 p-0 lg:flex shrink-0"
+              onClick={() => table.setPageIndex(0)}
+              disabled={!table.getCanPreviousPage()}
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="m18.75 4.5-7.5 7.5 7.5 7.5m-6-15L5.25 12l7.5 7.5"
-              />
-            </svg>
-          </Button>
-          <Button
-            variant="outline"
-            className="h-8 w-8 p-0"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
-            <span className="sr-only">Trang trước</span>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-              className="h-4 w-4"
+              <span className="sr-only">Đến trang đầu</span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+                className="h-4 w-4"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="m18.75 4.5-7.5 7.5 7.5 7.5m-6-15L5.25 12l7.5 7.5"
+                />
+              </svg>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-8 w-8 p-0 shrink-0"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M15.75 19.5 8.25 12l7.5-7.5"
-              />
-            </svg>
-          </Button>
-          <Button
-            variant="outline"
-            className="h-8 w-8 p-0"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-          >
-            <span className="sr-only">Trang sau</span>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-              className="h-4 w-4"
+              <span className="sr-only">Trang trước</span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+                className="h-4 w-4"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M15.75 19.5 8.25 12l7.5-7.5"
+                />
+              </svg>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-8 w-8 p-0 shrink-0"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="m8.25 4.5 7.5 7.5-7.5 7.5"
-              />
-            </svg>
-          </Button>
-          <Button
-            variant="outline"
-            className="hidden h-8 w-8 p-0 lg:flex"
-            onClick={() => table.setPageIndex(table.getPageCount() - 1)}
-            disabled={!table.getCanNextPage()}
-          >
-            <span className="sr-only">Đến trang cuối</span>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-              className="h-4 w-4"
+              <span className="sr-only">Trang sau</span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+                className="h-4 w-4"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="m8.25 4.5 7.5 7.5-7.5 7.5"
+                />
+              </svg>
+            </Button>
+            <Button
+              variant="outline"
+              className="hidden h-8 w-8 p-0 lg:flex shrink-0"
+              onClick={() => table.setPageIndex(table.getPageCount() - 1)}
+              disabled={!table.getCanNextPage()}
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="m5.25 4.5 7.5 7.5-7.5 7.5m6-15 7.5 7.5-7.5 7.5"
-              />
-            </svg>
-          </Button>
+              <span className="sr-only">Đến trang cuối</span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+                className="h-4 w-4"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="m5.25 4.5 7.5 7.5-7.5 7.5m6-15 7.5 7.5-7.5 7.5"
+                />
+              </svg>
+            </Button>
+          </div>
         </div>
       </div>
     </div>

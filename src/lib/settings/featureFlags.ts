@@ -9,7 +9,8 @@ export type SystemFeatureKey =
   | 'pos_offline_queue'
   | 'pos_kitchen_print'
   | 'pos_customer_Create'
-  | 'enableVat';
+  | 'enableVat'
+  | 'enforce_single_device_session';
 
 export type FeatureCategory = 'POS & Bán hàng' | 'Bếp & QR' | 'Hệ thống & AI';
 
@@ -134,6 +135,15 @@ export const SYSTEM_FEATURE_DEFINITIONS: FeatureFlagItem[] = [
     name: 'Chế độ Bán hàng Ngoại tuyến (Offline Resilience)',
     description:
       'Tự động lưu đơn hàng vào hàng đợi cục bộ khi mất kết nối mạng và đồng bộ lại lên máy chủ khi có mạng.',
+    category: 'Hệ thống & AI',
+    enabledGlobally: true,
+    allowedRoles: [...DEFAULT_ALLOWED_ROLES],
+  },
+  {
+    key: 'enforce_single_device_session',
+    name: 'Giới hạn đăng nhập 1 thiết bị (Tự động đăng xuất máy khác)',
+    description:
+      'Khi bật, nếu một tài khoản đăng nhập trên thiết bị mới, hệ thống sẽ tự động đăng xuất tài khoản đó khỏi các thiết bị cũ. Khi tắt, cho phép đăng nhập cùng lúc trên nhiều thiết bị.',
     category: 'Hệ thống & AI',
     enabledGlobally: true,
     allowedRoles: [...DEFAULT_ALLOWED_ROLES],

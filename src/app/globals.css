@@ -780,3 +780,67 @@ html.dark [class*="bg-white"]:not([class*="dark:bg-"]) {
   box-shadow: 0 -10px 25px -5px rgba(0, 0, 0, 0.1), 0 -8px 10px -6px rgba(0, 0, 0, 0.1);
 }
 
+/* ==========================================================================
+   MOBILE & TABLET VIEWPORT SIZE LOCKING & ANTI-OVERFLOW SYSTEM
+   Khóa cứng kích thước chữ & khung cho Điện thoại nhỏ/lớn và Máy tính bảng
+   ========================================================================== */
+html,
+body {
+  -webkit-text-size-adjust: 100%;
+  -moz-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* Ẩn thanh cuộn nhưng vẫn cho phép vuốt mượt trên thanh công cụ Mobile/Tablet */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Hỗ trợ Safe Area cho các thiết bị tai thỏ / Dynamic Island / Thanh điều hướng đáy */
+.safe-bottom-bar {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+}
+
+/* 1. Mobile Nhỏ (< 380px: iPhone SE, Galaxy Mini, màn hình hẹp 320px-375px) */
+@media (max-width: 379px) {
+  :root {
+    --h2-web-font-size: 13.5px;
+  }
+  .pos-card-title-lock {
+    font-size: 0.75rem !important;
+    line-height: 1.25 !important;
+    min-height: 1.9rem !important;
+  }
+  .pos-card-price-lock {
+    font-size: 0.8125rem !important;
+  }
+}
+
+/* 2. Mobile Thường & Lớn (380px - 767px) */
+@media (min-width: 380px) and (max-width: 767px) {
+  :root {
+    --h2-web-font-size: 14px;
+  }
+}
+
+/* 3. Máy tính bảng Dọc (768px - 1023px: iPad Mini, iPad Air, Android Tablet Portrait) */
+@media (min-width: 768px) and (max-width: 1023px) {
+  :root {
+    --h2-web-font-size: 14.5px;
+  }
+}
+
+/* 4. Máy tính bảng Ngang (1024px - 1279px: iPad Landscape, POS Touch Terminal) */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  :root {
+    --h2-web-font-size: 14.5px;
+  }
+}
+
+

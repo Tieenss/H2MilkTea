@@ -1,6 +1,51 @@
-import { LabelSettings } from '@/types/labelSettings';
+import { LabelSettings, LabelElementSizes, LabelFontSize } from '@/types/labelSettings';
 
 const STORAGE_KEY = 'h2milktea-label-settings';
+
+export const DEFAULT_LABEL_ELEMENT_SIZES: LabelElementSizes = {
+  storeNameSize: 10,
+  tableAndIndexSize: 9,
+  productNameSize: 11,
+  optionsSize: 9,
+  toppingsSize: 8.5,
+  noteSize: 8,
+  priceSize: 10,
+  metaSize: 7.5,
+  footerMessageSize: 6.5,
+  qrCodeSize: 18,
+};
+
+export const getPresetElementSizes = (preset: LabelFontSize): LabelElementSizes => {
+  if (preset === 'small') {
+    return {
+      storeNameSize: 8.5,
+      tableAndIndexSize: 8,
+      productNameSize: 9.5,
+      optionsSize: 7.5,
+      toppingsSize: 7.5,
+      noteSize: 7,
+      priceSize: 8.5,
+      metaSize: 6.5,
+      footerMessageSize: 5.5,
+      qrCodeSize: 16,
+    };
+  }
+  if (preset === 'large') {
+    return {
+      storeNameSize: 11.5,
+      tableAndIndexSize: 10.5,
+      productNameSize: 13,
+      optionsSize: 10.5,
+      toppingsSize: 10,
+      noteSize: 9.5,
+      priceSize: 12,
+      metaSize: 8.5,
+      footerMessageSize: 7.5,
+      qrCodeSize: 22,
+    };
+  }
+  return { ...DEFAULT_LABEL_ELEMENT_SIZES };
+};
 
 export const LABEL_PAPER_SIZES: Record<string, { name: string; width: number; height: number; description: string }> = {
   '50x30': {
@@ -51,7 +96,12 @@ export const getDefaultLabelSettings = (): LabelSettings => {
       showToppings: true,
       showOptions: true,
       footerMessage: 'Chúc quý khách ngon miệng!',
+      productNameBold: true,
+      productNameWrap: true,
+      priceBold: true,
+      headerAlign: 'space-between',
     },
+    elementSizes: { ...DEFAULT_LABEL_ELEMENT_SIZES },
     // Các danh mục đồ uống mặc định cần in tem
     applicableCategories: ['Trà sữa', 'Cà phê', 'Trà trái cây', 'Đá xay', 'Sinh tố', 'Macchiato', 'Latte'],
     autoPrintOnKitchenSend: true,
@@ -67,8 +117,22 @@ export const getLabelSettings = (): LabelSettings => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return getDefaultLabelSettings();
-    const parsed = JSON.parse(raw);
-    return { ...getDefaultLabelSettings(), ...parsed };
+    const parsed = JSON.parse(raw) as Partial<LabelSettings>;
+    const defaults = getDefaultLabelSettings();
+    const presetSizes = parsed.fontSize ? getPresetElementSizes(parsed.fontSize) : DEFAULT_LABEL_ELEMENT_SIZES;
+
+    return {
+      ...defaults,
+      ...parsed,
+      fields: {
+        ...defaults.fields,
+        ...(parsed.fields || {}),
+      },
+      elementSizes: {
+        ...presetSizes,
+        ...(parsed.elementSizes || {}),
+      },
+    };
   } catch (error) {
     console.error('Lỗi khi đọc cài đặt máy in tem nhãn:', error);
     return getDefaultLabelSettings();

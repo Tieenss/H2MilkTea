@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { ColumnDef } from '@tanstack/react-table';
-import { ArrowUpDown, MoreHorizontal, Edit, Trash, Mail, Phone, MapPin, User, Briefcase, Shield } from 'lucide-react';
+import { ArrowUpDown, MoreHorizontal, Edit, Trash, Mail, Phone, MapPin, User, Briefcase, Shield, Laptop } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -32,12 +32,13 @@ import { EMPLOYEE_ROLES } from './constants';
 interface GetColumnsProps {
   onEdit: (employee: Employee) => void;
   onManagePermissions: (employee: Employee) => void;
+  onManageSessions?: (employee: Employee) => void;
   onDelete: (employee: Employee) => void;
   isAdmin: boolean;
   isManager: boolean;
 }
 
-export const getColumns = ({ onEdit, onManagePermissions, onDelete, isAdmin, isManager }: GetColumnsProps): ColumnDef<Employee>[] => [
+export const getColumns = ({ onEdit, onManagePermissions, onManageSessions, onDelete, isAdmin, isManager }: GetColumnsProps): ColumnDef<Employee>[] => [
   {
     id: 'select',
     header: ({ table }) => (
@@ -224,6 +225,12 @@ export const getColumns = ({ onEdit, onManagePermissions, onDelete, isAdmin, isM
                 <Shield className="mr-2 h-4 w-4 text-indigo-600" />
                 <span>Quyền View</span>
               </DropdownMenuItem>
+              {onManageSessions && (
+                <DropdownMenuItem onClick={() => onManageSessions(employee)}>
+                  <Laptop className="mr-2 h-4 w-4 text-emerald-600" />
+                  <span>Thiết bị & Phiên đăng nhập</span>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <AlertDialogTrigger asChild>
                 <DropdownMenuItem className="text-red-600 focus:text-red-600 focus:bg-red-50">

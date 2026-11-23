@@ -9,11 +9,121 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { Printer, Save, RotateCcw, Tag, CheckSquare, Square } from 'lucide-react';
-import { LabelSettings, LabelPaperSize, LabelBarcodeType, LabelFontSize } from '@/types/labelSettings';
-import { getLabelSettings, saveLabelSettings, getDefaultLabelSettings, LABEL_PAPER_SIZES } from '@/utils/labelSettings';
+import { Printer, Save, RotateCcw, Tag, CheckSquare, Square, Type, Minus, Plus } from 'lucide-react';
+import {
+  LabelSettings,
+  LabelPaperSize,
+  LabelBarcodeType,
+  LabelFontSize,
+  LabelElementSizes,
+  LabelHeaderAlign,
+} from '@/types/labelSettings';
+import {
+  getLabelSettings,
+  saveLabelSettings,
+  getDefaultLabelSettings,
+  LABEL_PAPER_SIZES,
+  DEFAULT_LABEL_ELEMENT_SIZES,
+  getPresetElementSizes,
+} from '@/utils/labelSettings';
+import { resolveLabelElementSizes } from '@/utils/labelPrint';
 import { LabelPreview } from './LabelPreview';
 import toast from 'react-hot-toast';
+
+interface ElementSizeControlConfig {
+  key: keyof LabelElementSizes;
+  label: string;
+  description: string;
+  min: number;
+  max: number;
+  step: number;
+  highlight?: boolean;
+}
+
+const ELEMENT_SIZE_CONTROLS: ElementSizeControlConfig[] = [
+  {
+    key: 'productNameSize',
+    label: '1. Tên món & Size [L]',
+    description: 'Mục quan trọng nhất cho nhân viên pha chế',
+    min: 8,
+    max: 20,
+    step: 0.5,
+    highlight: true,
+  },
+  {
+    key: 'priceSize',
+    label: '2. Đơn giá món (Giá tiền)',
+    description: 'Hiển thị ở góc dưới bên phải tem',
+    min: 8,
+    max: 18,
+    step: 0.5,
+    highlight: true,
+  },
+  {
+    key: 'storeNameSize',
+    label: '3. Tên quán (Header)',
+    description: 'Tiêu đề thương hiệu ở góc trên tem',
+    min: 7,
+    max: 16,
+    step: 0.5,
+  },
+  {
+    key: 'tableAndIndexSize',
+    label: '4. Số bàn & Thứ tự ly (#1/2)',
+    description: 'Vị trí bàn và số thứ tự ly trong đơn',
+    min: 7,
+    max: 16,
+    step: 0.5,
+  },
+  {
+    key: 'optionsSize',
+    label: '5. Tùy chọn Đường / Đá',
+    description: 'Tỉ lệ % đường và % đá khách chọn',
+    min: 6,
+    max: 15,
+    step: 0.5,
+  },
+  {
+    key: 'toppingsSize',
+    label: '6. Danh sách Topping',
+    description: 'Các loại trân châu, thạch, kem cheese mua kèm',
+    min: 6,
+    max: 14,
+    step: 0.5,
+  },
+  {
+    key: 'noteSize',
+    label: '7. Ghi chú khách hàng',
+    description: 'Dặn dò riêng của khách cho ly nước',
+    min: 6,
+    max: 14,
+    step: 0.5,
+  },
+  {
+    key: 'metaSize',
+    label: '8. Ngày giờ & Thu ngân',
+    description: 'Thời gian in tem và tên nhân viên thu ngân',
+    min: 6,
+    max: 12,
+    step: 0.5,
+  },
+  {
+    key: 'footerMessageSize',
+    label: '9. Lời chúc cuối tem',
+    description: 'Thông điệp cảm ơn ở chân tem',
+    min: 5,
+    max: 12,
+    step: 0.5,
+  },
+  {
+    key: 'qrCodeSize',
+    label: '10. Kích thước Mã QR',
+    description: 'Độ lớn ô vuông mã QR tra cứu đơn (px)',
+    min: 12,
+    max: 34,
+    step: 1,
+  },
+];
 
 const AVAILABLE_CATEGORIES = [
   'Trà sữa',
@@ -71,6 +181,47 @@ export const LabelSettingsTab: React.FC = () => {
 
   const clearAllCategories = () => {
     setSettings((prev) => ({ ...prev, applicableCategories: [] }));
+  };
+
+  const currentSizes = resolveLabelElementSizes(settings);
+
+  const handleFontSizePresetChange = (val: LabelFontSize) => {
+    const presetSizes = getPresetElementSizes(val);
+    setSettings((prev) => ({
+      ...prev,
+      fontSize: val,
+      elementSizes: { ...presetSizes },
+    }));
+  };
+
+  const updateElementSize = (key: keyof LabelElementSizes, rawVal: number, min: number, max: number) => {
+    const clamped = Math.max(min, Math.min(max, Math.round(rawVal * 10) / 10));
+    setSettings((prev) => {
+      const resolved = resolveLabelElementSizes(prev);
+      return {
+        ...prev,
+        elementSizes: {
+          ...resolved,
+          [key]: clamped,
+        },
+      };
+    });
+  };
+
+  const handleResetElementSizes = () => {
+    setSettings((prev) => ({
+      ...prev,
+      fontSize: 'medium',
+      elementSizes: { ...DEFAULT_LABEL_ELEMENT_SIZES },
+      fields: {
+        ...prev.fields,
+        productNameBold: true,
+        productNameWrap: true,
+        priceBold: true,
+        headerAlign: 'space-between',
+      },
+    }));
+    toast.success('Đã đặt lại toàn bộ kích thước chữ về mức chuẩn.');
   };
 
   return (
@@ -170,10 +321,10 @@ export const LabelSettingsTab: React.FC = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="font-size-select" className="text-xs font-semibold">Cỡ chữ trên tem:</Label>
+                <Label htmlFor="font-size-select" className="text-xs font-semibold">Cỡ chữ tổng thể trên tem (Preset):</Label>
                 <Select
                   value={settings.fontSize}
-                  onValueChange={(val: LabelFontSize) => setSettings((s) => ({ ...s, fontSize: val }))}
+                  onValueChange={(val: LabelFontSize) => handleFontSizePresetChange(val)}
                 >
                   <SelectTrigger id="font-size-select">
                     <SelectValue />
@@ -184,6 +335,9 @@ export const LabelSettingsTab: React.FC = () => {
                     <SelectItem value="large">Lớn (Nổi bật cho quầy Barista)</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-[11px] text-muted-foreground">
+                  Chọn mức tổng thể rồi tinh chỉnh riêng từng mục ở bảng chi tiết bên dưới.
+                </p>
               </div>
             </div>
 
@@ -345,23 +499,203 @@ export const LabelSettingsTab: React.FC = () => {
             </div>
 
             {/* Loại mã QR / Barcode */}
-            <div className="space-y-1.5 pt-1">
-              <Label className="text-xs font-semibold">Mã định danh tra cứu trên tem:</Label>
-              <Select
-                value={settings.fields.showBarcodeOrQR}
-                onValueChange={(val: LabelBarcodeType) =>
-                  setSettings((s) => ({ ...s, fields: { ...s.fields, showBarcodeOrQR: val } }))
-                }
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Mã định danh tra cứu trên tem:</Label>
+                <Select
+                  value={settings.fields.showBarcodeOrQR}
+                  onValueChange={(val: LabelBarcodeType) =>
+                    setSettings((s) => ({ ...s, fields: { ...s.fields, showBarcodeOrQR: val } }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="qr">Mã QR Code mini (Quét nhanh)</SelectItem>
+                    <SelectItem value="barcode">Mã vạch Barcode 1D</SelectItem>
+                    <SelectItem value="none">Không in mã (Tối đa chỗ cho topping)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Bố cục căn lề phần đầu tem (Header):</Label>
+                <Select
+                  value={settings.fields.headerAlign || 'space-between'}
+                  onValueChange={(val: LabelHeaderAlign) =>
+                    setSettings((s) => ({ ...s, fields: { ...s.fields, headerAlign: val } }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="space-between">Căn 2 bên (Tên quán trái - Số bàn phải)</SelectItem>
+                    <SelectItem value="center">Căn giữa đồng bộ</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* CARD 2.5: TÙY CHỈNH KÍCH THƯỚC CHỮ CHI TIẾT TỪNG MỤC (PX) */}
+        <Card className="border-purple-200/80">
+          <CardHeader className="pb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Type className="w-4 h-4 text-purple-600" />
+                  Tùy chỉnh kích thước chữ chi tiết từng mục (px)
+                </CardTitle>
+                <CardDescription>
+                  Tăng/giảm cỡ chữ độc lập cho Tên món, Giá tiền, Topping, Ghi chú... và xem kết quả trực tiếp bên phải
+                </CardDescription>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleResetElementSizes}
+                className="text-xs h-8 shrink-0 border-purple-200 text-purple-700 hover:bg-purple-50"
               >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="qr">Mã QR Code mini (Tiết kiệm diện tích, quét nhanh)</SelectItem>
-                  <SelectItem value="barcode">Mã vạch Barcode 1D</SelectItem>
-                  <SelectItem value="none">Không in mã (Tối đa chỗ cho topping)</SelectItem>
-                </SelectContent>
-              </Select>
+                <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+                Đặt lại cỡ chữ chuẩn
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Tùy chọn nâng cao cho Tên món & Giá tiền */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3 rounded-lg bg-purple-50/60 border border-purple-100">
+              <div className="flex items-center justify-between sm:justify-start gap-2">
+                <Switch
+                  id="product-wrap-switch"
+                  checked={settings.fields.productNameWrap !== false}
+                  onCheckedChange={(c) =>
+                    setSettings((s) => ({ ...s, fields: { ...s.fields, productNameWrap: c } }))
+                  }
+                />
+                <Label htmlFor="product-wrap-switch" className="text-xs font-medium cursor-pointer leading-tight">
+                  Cho phép xuống 2 dòng khi tên món dài
+                </Label>
+              </div>
+
+              <div className="flex items-center justify-between sm:justify-start gap-2">
+                <Switch
+                  id="product-bold-switch"
+                  checked={settings.fields.productNameBold !== false}
+                  onCheckedChange={(c) =>
+                    setSettings((s) => ({ ...s, fields: { ...s.fields, productNameBold: c } }))
+                  }
+                />
+                <Label htmlFor="product-bold-switch" className="text-xs font-medium cursor-pointer leading-tight">
+                  In đậm nổi bật Tên món
+                </Label>
+              </div>
+
+              <div className="flex items-center justify-between sm:justify-start gap-2">
+                <Switch
+                  id="price-bold-switch"
+                  checked={settings.fields.priceBold !== false}
+                  onCheckedChange={(c) =>
+                    setSettings((s) => ({ ...s, fields: { ...s.fields, priceBold: c } }))
+                  }
+                />
+                <Label htmlFor="price-bold-switch" className="text-xs font-medium cursor-pointer leading-tight">
+                  In đậm Đơn giá món
+                </Label>
+              </div>
+            </div>
+
+            {/* Danh sách 10 thanh trượt và nút +/- cho từng thành phần */}
+            <div className="grid grid-cols-1 gap-2.5">
+              {ELEMENT_SIZE_CONTROLS.map((ctrl) => {
+                const val = currentSizes[ctrl.key];
+                return (
+                  <div
+                    key={ctrl.key}
+                    className={`p-3 rounded-lg border transition-colors ${
+                      ctrl.highlight
+                        ? 'bg-purple-50/30 border-purple-200'
+                        : 'bg-white border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-gray-900">{ctrl.label}</span>
+                          {ctrl.highlight && (
+                            <Badge variant="secondary" className="text-[10px] h-4 px-1.5 bg-purple-100 text-purple-800">
+                              Quan trọng
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">{ctrl.description}</p>
+                      </div>
+
+                      {/* Bộ điều khiển [-] Thanh trượt [+] Ô số px */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-7 w-7 shrink-0"
+                          disabled={val <= ctrl.min}
+                          onClick={() => updateElementSize(ctrl.key, val - ctrl.step, ctrl.min, ctrl.max)}
+                          title={`Giảm ${ctrl.step}px`}
+                        >
+                          <Minus className="w-3 h-3" />
+                        </Button>
+
+                        <div className="flex items-center gap-1.5 w-28 sm:w-32">
+                          <input
+                            type="range"
+                            min={ctrl.min}
+                            max={ctrl.max}
+                            step={ctrl.step}
+                            value={val}
+                            onChange={(e) =>
+                              updateElementSize(ctrl.key, parseFloat(e.target.value), ctrl.min, ctrl.max)
+                            }
+                            className="w-full accent-purple-600 cursor-pointer h-1.5 bg-gray-200 rounded-lg"
+                          />
+                        </div>
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-7 w-7 shrink-0"
+                          disabled={val >= ctrl.max}
+                          onClick={() => updateElementSize(ctrl.key, val + ctrl.step, ctrl.min, ctrl.max)}
+                          title={`Tăng ${ctrl.step}px`}
+                        >
+                          <Plus className="w-3 h-3" />
+                        </Button>
+
+                        <div className="flex items-center border rounded-md bg-gray-50 px-1.5 h-7 w-16 justify-between">
+                          <input
+                            type="number"
+                            min={ctrl.min}
+                            max={ctrl.max}
+                            step={ctrl.step}
+                            value={val}
+                            onChange={(e) => {
+                              const parsed = parseFloat(e.target.value);
+                              if (!Number.isNaN(parsed)) {
+                                updateElementSize(ctrl.key, parsed, ctrl.min, ctrl.max);
+                              }
+                            }}
+                            className="w-9 bg-transparent text-xs font-mono font-bold text-right focus:outline-none"
+                          />
+                          <span className="text-[10px] text-gray-500 font-mono">px</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </CardContent>
         </Card>

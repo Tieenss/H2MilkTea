@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Users, UserPlus, User, Shield, Save, Loader2 } from 'lucide-react';
+import { Users, UserPlus, User, Shield, Save, Loader2, Laptop } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -21,6 +21,7 @@ import { useEmployees } from './hooks/useEmployees';
 import { EmployeeStats } from './components/EmployeeStats';
 import { DataTable } from './components/DataTable';
 import { EmployeeForm } from './components/EmployeeForm';
+import { SessionManagerModal } from './components/SessionManagerModal';
 import { getColumns } from './utils/columns';
 import type { Employee, EmployeeFormData } from './types/employee';
 import { INITIAL_FORM_DATA } from './utils/constants';
@@ -39,6 +40,8 @@ export default function EmployeePage() {
   const [permissionEmployee, setPermissionEmployee] = useState<Employee | null>(null);
   const [permissionList, setPermissionList] = useState<string[]>([]);
   const [savingPermissions, setSavingPermissions] = useState(false);
+  const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
+  const [sessionTargetUsername, setSessionTargetUsername] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isManager, setIsManager] = useState(false);
 
@@ -50,8 +53,17 @@ export default function EmployeePage() {
       return;
     }
 
-    const isAdminUser = userData['Phân quyền'] === 'Admin';
-    const isManagerUser = userData['Phân quyền'] === 'Quản lý';
+    const roleStr = String(userData['Phân quyền'] || userData.role || '').trim();
+    const unameStr = String(userData.username || '').trim().toLowerCase();
+    const isAdminUser =
+      roleStr === 'Admin' ||
+      roleStr.toLowerCase() === 'admin' ||
+      roleStr.toLowerCase() === 'quản trị viên' ||
+      unameStr === 'admin';
+    const isManagerUser =
+      roleStr === 'Quản lý' ||
+      roleStr === 'Giám đốc' ||
+      roleStr.toLowerCase() === 'quản lý';
     setIsAdmin(isAdminUser);
     setIsManager(isManagerUser);
   }, [router]);
@@ -72,20 +84,22 @@ export default function EmployeePage() {
     setIsDialogOpen(true);
   };
 
- const handleSubmit = async (data: EmployeeFormData) => {
-  try {
-    if (editingEmployee) {
-      await updateEmployee(editingEmployee.username, data);
-    } else {
-      await addEmployee(data);
+  const handleSubmit = async (data: EmployeeFormData) => {
+    try {
+      let ok = false;
+      if (editingEmployee) {
+        ok = await updateEmployee(editingEmployee.username, data);
+      } else {
+        ok = await addEmployee(data);
+      }
+      // Chỉ đóng modal và reset form khi tạo/cập nhật thực sự thành công trên máy chủ
+      if (ok) {
+        resetForm();
+      }
+    } catch (error) {
+      console.error('Submit error:', error);
     }
-    // Chỉ reset form sau khi thành công
-    resetForm();
-  } catch (error) {
-    // Error đã được handle trong hook, không cần làm gì thêm
-    console.error('Submit error:', error);
-  }
-};
+  };
 
  
 const handleEdit = (employee: Employee) => {
@@ -209,15 +223,25 @@ const handleEdit = (employee: Employee) => {
     }
   };
 
+  const handleManageSessions = useCallback((employee?: Employee | null) => {
+    if (!isAdmin && !isManager) {
+      toast.error('Bạn không có quyền truy cập quản lý phiên đăng nhập!');
+      return;
+    }
+    setSessionTargetUsername(employee?.username || null);
+    setIsSessionModalOpen(true);
+  }, [isAdmin, isManager]);
+
   const columns = useMemo(
     () => getColumns({
       onEdit: handleEdit,
       onManagePermissions: handleManagePermissions,
+      onManageSessions: handleManageSessions,
       onDelete: handleDelete,
       isAdmin,
       isManager
     }),
-    [handleEdit, handleManagePermissions, handleDelete, isAdmin, isManager]
+    [handleEdit, handleManagePermissions, handleManageSessions, handleDelete, isAdmin, isManager]
   );
 
   const departmentsList = useMemo(() =>
@@ -245,58 +269,69 @@ const handleEdit = (employee: Employee) => {
   return (
     <div className="h-full flex flex-col space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
         <h1 className="text-3xl font-bold text-gray-800 flex items-center">
           <Users className="mr-2 h-6 w-6 text-blue-600" />
           Quản lý nhân viên
         </h1>
-        <Dialog
-          open={isDialogOpen}
-          onOpenChange={(isOpen) => {
-            if (!isOpen) resetForm();
-            setIsDialogOpen(isOpen);
-          }}
-        >
-          <DialogTrigger asChild>
+        <div className="flex flex-wrap items-center gap-2">
+          {(isAdmin || isManager) && (
             <Button
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
-              onClick={handleAddNew}
+              type="button"
+              variant="outline"
+              className="flex items-center gap-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+              onClick={() => handleManageSessions(null)}
             >
-              <UserPlus className="h-4 w-4" />
-              Thêm nhân viên
+              <Laptop className="h-4 w-4 text-indigo-600" />
+              Quản lý đăng nhập & Thiết bị
             </Button>
-          </DialogTrigger>
-          <DialogContent className="w-screen h-screen max-w-none max-h-none m-0 p-0 rounded-none border-0 flex flex-col">
-            <DialogHeader className="flex-shrink-0 px-4 sm:px-6 py-4 border-b border-gray-200 bg-white shadow-sm">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <User className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
-                  <div>
-                    <DialogTitle className="text-lg sm:text-xl md:text-2xl font-semibold text-gray-900">
-                      {editingEmployee ? 'Cập nhật thông tin nhân viên' : 'Thêm nhân viên mới'}
-                    </DialogTitle>
-
+          )}
+          <Dialog
+            open={isDialogOpen}
+            onOpenChange={(isOpen) => {
+              if (!isOpen) resetForm();
+              setIsDialogOpen(isOpen);
+            }}
+          >
+            <DialogTrigger asChild>
+              <Button
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+                onClick={handleAddNew}
+              >
+                <UserPlus className="h-4 w-4" />
+                Thêm nhân viên
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="w-screen h-screen max-w-none max-h-none m-0 p-0 rounded-none border-0 flex flex-col">
+              <DialogHeader className="flex-shrink-0 px-4 sm:px-6 py-4 border-b border-gray-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <User className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
+                    <div>
+                      <DialogTitle className="text-lg sm:text-xl md:text-2xl font-semibold text-gray-900">
+                        {editingEmployee ? 'Cập nhật thông tin nhân viên' : 'Thêm nhân viên mới'}
+                      </DialogTitle>
+                    </div>
                   </div>
                 </div>
+              </DialogHeader>
 
+              <div className="flex-1 overflow-hidden min-h-0">
+                <EmployeeForm
+                  employee={editingEmployee}
+                  formData={formData}
+                  onFormDataChange={setFormData}
+                  onSubmit={handleSubmit}
+                  onCancel={resetForm}
+                  isAdmin={isAdmin}
+                  isManager={isManager}
+                  departments={departmentsList}
+                  positions={positionsList}
+                />
               </div>
-            </DialogHeader>
-
-            <div className="flex-1 overflow-hidden min-h-0">
-              <EmployeeForm
-                employee={editingEmployee}
-                formData={formData}
-                onFormDataChange={setFormData}
-                onSubmit={handleSubmit}
-                onCancel={resetForm}
-                isAdmin={isAdmin}
-                isManager={isManager}
-                departments={departmentsList}
-                positions={positionsList}
-              />
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Stats */}
@@ -507,6 +542,15 @@ const handleEdit = (employee: Employee) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Modal Quản lý phiên đăng nhập & Lịch sử thiết bị */}
+      <SessionManagerModal
+        open={isSessionModalOpen}
+        onOpenChange={setIsSessionModalOpen}
+        initialUsername={sessionTargetUsername}
+        employees={employees}
+        isAdmin={isAdmin}
+      />
     </div>
   );
 }

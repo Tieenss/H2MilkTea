@@ -500,8 +500,26 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({
     const errors: string[] = [];
 
     if (!employee['Họ và Tên']?.trim()) errors.push('Họ và tên không được để trống');
-    if (!employee['username']?.trim()) errors.push('Tên đăng nhập không được để trống');
-    if (!isEditMode && !employee['password']?.trim()) errors.push('Mật khẩu không được để trống');
+
+    const cleanUsername = String(employee['username'] || '').trim();
+    if (!cleanUsername) {
+      errors.push('Tên đăng nhập không được để trống');
+    } else if (!isEditMode) {
+      if (cleanUsername.length < 3 || cleanUsername.length > 30) {
+        errors.push('Tên đăng nhập phải có độ dài từ 3 đến 30 ký tự');
+      }
+      if (!/^[a-zA-Z0-9._-]+(@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})?$/.test(cleanUsername)) {
+        errors.push('Tên đăng nhập không được chứa khoảng trắng hoặc dấu tiếng Việt (chỉ dùng a-z, 0-9, _, -)');
+      }
+    }
+
+    if (!isEditMode && !employee['password']?.trim()) {
+      errors.push('Mật khẩu không được để trống');
+    }
+    if (employee['password'] && employee['password'].trim().length > 0 && employee['password'].length < 6) {
+      errors.push('Mật khẩu phải có ít nhất 6 ký tự');
+    }
+
     if (!employee['Email']?.trim()) errors.push('Email không được để trống');
 
     if (employee['Số điện thoại'] && !/^[0-9+\-\s()]+$/.test(employee['Số điện thoại'])) {
@@ -510,10 +528,6 @@ export const EmployeeForm: React.FC<EmployeeFormProps> = ({
 
     if (employee['Email'] && !/\S+@\S+\.\S+/.test(employee['Email'])) {
       errors.push('Email không hợp lệ');
-    }
-
-    if (!isEditMode && employee['password'] && employee['password'].length < 3) {
-      errors.push('Mật khẩu phải có ít nhất 3 ký tự');
     }
 
     return errors;

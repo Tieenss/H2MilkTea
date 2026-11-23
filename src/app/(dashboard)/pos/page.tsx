@@ -2,13 +2,14 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { Search, RefreshCw, Users, Filter, X, GalleryVertical, QrCode } from 'lucide-react';
+import { Search, RefreshCw, Users, Filter, X, GalleryVertical, QrCode, ChefHat, ArrowRightLeft, ShoppingBag } from 'lucide-react';
 
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { formatCurrency } from './utils/formatters';
 
 import { usePOS } from './hooks/usePOS';
 import { BarcodeScanner } from './components/BarcodeScanner';
@@ -152,7 +153,12 @@ export default function POSPage() {
           toast.error('Giỏ hàng đang trống, chưa có món để gửi bếp!');
           return;
         }
-        void sendToKitchen(selectedTableId);
+        void sendToKitchen({
+          tableId: selectedTableId,
+          tableName: selectedTableName,
+          items: cart,
+          employee: nhanvien || 'Thu ngân',
+        });
       } else if (action === 'checkout') {
         if (cart.length === 0) {
           toast.error('Giỏ hàng đang trống, không thể thanh toán!');
@@ -274,17 +280,22 @@ export default function POSPage() {
   }, [tables, activeOrders, selectedTableId, cart]);
 
   const currentTablePresence = selectedTableId ? presenceByTable?.get(selectedTableId) : undefined;
+  const totalCartItemsCount = useMemo(
+    () => cart.reduce((sum, item) => sum + item.quantity, 0),
+    [cart]
+  );
 
   return (
-    <div className="bg-background h-full flex flex-col min-h-0 overflow-hidden">
+    <div className="bg-background h-full flex flex-col min-h-0 overflow-hidden relative">
+      {/* Status Bar - Khóa chiều cao cố định h-8, cuộn ngang mượt trên màn hình nhỏ */}
       <div
-        className={`h-7 px-3 flex items-center justify-between text-xs transition-colors duration-200 select-none ${sharedCartToneClass}`}
+        className={`h-8 px-2.5 flex items-center justify-between gap-2 text-xs shrink-0 overflow-x-auto no-scrollbar transition-colors duration-200 select-none ${sharedCartToneClass}`}
         role="status"
         aria-live="polite"
       >
-        <div className="flex items-center gap-1.5 truncate">
+        <div className="flex items-center gap-1.5 min-w-0 shrink-0">
           <span
-            className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+            className={`w-1.5 h-1.5 rounded-full shrink-0 ${
               sharedCartStatus === 'conflict'
                 ? 'bg-rose-500 animate-ping'
                 : sharedCartStatus === 'offline'
@@ -294,171 +305,201 @@ export default function POSPage() {
                     : 'bg-emerald-500'
             }`}
           />
-          <span className="font-medium truncate">{sharedCartLabel}</span>
+          <span className="font-medium whitespace-nowrap">{sharedCartLabel}</span>
           {lastSyncAt && (
-            <span className="text-slate-500 hidden sm:inline">
+            <span className="text-slate-500 hidden md:inline whitespace-nowrap">
               · Cập nhật lúc {lastSyncAt.toLocaleTimeString('vi-VN')}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 shrink-0">
           {pendingOfflineCount > 0 && (
             <button
               type="button"
               onClick={handleManualSyncOffline}
               disabled={isSyncingOffline}
-              className="px-2 py-0.5 rounded-full bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-[11px] flex items-center gap-1 shadow-xs transition-all animate-pulse"
+              className="h-6 px-2 rounded-full bg-amber-500 hover:bg-amber-600 active:scale-95 text-white font-bold text-[11px] flex items-center gap-1 shadow-xs transition-all animate-pulse whitespace-nowrap shrink-0"
               title="Đang có hóa đơn được lưu ngoại tuyến khi mất mạng. Nhấn để đồng bộ lên máy chủ ngay."
             >
               <span>⚡ {pendingOfflineCount} đơn chờ đồng bộ</span>
             </button>
           )}
           {currentTablePresence && currentTablePresence.customerCount > 0 && (
-            <span className="text-[11px] font-semibold text-amber-800 bg-amber-100 px-2 py-0.2 rounded-full border border-amber-300 animate-pulse hidden md:inline-flex items-center gap-1">
+            <span className="text-[11px] font-semibold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-300 animate-pulse hidden sm:inline-flex items-center gap-1 whitespace-nowrap shrink-0">
               <span>📱</span>
-              <span>{currentTablePresence.customerCount} khách đang xem menu</span>
+              <span>{currentTablePresence.customerCount} khách đang xem</span>
             </span>
           )}
           {selectedTableName && (
             <button
               type="button"
               onClick={() => setShowTableModal(true)}
-              className="flex-shrink-0 ml-2 inline-flex items-center gap-2 px-3 py-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg shadow-sm transition-all transform active:scale-95 group cursor-pointer"
+              className="shrink-0 inline-flex items-center gap-1.5 h-6 px-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-md shadow-2xs transition-all transform active:scale-95 group cursor-pointer whitespace-nowrap"
               title="Nhấn để đổi bàn đang phục vụ"
             >
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] uppercase tracking-wider font-medium text-blue-100 hidden sm:inline">Đang chọn:</span>
-                <span className="text-xs sm:text-sm font-black tracking-tight text-white flex items-center gap-1">
-                  <span>🪑</span>
-                  <span>{selectedTableName}</span>
-                </span>
-              </div>
+              <span className="text-[11px] font-black tracking-tight text-white flex items-center gap-1">
+                <span>🪑</span>
+                <span>{selectedTableName}</span>
+              </span>
               <span className="text-[10px] bg-white/20 px-1.5 py-0.2 rounded text-white font-bold group-hover:bg-white/30 transition-colors">
-                Đổi bàn
+                Đổi
               </span>
             </button>
           )}
         </div>
       </div>
-      {/* Mobile Header - Simplified */}
-      <div className="block lg:hidden">
-        <Card className="p-2 border-b rounded-none">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-1 flex-1">
-              <Button
-                onClick={() => setShowTableModal(true)}
-                variant="outline"
-                size="sm"
-                className="border-purple-200 text-purple-700 hover:bg-purple-50 flex-shrink-0 text-xs px-2 flex items-center"
-                title={unpaidTablesCount > 0 ? `Đang có ${unpaidTablesCount} bàn có đơn chưa thanh toán` : 'Chọn bàn'}
-              >
-                <GalleryVertical className="w-3 h-3" />
-                <span className="hidden xs:inline ml-1">
-                  {selectedTableName ? selectedTableName : 'Bàn'}
-                </span>
-                {unpaidTablesCount > 0 && (
-                  <span className="ml-1 px-1.5 py-0.2 text-[9px] font-bold text-white bg-amber-500 rounded-full shadow-sm">
-                    {unpaidTablesCount}
-                  </span>
-                )}
-              </Button>
 
-              {selectedTableId && selectedTableName !== 'Khách mua về' && (
-                <Button
-                  onClick={() => setShowTableQRModal(true)}
-                  variant="outline"
-                  size="sm"
-                  className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 flex-shrink-0 text-xs px-2"
-                  title="Mở mã QR đặt món của bàn này"
-                >
-                  <QrCode className="w-3 h-3" />
-                  <span className="hidden xs:inline ml-1">QR</span>
-                </Button>
+      {/* Mobile & Tablet Portrait Header (< 1024px) - Khóa kích thước nút & Cuộn ngang mượt 100% không khuất tính năng */}
+      <div className="block lg:hidden shrink-0">
+        <Card className="p-2 border-b rounded-none shadow-2xs space-y-1.5">
+          {/* Hàng 1: Thanh cuộn ngang chứa toàn bộ nút công cụ POS với kích thước khóa cứng h-9 px-2.5 text-xs whitespace-nowrap shrink-0 */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar flex-nowrap">
+            <Button
+              type="button"
+              onClick={() => setShowTableModal(true)}
+              variant="outline"
+              size="sm"
+              className="h-9 px-2.5 text-xs whitespace-nowrap shrink-0 border-purple-200 text-purple-700 hover:bg-purple-50 font-semibold flex items-center gap-1"
+              title={unpaidTablesCount > 0 ? `Đang có ${unpaidTablesCount} bàn có đơn chưa thanh toán` : 'Chọn bàn'}
+            >
+              <GalleryVertical className="w-3.5 h-3.5 shrink-0" />
+              <span>{selectedTableName || 'Chọn bàn'}</span>
+              {unpaidTablesCount > 0 && (
+                <span className="ml-0.5 px-1.5 py-0.2 text-[10px] font-bold text-white bg-amber-500 rounded-full shadow-2xs">
+                  {unpaidTablesCount}
+                </span>
               )}
+            </Button>
 
+            {canUseQrInbox && selectedTableId && selectedTableName !== 'Khách mua về' && (
               <Button
-                onClick={() => setShowCustomerModal(true)}
+                type="button"
+                onClick={() => setShowTableQRModal(true)}
                 variant="outline"
                 size="sm"
-                className="border-blue-200 text-blue-700 hover:bg-blue-50 flex-shrink-0 text-xs px-2"
+                className="h-9 px-2.5 text-xs whitespace-nowrap shrink-0 border-indigo-200 text-indigo-700 hover:bg-indigo-50 font-semibold flex items-center gap-1"
+                title="Mở mã QR đặt món của bàn này"
               >
-                <Users className="w-3 h-3" />
-                <span className="hidden xs:inline ml-1">
-                  {selectedCustomer ? selectedCustomer['Tên khách hàng'].split(' ')[0] : 'KH'}
-                </span>
+                <QrCode className="w-3.5 h-3.5 shrink-0" />
+                <span>QR Bàn</span>
               </Button>
+            )}
 
+            {canUseTransferTable && selectedTableId && (
               <Button
-                onClick={() => setShowMobileCart(true)}
-                className="bg-blue-600 text-white hover:bg-blue-700 flex-shrink-0 relative text-xs px-2"
+                type="button"
+                onClick={() => setShowTransferModal(true)}
+                variant="outline"
                 size="sm"
+                className="h-9 px-2.5 text-xs whitespace-nowrap shrink-0 border-amber-200 text-amber-700 hover:bg-amber-50 font-semibold flex items-center gap-1"
+                title="Chuyển hoặc gộp bàn"
               >
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-                    d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                </svg>
-                {cart.length > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center text-[10px]">
-                    {cart.reduce((sum, item) => sum + item.quantity, 0)}
-                  </span>
-                )}
+                <ArrowRightLeft className="w-3.5 h-3.5 shrink-0" />
+                <span>Chuyển bàn</span>
               </Button>
+            )}
+
+            <Button
+              type="button"
+              onClick={() => setShowCustomerModal(true)}
+              variant="outline"
+              size="sm"
+              className="h-9 px-2.5 text-xs whitespace-nowrap shrink-0 border-blue-200 text-blue-700 hover:bg-blue-50 font-semibold flex items-center gap-1"
+            >
+              <Users className="w-3.5 h-3.5 shrink-0" />
+              <span className="max-w-[100px] truncate">
+                {selectedCustomer ? selectedCustomer['Tên khách hàng'] : 'Khách lẻ'}
+              </span>
+            </Button>
+
+            <Button
+              type="button"
+              onClick={() => setIsSearchExpanded(!isSearchExpanded)}
+              variant={isSearchExpanded || searchTerm || categoryFilter !== 'all' || priceFilter !== 'all' ? 'default' : 'outline'}
+              size="sm"
+              className={`h-9 px-2.5 text-xs whitespace-nowrap shrink-0 flex items-center gap-1 ${
+                isSearchExpanded || searchTerm || categoryFilter !== 'all' || priceFilter !== 'all'
+                  ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                  : 'border-gray-200 text-gray-700'
+              }`}
+            >
+              <Search className="w-3.5 h-3.5 shrink-0" />
+              <span>Tìm & Lọc</span>
+            </Button>
+
+            <div className="shrink-0">
+              <ReceiptSettings />
             </div>
 
-            <div className="flex items-center gap-1">
-              <Button
-                onClick={() => setIsSearchExpanded(!isSearchExpanded)}
-                variant="outline"
-                size="sm"
-                className="border-gray-200 text-xs px-2"
-              >
-                <Search className="w-3 h-3" />
-              </Button>
-
-              <Button
-                onClick={syncData}
-                disabled={isLoading}
-                variant="outline"
-                size="sm"
-                className="border-green-200 text-green-700 text-xs px-2"
-              >
-                <RefreshCw className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} />
-              </Button>
-            </div>
+            <Button
+              type="button"
+              onClick={syncData}
+              disabled={isLoading}
+              variant="outline"
+              size="sm"
+              className="h-9 px-2.5 text-xs whitespace-nowrap shrink-0 border-green-200 text-green-700 hover:bg-green-50 flex items-center gap-1"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${isLoading ? 'animate-spin' : ''}`} />
+              <span>Đồng bộ</span>
+            </Button>
           </div>
 
-          {/* Expandable Search */}
+          {/* Hàng 2: Thanh chọn nhanh Danh mục cuộn ngang mượt trên Điện thoại & Tablet */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar flex-nowrap pt-0.5">
+            <button
+              type="button"
+              onClick={() => setCategoryFilter('all')}
+              className={`h-7 px-2.5 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 transition-colors ${
+                categoryFilter === 'all'
+                  ? 'bg-indigo-600 text-white shadow-2xs'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+              }`}
+            >
+              Tất cả ({products.length})
+            </button>
+            {categories.map((cat) => (
+              <button
+                key={cat.name}
+                type="button"
+                onClick={() => setCategoryFilter(cat.name)}
+                className={`h-7 px-2.5 rounded-full text-xs font-semibold whitespace-nowrap shrink-0 transition-colors ${
+                  categoryFilter === cat.name
+                    ? 'bg-indigo-600 text-white shadow-2xs'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                }`}
+              >
+                {cat.name} ({cat.count})
+              </button>
+            ))}
+          </div>
+
+          {/* Expandable Search & Price Filter */}
           {isSearchExpanded && (
-            <div className="space-y-2 animate-slide-in">
-              <div className="relative">
-                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-muted-foreground w-3 h-3" />
+            <div className="flex flex-col sm:flex-row gap-1.5 pt-1 border-t border-slate-100 dark:border-slate-800 animate-slide-in">
+              <div className="relative flex-1 min-w-0">
+                <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
                 <Input
                   type="text"
-                  placeholder="Tìm kiếm sản phẩm..."
-                  className="pl-8 h-8 text-sm"
+                  placeholder="Tìm tên món, viết tắt (vd: tstcdd)..."
+                  className="pl-8 pr-7 h-9 text-xs sm:text-sm"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
 
-              <div className="flex gap-1">
-                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                  <SelectTrigger className="flex-1 h-8 text-xs">
-                    <SelectValue placeholder="Danh mục" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Tất cả</SelectItem>
-                    {categories.map(cat => (
-                      <SelectItem key={cat.name} value={cat.name}>
-                        {cat.name} ({cat.count})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
+              <div className="flex items-center gap-1.5 shrink-0">
                 <Select value={priceFilter} onValueChange={setPriceFilter}>
-                  <SelectTrigger className="flex-1 h-8 text-xs">
-                    <SelectValue placeholder="Giá" />
+                  <SelectTrigger className="w-32 h-9 text-xs">
+                    <SelectValue placeholder="Mức giá" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Tất cả giá</SelectItem>
@@ -469,12 +510,15 @@ export default function POSPage() {
                 </Select>
 
                 <Button
+                  type="button"
                   onClick={resetFilters}
                   variant="outline"
                   size="sm"
-                  className="border-red-200 text-red-700 h-8 px-2"
+                  className="border-red-200 text-red-700 h-9 px-2.5 text-xs whitespace-nowrap shrink-0"
+                  title="Xóa bộ lọc tìm kiếm"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-3.5 h-3.5 mr-1" />
+                  <span>Xóa lọc</span>
                 </Button>
               </div>
             </div>
@@ -482,48 +526,46 @@ export default function POSPage() {
         </Card>
       </div>
 
-      {/* Desktop Header */}
-      <div className="hidden lg:block">
-        <Card className="p-3 border-b">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+      {/* Tablet Landscape & Desktop Header (>= 1024px) - Khóa chiều cao nút h-9, cuộn ngang mượt không ép chữ */}
+      <div className="hidden lg:block shrink-0">
+        <Card className="p-2.5 border-b">
+          <div className="flex items-center justify-between gap-2 overflow-x-auto no-scrollbar flex-nowrap">
             {/* Control Buttons */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 shrink-0 flex-nowrap">
               <Button
+                type="button"
                 onClick={syncData}
                 disabled={isLoading}
                 variant="outline"
                 size="sm"
-                className="border-green-200 text-green-700 hover:bg-green-50 text-xs"
+                className="h-9 px-2.5 border-green-200 text-green-700 hover:bg-green-50 text-xs whitespace-nowrap shrink-0"
               >
-                {isLoading ? (
-                  <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
-                ) : (
-                  <RefreshCw className="w-3 h-3 mr-1" />
-                )}
-                {isLoading ? loadingText : 'Đồng bộ'}
+                <RefreshCw className={`w-3.5 h-3.5 mr-1 shrink-0 ${isLoading ? 'animate-spin' : ''}`} />
+                <span>{isLoading ? loadingText : 'Đồng bộ'}</span>
               </Button>
 
               <Button
+                type="button"
                 onClick={() => setShowTableModal(true)}
                 variant="outline"
                 size="sm"
-                className="border-purple-200 text-purple-700 hover:bg-purple-50 text-xs flex items-center"
+                className="h-9 px-2.5 border-purple-200 text-purple-700 hover:bg-purple-50 text-xs flex items-center whitespace-nowrap shrink-0"
                 title={unpaidTablesCount > 0 ? `Đang có ${unpaidTablesCount} bàn có đơn chưa thanh toán` : 'Chọn bàn phục vụ'}
               >
-                <GalleryVertical className="w-3.5 h-3.5 mr-1" />
+                <GalleryVertical className="w-3.5 h-3.5 mr-1 shrink-0" />
                 {selectedTableName ? (
-                  <Badge variant="secondary" className="text-xs">
+                  <Badge variant="secondary" className="text-xs whitespace-nowrap">
                     {selectedTableName}
                   </Badge>
                 ) : (
-                  'Chọn bàn'
+                  <span>Chọn bàn</span>
                 )}
                 {unpaidTablesCount > 0 && (
                   <Badge
                     variant="destructive"
-                    className="ml-1.5 px-1.5 py-0 text-[10px] font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-full shadow-sm flex items-center gap-1"
+                    className="ml-1.5 px-1.5 py-0 text-[10px] font-bold bg-amber-500 hover:bg-amber-600 text-white rounded-full shadow-sm flex items-center gap-1 whitespace-nowrap"
                   >
-                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shrink-0" />
                     <span>{unpaidTablesCount} có đơn</span>
                   </Badge>
                 )}
@@ -532,55 +574,77 @@ export default function POSPage() {
               {/* Nút hiển thị mã QR Bàn (Mục #11) */}
               {canUseQrInbox && selectedTableId && selectedTableName !== 'Khách mua về' && (
                 <Button
+                  type="button"
                   onClick={() => setShowTableQRModal(true)}
                   variant="outline"
                   size="sm"
-                  className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 text-xs"
+                  className="h-9 px-2.5 border-indigo-200 text-indigo-700 hover:bg-indigo-50 text-xs whitespace-nowrap shrink-0"
                   title="Hiện mã QR đặt món của bàn này"
                 >
-                  <QrCode className="w-3.5 h-3.5 mr-1" />
-                  QR Bàn
+                  <QrCode className="w-3.5 h-3.5 mr-1 shrink-0" />
+                  <span>QR Bàn</span>
+                </Button>
+              )}
+
+              {canUseTransferTable && selectedTableId && (
+                <Button
+                  type="button"
+                  onClick={() => setShowTransferModal(true)}
+                  variant="outline"
+                  size="sm"
+                  className="h-9 px-2.5 border-amber-200 text-amber-700 hover:bg-amber-50 text-xs whitespace-nowrap shrink-0"
+                  title="Chuyển hoặc gộp bàn"
+                >
+                  <ArrowRightLeft className="w-3.5 h-3.5 mr-1 shrink-0" />
+                  <span>Chuyển bàn</span>
                 </Button>
               )}
 
               <Button
+                type="button"
                 onClick={() => setShowCustomerModal(true)}
                 variant="outline"
                 size="sm"
-                className="border-blue-200 text-blue-700 hover:bg-blue-50 text-xs"
+                className="h-9 px-2.5 border-blue-200 text-blue-700 hover:bg-blue-50 text-xs whitespace-nowrap shrink-0"
               >
-                <Users className="w-3 h-3 mr-1" />
+                <Users className="w-3.5 h-3.5 mr-1 shrink-0" />
                 {selectedCustomer ? (
-                  <Badge variant="secondary" className="ml-1 text-xs">
+                  <Badge variant="secondary" className="ml-1 text-xs max-w-[120px] truncate">
                     {selectedCustomer['Tên khách hàng']}
                   </Badge>
                 ) : (
-                  'Khách lẻ'
+                  <span>Khách lẻ</span>
                 )}
               </Button>
 
               {/* Receipt Settings */}
-              <ReceiptSettings />
+              <div className="shrink-0">
+                <ReceiptSettings />
+              </div>
             </div>
 
             {/* Barcode Scanner (Ẩn/hiện theo công tắc Admin tại /settings/features) */}
-            {canUseBarcodeScanner && <BarcodeScanner onBarcodeScanned={addToCart} />}
+            {canUseBarcodeScanner && (
+              <div className="shrink-0">
+                <BarcodeScanner onBarcodeScanned={addToCart} />
+              </div>
+            )}
 
             {/* Search and Filters */}
-            <div className="flex items-center gap-2 ml-auto w-full sm:w-auto">
+            <div className="flex items-center gap-1.5 ml-auto shrink-0">
               <div className="relative">
-                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-muted-foreground w-3 h-3" />
+                <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
                 <Input
                   type="text"
-                  placeholder="Tìm kiếm sản phẩm..."
-                  className="pl-8 w-40 h-8 text-sm"
+                  placeholder="Tìm kiếm món..."
+                  className="pl-8 w-36 xl:w-48 h-9 text-xs xl:text-sm"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
 
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger className="w-40 h-8 text-xs">
+                <SelectTrigger className="w-36 xl:w-44 h-9 text-xs shrink-0">
                   <SelectValue placeholder="Chọn danh mục" />
                 </SelectTrigger>
                 <SelectContent>
@@ -599,7 +663,7 @@ export default function POSPage() {
               </Select>
 
               <Select value={priceFilter} onValueChange={setPriceFilter}>
-                <SelectTrigger className="w-32 h-8 text-xs">
+                <SelectTrigger className="w-28 xl:w-32 h-9 text-xs shrink-0">
                   <SelectValue placeholder="Chọn giá" />
                 </SelectTrigger>
                 <SelectContent>
@@ -611,12 +675,14 @@ export default function POSPage() {
               </Select>
 
               <Button
+                type="button"
                 onClick={resetFilters}
                 variant="outline"
                 size="sm"
-                className="border-red-200 text-red-700 hover:bg-red-50 h-8 px-2"
+                className="border-red-200 text-red-700 hover:bg-red-50 h-9 px-2.5 shrink-0"
+                title="Đặt lại bộ lọc"
               >
-                <X className="w-3 h-3" />
+                <X className="w-3.5 h-3.5" />
               </Button>
             </div>
           </div>
@@ -624,11 +690,11 @@ export default function POSPage() {
       </div>
 
       {canUseQrInbox && <QROrderInbox onSettle={settleQrOrder} onAccept={acceptQrOrder} activeOrders={activeOrders} />}
-{/* Trợ lý AI GlobalAssistant đã được gắn ở DashboardLayout (Mục #16) */}
+      {/* Trợ lý AI GlobalAssistant đã được gắn ở DashboardLayout (Mục #16) */}
 
       {/* Main Content */}
-      <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-2.5 overflow-hidden">
-        {/* Product Grid - Full width on mobile */}
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-2 sm:gap-2.5 overflow-hidden">
+        {/* Product Grid - Full width on mobile & tablet portrait */}
         <div className="flex-1 min-h-0 h-full flex flex-col overflow-hidden">
           <ProductGrid
             products={filteredProducts}
@@ -637,8 +703,8 @@ export default function POSPage() {
           />
         </div>
 
-        {/* Desktop Cart Sidebar */}
-        <div className="hidden lg:flex lg:flex-col lg:w-[380px] xl:w-[420px] 2xl:w-[450px] h-full min-h-0 shrink-0">
+        {/* Tablet Landscape (1024px-1279px) & Desktop Cart Sidebar - Khóa độ rộng w-[340px] xl:w-[380px] shrink-0 */}
+        <div className="hidden lg:flex lg:flex-col lg:w-[340px] xl:w-[380px] 2xl:w-[420px] h-full min-h-0 shrink-0">
           <CartSidebar
             cart={cart}
             subtotal={subtotal}
@@ -678,24 +744,120 @@ export default function POSPage() {
         </div>
       </div>
 
-      {/* Mobile Cart Modal */}
-      {showMobileCart && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 lg:hidden">
-          <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl max-h-[85vh] overflow-hidden animate-slide-in">
-            <div className="p-3 border-b flex justify-between items-center">
-              <h3 className="text-base font-semibold">
-                Giỏ hàng ({cart.reduce((sum, item) => sum + item.quantity, 0)} món)
-              </h3>
+      {/* FLOATING BOTTOM CART BAR trên Điện thoại & Máy tính bảng dọc (< 1024px) */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 shadow-[0_-8px_20px_-4px_rgba(0,0,0,0.12)] px-2.5 pt-2 safe-bottom-bar">
+        <div className="flex items-center justify-between gap-2 max-w-3xl mx-auto">
+          {/* Thông tin Số lượng món, Bàn đang chọn & Tổng tiền (Bấm để mở Drawer Giỏ hàng) */}
+          <button
+            type="button"
+            onClick={() => setShowMobileCart(true)}
+            className="flex items-center gap-2.5 min-w-0 flex-1 text-left py-1 rounded-xl hover:bg-slate-100/80 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
+          >
+            <div className="relative w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+              <ShoppingBag className="w-5 h-5" />
+              <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1 rounded-full bg-rose-500 text-white text-[11px] font-extrabold flex items-center justify-center ring-2 ring-white dark:ring-slate-900">
+                {totalCartItemsCount}
+              </span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 truncate">
+                <span className="px-1.5 py-0.2 rounded bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 font-bold truncate max-w-[110px]">
+                  {selectedTableName || 'Chưa chọn bàn'}
+                </span>
+                <span>•</span>
+                <span className="text-blue-600 dark:text-blue-400 underline whitespace-nowrap">Xem giỏ</span>
+              </div>
+              <div className="text-sm sm:text-base font-black text-slate-900 dark:text-white truncate">
+                {formatCurrency(total)}
+              </div>
+            </div>
+          </button>
+
+          {/* Cụm nút hành động nhanh trên Floating Bottom Bar: Gửi bếp & Thanh toán */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {canUseKitchenPrint && cart.length > 0 && (
               <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  if (!selectedTableId) {
+                    setShowTableModal(true);
+                    return;
+                  }
+                  void sendToKitchen({
+                    tableId: selectedTableId,
+                    tableName: selectedTableName,
+                    items: cart,
+                    employee: nhanvien || 'Thu ngân',
+                  });
+                }}
+                className="h-10 px-2.5 sm:px-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs whitespace-nowrap shrink-0 flex items-center gap-1 shadow-xs"
+              >
+                <ChefHat className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden xs:inline">Gửi bếp</span>
+              </Button>
+            )}
+
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                if (cart.length === 0) {
+                  setShowMobileCart(true);
+                  return;
+                }
+                if (!selectedTableId) {
+                  setShowTableModal(true);
+                  return;
+                }
+                setShowCheckoutModal(true);
+              }}
+              className="h-10 px-3 sm:px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm whitespace-nowrap shrink-0 shadow-sm"
+            >
+              {cart.length === 0
+                ? 'Mở giỏ hàng'
+                : !selectedTableId
+                  ? 'Chọn bàn'
+                  : 'Thanh toán'}
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile & Tablet Drawer/Sheet Giỏ hàng - Khóa bố cục 3 phần cố định (Header + Danh sách cuộn + Tổng tiền & Thanh toán ở đáy) */}
+      {showMobileCart && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 lg:hidden flex flex-col justify-end"
+          onClick={() => setShowMobileCart(false)}
+        >
+          <div
+            className="w-full max-w-2xl mx-auto bg-white dark:bg-slate-900 rounded-t-2xl h-[86dvh] max-h-[86dvh] flex flex-col overflow-hidden shadow-2xl animate-slide-in-bottom safe-bottom-bar"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Thanh kéo & Tiêu đề Sheet cố định ở đỉnh */}
+            <div className="px-3 py-2.5 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center shrink-0 bg-slate-50/80 dark:bg-slate-900">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-sm sm:text-base font-bold text-slate-800 dark:text-slate-100 truncate">
+                  Chi tiết giỏ hàng ({totalCartItemsCount} món)
+                </span>
+                {selectedTableName && (
+                  <Badge variant="secondary" className="text-xs shrink-0">
+                    {selectedTableName}
+                  </Badge>
+                )}
+              </div>
+              <Button
+                type="button"
                 onClick={() => setShowMobileCart(false)}
                 variant="ghost"
                 size="sm"
-                className="text-gray-500"
+                className="h-8 w-8 p-0 rounded-full text-gray-500 hover:bg-gray-200 dark:hover:bg-slate-800 shrink-0"
               >
                 <X className="w-4 h-4" />
               </Button>
             </div>
 
+            {/* Nội dung CartSidebar bên trong được khóa flex-1 min-h-0 để danh sách món cuộn ở giữa và nút Thanh toán luôn dính chặt ở đáy */}
             <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
               <CartSidebar
                 cart={cart}
@@ -722,6 +884,7 @@ export default function POSPage() {
                 selectedTableName={selectedTableName}
                 employee={nhanvien}
                 onUpdateCartItemPrintStatus={updateItemsPrintStatus}
+                onUpdateCartItemKitchenStatus={updateItemsKitchenStatus}
                 onSendToKitchen={() => sendToKitchen({
                   tableId: selectedTableId || '', tableName: selectedTableName,
                   items: cart, employee: nhanvien || 'Thu ngân',
@@ -745,6 +908,7 @@ export default function POSPage() {
                   setShowNoteModal(true);
                 }}
                 canCheckout={canCheckout}
+                canUseKitchenPrint={canUseKitchenPrint}
                 sharedCartStatus={sharedCartStatus}
               />
             </div>

@@ -25,7 +25,9 @@ import {
   Loader2,
   Info,
   Percent,
+  Laptop,
 } from 'lucide-react';
+import { SessionManagerModal } from '@/app/(dashboard)/nhanvien/components/SessionManagerModal';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
@@ -62,6 +64,7 @@ const FEATURE_ICONS: Record<SystemFeatureKey, React.ElementType> = {
   pos_kitchen_print: Printer,
   pos_customer_Create: UserPlus,
   enableVat: Percent,
+  enforce_single_device_session: ShieldCheck,
 };
 
 const CATEGORIES: FeatureCategory[] = ['POS & Bán hàng', 'Bếp & QR', 'Hệ thống & AI'];
@@ -74,6 +77,7 @@ export default function SystemFeaturesSettingsPage() {
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
   const [selectedUsername, setSelectedUsername] = useState<string>('');
   const [loadingStaff, setLoadingStaff] = useState<boolean>(true);
+  const [isSessionModalOpen, setIsSessionModalOpen] = useState<boolean>(false);
 
   // Đồng bộ draftConfig khi config tải xong từ localStorage / API
   useEffect(() => {
@@ -372,7 +376,7 @@ export default function SystemFeaturesSettingsPage() {
 
       {/* Thanh chuyển đổi Khu vực & Nút thao tác nhanh */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant={activeTab === 'global' ? 'default' : 'outline'}
             onClick={() => setActiveTab('global')}
@@ -396,6 +400,14 @@ export default function SystemFeaturesSettingsPage() {
           >
             <Users className="h-4 w-4 mr-2" />
             2. Phân quyền Mở rộng theo Nhân viên
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setIsSessionModalOpen(true)}
+            className="text-indigo-700 border-indigo-200 hover:bg-indigo-50"
+          >
+            <Laptop className="h-4 w-4 mr-2 text-indigo-600" />
+            3. Quản lý Thiết bị & Lịch sử Đăng nhập
           </Button>
         </div>
 
@@ -845,6 +857,19 @@ export default function SystemFeaturesSettingsPage() {
           Lưu cấu hình
         </Button>
       </div>
+
+      {/* Modal Quản lý Thiết bị & Lịch sử Đăng nhập */}
+      <SessionManagerModal
+        open={isSessionModalOpen}
+        onOpenChange={setIsSessionModalOpen}
+        employees={staffList.map((s) => ({
+          username: s.username,
+          'Họ và Tên': s.fullName,
+          'Phân quyền': s.role,
+          Email: s.email,
+        }))}
+        isAdmin={isAdmin}
+      />
     </div>
   );
 }

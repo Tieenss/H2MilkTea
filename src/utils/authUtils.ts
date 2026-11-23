@@ -880,6 +880,10 @@ class AuthUtils {
                 enriched.IDHD = enriched.IDHD || enriched.IDHOADON;
             } else if (tableName === 'KHACHHANG') {
                 enriched.IDKH = enriched.IDKH || enriched.IDKHACHHANG;
+            } else if (tableName === 'DSNV') {
+                enriched.username = String(enriched.username || '').trim();
+                enriched['Họ và Tên'] = enriched['Họ và Tên'] || enriched.username || 'Nhân viên';
+                enriched['Phân quyền'] = enriched['Phân quyền'] || 'Nhân viên';
             }
             return enriched;
         });
@@ -888,15 +892,17 @@ class AuthUtils {
         this.saveDemoData();
     }
 
-    async apiRequest(tableName: string, action: string, data: any, select: any = {}) {
+    async apiRequest(tableName: string, action: string, data: any, select: any = {}): Promise<any> {
         try {
             this.initializeDemoData();
             this.autoRecovery();
 
+            const normalizedAction = action.toLowerCase();
+
             // 1. Đồng bộ dữ liệu mới nhất từ Cloud qua /api/db (bỏ qua hạn chế RLS)
-            if (this.isBrowser() && ['getall', 'find', 'get', 'read'].includes(action.toLowerCase())) {
+            if (this.isBrowser() && ['getall', 'find', 'get', 'read'].includes(normalizedAction)) {
                 try {
-                    const res = await fetch(`/api/db?table=${encodeURIComponent(tableName)}`);
+                    const res = await fetch(`/api/db?table=${encodeURIComponent(tableName)}`, { cache: 'no-store' });
                     if (res.ok) {
                         const json = await res.json();
                         if (json.success && Array.isArray(json.data) && json.data.length > 0) {
@@ -906,7 +912,7 @@ class AuthUtils {
                 } catch {
                     // Fallback về in-memory/localStorage khi mất kết nối hoặc offline
                 }
-            } else if (!this.isBrowser() && ['getall', 'find', 'get', 'read'].includes(action.toLowerCase())) {
+            } else if (!this.isBrowser() && ['getall', 'find', 'get', 'read'].includes(normalizedAction)) {
                 let supabase: any = null;
                 try {
                     supabase = createClient();
@@ -927,9 +933,12 @@ class AuthUtils {
             }
 
             const tableData = this.demoData[tableName] || [];
+            const previousTableData = Array.isArray(tableData)
+                ? tableData.map((item: any) => ({ ...item }))
+                : [];
 
-            let result;
-            switch (action.toLowerCase()) {
+            let result: any;
+            switch (normalizedAction) {
                 case 'find':
                 case 'get':
                 case 'read':
@@ -959,23 +968,52 @@ class AuthUtils {
                     result = tableData.map((item: any) => ({ ...item }));
             }
 
-            if (['create', 'add', 'insert', 'update', 'edit', 'modify', 'delete', 'remove'].includes(action.toLowerCase())) {
+            if (['create', 'add', 'insert', 'update', 'edit', 'modify', 'delete', 'remove'].includes(normalizedAction)) {
+                if (result && typeof result === 'object' && 'success' in result && result.success === false) {
+                    return result;
+                }
+
                 this.saveDemoData();
 
-                // Đồng bộ thay đổi tức thời xuống Supabase Cloud qua endpoint API /api/db
+                // Đồng bộ thay đổi đồng bộ (await) xuống Supabase Cloud qua endpoint API /api/db
                 if (this.isBrowser()) {
                     try {
-                        fetch('/api/db', {
+                        const res = await fetch('/api/db', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 table: tableName,
-                                action: action.toLowerCase(),
+                                action: normalizedAction,
                                 data: (result && result.data) ? result.data : data
                             })
-                        }).catch(e => console.warn('Lỗi đồng bộ Cloud /api/db:', e));
+                        });
+
+                        let resJson: any = null;
+                        try {
+                            resJson = await res.json();
+                        } catch {
+                            resJson = null;
+                        }
+
+                        // Nếu server trả về lỗi logic/quyền/schema (400, 401, 403, 500), rollback localStorage và báo lỗi rõ ràng
+                        if (res.status !== 503 && (!res.ok || (resJson && resJson.success === false))) {
+                            this.demoData[tableName] = previousTableData;
+                            this.saveDemoData();
+                            return {
+                                success: false,
+                                message: resJson?.error || `Lỗi lưu dữ liệu bảng ${tableName} lên máy chủ (HTTP ${res.status})`
+                            };
+                        }
                     } catch (e) {
-                        console.warn('Lỗi gửi request /api/db:', e);
+                        console.warn('Lỗi kết nối /api/db:', e);
+                        if (tableName === 'DSNV') {
+                            this.demoData[tableName] = previousTableData;
+                            this.saveDemoData();
+                            return {
+                                success: false,
+                                message: 'Không thể kết nối máy chủ để lưu thông tin nhân viên. Vui lòng kiểm tra kết nối mạng.'
+                            };
+                        }
                     }
                 }
             }
@@ -1587,13 +1625,28 @@ class AuthUtils {
 
         try {
             if (data.user?.id) {
+                let enforceSingleSession = true;
+                try {
+                    const rawCfg = this.isClient() ? localStorage.getItem('h2_system_features_config') : null;
+                    if (rawCfg) {
+                        const parsedCfg = JSON.parse(rawCfg);
+                        if (parsedCfg?.flags && typeof parsedCfg.flags.enforce_single_device_session === 'boolean') {
+                            enforceSingleSession = parsedCfg.flags.enforce_single_device_session;
+                        }
+                    }
+                } catch {
+                    // Mặc định enforceSingleSession = true
+                }
+
                 await fetch('/api/auth/session', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         userId: data.user.id,
+                        username: userData.username || cleanUsername,
                         sessionId,
                         deviceInfo: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+                        enforceSingleSession,
                     }),
                 });
             }
@@ -1605,7 +1658,31 @@ class AuthUtils {
         return userData;
     }
 
-    async logout() {
+    async logout(skipRemoteSessionRevoke = false) {
+        if (!skipRemoteSessionRevoke && this.isBrowser()) {
+            try {
+                const currentUser = this.getUserData();
+                const mySessionId = this.isClient() ? localStorage.getItem('h2_session_id') : null;
+                const userId = currentUser?.id || currentUser?.IDNV;
+                const username = currentUser?.username;
+
+                if (mySessionId && (userId || username)) {
+                    await fetch('/api/auth/session', {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            userId,
+                            username,
+                            targetSessionId: mySessionId,
+                            revokedByAdmin: false,
+                        }),
+                    });
+                }
+            } catch (e) {
+                console.warn('Không thể cập nhật trạng thái tự đăng xuất lên server:', e);
+            }
+        }
+
         this.clearAuthData();
         try {
             const supabase = createClient();
@@ -1700,26 +1777,87 @@ class AuthUtils {
     }
 
     async addNhanVien(userData: any) {
+        const cleanUsername = String(userData?.username || '').trim();
+        const cleanPassword = String(userData?.password || '');
+        const fullName = String(userData?.['Họ và Tên'] || '').trim();
+
+        if (!fullName) {
+            return { success: false, message: 'Họ và tên nhân viên không được để trống' };
+        }
+        if (!cleanUsername) {
+            return { success: false, message: 'Tên đăng nhập không được để trống' };
+        }
+        if (cleanUsername.length < 3 || cleanUsername.length > 30) {
+            return { success: false, message: 'Tên đăng nhập phải có độ dài từ 3 đến 30 ký tự' };
+        }
+        const validUsernameRegex = /^[a-zA-Z0-9._-]+(@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})?$/;
+        if (!validUsernameRegex.test(cleanUsername)) {
+            return {
+                success: false,
+                message: 'Tên đăng nhập không được chứa khoảng trắng hoặc dấu tiếng Việt (chỉ dùng a-z, 0-9, _, -)',
+            };
+        }
+        if (!cleanPassword || cleanPassword.length < 6) {
+            return { success: false, message: 'Mật khẩu phải có ít nhất 6 ký tự' };
+        }
+
+        const normalizedUserData = {
+            ...userData,
+            username: cleanUsername,
+            password: cleanPassword,
+            'Họ và Tên': fullName,
+            Email: String(userData?.Email || `${cleanUsername}@h2.com`).trim(),
+        };
+
         try {
             const response = await fetch('/api/auth/create-user', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    username: userData.username,
-                    password: userData.password
-                })
+                    username: cleanUsername,
+                    password: cleanPassword,
+                    employeeData: normalizedUserData,
+                }),
             });
 
             const result = await response.json();
-            if (!response.ok) {
-                return { success: false, message: result.error || 'Lỗi khi tạo tài khoản hệ thống' };
+            if (!response.ok || result?.success === false) {
+                return {
+                    success: false,
+                    message: result?.error || 'Lỗi khi tạo tài khoản nhân viên trên hệ thống',
+                };
+            }
+
+            // Nếu /api/auth/create-user đã trực tiếp lưu bản ghi vào bảng DSNV trên Supabase thành công
+            if (result?.employee) {
+                this.initializeDemoData();
+                const currentList = Array.isArray(this.demoData['DSNV']) ? [...this.demoData['DSNV']] : [];
+                const existingIdx = currentList.findIndex(
+                    (item: any) => String(item?.username || '').toLowerCase() === cleanUsername.toLowerCase()
+                );
+                const recordToStore = { ...normalizedUserData, ...result.employee };
+                delete recordToStore.password;
+
+                if (existingIdx >= 0) {
+                    currentList[existingIdx] = recordToStore;
+                } else {
+                    currentList.push(recordToStore);
+                }
+                this.demoData['DSNV'] = currentList;
+                this.saveDemoData();
+
+                return {
+                    success: true,
+                    data: recordToStore,
+                    message: 'Thêm nhân viên mới thành công!',
+                };
             }
         } catch (error) {
             console.error('Lỗi khi gọi API tạo user:', error);
-            return { success: false, message: 'Lỗi mạng hoặc server khi tạo tài khoản' };
+            return { success: false, message: 'Lỗi mạng hoặc máy chủ khi tạo tài khoản nhân viên' };
         }
 
-        return await this.apiRequest('DSNV', 'create', userData);
+        return await this.apiRequest('DSNV', 'create', normalizedUserData);
     }
 
     async updateNhanVien(username: string, userData: any) {

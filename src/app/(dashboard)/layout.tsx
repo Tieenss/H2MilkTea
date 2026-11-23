@@ -89,7 +89,7 @@ export default function DashboardLayout({
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-[100dvh] flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600"></div>
       </div>
     );
@@ -101,7 +101,7 @@ export default function DashboardLayout({
 
   return (
     <TodayOrdersProvider>
-      <div className="min-h-screen overflow-hidden bg-gray-50 text-gray-900 transition-colors duration-200">
+      <div className="h-[100dvh] w-full overflow-hidden bg-gray-50 text-gray-900 transition-colors duration-200">
         <Header 
           onToggleSidebar={handleToggleSidebar}
           sidebarCollapsed={sidebarCollapsed}
@@ -117,17 +117,18 @@ export default function DashboardLayout({
         />
         <div 
           className={cn(
-            "pt-16 transition-all duration-300 ease-in-out",
+            "h-[100dvh] pt-14 sm:pt-16 overflow-hidden transition-all duration-300 ease-in-out",
             sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64'
           )}
-          style={{ height: '100vh', overflow: 'hidden' }}
         >
           <main
-            className={cn("h-full", pathname === '/pos' ? "overflow-hidden" : "overflow-auto")}
-            style={{ height: 'calc(100vh - 64px)' }}
+            className={cn(
+              "h-[calc(100dvh-3.5rem)] sm:h-[calc(100dvh-4rem)] w-full",
+              pathname === '/pos' ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden"
+            )}
             data-scroll-container
           >
-            <div className={cn(pathname === '/pos' ? "p-2 sm:p-3 h-full flex flex-col min-h-0 overflow-hidden" : "p-6")}>
+            <div className={cn(pathname === '/pos' ? "p-1.5 sm:p-2.5 lg:p-3 h-full flex flex-col min-h-0 overflow-hidden" : "p-2.5 sm:p-4 lg:p-6")}>
               {children}
             </div>
           </main>

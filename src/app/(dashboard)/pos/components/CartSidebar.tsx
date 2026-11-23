@@ -266,15 +266,15 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
   };
 
   return (
-    <div className="w-full h-full bg-white rounded-xl shadow-md border border-slate-200 flex flex-col min-h-0 overflow-hidden">
-      {/* Cart Header */}
-      <div className="p-2.5 sm:p-3 border-b flex-shrink-0 bg-white">
-        <div className="flex justify-between items-center mb-3">
-          <div className="flex items-center gap-2">
-            <h3 className="text-lg lg:text-xl font-semibold text-gray-800 flex items-center">
+    <div className="w-full h-full bg-white dark:bg-slate-900 rounded-xl shadow-md border border-slate-200 dark:border-slate-800 flex flex-col min-h-0 overflow-hidden">
+      {/* Cart Header - Khóa cứng ở đỉnh (shrink-0) */}
+      <div className="p-2 sm:p-2.5 border-b border-slate-200 dark:border-slate-800 shrink-0 bg-white dark:bg-slate-900">
+        <div className="flex items-center justify-between gap-1.5 mb-2 overflow-x-auto no-scrollbar">
+          <div className="flex items-center gap-1.5 shrink-0 min-w-0">
+            <h3 className="text-sm sm:text-base font-bold text-gray-800 dark:text-slate-100 flex items-center whitespace-nowrap">
               Giỏ hàng
               {cart.length > 0 && (
-                <span className="ml-2 bg-blue-600 text-white text-sm px-2 py-0.5 rounded-full">
+                <span className="ml-1.5 bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded-full font-extrabold">
                   {cart.reduce((sum, item) => sum + item.quantity, 0)}
                 </span>
               )}
@@ -282,7 +282,7 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
 
             {/* Chỉ báo trạng thái kết nối realtime cố định kích thước chống nhảy layout */}
             <span
-              className={`inline-flex items-center justify-center gap-1 min-w-[88px] text-[11px] font-medium px-2 py-0.5 rounded-full border transition-colors duration-200 ${
+              className={`inline-flex items-center justify-center gap-1 text-[10px] sm:text-[11px] font-medium px-2 py-0.5 rounded-full border whitespace-nowrap shrink-0 transition-colors duration-200 ${
                 sharedCartStatus === 'conflict'
                   ? 'text-rose-700 bg-rose-50 border-rose-300'
                   : sharedCartStatus === 'offline'
@@ -293,7 +293,7 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
               }`}
             >
               <span
-                className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                   sharedCartStatus === 'conflict'
                     ? 'bg-rose-600 animate-ping'
                     : sharedCartStatus === 'offline'
@@ -317,89 +317,99 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1 shrink-0">
             {/* Nút xem mã QR của bàn (Mục #11) */}
             {selectedTableId && selectedTableName !== 'Khách mua về' && onShowQRModal && (
               <button
+                type="button"
                 onClick={onShowQRModal}
-                className="px-2 lg:px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center transition-colors touch-target bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 shadow-sm"
+                className="h-7 px-2 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors whitespace-nowrap shrink-0 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 shadow-2xs"
                 title="Xem và in mã QR bàn này"
               >
-                <QrCode className="w-3.5 h-3.5 mr-1" />
+                <QrCode className="w-3 h-3 shrink-0" />
                 <span>QR</span>
               </button>
             )}
 
             <button
+              type="button"
               onClick={handlePrintAllLabels}
               disabled={cart.length === 0}
-              className={`px-2 lg:px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center transition-colors touch-target ${
+              className={`h-7 px-2 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors whitespace-nowrap shrink-0 ${
                 cart.length === 0
                   ? 'bg-gray-200 cursor-not-allowed text-gray-400'
-                  : 'bg-purple-600 text-white hover:bg-purple-700 shadow-sm'
+                  : 'bg-purple-600 text-white hover:bg-purple-700 shadow-2xs'
               }`}
               title="In tem nhãn dán ly cho tất cả món"
             >
-              <Tag className="w-3.5 h-3.5 mr-1" />
+              <Tag className="w-3 h-3 shrink-0" />
               <span>In tem</span>
             </button>
 
-            <div className="ml-2 pl-2 border-l border-gray-200"><button onClick={handleClearCart} disabled={cart.length === 0} className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center transition-colors touch-target ${cart.length === 0 ? "text-gray-300 cursor-not-allowed" : "text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-rose-200 active:scale-95"}`} title="Xóa toàn bộ món trong giỏ hàng"><Trash className="w-3.5 h-3.5 mr-1" /><span>Xóa hết</span></button></div>
+            <button
+              type="button"
+              onClick={handleClearCart}
+              disabled={cart.length === 0}
+              className={`h-7 px-2 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors whitespace-nowrap shrink-0 ${
+                cart.length === 0
+                  ? 'text-gray-300 bg-gray-100 cursor-not-allowed'
+                  : 'text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-rose-200 active:scale-95'
+              }`}
+              title="Xóa toàn bộ món trong giỏ hàng"
+            >
+              <Trash className="w-3 h-3 shrink-0" />
+              <span>Xóa</span>
+            </button>
           </div>
         </div>
 
-        {/* Customer Section - Compact for mobile */}
-        <div className="border-t pt-2">
-          {selectedCustomer ? (
-            <div className="bg-blue-50 rounded-lg p-2 text-xs">
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-blue-800 truncate text-xs">
+        {/* Table & Customer Quick Selector Row - Compact for Mobile & Tablet */}
+        <div className="border-t border-slate-100 dark:border-slate-800 pt-2 flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={onShowTableModal}
+            className="h-8 px-2.5 rounded-lg bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 text-xs font-bold flex items-center gap-1.5 shrink-0 whitespace-nowrap transition-colors"
+            title="Chọn hoặc đổi bàn phục vụ"
+          >
+            <span>🪑</span>
+            <span className="truncate max-w-[100px]">{selectedTableName || 'Chọn bàn'}</span>
+          </button>
+
+          <div className="flex-1 min-w-0">
+            {selectedCustomer ? (
+              <div className="h-8 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 rounded-lg px-2 flex items-center justify-between gap-1 text-xs">
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                  <span className="font-bold text-blue-800 dark:text-blue-200 truncate">
                     {selectedCustomer['Tên khách hàng']}
-                  </div>
-                  <div className="text-blue-600 text-xs flex items-center gap-1">
-                    <span>{selectedCustomer['Số điện thoại']}</span>
-                    <span>•</span>
-                    <span>{formatPoints(selectedCustomer['Điểm tích lũy'])}</span>
-                  </div>
+                  </span>
+                  {customerDiscount > 0 && (
+                    <span className="px-1.5 py-0.2 bg-emerald-100 text-emerald-700 rounded text-[10px] font-bold shrink-0">
+                      -{((customerDiscount / subtotal) * 100).toFixed(0)}%
+                    </span>
+                  )}
                 </div>
-                <div className="flex items-center gap-1">
-                  <Badge className={`${getCustomerTypeColor(selectedCustomer['Loại khách hàng'])} text-xs px-1 py-0`}>
-                    {selectedCustomer['Loại khách hàng'] === 'Khách VIP' ? 'VIP' : 'Thường'}
-                  </Badge>
-                  <Button
-                    onClick={onShowCustomerModal}
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 w-6 p-0 text-blue-600 hover:bg-blue-100"
-                  >
-                    <User className="w-3 h-3" />
-                  </Button>
-                </div>
+                <button
+                  type="button"
+                  onClick={onShowCustomerModal}
+                  className="text-[11px] font-semibold text-blue-600 hover:underline shrink-0"
+                >
+                  Đổi
+                </button>
               </div>
-              
-              {/* Compact discount display */}
-              {customerDiscount > 0 && (
-                <div className="flex items-center gap-1 p-1 bg-green-100 rounded text-xs text-green-700">
-                  <Gift className="w-3 h-3 text-green-600" />
-                  <span>Giảm {((customerDiscount / subtotal) * 100).toFixed(0)}%</span>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2">
-              <span className="text-sm text-gray-500">Khách lẻ</span>
-              <Button
+            ) : (
+              <button
+                type="button"
                 onClick={onShowCustomerModal}
-                variant="ghost"
-                size="sm"
-                className="h-6 px-2 text-xs text-blue-600 hover:bg-blue-100"
+                className="w-full h-8 bg-gray-50 hover:bg-gray-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 flex items-center justify-between text-xs text-gray-600 dark:text-slate-300 transition-colors"
               >
-                <User className="w-3 h-3 mr-1" />
-                Chọn
-              </Button>
-            </div>
-          )}
+                <span className="truncate">Khách lẻ</span>
+                <span className="text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-1 shrink-0">
+                  <User className="w-3 h-3" />
+                  <span>Chọn KH</span>
+                </span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -475,9 +485,9 @@ export const CartSidebar: React.FC<CartSidebarProps> = ({
         )}
       </div>
 
-      {/* Cart Summary */}
+      {/* Cart Summary - Khóa cứng ở đáy (shrink-0) */}
       {cart.length > 0 && (
-        <div className="border-t bg-slate-50/95 backdrop-blur-xs p-2.5 sm:p-3 space-y-2 flex-shrink-0 sticky bottom-0 z-10">
+        <div className="border-t border-slate-200 dark:border-slate-800 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-xs p-2.5 sm:p-3 space-y-2 shrink-0">
           <CartSummary 
             subtotal={subtotal} 
             vat={vat} 
@@ -798,15 +808,15 @@ const ActionButtons: React.FC<{
     : 'Thanh toán';
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
       {/* Cụm nút phụ: Gửi bếp & In hóa đơn tạm tính */}
-      <div className={`grid ${canUseKitchenPrint && onSendToKitchen ? 'grid-cols-2' : 'grid-cols-1'} gap-2`}>
+      <div className={`grid ${canUseKitchenPrint && onSendToKitchen ? 'grid-cols-2' : 'grid-cols-1'} gap-1.5`}>
         {canUseKitchenPrint && onSendToKitchen && (
           <Button
             type="button"
             onClick={handleKitchenClick}
             disabled={isDisabled || isSendingKitchen || isKitchenSent}
-            className={`h-9 sm:h-10 px-2 rounded-xl flex items-center justify-center space-x-1.5 transition-all text-xs font-bold min-w-0 ${
+            className={`h-9 px-2 rounded-xl flex items-center justify-center gap-1.5 transition-all text-xs font-bold whitespace-nowrap min-w-0 ${
               isDisabled
                 ? 'bg-gray-200 cursor-not-allowed text-gray-400'
                 : isKitchenSent
@@ -816,9 +826,9 @@ const ActionButtons: React.FC<{
             title={needTable ? 'Chọn bàn trước khi gửi bếp' : 'Gửi đơn xuống quầy pha chế'}
           >
             <ChefHat className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">
+            <span className="truncate whitespace-nowrap">
               {needTable
-                ? 'Chọn bàn gửi bếp'
+                ? 'Chọn bàn'
                 : isSendingKitchen
                 ? 'Đang gửi...'
                 : isKitchenSent
@@ -833,11 +843,11 @@ const ActionButtons: React.FC<{
           onClick={onPrintReceipt}
           disabled={isDisabled}
           variant="outline"
-          className="h-9 sm:h-10 px-2 rounded-xl flex items-center justify-center space-x-1.5 border-purple-200 text-purple-700 hover:bg-purple-50 transition-all text-xs font-bold min-w-0 shadow-2xs active:scale-[0.98]"
+          className="h-9 px-2 rounded-xl flex items-center justify-center gap-1.5 border-purple-200 text-purple-700 hover:bg-purple-50 transition-all text-xs font-bold whitespace-nowrap min-w-0 shadow-2xs active:scale-[0.98]"
           title="In hóa đơn tạm tính cho khách"
         >
           <Receipt className="w-3.5 h-3.5 shrink-0 text-purple-600" />
-          <span className="truncate">In hóa đơn</span>
+          <span className="truncate whitespace-nowrap">In tạm tính</span>
         </Button>
       </div>
 
@@ -847,17 +857,17 @@ const ActionButtons: React.FC<{
         onClick={handleCheckoutClick}
         disabled={isCheckoutDisabled}
         title={!canCheckout ? 'Không thể thanh toán khi giỏ hàng chưa đồng bộ hoặc đang xung đột' : undefined}
-        className={`w-full h-11 sm:h-12 px-3 rounded-xl flex items-center justify-center space-x-2 transition-all font-bold text-sm sm:text-base min-w-0 shadow-md ${
+        className={`w-full h-10 sm:h-11 px-3 rounded-xl flex items-center justify-center gap-2 transition-all font-bold text-xs sm:text-sm whitespace-nowrap min-w-0 shadow-md ${
           isCheckoutDisabled
             ? 'bg-blue-300 cursor-not-allowed text-gray-100'
             : 'bg-blue-600 hover:bg-blue-700 text-white active:scale-[0.99]'
         }`}
       >
-        <svg className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
             d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
         </svg>
-        <span className="truncate">{checkoutText}</span>
+        <span className="truncate whitespace-nowrap">{checkoutText}</span>
       </Button>
     </div>
   );

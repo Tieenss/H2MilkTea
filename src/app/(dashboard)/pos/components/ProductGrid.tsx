@@ -58,10 +58,15 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
   }
 
   return (
-    <div className="h-full overflow-hidden">
-      <div className="h-full overflow-y-auto p-2 sm:p-4 hide-scrollbar">
-        {/* Mobile: 2 columns, Tablet: 3 columns, Desktop: responsive */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2 sm:gap-3">
+    <div className="h-full min-h-0 overflow-hidden flex flex-col">
+      <div className="flex-1 min-h-0 overflow-y-auto p-1.5 sm:p-2.5 lg:p-3 pb-24 lg:pb-4 hide-scrollbar">
+        {/* Khóa cứng kích thước thẻ món ăn (Card Size Locking) theo từng khung thiết bị:
+            - Điện thoại nhỏ (< 375px) & Điện thoại thường/lớn (< 640px): 2 cột (grid-cols-2 gap-2 sm:gap-2.5)
+            - Máy tính bảng dọc (640px - 1023px): 3 cột (sm:grid-cols-3 md:grid-cols-3)
+            - Máy tính bảng ngang (1024px - 1279px): 3 cột (lg:grid-cols-3)
+            - Màn hình lớn: 4-5 cột (xl:grid-cols-4 2xl:grid-cols-5)
+        */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2 sm:gap-2.5 lg:gap-3 auto-rows-fr">
           {products.map((product) => (
             <ProductCard
               key={product.IDSP}
@@ -116,11 +121,11 @@ const ProductCard: React.FC<ProductCardProps> = ({
   return (
     <Card
       data-pos-card="true"
-      className="bg-white p-2 sm:p-3 rounded-lg shadow hover:shadow-md transition-all duration-200 cursor-pointer border group hover:scale-[1.02] touch-target"
+      className="bg-white dark:bg-slate-900 p-2 sm:p-2.5 rounded-xl shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer border border-slate-200/90 dark:border-slate-800 group flex flex-col justify-between min-w-0 h-full overflow-hidden select-none active:scale-[0.98]"
       onClick={onOpenOptions}
     >
-      <div className="mb-2 sm:mb-3">
-        <div className="relative w-full h-24 sm:h-32 bg-gray-100 rounded-lg overflow-hidden">
+      <div className="mb-1.5 sm:mb-2 shrink-0">
+        <div className="relative w-full h-24 xs:h-28 sm:h-32 bg-gray-100 dark:bg-slate-800 rounded-lg overflow-hidden">
           <img
             src={imageError ? defaultImage : (product['Hình ảnh'] || defaultImage)}
             alt={product['Tên sản phẩm']}
@@ -128,11 +133,11 @@ const ProductCard: React.FC<ProductCardProps> = ({
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
           />
 
-          {/* Overlay khi hover: Mở chọn Topping / Size / Đường / Đá */}
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-200 flex items-center justify-center pointer-events-none">
+          {/* Overlay khi hover trên máy tính: Mở chọn Topping / Size / Đường / Đá */}
+          <div className="hidden sm:flex absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-200 items-center justify-center pointer-events-none">
             <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-              <div className="bg-blue-600/95 text-white px-2.5 py-1.5 rounded-full shadow-lg flex items-center gap-1 text-xs font-semibold">
-                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <div className="bg-blue-600/95 text-white px-2.5 py-1 rounded-full shadow-lg flex items-center gap-1 text-xs font-semibold whitespace-nowrap">
+                <Sparkles className="w-3.5 h-3.5 text-amber-300 shrink-0" />
                 <span>{enableOptionModal ? (isFood ? 'Tùy chọn' : '+ Topping / Size') : '+ Thêm vào giỏ'}</span>
               </div>
             </div>
@@ -147,44 +152,40 @@ const ProductCard: React.FC<ProductCardProps> = ({
                 onQuickAdd();
               }}
               title="Thêm nhanh 1 phần mặc định (Size M, 100% đường, 100% đá)"
-              className="absolute top-1.5 right-1.5 z-10 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-[11px] font-bold px-2 py-1 rounded-full shadow-md flex items-center gap-0.5 transition-all"
+              className="absolute top-1.5 right-1.5 z-10 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-[10px] sm:text-[11px] font-bold h-6 sm:h-7 px-2 rounded-full shadow-md flex items-center gap-0.5 transition-all whitespace-nowrap shrink-0"
             >
-              <Zap className="w-3 h-3 fill-current" />
+              <Zap className="w-2.5 h-2.5 sm:w-3 sm:h-3 fill-current shrink-0" />
               <span>+ Nhanh</span>
             </button>
           )}
         </div>
       </div>
 
-      <div className="space-y-1 sm:space-y-1.5">
-        <h3 className="font-medium text-gray-900 text-xs sm:text-sm line-clamp-2 break-words min-h-[2rem] sm:min-h-[2.5rem] leading-tight">
+      <div className="flex flex-col flex-1 justify-between min-w-0 gap-1">
+        <h3 className="pos-card-title-lock font-semibold text-gray-900 dark:text-slate-100 text-xs sm:text-sm leading-snug line-clamp-2 break-words min-h-[2rem] sm:min-h-[2.25rem]">
           {product['Tên sản phẩm']}
         </h3>
 
-        <div className="flex items-center justify-between">
-          <p className="text-blue-600 font-semibold text-sm sm:text-base">
-            {formatCurrency(parseInt(product['Đơn giá']))}
-          </p>
+        <div className="pt-0.5 border-t border-slate-100 dark:border-slate-800/80 flex flex-col gap-1">
+          <div className="flex items-center justify-between gap-1 min-w-0">
+            <p className="pos-card-price-lock text-blue-600 dark:text-blue-400 font-bold text-xs sm:text-sm md:text-base whitespace-nowrap shrink-0">
+              {formatCurrency(parseInt(product['Đơn giá']))}
+            </p>
 
-          {product['Loại sản phẩm'] && (
-            <span className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded-full hidden sm:inline truncate max-w-[90px]">
-              {product['Loại sản phẩm']}
-            </span>
-          )}
-        </div>
+            {product['Loại sản phẩm'] && (
+              <span className="text-[10px] sm:text-[11px] px-1.5 py-0.5 bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 rounded-full truncate max-w-[75px] sm:max-w-[95px]">
+                {product['Loại sản phẩm']}
+              </span>
+            )}
+          </div>
 
-        {/* Category on mobile - bottom line */}
-        <div className="flex items-center justify-between pt-0.5">
-          {product['Loại sản phẩm'] && (
-            <span className="text-[11px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded-full sm:hidden">
-              {product['Loại sản phẩm']}
-            </span>
-          )}
           {enableOptionModal && (
-            <span className="text-[11px] text-blue-600/80 font-medium flex items-center gap-0.5 ml-auto">
-              <Sparkles className="w-2.5 h-2.5 text-amber-500" />
-              <span>{isFood ? 'Ghi chú / SL' : 'Chọn Size · Topping'}</span>
-            </span>
+            <div className="flex items-center justify-between text-[10px] sm:text-[11px] text-blue-600/85 dark:text-blue-400 font-medium truncate">
+              <span className="flex items-center gap-0.5 truncate">
+                <Sparkles className="w-2.5 h-2.5 text-amber-500 shrink-0" />
+                <span className="truncate">{isFood ? 'Ghi chú / SL' : 'Size · Topping'}</span>
+              </span>
+            </div>
           )}
         </div>
       </div>

@@ -490,8 +490,8 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, className }: Sid
         return (
             <div
                 className={cn(
-                    "fixed top-16 left-0 bottom-0 z-30 flex flex-col bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800 shadow-sm transition-all duration-300 ease-in-out",
-                    collapsed ? "w-16" : "w-64",
+                    "fixed top-14 sm:top-16 left-0 bottom-0 z-30 flex flex-col bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800 shadow-sm transition-all duration-300 ease-in-out",
+                    collapsed ? "w-16" : "w-64 max-w-[82vw]",
                     mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
                     className
                 )}
@@ -517,8 +517,8 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, className }: Sid
             <aside
                 aria-label="Thanh điều hướng chức năng chính"
                 className={cn(
-                    "fixed top-16 left-0 bottom-0 z-30 flex flex-col bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shadow-sm transition-all duration-300 ease-in-out",
-                    collapsed ? "w-16" : "w-64",
+                    "fixed top-14 sm:top-16 left-0 bottom-0 z-30 flex flex-col bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shadow-sm transition-all duration-300 ease-in-out safe-bottom-bar",
+                    collapsed ? "w-16" : "w-64 max-w-[82vw]",
                     mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
                     className
                 )}

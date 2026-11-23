@@ -151,16 +151,17 @@ export async function GET(request: NextRequest) {
     }
 
     // Bảo mật P0-SEC-03: Không bao giờ trả về cột password của bảng DSNV qua API GET
-    let query = supabase.from(table).select('*');
-    if (table === 'DSNV') {
-      query = supabase
-        .from('DSNV')
-        .select('_RowNumber, username, "Họ và Tên", "Chức vụ", "Phòng", "Phân quyền", Email, Image, "Quyền View", "Số điện thoại", "Địa chỉ", "Ngày sinh", "Ngày vào làm", "Ghi chú"');
-    }
-
-    const { data, error } = await query;
+    let { data, error } = await supabase.from(table).select('*');
     if (error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+
+    if (table === 'DSNV' && Array.isArray(data)) {
+      data = data.map((row: any) => {
+        const safeRow = { ...row };
+        delete safeRow.password;
+        return safeRow;
+      });
     }
 
     return NextResponse.json({ success: true, data: data || [] });
@@ -191,11 +192,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Chưa cấu hình Supabase Admin' }, { status: 503 });
     }
 
-    // 2. Bảo mật P0-SEC-01: Thao tác trên bảng nhân sự DSNV bắt buộc phải là Admin thật sự
+    // 2. Bảo mật P0-SEC-01: Thao tác trên bảng nhân sự DSNV bắt buộc phải là Admin hoặc Quản lý
     if (table === 'DSNV') {
       const staffRole = await getStaffRole(supabase, staff);
-      if (!staffRole.isAdmin) {
-        return NextResponse.json({ success: false, error: 'Chỉ Quản trị viên (Admin) mới có quyền quản lý nhân sự.' }, { status: 403 });
+      const roleLower = String(staffRole.role || '').toLowerCase().trim();
+      const canManageStaff =
+        staffRole.isAdmin ||
+        ['admin', 'quản trị viên', 'giám đốc', 'quản lý', 'quan ly', 'manager'].includes(roleLower);
+
+      if (!canManageStaff) {
+        return NextResponse.json(
+          { success: false, error: 'Chỉ Quản trị viên (Admin) hoặc Quản lý mới có quyền quản lý nhân sự.' },
+          { status: 403 }
+        );
       }
     }
 
@@ -204,7 +213,7 @@ export async function POST(request: NextRequest) {
     if (table === 'HOADON' && ['delete', 'remove'].includes(act)) {
       const staffRole = await getStaffRole(supabase, staff);
       const normalizedRole = String(staffRole.role || '').toLowerCase().trim();
-      const canCancel = staffRole.isAdmin || ['quản lý', 'quan ly', 'admin', 'manager'].includes(normalizedRole);
+      const canCancel = staffRole.isAdmin || ['quản lý', 'quan ly', 'admin', 'manager', 'giám đốc'].includes(normalizedRole);
 
       if (!canCancel) {
         return NextResponse.json({
@@ -219,17 +228,38 @@ export async function POST(request: NextRequest) {
 
     if (['create', 'add', 'insert'].includes(act)) {
       const cleanData = sanitizePayload(table, data);
-      let { data: resData, error } = await supabase.from(table).insert([cleanData]).select();
-      if (error && (error.message?.includes('Khu vực') || error.code === 'PGRST204')) {
-        const fallbackData = { ...cleanData };
-        delete fallbackData['Khu vực'];
-        const retry = await supabase.from(table).insert([fallbackData]).select();
-        resData = retry.data;
-        error = retry.error;
+      let currentPayload = { ...cleanData };
+      let resData: any = null;
+      let error: any = null;
+
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const res =
+          table === 'DSNV'
+            ? await supabase.from(table).upsert([currentPayload], { onConflict: pk }).select()
+            : await supabase.from(table).insert([currentPayload]).select();
+        resData = res.data;
+        error = res.error;
+
+        if (!error) break;
+
+        const colMatch = error.message?.match(/Could not find the '([^']+)' column/i);
+        if (colMatch && colMatch[1] && colMatch[1] in currentPayload) {
+          delete currentPayload[colMatch[1]];
+          continue;
+        }
+        if (error.message?.includes('Khu vực') && 'Khu vực' in currentPayload) {
+          delete currentPayload['Khu vực'];
+          continue;
+        }
+        break;
       }
+
       if (error) {
         console.warn(`Supabase ${table} insert warning:`, error.message);
-        return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+        return NextResponse.json(
+          { success: false, error: `Lỗi thêm dữ liệu vào bảng ${table}: ${error.message}` },
+          { status: 400 }
+        );
       }
       return NextResponse.json({ success: true, data: resData });
     }
@@ -242,17 +272,57 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: false, error: 'Thiếu ID để cập nhật' }, { status: 400 });
       }
 
-      let { data: resData, error } = await supabase.from(table).update(cleanData).eq(pk, targetId).select();
-      if (error && (error.message?.includes('Khu vực') || error.code === 'PGRST204')) {
-        const fallbackData = { ...cleanData };
-        delete fallbackData['Khu vực'];
-        const retry = await supabase.from(table).update(fallbackData).eq(pk, targetId).select();
-        resData = retry.data;
-        error = retry.error;
+      // Nếu cập nhật DSNV mà password để trống thì không ghi đè mất password cũ trên DB
+      if (table === 'DSNV' && (!cleanData.password || String(cleanData.password).trim() === '')) {
+        delete cleanData.password;
+      } else if (table === 'DSNV' && cleanData.password && String(cleanData.password).trim().length >= 6) {
+        // Đồng bộ cập nhật mật khẩu lên Supabase Auth nếu có đổi mật khẩu
+        try {
+          const cleanUser = String(targetId).trim().toLowerCase();
+          const authEmail = cleanUser.includes('@') ? cleanUser : `${cleanUser}@h2.com`;
+          const { data: listData } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+          const matchedAuth = listData?.users?.find(
+            (u: any) => String(u.email || '').toLowerCase() === authEmail
+          );
+          if (matchedAuth) {
+            await supabase.auth.admin.updateUserById(matchedAuth.id, {
+              password: String(cleanData.password),
+            });
+          }
+        } catch (syncAuthErr) {
+          console.warn('Không thể đồng bộ mật khẩu mới sang Supabase Auth:', syncAuthErr);
+        }
       }
+
+      let currentPayload = { ...cleanData };
+      let resData: any = null;
+      let error: any = null;
+
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const res = await supabase.from(table).update(currentPayload).eq(pk, targetId).select();
+        resData = res.data;
+        error = res.error;
+
+        if (!error) break;
+
+        const colMatch = error.message?.match(/Could not find the '([^']+)' column/i);
+        if (colMatch && colMatch[1] && colMatch[1] in currentPayload) {
+          delete currentPayload[colMatch[1]];
+          continue;
+        }
+        if (error.message?.includes('Khu vực') && 'Khu vực' in currentPayload) {
+          delete currentPayload['Khu vực'];
+          continue;
+        }
+        break;
+      }
+
       if (error) {
         console.warn(`Supabase ${table} update warning:`, error.message);
-        return NextResponse.json({ success: false, error: error.message }, { status: 400 });
+        return NextResponse.json(
+          { success: false, error: `Lỗi cập nhật bảng ${table}: ${error.message}` },
+          { status: 400 }
+        );
       }
       return NextResponse.json({ success: true, data: resData });
     }

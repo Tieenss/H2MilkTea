@@ -3,9 +3,10 @@ import { CartItem } from '@/app/(dashboard)/pos/types/pos';
 import { 
   LabelSettings, 
   PrintableLabelItem, 
-  LabelOrderInfo 
+  LabelOrderInfo,
+  LabelElementSizes
 } from '@/types/labelSettings';
-import { getLabelSettings, LABEL_PAPER_SIZES } from './labelSettings';
+import { getLabelSettings, LABEL_PAPER_SIZES, getPresetElementSizes } from './labelSettings';
 import { formatCurrency } from '@/app/(dashboard)/pos/utils/formatters';
 
 // Chuẩn hóa chuỗi tiếng Việt (hỗ trợ cả NFC lẫn NFD) và loại bỏ dấu để so sánh danh mục chính xác
@@ -59,6 +60,15 @@ export const generateQRCodeDataUrl = async (text: string): Promise<string> => {
   }
 };
 
+// Lấy bộ kích thước chi tiết đã đồng bộ với preset
+export const resolveLabelElementSizes = (settings: LabelSettings): LabelElementSizes => {
+  const presetSizes = getPresetElementSizes(settings.fontSize);
+  return {
+    ...presetSizes,
+    ...(settings.elementSizes || {}),
+  };
+};
+
 // Tạo HTML cho 1 con tem dán ly
 export const renderSingleLabelHtml = async (
   item: PrintableLabelItem,
@@ -67,6 +77,7 @@ export const renderSingleLabelHtml = async (
 ): Promise<string> => {
   const { width, height } = getLabelDimensions(settings);
   const fields = settings.fields;
+  const sizes = resolveLabelElementSizes(settings);
 
   let qrDataUrl = '';
   if (fields.showBarcodeOrQR === 'qr') {
@@ -74,8 +85,13 @@ export const renderSingleLabelHtml = async (
     qrDataUrl = await generateQRCodeDataUrl(qrContent);
   }
 
-  // Tùy chỉnh kích thước font chữ
-  const fontMultiplier = settings.fontSize === 'small' ? 0.85 : settings.fontSize === 'large' ? 1.15 : 1.0;
+  const productNameBoldWeight = fields.productNameBold !== false ? 900 : 600;
+  const priceBoldWeight = fields.priceBold !== false ? 800 : 500;
+  const productNameWrapStyle =
+    fields.productNameWrap !== false
+      ? 'display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word;'
+      : 'white-space: nowrap; overflow: hidden; text-overflow: ellipsis;';
+  const headerJustify = fields.headerAlign === 'center' ? 'center; gap: 6px' : 'space-between';
 
   return `
     <div class="label-sticker" style="
@@ -94,11 +110,11 @@ export const renderSingleLabelHtml = async (
       position: relative;
     ">
       <!-- HEADER -->
-      <div style="display: flex; justify-content: space-between; align-items: baseline; border-bottom: 0.5px solid #000; padding-bottom: 1px; margin-bottom: 1.5px;">
-        <span style="font-weight: 800; font-size: ${Math.round(10 * fontMultiplier)}px; text-transform: uppercase;">
+      <div style="display: flex; justify-content: ${headerJustify}; align-items: baseline; border-bottom: 0.5px solid #000; padding-bottom: 1px; margin-bottom: 1.5px;">
+        <span style="font-weight: 800; font-size: ${sizes.storeNameSize}px; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 65%;">
           ${fields.showStoreName ? fields.storeName : ''}
         </span>
-        <div style="font-size: ${Math.round(9 * fontMultiplier)}px; font-weight: 700;">
+        <div style="font-size: ${sizes.tableAndIndexSize}px; font-weight: 700; white-space: nowrap;">
           ${fields.showTable && orderInfo.tableName ? `[${orderInfo.tableName}]` : ''}
           ${fields.showOrderIndex ? `<span style="margin-left: 2px;">#${item.itemIndex}/${item.totalItems}</span>` : ''}
         </div>
@@ -106,13 +122,13 @@ export const renderSingleLabelHtml = async (
 
       <!-- MAIN ITEM -->
       <div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-start; overflow: hidden;">
-        <div style="font-weight: 900; font-size: ${Math.round(11 * fontMultiplier)}px; line-height: 1.15; margin-bottom: 2px; text-transform: uppercase;">
+        <div style="font-weight: ${productNameBoldWeight}; font-size: ${sizes.productNameSize}px; line-height: 1.15; margin-bottom: 2px; text-transform: uppercase; ${productNameWrapStyle}">
           ${item.name} ${item.size ? `[${item.size}]` : ''}
         </div>
 
         <!-- OPTIONS (Đường / Đá) -->
         ${fields.showOptions && (item.sugar || item.ice) ? `
-          <div style="font-size: ${Math.round(9 * fontMultiplier)}px; font-weight: 600; line-height: 1.1; margin-bottom: 1.5px;">
+          <div style="font-size: ${sizes.optionsSize}px; font-weight: 600; line-height: 1.1; margin-bottom: 1.5px;">
             ${item.sugar ? `Đường: ${item.sugar}` : ''}
             ${item.sugar && item.ice ? ' · ' : ''}
             ${item.ice ? `Đá: ${item.ice}` : ''}
@@ -121,14 +137,14 @@ export const renderSingleLabelHtml = async (
 
         <!-- TOPPINGS -->
         ${fields.showToppings && item.toppings && item.toppings.length > 0 ? `
-          <div style="font-size: ${Math.round(8.5 * fontMultiplier)}px; color: #111; line-height: 1.1; margin-bottom: 1.5px;">
+          <div style="font-size: ${sizes.toppingsSize}px; color: #111; line-height: 1.1; margin-bottom: 1.5px;">
             ${item.toppings.map(t => `+ ${t}`).join(', ')}
           </div>
         ` : ''}
 
         <!-- NOTE -->
         ${fields.showNote && item.note ? `
-          <div style="font-size: ${Math.round(8 * fontMultiplier)}px; font-style: italic; color: #222; line-height: 1.1;">
+          <div style="font-size: ${sizes.noteSize}px; font-style: italic; color: #222; line-height: 1.1;">
             * ${item.note}
           </div>
         ` : ''}
@@ -138,9 +154,13 @@ export const renderSingleLabelHtml = async (
       <div style="border-top: 0.5px dashed #000; padding-top: 1.5px; display: flex; justify-content: space-between; align-items: flex-end;">
         <div style="display: flex; align-items: center; gap: 4px;">
           ${qrDataUrl ? `
-            <img src="${qrDataUrl}" style="width: 18px; height: 18px; object-fit: contain;" alt="QR" />
+            <img src="${qrDataUrl}" style="width: ${sizes.qrCodeSize}px; height: ${sizes.qrCodeSize}px; object-fit: contain;" alt="QR" />
+          ` : fields.showBarcodeOrQR === 'barcode' ? `
+            <div style="font-size: ${Math.max(6, sizes.metaSize - 0.5)}px; font-family: monospace; letter-spacing: -0.5px; border: 0.5px solid #000; padding: 0 2px;">
+              |||||||||||||||
+            </div>
           ` : ''}
-          <div style="font-size: ${Math.round(7.5 * fontMultiplier)}px; line-height: 1.05;">
+          <div style="font-size: ${sizes.metaSize}px; line-height: 1.05;">
             ${fields.showDateTime ? `<div>${orderInfo.createdAt instanceof Date ? orderInfo.createdAt.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : (orderInfo.createdAt || new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }))}</div>` : ''}
             ${fields.showCashier && (orderInfo.cashier || orderInfo.cashierName) ? `<div>TN: ${orderInfo.cashier || orderInfo.cashierName}</div>` : ''}
           </div>
@@ -148,12 +168,12 @@ export const renderSingleLabelHtml = async (
 
         <div style="text-align: right;">
           ${fields.showPrice ? `
-            <div style="font-weight: 800; font-size: ${Math.round(10 * fontMultiplier)}px;">
+            <div style="font-weight: ${priceBoldWeight}; font-size: ${sizes.priceSize}px; line-height: 1.1;">
               ${formatCurrency(item.price)}
             </div>
           ` : ''}
           ${fields.footerMessage ? `
-            <div style="font-size: ${Math.round(6.5 * fontMultiplier)}px; font-style: italic; opacity: 0.85;">
+            <div style="font-size: ${sizes.footerMessageSize}px; font-style: italic; opacity: 0.85; line-height: 1.05;">
               ${fields.footerMessage}
             </div>
           ` : ''}
@@ -267,6 +287,26 @@ interface NavigatorWithSerial extends Navigator {
   };
 }
 
+// Quy đổi kích thước px trên giao diện sang mã font và hệ số nhân (x_mul, y_mul) chuẩn TSPL (203 DPI: 1mm = 8 dots)
+const mapPxToTsplFont = (px: number): { font: string; xMul: number; yMul: number; lineHeightDots: number } => {
+  if (px <= 7.5) {
+    return { font: '1', xMul: 1, yMul: 1, lineHeightDots: 16 };
+  }
+  if (px <= 9.5) {
+    return { font: '2', xMul: 1, yMul: 1, lineHeightDots: 20 };
+  }
+  if (px <= 12) {
+    return { font: '3', xMul: 1, yMul: 1, lineHeightDots: 26 };
+  }
+  if (px <= 14.5) {
+    return { font: '4', xMul: 1, yMul: 1, lineHeightDots: 32 };
+  }
+  if (px <= 17) {
+    return { font: '3', xMul: 1, yMul: 2, lineHeightDots: 44 };
+  }
+  return { font: '4', xMul: 1, yMul: 2, lineHeightDots: 52 };
+};
+
 export const printLabelsViaWebSerial = async (
   items: PrintableLabelItem[],
   orderInfo: LabelOrderInfo,
@@ -279,6 +319,7 @@ export const printLabelsViaWebSerial = async (
 
   const { width, height } = getLabelDimensions(settings);
   const fields = settings.fields;
+  const sizes = resolveLabelElementSizes(settings);
 
   try {
     // Yêu cầu người dùng chọn cổng USB máy in
@@ -297,43 +338,86 @@ export const printLabelsViaWebSerial = async (
       tspl += `DIRECTION 1\r\n`;
       tspl += `CLS\r\n`;
 
+      const storeFont = mapPxToTsplFont(sizes.storeNameSize);
+      const tableFont = mapPxToTsplFont(sizes.tableAndIndexSize);
+      const productFont = mapPxToTsplFont(sizes.productNameSize);
+      const optionsFont = mapPxToTsplFont(sizes.optionsSize);
+      const toppingsFont = mapPxToTsplFont(sizes.toppingsSize);
+      const noteFont = mapPxToTsplFont(sizes.noteSize);
+      const priceFont = mapPxToTsplFont(sizes.priceSize);
+      const metaFont = mapPxToTsplFont(sizes.metaSize);
+      const footerFont = mapPxToTsplFont(sizes.footerMessageSize);
+
       // Header
+      let y = 10;
+      const headerHeight = Math.max(storeFont.lineHeightDots, tableFont.lineHeightDots);
       if (fields.showStoreName) {
-        tspl += `TEXT 15,10,"3",0,1,1,"${fields.storeName.toUpperCase()}"\r\n`;
+        tspl += `TEXT 15,${y},"${storeFont.font}",0,${storeFont.xMul},${storeFont.yMul},"${fields.storeName.toUpperCase()}"\r\n`;
       }
       if (fields.showTable && orderInfo.tableName) {
-        tspl += `TEXT ${width * 6},10,"2",0,1,1,"${orderInfo.tableName}"\r\n`;
+        tspl += `TEXT ${width * 5},${y},"${tableFont.font}",0,${tableFont.xMul},${tableFont.yMul},"${orderInfo.tableName}"\r\n`;
       }
       if (fields.showOrderIndex) {
-        tspl += `TEXT ${width * 6 + 60},10,"2",0,1,1,"#${item.itemIndex}/${item.totalItems}"\r\n`;
+        tspl += `TEXT ${width * 6 + 45},${y},"${tableFont.font}",0,${tableFont.xMul},${tableFont.yMul},"#${item.itemIndex}/${item.totalItems}"\r\n`;
+      }
+      y += headerHeight + 4;
+
+      // Tên món (hỗ trợ tự xuống 2 dòng nếu productNameWrap !== false và tên món dài)
+      const fullProductName = `${item.name.toUpperCase()} ${item.size ? `[${item.size}]` : ''}`.trim();
+      const maxCharsPerLine = sizes.productNameSize >= 14 ? 20 : 26;
+      if (fields.productNameWrap !== false && fullProductName.length > maxCharsPerLine) {
+        const line1 = fullProductName.slice(0, maxCharsPerLine);
+        const line2 = fullProductName.slice(maxCharsPerLine, maxCharsPerLine * 2);
+        tspl += `TEXT 15,${y},"${productFont.font}",0,${productFont.xMul},${productFont.yMul},"${line1}"\r\n`;
+        y += productFont.lineHeightDots;
+        tspl += `TEXT 15,${y},"${productFont.font}",0,${productFont.xMul},${productFont.yMul},"${line2}"\r\n`;
+        y += productFont.lineHeightDots + 2;
+      } else {
+        tspl += `TEXT 15,${y},"${productFont.font}",0,${productFont.xMul},${productFont.yMul},"${fullProductName}"\r\n`;
+        y += productFont.lineHeightDots + 2;
       }
 
-      // Tên món
-      tspl += `TEXT 15,40,"3",0,1,1,"${item.name.toUpperCase()} ${item.size ? `[${item.size}]` : ''}"\r\n`;
-
       // Đường / Đá
-      let y = 70;
       if (fields.showOptions && (item.sugar || item.ice)) {
-        const optText = `${item.sugar ? `D:${item.sugar}` : ''} ${item.ice ? `Da:${item.ice}` : ''}`;
-        tspl += `TEXT 15,${y},"2",0,1,1,"${optText}"\r\n`;
-        y += 24;
+        const optText = `${item.sugar ? `D:${item.sugar}` : ''} ${item.ice ? `Da:${item.ice}` : ''}`.trim();
+        tspl += `TEXT 15,${y},"${optionsFont.font}",0,${optionsFont.xMul},${optionsFont.yMul},"${optText}"\r\n`;
+        y += optionsFont.lineHeightDots;
       }
 
       // Topping
       if (fields.showToppings && item.toppings && item.toppings.length > 0) {
         const topText = item.toppings.map(t => `+${t}`).join(' ');
-        tspl += `TEXT 15,${y},"1",0,1,1,"${topText}"\r\n`;
-        y += 20;
+        tspl += `TEXT 15,${y},"${toppingsFont.font}",0,${toppingsFont.xMul},${toppingsFont.yMul},"${topText}"\r\n`;
+        y += toppingsFont.lineHeightDots;
       }
 
       // Note
       if (fields.showNote && item.note) {
-        tspl += `TEXT 15,${y},"1",0,1,1,"* ${item.note}"\r\n`;
+        tspl += `TEXT 15,${y},"${noteFont.font}",0,${noteFont.xMul},${noteFont.yMul},"* ${item.note}"\r\n`;
+        y += noteFont.lineHeightDots;
       }
 
-      // Giá và Footer
+      // Footer trái (Ngày giờ & Thu ngân)
+      const footerBaseY = Math.max(y + 4, height * 8 - 44);
+      if (fields.showDateTime || fields.showCashier) {
+        const timeStr = fields.showDateTime
+          ? (orderInfo.createdAt instanceof Date
+              ? orderInfo.createdAt.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+              : (orderInfo.createdAt || ''))
+          : '';
+        const cashierStr = fields.showCashier ? (orderInfo.cashier || orderInfo.cashierName || '') : '';
+        const metaLine = [timeStr, cashierStr ? `TN:${cashierStr}` : ''].filter(Boolean).join(' ');
+        if (metaLine) {
+          tspl += `TEXT 15,${footerBaseY},"${metaFont.font}",0,${metaFont.xMul},${metaFont.yMul},"${metaLine}"\r\n`;
+        }
+      }
+
+      // Giá và Lời chúc cuối tem (Footer phải)
       if (fields.showPrice) {
-        tspl += `TEXT ${width * 5},${height * 7},"3",0,1,1,"${formatCurrency(item.price)}"\r\n`;
+        tspl += `TEXT ${width * 5 - 10},${footerBaseY - 4},"${priceFont.font}",0,${priceFont.xMul},${priceFont.yMul},"${formatCurrency(item.price)}"\r\n`;
+      }
+      if (fields.footerMessage) {
+        tspl += `TEXT 15,${footerBaseY + metaFont.lineHeightDots},"${footerFont.font}",0,${footerFont.xMul},${footerFont.yMul},"${fields.footerMessage}"\r\n`;
       }
 
       // In 1 nhãn

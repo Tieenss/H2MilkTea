@@ -44,6 +44,7 @@ import {
 } from '@/utils/notificationStore';
 import { getAppearanceSettings, saveAppearanceSettings } from '@/utils/appearanceSettings';
 import { findActiveNavigationContext } from '@/lib/navigation';
+import { TodayOrdersBadge } from '@/components/TodayOrdersBadge';
 
 interface HeaderProps {
     onToggleSidebar: () => void;
@@ -195,13 +196,13 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
     // Render placeholder đồng bộ lúc server / client render ban đầu
     if (!mounted || !userData) {
         return (
-            <div className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 fixed top-0 left-0 right-0 z-40">
-                <div className="flex items-center justify-between h-full px-6">
-                    <div className="flex items-center space-x-3">
+            <div className="h-14 sm:h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 fixed top-0 left-0 right-0 z-40">
+                <div className="flex items-center justify-between h-full px-2.5 sm:px-4">
+                    <div className="flex items-center space-x-2.5">
                         <div className="w-8 h-8 rounded-lg bg-gray-200 dark:bg-gray-800 animate-pulse" />
                         <div className="w-24 h-4 rounded bg-gray-200 dark:bg-gray-800 animate-pulse" />
                     </div>
-                    <div className="w-32 h-6 rounded bg-gray-200 dark:bg-gray-800 animate-pulse" />
+                    <div className="w-28 h-6 rounded bg-gray-200 dark:bg-gray-800 animate-pulse" />
                 </div>
             </div>
         );
@@ -287,31 +288,34 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
     const unreadCount = getUnreadCount(notifications);
 
     return (
-        <div className="h-16 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 fixed top-0 left-0 right-0 z-40">
-            <div className="flex items-center justify-between h-full px-3">
+        <div className="h-14 sm:h-16 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 fixed top-0 left-0 right-0 z-40">
+            <div className="flex items-center justify-between h-full px-2 sm:px-3 gap-1.5 sm:gap-2">
                 {/* Left side */}
-                <div className="flex items-center space-x-3 min-w-0">
+                <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 flex-1">
                     {/* Mobile menu button */}
                     <Button
                         variant="ghost"
                         size="icon"
                         onClick={onMobileMenuToggle}
-                        className="lg:hidden"
+                        className="lg:hidden h-9 w-9 shrink-0"
+                        aria-label="Mở menu điều hướng"
                     >
                         <Menu className="h-5 w-5" />
                     </Button>
 
                     {/* Logo and title */}
-                    <div className="flex items-center space-x-2.5 shrink-0">
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center">
+                    <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 min-w-0">
+                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shrink-0">
                             <img
                                 src="/logo-h2.png"
                                 alt="H2 MilkTea Logo"
-                                className="w-10 h-10 object-cover rounded-full"
+                                className="w-7 h-7 sm:w-9 sm:h-9 object-cover rounded-full"
                             />
                         </div>
-                        <div>
-                            <span className="font-bold text-gray-800 dark:text-slate-100">H2 MilkTea</span>
+                        <div className="min-w-0">
+                            <span className="font-bold text-xs sm:text-base text-gray-800 dark:text-slate-100 whitespace-nowrap truncate block">
+                                H2 MilkTea
+                            </span>
                         </div>
                     </div>
 
@@ -320,7 +324,7 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
                         variant="ghost"
                         size="icon"
                         onClick={onToggleSidebar}
-                        className="hidden lg:flex ml-1 transition-all duration-200"
+                        className="hidden lg:flex ml-0.5 h-8 w-8 shrink-0 transition-all duration-200"
                         title={sidebarCollapsed ? "Mở rộng thanh menu bên trái" : "Thu gọn thanh menu bên trái"}
                     >
                         {sidebarCollapsed ? (
@@ -332,30 +336,30 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
 
                     {/* Thanh định vị Breadcrumb Ngữ cảnh chức năng đang mở */}
                     {activeNav.activeItem && (
-                        <div className="hidden sm:flex items-center gap-2 pl-3 border-l border-slate-200 dark:border-slate-800 min-w-0 group relative">
-                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50/90 dark:bg-indigo-950/60 border border-indigo-200/80 dark:border-indigo-800/70 text-xs">
+                        <div className="flex items-center gap-1.5 pl-1.5 sm:pl-2.5 border-l border-slate-200 dark:border-slate-800 min-w-0 group relative">
+                            <div className="flex items-center gap-1 sm:gap-1.5 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg bg-indigo-50/90 dark:bg-indigo-950/60 border border-indigo-200/80 dark:border-indigo-800/70 text-[11px] sm:text-xs min-w-0">
                                 {activeNav.parentGroup && activeNav.parentGroup.name !== activeNav.activeItem.name && (
                                     <>
-                                        <span className="text-slate-500 dark:text-slate-400 font-medium hidden md:inline">
+                                        <span className="text-slate-500 dark:text-slate-400 font-medium hidden md:inline truncate max-w-[110px]">
                                             {activeNav.parentGroup.name}
                                         </span>
-                                        <span className="text-slate-400 hidden md:inline">▸</span>
+                                        <span className="text-slate-400 hidden md:inline shrink-0">▸</span>
                                     </>
                                 )}
-                                <span className="font-bold text-indigo-700 dark:text-indigo-300 truncate max-w-[180px] lg:max-w-[240px]">
+                                <span className="font-bold text-indigo-700 dark:text-indigo-300 truncate max-w-[85px] xs:max-w-[120px] sm:max-w-[160px] lg:max-w-[220px]">
                                     {activeNav.activeItem.name.trim()}
                                 </span>
                                 {activeNav.sectionMeta && (
-                                    <span className="hidden xl:inline-block text-[10px] font-semibold px-1.5 py-0.2 rounded bg-indigo-600 text-white">
+                                    <span className="hidden xl:inline-block text-[10px] font-semibold px-1.5 py-0.2 rounded bg-indigo-600 text-white shrink-0">
                                         {activeNav.sectionMeta.shortLabel}
                                     </span>
                                 )}
-                                <Info className="w-3.5 h-3.5 text-indigo-500/80 shrink-0" />
+                                <Info className="hidden sm:inline-block w-3.5 h-3.5 text-indigo-500/80 shrink-0" />
                             </div>
 
                             {/* Hộp giải thích nhanh khi di chuột vào Breadcrumb trên Header */}
                             {activeNav.activeItem.description && (
-                                <div className="absolute left-3 top-full mt-2 w-80 p-3 rounded-xl bg-slate-900 text-white text-xs shadow-2xl border border-slate-700 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 z-50 pointer-events-none">
+                                <div className="hidden sm:block absolute left-3 top-full mt-2 w-80 p-3 rounded-xl bg-slate-900 text-white text-xs shadow-2xl border border-slate-700 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 z-50 pointer-events-none">
                                     <div className="font-bold text-indigo-300 mb-1 flex items-center justify-between">
                                         <span>{activeNav.activeItem.name.trim()}</span>
                                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/30 text-indigo-200">
@@ -372,13 +376,25 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
                 </div>
 
                 {/* Right side */}
-                <div className="flex items-center space-x-4">
+                <div className="flex items-center gap-1 sm:gap-2 lg:gap-3 shrink-0">
+                    {/* Nút Đơn hàng hôm nay (TodayOrdersBadge) nhanh trên Header */}
+                    <button
+                        type="button"
+                        onClick={() => router.push('/orders')}
+                        className="hidden xs:inline-flex items-center gap-1 px-2 py-1 rounded-full bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/70 dark:hover:bg-indigo-900/80 border border-indigo-200/80 dark:border-indigo-800 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300 transition-colors shrink-0 cursor-pointer"
+                        title="Xem danh sách đơn hàng hôm nay"
+                    >
+                        <span className="hidden sm:inline">Đơn hôm nay</span>
+                        <span className="sm:hidden">Đơn</span>
+                        <TodayOrdersBadge />
+                    </button>
+
                     {/* Google Drive Status */}
-                    <div className="hidden lg:flex items-center space-x-2 px-3 py-1 rounded-full bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
+                    <div className="hidden xl:flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer shrink-0"
                          title={`${getGoogleDriveStatusText()}${googleDriveStatus.lastSync ? '\nLần sync cuối: ' + new Date(googleDriveStatus.lastSync).toLocaleString('vi-VN') : ''}`}
                          onClick={() => router.push('/settingdata')}>
                         {getGoogleDriveStatusIcon()}
-                        <span className={`text-xs font-medium ${getGoogleDriveStatusColor()}`}>
+                        <span className={`text-xs font-medium whitespace-nowrap ${getGoogleDriveStatusColor()}`}>
                             {googleDriveStatus.connected ? (
                                 googleDriveStatus.needsSync ? 'Cần sync' : (
                                     googleDriveStatus.autoBackup ? 'Auto backup' : 'Đã kết nối'
@@ -389,7 +405,7 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
 
                     {/* Real-time clock */}
                     {currentTime && (
-                        <div className="hidden md:flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
+                        <div className="hidden xl:flex items-center space-x-2 text-xs text-gray-600 dark:text-gray-400 shrink-0 whitespace-nowrap">
                             <span>{formatDate(currentTime)}</span>
                             <span className="font-mono font-semibold">{formatTime(currentTime)}</span>
                         </div>
@@ -399,19 +415,16 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
                     <button
                         type="button"
                         onClick={toggleElderlyMode}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs sm:text-sm font-bold transition-all shadow-xs cursor-pointer ${
+                        className={`flex items-center justify-center gap-1 px-2 sm:px-2.5 py-1 sm:py-1.5 h-8 sm:h-9 rounded-full text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0 ${
                             elderlyMode
                                 ? 'bg-amber-100 text-amber-900 border-2 border-amber-500 dark:bg-amber-950 dark:text-amber-200 ring-2 ring-amber-400/40'
                                 : 'bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-700'
                         }`}
                         title={elderlyMode ? 'Đang bật Chế độ Người cao tuổi (Click để tắt)' : 'Bật Chế độ Người cao tuổi / Dễ nhìn (Chữ to, nút lớn, độ tương phản cao)'}
                     >
-                        <span className="text-base sm:text-lg leading-none">👓</span>
-                        <span className="hidden sm:inline">
-                            {elderlyMode ? 'Chế độ Dễ nhìn: Bật' : 'Chế độ Dễ nhìn'}
-                        </span>
-                        <span className="sm:hidden font-extrabold">
-                            {elderlyMode ? 'Dễ nhìn: Bật' : 'Dễ nhìn'}
+                        <span className="text-sm sm:text-base leading-none">👓</span>
+                        <span className="hidden md:inline whitespace-nowrap">
+                            {elderlyMode ? 'Dễ nhìn: Bật' : 'Chế độ Dễ nhìn'}
                         </span>
                     </button>
 
@@ -421,30 +434,30 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
                         size="icon"
                         type="button"
                         onClick={toggleQuickDarkMode}
-                        className="transition-colors text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+                        className="h-8 w-8 sm:h-9 sm:w-9 shrink-0 transition-colors text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
                         title={colorMode === 'dark' ? 'Chuyển sang Giao diện Sáng' : 'Chuyển sang Giao diện Tối (Dark Mode)'}
                     >
                         {colorMode === 'dark' ? (
-                            <Sun className="h-5 w-5 text-amber-400 hover:rotate-45 transition-transform" />
+                            <Sun className="h-4 w-4 sm:h-5 sm:w-5 text-amber-400 hover:rotate-45 transition-transform" />
                         ) : (
-                            <Moon className="h-5 w-5 text-indigo-600 hover:-rotate-12 transition-transform" />
+                            <Moon className="h-4 w-4 sm:h-5 sm:w-5 text-indigo-600 hover:-rotate-12 transition-transform" />
                         )}
                     </Button>
 
                     {/* Notification dropdown (Mục #15: Chấm xanh unread, click điều hướng, dọn thông báo) */}
                     <DropdownMenu open={notificationDropdownOpen} onOpenChange={setNotificationDropdownOpen}>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="relative transition-all duration-200" title="Thông báo hệ thống">
-                                <Bell className="h-5 w-5 text-gray-700 dark:text-slate-200" />
+                            <Button variant="ghost" size="icon" className="relative h-8 w-8 sm:h-9 sm:w-9 shrink-0 transition-all duration-200" title="Thông báo hệ thống">
+                                <Bell className="h-4 w-4 sm:h-5 sm:w-5 text-gray-700 dark:text-slate-200" />
                                 {unreadCount > 0 && (
-                                    <span className="absolute top-1.5 right-1.5 flex h-3 w-3">
+                                    <span className="absolute top-1 right-1 flex h-2.5 w-2.5">
                                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                        <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 ring-2 ring-white"></span>
+                                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 ring-2 ring-white"></span>
                                     </span>
                                 )}
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-96 p-0 shadow-2xl rounded-2xl border border-gray-200 overflow-hidden" sideOffset={8}>
+                        <DropdownMenuContent align="end" className="w-[calc(100vw-1.5rem)] sm:w-96 max-w-md p-0 shadow-2xl rounded-2xl border border-gray-200 overflow-hidden" sideOffset={8}>
                             {/* Header */}
                             <div className="px-4 py-3 border-b bg-gray-50/80">
                                 <div className="flex items-center justify-between">
@@ -558,31 +571,31 @@ export function Header({ onToggleSidebar, sidebarCollapsed, onMobileMenuToggle }
                     {/* User dropdown */}
                     <DropdownMenu open={userDropdownOpen} onOpenChange={setUserDropdownOpen}>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="flex items-center space-x-2 hover:bg-gray-50 transition-all duration-200">
-                                <Avatar className="h-8 w-8 ring-2 ring-gray-100">
+                            <Button variant="ghost" className="flex items-center gap-1.5 px-1.5 sm:px-2 h-9 sm:h-10 shrink-0 hover:bg-gray-50 transition-all duration-200">
+                                <Avatar className="h-7 w-7 sm:h-8 sm:w-8 ring-2 ring-gray-100 shrink-0">
                                     <AvatarImage
                                         src={userData?.avatar || userData?.Image || ''}
                                         alt={userData?.username || 'User Avatar'}
                                         className="object-cover"
                                     />
-                                    <AvatarFallback className="bg-gradient-to-br from-red-500 to-red-600 text-white text-sm font-semibold">
+                                    <AvatarFallback className="bg-gradient-to-br from-red-500 to-red-600 text-white text-xs sm:text-sm font-semibold">
                                         {userData?.username?.charAt(0)?.toUpperCase() || 'U'}
                                     </AvatarFallback>
                                 </Avatar>
-                                <div className="hidden lg:block text-left">
-                                    <p className="text-sm font-medium text-gray-800 dark:text-slate-100">
+                                <div className="hidden lg:block text-left max-w-[130px]">
+                                    <p className="text-xs font-semibold text-gray-800 dark:text-slate-100 truncate">
                                         {userData?.['Họ và Tên'] || 'Người dùng'}
                                     </p>
-                                    <p className="text-xs text-gray-500 dark:text-slate-400">
+                                    <p className="text-[11px] text-gray-500 dark:text-slate-400 truncate">
                                         {userData?.username || ''}
                                     </p>
                                 </div>
-                                <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${userDropdownOpen ? 'rotate-180' : ''}`} />
+                                <ChevronDown className={`hidden sm:block h-3.5 w-3.5 text-gray-400 shrink-0 transition-transform duration-200 ${userDropdownOpen ? 'rotate-180' : ''}`} />
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent
                             align="end"
-                            className="w-80 p-0 overflow-hidden"
+                            className="w-[calc(100vw-1.5rem)] sm:w-80 max-w-sm p-0 overflow-hidden"
                             sideOffset={8}
                         >
                             {/* User info header */}
