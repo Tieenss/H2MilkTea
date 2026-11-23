@@ -791,6 +791,28 @@ body {
   text-size-adjust: 100%;
   max-width: 100vw;
   overflow-x: hidden;
+  touch-action: pan-x pan-y;
+  overscroll-behavior-y: contain;
+}
+
+/* Chặn thao tác chạm đúp (double-tap) để phóng to trên các phần tử tương tác */
+button,
+a,
+input,
+select,
+textarea,
+[role="button"] {
+  touch-action: manipulation;
+}
+
+/* Khóa cứng cỡ chữ >= 16px cho mọi ô nhập liệu trên Mobile/Tablet để chặn tuyệt đối lỗi iOS Safari tự zoom khi focus */
+@media (max-width: 1024px), (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  textarea,
+  select,
+  .h2-chatbot-input {
+    font-size: 16px !important;
+  }
 }
 
 /* Ẩn thanh cuộn nhưng vẫn cho phép vuốt mượt trên thanh công cụ Mobile/Tablet */
