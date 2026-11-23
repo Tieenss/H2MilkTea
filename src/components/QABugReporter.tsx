@@ -445,8 +445,12 @@ export function QABugReporter() {
 
   return (
     <>
-      {/* Nút nổi QA Bug Reporter ở góc dưới bên trái (không bao giờ đè lên nút AI ở góc phải) */}
-      <div className="fixed bottom-3 left-3 z-[85] flex items-center gap-1.5 print:hidden">
+      {/* Nút nổi QA Bug Reporter ở góc dưới bên trái (trên /pos mobile tự đẩy lên trên Floating Cart Bar) */}
+      <div
+        className={`fixed left-3 z-[85] flex items-center gap-1.5 print:hidden ${
+          pathname === '/pos' ? 'bottom-[5.25rem] lg:bottom-3' : 'bottom-3'
+        }`}
+      >
         {isMinimizedPill ? (
           <button
             type="button"

@@ -510,7 +510,7 @@ export const SessionManagerModal: React.FC<SessionManagerModalProps> = ({
           </div>
 
           {/* Cột phải: Chi tiết các thiết bị đã & đang đăng nhập */}
-          <div className="md:col-span-8 flex flex-col bg-slate-50/60 overflow-y-auto p-4 space-y-4">
+          <div className="md:col-span-8 min-h-0 flex flex-col bg-slate-50/60 overflow-y-auto p-4 space-y-4">
             {loading && accounts.length === 0 ? (
               <div className="py-16 flex flex-col items-center justify-center text-slate-500 text-sm">
                 <Loader2 className="h-7 w-7 animate-spin text-indigo-600 mb-2" />
@@ -524,7 +524,7 @@ export const SessionManagerModal: React.FC<SessionManagerModalProps> = ({
               displayedAccounts.map((acc) => (
                 <div
                   key={acc.username}
-                  className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden"
+                  className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden shrink-0"
                 >
                   {/* Header của từng Tài khoản */}
                   <div className="px-4 py-3 bg-slate-100/80 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">

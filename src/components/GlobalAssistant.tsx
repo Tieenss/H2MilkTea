@@ -2329,7 +2329,7 @@ export function GlobalAssistant() {
           setIsOpen((prev) => !prev);
         }}
         className={`fixed z-40 flex h-12 w-12 sm:h-13 sm:w-13 items-center justify-center rounded-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-600/30 hover:scale-105 active:scale-95 transition-all select-none cursor-grab active:cursor-grabbing ${
-          !fabPosition ? (isPOS ? 'bottom-4 right-4 lg:bottom-5 lg:right-[calc(390px+1.25rem)]' : 'bottom-5 right-5') : ''
+          !fabPosition ? (isPOS ? 'bottom-[5.25rem] right-3 lg:bottom-5 lg:right-[calc(390px+1.25rem)]' : 'bottom-5 right-5') : ''
         }`}
         title="Nhấn giữ để kéo di chuyển nút Trợ lý AI khắp màn hình"
         aria-label="Trợ lý AI H2"

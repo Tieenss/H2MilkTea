@@ -206,14 +206,14 @@ export const LabelPreview: React.FC<LabelPreviewProps> = ({ settings, sampleItem
           </div>
 
           {/* BODY */}
-          <div className="flex-1 flex flex-col justify-start overflow-hidden py-1">
+          <div className="flex-1 min-h-0 flex flex-col justify-start gap-0.5 overflow-hidden py-1">
             <div
               style={{ fontSize: `${Math.round(sizes.productNameSize * zoomScale * 10) / 10}px` }}
               className={`${
                 fields.productNameBold !== false ? 'font-black' : 'font-semibold'
               } uppercase ${
                 fields.productNameWrap !== false ? 'line-clamp-2' : 'line-clamp-1'
-              } leading-tight break-words`}
+              } leading-[1.22] break-words shrink-0`}
             >
               {item.name} {item.size && `[${item.size}]`}
             </div>
@@ -221,7 +221,7 @@ export const LabelPreview: React.FC<LabelPreviewProps> = ({ settings, sampleItem
             {fields.showOptions && (item.sugar || item.ice) && (
               <div
                 style={{ fontSize: `${Math.round(sizes.optionsSize * zoomScale * 10) / 10}px` }}
-                className="font-semibold text-gray-800 leading-tight mt-0.5"
+                className="font-semibold text-gray-800 leading-[1.2] shrink-0 truncate"
               >
                 {item.sugar ? `Đường: ${item.sugar}` : ''}
                 {item.sugar && item.ice ? ' · ' : ''}
@@ -232,7 +232,7 @@ export const LabelPreview: React.FC<LabelPreviewProps> = ({ settings, sampleItem
             {fields.showToppings && item.toppings && item.toppings.length > 0 && (
               <div
                 style={{ fontSize: `${Math.round(sizes.toppingsSize * zoomScale * 10) / 10}px` }}
-                className="text-gray-900 leading-tight mt-0.5 line-clamp-2"
+                className="text-gray-900 leading-[1.2] line-clamp-2 overflow-hidden shrink-0"
               >
                 {item.toppings.map((t) => `+ ${t}`).join(', ')}
               </div>
@@ -241,7 +241,7 @@ export const LabelPreview: React.FC<LabelPreviewProps> = ({ settings, sampleItem
             {fields.showNote && item.note && (
               <div
                 style={{ fontSize: `${Math.round(sizes.noteSize * zoomScale * 10) / 10}px` }}
-                className="italic text-gray-700 leading-tight mt-0.5 line-clamp-1"
+                className="italic text-gray-700 leading-[1.2] line-clamp-1 overflow-hidden shrink-0"
               >
                 * {item.note}
               </div>
