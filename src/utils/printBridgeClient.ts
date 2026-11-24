@@ -24,7 +24,10 @@ const STORAGE_KEY = 'h2_print_bridge_device_config_v1';
 export function isLikelyMobileOrTablet(): boolean {
   if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
   const ua = navigator.userAgent || '';
-  return /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(ua) || window.innerWidth < 1024;
+  if (/Windows NT|Macintosh|CrOS|Linux x86_64/i.test(ua) && !/Android|Mobile|iPad|iPhone|iPod/i.test(ua)) {
+    return false;
+  }
+  return /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(ua);
 }
 
 export function getDefaultPrintDeviceConfig(): LocalPrintDeviceConfig {
