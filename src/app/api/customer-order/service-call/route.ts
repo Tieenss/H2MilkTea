@@ -29,6 +29,28 @@ export async function POST(request: NextRequest) {
           },
         });
         await supabase.removeChannel(channel);
+
+        const globalSyncChannel = supabase.channel('h2:global-pos-sync');
+        await new Promise<void>((resolve) => {
+          const t = setTimeout(() => resolve(), 1000);
+          globalSyncChannel.subscribe((status) => {
+            if (status === 'SUBSCRIBED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+              clearTimeout(t);
+              resolve();
+            }
+          });
+        });
+        await globalSyncChannel.send({
+          type: 'broadcast',
+          event: 'service_call',
+          payload: {
+            tableId,
+            tableName,
+            message: requestType,
+            timestamp: new Date().toISOString(),
+          },
+        });
+        await supabase.removeChannel(globalSyncChannel);
       } catch (broadcastErr) {
         console.warn('Broadcast service call failed:', broadcastErr);
       }

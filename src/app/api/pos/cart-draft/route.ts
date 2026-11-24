@@ -4,6 +4,51 @@ import { getSafeStaffUuid } from '@/lib/supabase/uuid';
 
 const MAX_CART_ITEMS = 50;
 
+async function broadcastGlobalCartUpdate(
+  supabase: NonNullable<ReturnType<typeof createAdminSupabaseClient>>,
+  payload: {
+    tableId: string;
+    cart: unknown[];
+    version: number;
+    tabId?: string;
+    deviceId?: string;
+  }
+) {
+  if (!Array.isArray(payload.cart) || payload.cart.length === 0) return;
+  try {
+    const totalQty = payload.cart.reduce(
+      (sum: number, item: any) => sum + Math.max(1, Number(item?.quantity || 1)),
+      0
+    );
+    const channel = supabase.channel('h2:global-pos-sync');
+    await new Promise<void>((resolve) => {
+      const timeout = setTimeout(() => resolve(), 1200);
+      channel.subscribe((status) => {
+        if (status === 'SUBSCRIBED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          clearTimeout(timeout);
+          resolve();
+        }
+      });
+    });
+    await channel.send({
+      type: 'broadcast',
+      event: 'global_cart_draft_updated',
+      payload: {
+        tableId: payload.tableId,
+        itemCount: payload.cart.length,
+        totalQty,
+        version: payload.version,
+        tabId: payload.tabId || '',
+        deviceId: payload.deviceId || '',
+        updatedAt: new Date().toISOString(),
+      },
+    });
+    await supabase.removeChannel(channel);
+  } catch {
+    // ignore broadcast error
+  }
+}
+
 export async function GET(request: NextRequest) {
   const staff = await getAuthenticatedStaff(request.headers.get('cookie') || '');
   if (!staff) return NextResponse.json({ success: false, error: 'Phiên đăng nhập đã hết hạn.' }, { status: 401 });
@@ -79,6 +124,15 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: false, error: 'Không thể cập nhật giỏ hàng.' }, { status: 409 });
       }
 
+      if (updated) {
+        void broadcastGlobalCartUpdate(supabase, {
+          tableId,
+          cart,
+          version: Number(updated.version || nextVersion),
+          tabId: body.tabId,
+          deviceId: body.deviceId,
+        });
+      }
       return NextResponse.json({ success: true, draft: updated });
     }
 
@@ -116,6 +170,13 @@ export async function POST(request: NextRequest) {
           .select('*')
           .maybeSingle();
         if (!retryErr && retried) {
+          void broadcastGlobalCartUpdate(supabase, {
+            tableId,
+            cart,
+            version: Number(retried.version || 1),
+            tabId: body.tabId,
+            deviceId: body.deviceId,
+          });
           return NextResponse.json({ success: true, draft: retried });
         }
       }
@@ -123,6 +184,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Không thể khởi tạo giỏ hàng.' }, { status: 409 });
     }
 
+    if (inserted) {
+      void broadcastGlobalCartUpdate(supabase, {
+        tableId,
+        cart,
+        version: Number(inserted.version || 1),
+        tabId: body.tabId,
+        deviceId: body.deviceId,
+      });
+    }
     return NextResponse.json({ success: true, draft: inserted });
   } catch (err) {
     console.error('POST cart-draft error:', err);
@@ -198,6 +268,13 @@ export async function PUT(request: NextRequest) {
       }, { status: 409 });
     }
 
+    void broadcastGlobalCartUpdate(supabase, {
+      tableId,
+      cart,
+      version: Number(updated.version || nextVersion),
+      tabId: body.tabId,
+      deviceId: body.deviceId,
+    });
     return NextResponse.json({ success: true, draft: updated });
   }
 
@@ -235,6 +312,13 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ success: false, conflict: true, error: 'Không thể khởi tạo giỏ hàng.' }, { status: 409 });
   }
 
+  void broadcastGlobalCartUpdate(supabase, {
+    tableId,
+    cart,
+    version: Number(inserted.version || 1),
+    tabId: body.tabId,
+    deviceId: body.deviceId,
+  });
   return NextResponse.json({ success: true, draft: inserted });
 }
 

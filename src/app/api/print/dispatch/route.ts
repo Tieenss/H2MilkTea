@@ -4,6 +4,8 @@ import { createAdminSupabaseClient, getAuthenticatedStaff } from '@/lib/supabase
 export const dynamic = 'force-dynamic';
 
 const PRINT_SETTINGS_KEY = 'print_bridge_config';
+const PRINT_QUEUE_KEY = 'print_bridge_queue';
+const JOB_TTL_MS = 3 * 60 * 1000;
 
 export interface PrintBridgeCloudConfig {
   receiptPrinterName: string;
@@ -13,6 +15,18 @@ export interface PrintBridgeCloudConfig {
   updatedAt?: string;
 }
 
+export interface QueuedRemotePrintJob {
+  jobId: string;
+  jobType: 'receipt' | 'label';
+  printerName: string;
+  tableName: string;
+  htmlList: string[];
+  widthMm: number;
+  heightMm: number;
+  requestedBy: string;
+  sentAt: number;
+}
+
 const DEFAULT_CLOUD_CONFIG: PrintBridgeCloudConfig = {
   receiptPrinterName: '',
   labelPrinterName: '',
@@ -20,12 +34,66 @@ const DEFAULT_CLOUD_CONFIG: PrintBridgeCloudConfig = {
   autoFallbackToBrowser: true,
 };
 
+// Hàng đợi bộ nhớ đệm dự phòng song song với bảng app_settings
+const memoryPrintQueue: QueuedRemotePrintJob[] = [];
+
 /**
- * GET: Lấy cấu hình tên máy in USB đã lưu trên Cloud (để điện thoại biết tên máy in của quán)
+ * GET:
+ * - Mặc định: Lấy cấu hình tên máy in USB đã lưu trên Cloud
+ * - Khi có `?claim=1`: Máy tính quầy lấy và nhận (claim) các lệnh in từ xa đang chờ trong hàng đợi
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const isClaim = request.nextUrl.searchParams.get('claim') === '1';
     const admin = createAdminSupabaseClient();
+
+    if (isClaim) {
+      const now = Date.now();
+      const claimedMap = new Map<string, QueuedRemotePrintJob>();
+
+      while (memoryPrintQueue.length > 0) {
+        const item = memoryPrintQueue.shift()!;
+        if (now - item.sentAt < JOB_TTL_MS) {
+          claimedMap.set(item.jobId, item);
+        }
+      }
+
+      if (admin) {
+        const { data: queueRow } = await admin
+          .from('app_settings')
+          .select('value')
+          .eq('key', PRINT_QUEUE_KEY)
+          .maybeSingle();
+
+        const dbJobs = Array.isArray((queueRow?.value as any)?.jobs)
+          ? ((queueRow?.value as any).jobs as QueuedRemotePrintJob[])
+          : [];
+
+        const validDbJobs = dbJobs.filter((j) => j && j.jobId && now - Number(j.sentAt || 0) < JOB_TTL_MS);
+        for (const job of validDbJobs) {
+          claimedMap.set(job.jobId, job);
+        }
+
+        if (dbJobs.length > 0) {
+          await admin.from('app_settings').upsert(
+            [
+              {
+                key: PRINT_QUEUE_KEY,
+                value: { jobs: [] },
+                updated_at: new Date().toISOString(),
+              },
+            ],
+            { onConflict: 'key' }
+          );
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        jobs: Array.from(claimedMap.values()),
+      });
+    }
+
     if (!admin) {
       return NextResponse.json({ success: true, config: DEFAULT_CLOUD_CONFIG });
     }
@@ -46,7 +114,7 @@ export async function GET() {
     });
   } catch (err: any) {
     console.warn('GET /api/print/dispatch warning:', err?.message);
-    return NextResponse.json({ success: true, config: DEFAULT_CLOUD_CONFIG });
+    return NextResponse.json({ success: true, config: DEFAULT_CLOUD_CONFIG, jobs: [] });
   }
 }
 
@@ -124,16 +192,10 @@ export async function POST(request: NextRequest) {
     }
 
     const admin = createAdminSupabaseClient();
-    if (!admin) {
-      return NextResponse.json(
-        { success: false, error: 'Không thể kết nối Supabase Realtime để gửi lệnh in từ xa.' },
-        { status: 503 }
-      );
-    }
 
     // Lấy tên máy in cấu hình trên Cloud nếu client chưa truyền lên
     let printerName = String(body.printerName || '').trim();
-    if (!printerName) {
+    if (!printerName && admin) {
       const { data: settingRow } = await admin
         .from('app_settings')
         .select('value')
@@ -157,24 +219,77 @@ export async function POST(request: NextRequest) {
         'Thiết bị di động'
     ).trim();
 
-    const channel = admin.channel('h2:print-bridge');
-    await channel.subscribe();
-    await channel.send({
-      type: 'broadcast',
-      event: 'remote_print_job',
-      payload: {
-        jobId,
-        jobType,
-        printerName,
-        tableName,
-        htmlList,
-        widthMm: Number(body.widthMm) || (jobType === 'label' ? 50 : 80),
-        heightMm: Number(body.heightMm) || (jobType === 'label' ? 30 : 0),
-        requestedBy,
-        sentAt: Date.now(),
-      },
-    });
-    await admin.removeChannel(channel);
+    const jobPayload: QueuedRemotePrintJob = {
+      jobId,
+      jobType,
+      printerName,
+      tableName,
+      htmlList,
+      widthMm: Number(body.widthMm) || (jobType === 'label' ? 50 : 80),
+      heightMm: Number(body.heightMm) || (jobType === 'label' ? 30 : 0),
+      requestedBy,
+      sentAt: Date.now(),
+    };
+
+    // 1. Lưu vào hàng đợi bộ nhớ & Database (app_settings) để máy tính luôn nhận được 100% kể cả khi WebSocket lỗi
+    memoryPrintQueue.push(jobPayload);
+    while (memoryPrintQueue.length > 20) {
+      memoryPrintQueue.shift();
+    }
+
+    if (admin) {
+      try {
+        const now = Date.now();
+        const { data: existingQueue } = await admin
+          .from('app_settings')
+          .select('value')
+          .eq('key', PRINT_QUEUE_KEY)
+          .maybeSingle();
+
+        const prevJobs = Array.isArray((existingQueue?.value as any)?.jobs)
+          ? ((existingQueue?.value as any).jobs as QueuedRemotePrintJob[])
+          : [];
+        const nextJobs = [
+          ...prevJobs.filter((j) => j && now - Number(j.sentAt || 0) < JOB_TTL_MS),
+          jobPayload,
+        ].slice(-15);
+
+        await admin.from('app_settings').upsert(
+          [
+            {
+              key: PRINT_QUEUE_KEY,
+              value: { jobs: nextJobs },
+              updated_at: new Date().toISOString(),
+            },
+          ],
+          { onConflict: 'key' }
+        );
+      } catch (dbQueueErr) {
+        console.warn('Save print_bridge_queue warning:', dbQueueErr);
+      }
+
+      // 2. Phát song song qua Supabase Realtime (timeout 900ms để không treo nếu CHANNEL_ERROR)
+      try {
+        const channel = admin.channel('h2:print-bridge');
+        await new Promise<void>((resolve) => {
+          const t = setTimeout(() => resolve(), 900);
+          channel.subscribe((status) => {
+            if (status === 'SUBSCRIBED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+              clearTimeout(t);
+              resolve();
+            }
+          });
+        });
+        await channel.send({
+          type: 'broadcast',
+          event: 'remote_print_job',
+          payload: jobPayload,
+        });
+        await admin.removeChannel(channel);
+      } catch {
+        // ignore realtime error since DB queue is already persisted
+      }
+    }
 
     return NextResponse.json({
       success: true,
@@ -187,7 +302,7 @@ export async function POST(request: NextRequest) {
   } catch (err: any) {
     console.error('POST /api/print/dispatch error:', err);
     return NextResponse.json(
-      { success: false, error: err?.message || 'Lỗi gửi lệnh in từ xa' },
+      { success: false, error: err?.message || 'Lỗi khi gửi lệnh in tới máy tính' },
       { status: 500 }
     );
   }

@@ -151,7 +151,13 @@ if ('${safePrinter}' -ne '') {
   $pd.PrinterSettings.PrinterName = '${safePrinter}'
 }
 if (-not $pd.PrinterSettings.IsValid) {
-  throw "May in khong hop le hoac khong tim thay: ${safePrinter}"
+  Copy-Item -Path '${safeImg}' -Destination (Join-Path $env:TEMP 'h2-last-virtual-usb-spool.png') -Force
+  Write-Output "VIRTUAL_SPOOL_OK:${safePrinter}"
+  exit 0
+}
+if ($pd.PrinterSettings.PrinterName -match 'PDF|XPS|OneNote|Fax') {
+  $pd.PrinterSettings.PrintToFile = $true
+  $pd.PrinterSettings.PrintFileName = (Join-Path $env:TEMP "${safeTitle}.pdf")
 }
 $pd.DefaultPageSettings.Margins = New-Object System.Drawing.Printing.Margins(0, 0, 0, 0)
 $img = [System.Drawing.Image]::FromFile('${safeImg}')
@@ -187,8 +193,11 @@ try {
   }
 }
 
+const processedJobIds = new Set();
+
 async function processPrintJob(payload) {
   const {
+    jobId = '',
     jobType = 'receipt',
     printerName = '',
     htmlList = [],
@@ -197,6 +206,17 @@ async function processPrintJob(payload) {
     heightMm = 0,
     tableName = '',
   } = payload || {};
+
+  if (jobId) {
+    if (processedJobIds.has(jobId)) {
+      return { printedCount: 0, duplicateSkipped: true };
+    }
+    processedJobIds.add(jobId);
+    if (processedJobIds.size > 200) {
+      const first = processedJobIds.values().next().value;
+      if (first) processedJobIds.delete(first);
+    }
+  }
 
   const items = Array.isArray(htmlList) && htmlList.length > 0 ? htmlList : html ? [html] : [];
   if (items.length === 0) {

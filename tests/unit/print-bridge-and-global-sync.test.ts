@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   dispatchDirectOrRemotePrint,
+  getDefaultPrintDeviceConfig,
   getPrintDeviceConfig,
   savePrintDeviceConfig,
   syncPrintConfigFromCloud,
@@ -61,6 +62,22 @@ describe('Print Bridge & Remote Phone-to-PC Print Dispatch', () => {
 
   afterEach(() => {
     global.fetch = originalFetch;
+  });
+
+  it('tự động chọn mặc định local_bridge trên PC và remote_relay trên Điện thoại', () => {
+    Object.defineProperty(globalThis, 'navigator', {
+      value: { userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+      configurable: true,
+    });
+    (globalThis.window as unknown as { innerWidth: number }).innerWidth = 1440;
+    expect(getDefaultPrintDeviceConfig().mode).toBe('local_bridge');
+
+    Object.defineProperty(globalThis, 'navigator', {
+      value: { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile' },
+      configurable: true,
+    });
+    (globalThis.window as unknown as { innerWidth: number }).innerWidth = 390;
+    expect(getDefaultPrintDeviceConfig().mode).toBe('remote_relay');
   });
 
   it('trả về handled=false khi ở chế độ browser (Ctrl+P)', async () => {

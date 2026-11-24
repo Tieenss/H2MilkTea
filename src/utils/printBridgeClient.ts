@@ -28,8 +28,9 @@ export function isLikelyMobileOrTablet(): boolean {
 }
 
 export function getDefaultPrintDeviceConfig(): LocalPrintDeviceConfig {
+  const isMobile = isLikelyMobileOrTablet();
   return {
-    mode: 'browser',
+    mode: isMobile ? 'remote_relay' : 'local_bridge',
     bridgeUrl: 'http://127.0.0.1:18181',
     receiptPrinterName: '',
     labelPrinterName: '',
@@ -147,7 +148,7 @@ export async function dispatchDirectOrRemotePrint(params: {
   if (cfg.mode === 'local_bridge') {
     try {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 8000);
+      const timer = setTimeout(() => controller.abort(), 1500);
       const res = await fetch(`${cfg.bridgeUrl.replace(/\/$/, '')}/print`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

@@ -48,14 +48,23 @@ interface UseSharedCartDraftOptions {
 function getDeviceId(): string {
   if (typeof window === 'undefined') return '';
   try {
-    let id = window.localStorage.getItem('pos_device_id');
-    if (!id) {
-      id = 'dev_' + Math.random().toString(36).slice(2, 10);
-      window.localStorage.setItem('pos_device_id', id);
+    let tabId = window.sessionStorage.getItem('h2_pos_tab_id');
+    if (!tabId) {
+      tabId = 'tab_' + Math.random().toString(36).slice(2, 10);
+      window.sessionStorage.setItem('h2_pos_tab_id', tabId);
     }
-    return id;
+    return tabId;
   } catch {
-    return 'dev_unknown';
+    try {
+      let id = window.localStorage.getItem('pos_device_id');
+      if (!id) {
+        id = 'dev_' + Math.random().toString(36).slice(2, 10);
+        window.localStorage.setItem('pos_device_id', id);
+      }
+      return id;
+    } catch {
+      return 'dev_unknown';
+    }
   }
 }
 
@@ -568,6 +577,8 @@ export function useSharedCartDraft({
           cart: payloadCart,
           selectedCustomer: payloadCustomer,
           expectedVersion: versionRef.current,
+          tabId: getDeviceId(),
+          deviceId: getDeviceId(),
         }),
       });
       const result = await response.json();
@@ -585,6 +596,8 @@ export function useSharedCartDraft({
                 cart: cartRef.current,
                 selectedCustomer: customerRef.current,
                 expectedVersion: result.draft.version,
+                tabId: getDeviceId(),
+                deviceId: getDeviceId(),
               }),
             });
             const retryResult = await retryRes.json();
