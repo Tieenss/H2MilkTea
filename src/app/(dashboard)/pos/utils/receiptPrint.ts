@@ -1,3 +1,5 @@
+import { dispatchDirectOrRemotePrint } from '@/utils/printBridgeClient';
+
 export interface ReceiptData {
   receiptNumber: string;
   date: Date;
@@ -133,8 +135,37 @@ export const printReceiptWithSettings = async (
 
     // Generate receipt HTML based on template settings
     const receiptHtml = generateReceiptHtml(receiptData, template, company, templateType);
-    
-    // Create print window
+
+    // Xác định khổ giấy mm để gửi Print Bridge (in trực tiếp không cần Ctrl+P hoặc in từ điện thoại)
+    const rawPaperSize = template.paperSize || settings.paperSize || '80mm';
+    const widthMm =
+      rawPaperSize === '58mm'
+        ? 58
+        : rawPaperSize === 'A4'
+          ? 210
+          : rawPaperSize === 'A5'
+            ? 148
+            : rawPaperSize === 'custom'
+              ? Number(settings.customWidth) || 80
+              : 80;
+
+    const bridgeResult = await dispatchDirectOrRemotePrint({
+      jobType: 'receipt',
+      htmlList: [receiptHtml],
+      tableName: receiptData.table || 'Khách mang về',
+      widthMm,
+      heightMm: 0,
+      requestedBy: receiptData.cashier,
+    });
+
+    if (bridgeResult.handled) {
+      if (!bridgeResult.success) {
+        throw new Error(bridgeResult.message || 'Không thể in hóa đơn qua máy in đã cấu hình');
+      }
+      return;
+    }
+
+    // Create print window (Browser Ctrl+P fallback)
     const printWindow = window.open('', '', 'width=800,height=600');
     
     if (!printWindow) {

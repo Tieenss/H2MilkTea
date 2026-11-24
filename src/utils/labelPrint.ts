@@ -8,6 +8,7 @@ import {
 } from '@/types/labelSettings';
 import { getLabelSettings, LABEL_PAPER_SIZES, getPresetElementSizes } from './labelSettings';
 import { formatCurrency } from '@/app/(dashboard)/pos/utils/formatters';
+import { dispatchDirectOrRemotePrint } from './printBridgeClient';
 
 // Chuẩn hóa chuỗi tiếng Việt (hỗ trợ cả NFC lẫn NFD) và loại bỏ dấu để so sánh danh mục chính xác
 const normalizeText = (text?: string): string => {
@@ -522,10 +523,45 @@ export const printOrderLabels = async (
     }
   }
 
-  // Chế độ in Trình duyệt
+  // Chế độ in Trình duyệt / Trạm in trực tiếp / In từ xa qua điện thoại
   const htmlList = await Promise.all(
     finalLabels.map(item => renderSingleLabelHtml(item, orderInfo, settings))
   );
+
+  const { width, height } = getLabelDimensions(settings);
+  const wrappedHtmlList = htmlList.map((labelHtml) => `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <style>
+      @page { size: ${width}mm ${height}mm; margin: 0; }
+      html, body { margin: 0; padding: 0; background: #fff; }
+      .label-container { width: ${width}mm; margin: 0; padding: 0; }
+    </style>
+  </head>
+  <body>
+    <div class="label-container">${labelHtml}</div>
+  </body>
+</html>`);
+
+  const bridgeResult = await dispatchDirectOrRemotePrint({
+    jobType: 'label',
+    htmlList: wrappedHtmlList,
+    tableName: orderInfo.tableName || orderInfo.tableId || 'Khách mang về',
+    widthMm: width,
+    heightMm: height,
+    requestedBy: orderInfo.cashierName || orderInfo.cashier,
+  });
+
+  if (bridgeResult.handled) {
+    return {
+      success: bridgeResult.success,
+      labelCount: totalItems,
+      message: bridgeResult.message || (bridgeResult.success
+        ? `Đã gửi lệnh in ${totalItems} tem nhãn dán ly thành công.`
+        : 'Không thể in tem qua trạm in trực tiếp.'),
+    };
+  }
 
   const ok = await printLabelsViaBrowser(htmlList, settings);
   return {

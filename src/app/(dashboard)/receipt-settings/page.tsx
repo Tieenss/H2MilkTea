@@ -34,6 +34,7 @@ import ReceiptPreview, { sampleReceiptData } from '@/components/ReceiptPreview';
 import { applyReceiptSettingsToAll } from '@/utils/receiptSettings';
 import { LabelSettingsTab } from '@/components/LabelSettingsTab';
 import { VatAndKitchenSettingsTab } from '@/components/VatAndKitchenSettingsTab';
+import { PrintBridgeSettingsCard } from '@/components/PrintBridgeSettingsCard';
 import toast from 'react-hot-toast';
 
 // Paper size configurations
@@ -359,12 +360,24 @@ export default function ReceiptSettingsPage() {
           <Settings className="w-4 h-4" />
           Mẫu báo cáo
         </Button>
+        <Button
+          type="button"
+          variant={currentTab === 'print-bridge' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setCurrentTab('print-bridge')}
+          className={`flex items-center gap-2 ${currentTab === 'print-bridge' ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'}`}
+        >
+          <Printer className="w-4 h-4" />
+          Trạm In & In Từ Xa
+        </Button>
       </div>
 
       {currentTab === 'label' ? (
         <LabelSettingsTab />
       ) : currentTab === 'vat-kitchen' ? (
         <VatAndKitchenSettingsTab />
+      ) : currentTab === 'print-bridge' ? (
+        <PrintBridgeSettingsCard />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Settings */}

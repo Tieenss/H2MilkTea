@@ -9,6 +9,7 @@ import { ScrollToTop } from '@/components/ui/scroll-to-top';
 import { RouteProgress } from '@/components/ui/route-progress';
 import { cn } from '@/lib/utils';
 import { TodayOrdersProvider } from '@/context/TodayOrdersContext';
+import { GlobalPosSyncProvider } from '@/components/GlobalPosSyncProvider';
 import { GlobalAssistant } from '@/components/GlobalAssistant';
 import { QABugReporter } from '@/components/QABugReporter';
 import { useSingleActiveSession } from '@/hooks/useSingleActiveSession';
@@ -101,7 +102,8 @@ export default function DashboardLayout({
 
   return (
     <TodayOrdersProvider>
-      <div className="h-[100dvh] w-full overflow-hidden bg-gray-50 text-gray-900 transition-colors duration-200">
+      <GlobalPosSyncProvider>
+        <div className="h-[100dvh] w-full overflow-hidden bg-gray-50 text-gray-900 transition-colors duration-200">
         <Header 
           onToggleSidebar={handleToggleSidebar}
           sidebarCollapsed={sidebarCollapsed}
@@ -140,6 +142,7 @@ export default function DashboardLayout({
       <GlobalAssistant />
       {/* Công cụ Bắt lỗi & Checklist Kiểm thử QA trực tiếp trên từng màn hình */}
       <QABugReporter />
+      </GlobalPosSyncProvider>
     </TodayOrdersProvider>
   );
 }
