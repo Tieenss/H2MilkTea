@@ -293,12 +293,12 @@ export const useProducts = () => {
         const removeSet = new Set(indicesToRemove);
         const cleanedList = products.filter((_, idx) => !removeSet.has(idx));
 
-        // Cập nhật trực tiếp vào demoData['DMHH'] của authUtils và lưu localStorage
-        (authUtils as any).demoData['DMHH'] = cleanedList.map((item, idx) => ({
+        const normalizedList = cleanedList.map((item, idx) => ({
           ...item,
           _RowNumber: String(idx + 2),
         }));
-        (authUtils as any).saveDemoData?.();
+        (authUtils as any).demoData['DMHH'] = normalizedList;
+        await (authUtils as any).syncTablesToCloud?.({ DMHH: normalizedList }, true);
 
         setProducts(cleanedList);
         toast.success(`Đã dọn dẹp ${indicesToRemove.length} sản phẩm trùng lặp!`);

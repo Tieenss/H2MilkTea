@@ -226,8 +226,20 @@ export const GoogleDriveSync: React.FC<GoogleDriveSyncProps> = ({ onSyncComplete
 
       const seedResult = AuthUtils.seedSynchronizedTestDatabase();
 
-      // Thu thập các bảng cốt lõi đã chuẩn hóa để đẩy lên Cloud DB qua /api/backup/restore
-      const cloudTables = ['DMHH', 'DSBAN', 'DSNV', 'HOADON', 'HOADONDETAIL'];
+      // Thu thập đầy đủ 11 bảng cốt lõi đã chuẩn hóa để đẩy lên Cloud DB qua /api/backup/restore
+      const cloudTables = [
+        'DSNV',
+        'DSBAN',
+        'DMHH',
+        'NGUYENLIEU',
+        'CAUHINH',
+        'KHACHHANG',
+        'NHACUNGCAP',
+        'NHAPXUATKHO',
+        'KIEMKEKHO',
+        'HOADON',
+        'HOADONDETAIL',
+      ];
       const payloadTables: Record<string, any[]> = {};
 
       await Promise.all(

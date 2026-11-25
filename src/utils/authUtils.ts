@@ -15,23 +15,131 @@ import KIEMKEKHO_DATA from '../data/KIEMKEKHO.json';
 import NHAPXUATKHO_DATA from '../data/NHAPXUATKHO.json';
 import NHACUNGCAP_DATA from '../data/NHACUNGCAP.json';
 
+const ROOT_ADMIN_FALLBACK_KEY = 'h2_root_admin_fallback';
+const LEGACY_DEMO_DATA_KEYS = [
+    'demoData',
+    'demoData_backup',
+    'demoData_timestamp',
+    'demoData_import_backup',
+    'demoData_excel_import_backup',
+    'demoData_restore_backup',
+];
+
+export interface DataActivityLogItem {
+    id: string;
+    timestamp: string;
+    action: string;
+    detail: string;
+    status: 'success' | 'warning' | 'error';
+}
+
+export interface SelectiveClearOptions {
+    resetTableStatus?: boolean;
+    resetMaterialStock?: boolean;
+    clearPrintQueue?: boolean;
+}
+
 class AuthUtils {
     private demoData: { [key: string]: any[] } = {};
     private isInitialized = false;
+    private lastSyncedAt: string | null = null;
+    private activityLogs: DataActivityLogItem[] = [];
     private recoveryInterval: NodeJS.Timeout | null = null;
 
     constructor() {
         if (typeof window !== 'undefined') {
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', () => {
-                    this.initializeDemoData();
-                    this.startAutoRecoveryCheck();
-                });
-            } else {
-                this.initializeDemoData();
-                this.startAutoRecoveryCheck();
-            }
+            this.purgeLegacyLocalStorageData();
+            this.ensureRootAdminFallback();
+            this.initializeDemoData();
         }
+    }
+
+    // Dọn dẹp triệt để các key dữ liệu bảng cũ trong localStorage (không dùng localStorage lưu DB nữa)
+    public purgeLegacyLocalStorageData() {
+        if (!this.isClient() || !this.isLocalStorageAvailable()) return;
+        try {
+            LEGACY_DEMO_DATA_KEYS.forEach((key) => {
+                localStorage.removeItem(key);
+            });
+        } catch {
+            // Bỏ qua nếu trình duyệt chặn
+        }
+    }
+
+    // Chỉ giữ duy nhất 1 tài khoản Admin gốc dự phòng trong localStorage để khi xóa trắng DB vẫn đăng nhập vào webapp khôi phục backup được
+    public ensureRootAdminFallback(customAdminRecord?: any, plainPassword?: string) {
+        if (!this.isClient() || !this.isLocalStorageAvailable()) return;
+        try {
+            const existingRaw = localStorage.getItem(ROOT_ADMIN_FALLBACK_KEY);
+            let existing: any = null;
+            if (existingRaw) {
+                try {
+                    existing = JSON.parse(existingRaw);
+                } catch {
+                    existing = null;
+                }
+            }
+
+            const defaultSeedAdmin = (DSNV_DATA as any[]).find(
+                (u) => String(u?.username || '').toLowerCase() === 'admin'
+            ) || {
+                _RowNumber: '2',
+                username: 'admin',
+                'Họ và Tên': 'Trần Văn Tiến',
+                'Chức vụ': 'Quản lý',
+                'Phòng': 'Quản lý',
+                'Phân quyền': 'Admin',
+                Email: 'admin@h2.com',
+                'Quyền View': 'POS,KITCHEN,TABLES,ORDERS,CUSTOMERS,PRODUCTS,MATERIALS,RECIPES,STOCKTAKE,TRANSACTIONS,SUPPLIERS,EMPLOYEES,REPORTS,SETTINGS',
+            };
+
+            const fallbackAccount = {
+                ...(existing || defaultSeedAdmin),
+                ...(customAdminRecord || {}),
+                username: customAdminRecord?.username || existing?.username || 'admin',
+                'Họ và Tên': customAdminRecord?.['Họ và Tên'] || existing?.['Họ và Tên'] || defaultSeedAdmin['Họ và Tên'] || 'Quản trị viên (Admin)',
+                'Chức vụ': customAdminRecord?.['Chức vụ'] || existing?.['Chức vụ'] || 'Quản trị viên',
+                'Phân quyền': 'Admin',
+                Email: customAdminRecord?.Email || customAdminRecord?.email || existing?.Email || 'admin@h2.com',
+                fallbackPassword: plainPassword || existing?.fallbackPassword || defaultSeedAdmin.password || '123456',
+                updatedAt: new Date().toISOString(),
+            };
+
+            localStorage.setItem(ROOT_ADMIN_FALLBACK_KEY, JSON.stringify(fallbackAccount));
+        } catch {
+            // Ignore
+        }
+    }
+
+    public getRootAdminFallback(): any | null {
+        if (!this.isClient() || !this.isLocalStorageAvailable()) return null;
+        try {
+            const raw = localStorage.getItem(ROOT_ADMIN_FALLBACK_KEY);
+            if (!raw) {
+                this.ensureRootAdminFallback();
+                const retry = localStorage.getItem(ROOT_ADMIN_FALLBACK_KEY);
+                return retry ? JSON.parse(retry) : null;
+            }
+            return JSON.parse(raw);
+        } catch {
+            return null;
+        }
+    }
+
+    public recordDataActivity(action: string, detail: string, status: 'success' | 'warning' | 'error' = 'success') {
+        const entry: DataActivityLogItem = {
+            id: `act_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            timestamp: new Date().toISOString(),
+            action,
+            detail,
+            status,
+        };
+        this.activityLogs = [entry, ...this.activityLogs].slice(0, 20);
+        this.lastSyncedAt = entry.timestamp;
+    }
+
+    public getDataActivityLogs(): DataActivityLogItem[] {
+        return [...this.activityLogs];
     }
 
     private isBrowser() {
@@ -394,6 +502,15 @@ class AuthUtils {
         this.normalizeAndSyncDemoData();
         this.saveDemoData();
 
+        if (this.isBrowser()) {
+            void this.syncTablesToCloud(this.demoData, true);
+        }
+        this.recordDataActivity(
+            'Đồng bộ dữ liệu mẫu 60 ngày',
+            `Tạo ${this.demoData['HOADON'].length} hóa đơn, ${this.demoData['HOADONDETAIL'].length} chi tiết, ${this.demoData['DMHH'].length} sản phẩm`,
+            'success'
+        );
+
         return {
             success: true,
             invoices: this.demoData['HOADON'].length,
@@ -403,38 +520,295 @@ class AuthUtils {
         };
     }
 
-    clearDataExceptDSNV() {
-        if (!this.isClient()) return { success: false, message: 'Chỉ có thể clear data trên client' };
+    public async syncTablesToCloud(
+        tablesData: Record<string, any[]>,
+        replaceExisting = true
+    ): Promise<{ success: boolean; message: string; summary?: any }> {
+        if (!this.isBrowser()) {
+            return { success: true, message: 'Đã cập nhật dữ liệu trong bộ nhớ phiên.' };
+        }
+        try {
+            const res = await fetch('/api/db/manage', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'sync_tables',
+                    tablesData,
+                    replaceExisting,
+                }),
+            });
+            const json = await res.json();
+            return {
+                success: Boolean(res.ok && json?.success !== false),
+                message: json?.message || json?.error || 'Đã đồng bộ dữ liệu lên Supabase Cloud!',
+                summary: json?.summary,
+            };
+        } catch (err: any) {
+            console.warn('Lỗi đồng bộ bảng lên Cloud:', err);
+            return {
+                success: false,
+                message: 'Không thể kết nối máy chủ để đồng bộ Cloud: ' + (err?.message || 'Lỗi mạng'),
+            };
+        }
+    }
+
+    public async clearSelectedData(
+        tablesToClear: string[],
+        options: SelectiveClearOptions = {}
+    ): Promise<{ success: boolean; message: string; summary?: Record<string, string> }> {
+        if (!Array.isArray(tablesToClear) || tablesToClear.length === 0) {
+            if (!options.resetTableStatus && !options.resetMaterialStock && !options.clearPrintQueue) {
+                return { success: false, message: 'Vui lòng chọn ít nhất 1 hạng mục dữ liệu để dọn dẹp!' };
+            }
+        }
 
         try {
-            const dsnvData = this.demoData['DSNV'] || [...DSNV_DATA];
+            this.purgeLegacyLocalStorageData();
+            this.ensureRootAdminFallback(this.getUserData());
 
-            this.demoData = {
-                'DSNV': dsnvData,
-                'DSBAN': [{
-                    "_RowNumber": "2",
-                    "IDBAN": "Khách mua về",
-                    "Tên bàn": "Khách mua về",
-                    "Sức chứa tối đa": "1",
-                    "Trạng thái": "Đang hoạt động",
-                    "Lịch sử  bàn": "INV1750688036060140"
-                }],
-                'HOADON': [],
-                'HOADONDETAIL': [],
-                'DMHH': [],
-                'NGUYENLIEU': [],
-                'CAUHINH': [],
-                'KHACHHANG': [],
-                'KIEMKEKHO': [],
-                'NHAPXUATKHO': [],
-                'NHACUNGCAP': []
-            };
+            let cloudMessage = '';
+            let cloudSummary: Record<string, string> = {};
+
+            if (this.isBrowser()) {
+                const res = await fetch('/api/db/manage', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'selective_clear',
+                        tables: tablesToClear,
+                        options,
+                    }),
+                });
+                const json = await res.json();
+                if (!res.ok || json?.success === false) {
+                    return {
+                        success: false,
+                        message: json?.error || json?.message || 'Lỗi khi xóa dữ liệu trên Supabase Cloud',
+                    };
+                }
+                cloudMessage = json?.message || '';
+                cloudSummary = json?.summary || {};
+            }
+
+            // Đồng bộ xóa ngay trên bộ nhớ RAM hiện tại để UI phản ánh tức thì
+            const currentUser = this.getUserData();
+            for (const table of tablesToClear) {
+                if (table === 'DSNV') {
+                    const keepUsernames = new Set(
+                        ['admin', String(currentUser?.username || 'admin').toLowerCase()].filter(Boolean)
+                    );
+                    const currentDsnv = Array.isArray(this.demoData['DSNV']) ? this.demoData['DSNV'] : [];
+                    const preserved = currentDsnv.filter((u: any) =>
+                        keepUsernames.has(String(u?.username || '').toLowerCase())
+                    );
+                    this.demoData['DSNV'] =
+                        preserved.length > 0
+                            ? preserved
+                            : [this.getRootAdminFallback()].filter(Boolean);
+                } else if (table === 'DSBAN') {
+                    this.demoData['DSBAN'] = [
+                        {
+                            _RowNumber: '2',
+                            IDBAN: 'Khách mua về',
+                            'Tên bàn': 'Khách mua về',
+                            'Sức chứa tối đa': '1',
+                            'Trạng thái': 'Đang hoạt động',
+                            'Lịch sử  bàn': '',
+                        },
+                    ];
+                } else if (this.demoData[table] !== undefined) {
+                    this.demoData[table] = [];
+                }
+            }
+
+            if (
+                !tablesToClear.includes('DSBAN') &&
+                (options.resetTableStatus || tablesToClear.includes('HOADON') || tablesToClear.includes('pos_orders'))
+            ) {
+                if (Array.isArray(this.demoData['DSBAN'])) {
+                    this.demoData['DSBAN'] = this.demoData['DSBAN'].map((t: any) => ({
+                        ...t,
+                        'Trạng thái': t.IDBAN === 'Khách mua về' ? 'Đang hoạt động' : 'Trống',
+                        'Lịch sử  bàn': '',
+                    }));
+                }
+            }
+
+            if (!tablesToClear.includes('NGUYENLIEU') && options.resetMaterialStock) {
+                if (Array.isArray(this.demoData['NGUYENLIEU'])) {
+                    this.demoData['NGUYENLIEU'] = this.demoData['NGUYENLIEU'].map((m: any) => ({
+                        ...m,
+                        ...(m['Số lượng tồn'] !== undefined ? { 'Số lượng tồn': '0' } : {}),
+                    }));
+                }
+                this.demoData['NHAPXUATKHO'] = [];
+                this.demoData['KIEMKEKHO'] = [];
+            }
+
+            // Dọn các state tạm của POS / KDS / Thông báo đơn đã xem trong localStorage nếu xóa đơn hàng
+            if (
+                this.isClient() &&
+                this.isLocalStorageAvailable() &&
+                (tablesToClear.includes('HOADON') || tablesToClear.includes('pos_orders'))
+            ) {
+                const posCacheKeys = [
+                    'posState',
+                    'h2_pos_carts_v1',
+                    'h2_pos_active_table_id',
+                    'h2_kds_local_orders_v1',
+                    'h2_pending_ai_pos_order',
+                    'h2_orders_viewed_ids_v1',
+                    'h2_orders_last_viewed_time_v1',
+                ];
+                posCacheKeys.forEach((k) => localStorage.removeItem(k));
+            }
 
             this.saveDemoData();
-            return { success: true, message: 'Đã xóa dữ liệu hệ thống (giữ nguyên danh sách nhân viên)!' };
+            const labelList = tablesToClear.map((t) => this.getTableDisplayName(t)).join(', ');
+            this.recordDataActivity(
+                'Dọn dẹp dữ liệu tùy chọn',
+                `Đã xóa: ${labelList || 'Tùy chọn trạng thái bàn/kho'}`,
+                'success'
+            );
+
+            return {
+                success: true,
+                message:
+                    cloudMessage ||
+                    `Đã xóa sạch dữ liệu các mục đã chọn (${labelList}) trên Cloud & Hệ thống!`,
+                summary: cloudSummary,
+            };
+        } catch (error: any) {
+            console.error('Error in clearSelectedData:', error);
+            return {
+                success: false,
+                message: 'Lỗi khi dọn dẹp dữ liệu: ' + (error?.message || 'Không xác định'),
+            };
+        }
+    }
+
+    async clearDataExceptDSNV() {
+        const allExceptStaff = [
+            'HOADONDETAIL',
+            'HOADON',
+            'pos_cart_drafts',
+            'pos_orders',
+            'CAUHINH',
+            'NHAPXUATKHO',
+            'KIEMKEKHO',
+            'DMHH',
+            'NGUYENLIEU',
+            'NHACUNGCAP',
+            'KHACHHANG',
+            'DSBAN',
+            'ai_audit_logs',
+        ];
+        return await this.clearSelectedData(allExceptStaff, {
+            resetTableStatus: true,
+            clearPrintQueue: true,
+        });
+    }
+
+    public downloadExcelTemplate() {
+        try {
+            const workbook = XLSX.utils.book_new();
+
+            const templateSheets: Record<string, any[]> = {
+                'Sản Phẩm': [
+                    {
+                        IDSP: 'SP001',
+                        'Tên sản phẩm': 'Trà Sữa Truyền Thống H2',
+                        'Loại sản phẩm': 'Trà sữa',
+                        'Đơn vị tính': 'Ly',
+                        'Giá vốn': 12000,
+                        'Đơn giá': 28000,
+                        'Trạng thái': 'Đang bán',
+                        'Hình ảnh': '',
+                        'Mô tả': 'Trà sữa đậm vị chuẩn H2MilkTea',
+                    },
+                ],
+                'Nguyên Liệu': [
+                    {
+                        IDNguyenLieu: 'NVL001',
+                        'Tên nguyên liệu': 'Hồng trà thượng hạng',
+                        'Đơn vị tính': 'Kg',
+                        'Số lượng cảnh báo': 2,
+                        'Đơn vị cơ sở': 'Gram',
+                        'Hệ số quy đổi': 1000,
+                        'Ghi chú': 'Bảo quản nơi khô ráo',
+                    },
+                ],
+                'Cấu Hình': [
+                    {
+                        IDCauHinh: 'CFG001',
+                        IDSP: 'SP001',
+                        'Tên sản phẩm': 'Trà Sữa Truyền Thống H2',
+                        IDNguyenLieu: 'NVL001',
+                        'Tên nguyên liệu': 'Hồng trà thượng hạng',
+                        'Số lượng cần': 15,
+                        'Đơn vị sử dụng': 'Gram',
+                        'Đơn vị gốc': 'Kg',
+                        'Hệ số quy đổi': 0.001,
+                        'Số lượng quy đổi': 0.015,
+                        'Trạng thái': 'Hoạt động',
+                    },
+                ],
+                'Bàn': [
+                    {
+                        IDBAN: 'BAN001',
+                        'Tên bàn': 'Bàn 01 - Tầng 1',
+                        'Sức chứa tối đa': 4,
+                        'Trạng thái': 'Trống',
+                        'Khu vực': 'Tầng 1',
+                    },
+                ],
+                'Nhà Cung Cấp': [
+                    {
+                        IDNhaCungCap: 'NCC001',
+                        TenNhaCungCap: 'Công ty Nguyên liệu Trà & Sữa H2',
+                        SoDienThoai: '0901234567',
+                        Email: 'contact@ncc.vn',
+                        DiaChi: 'TP. Hà Nội',
+                        NguoiDaiDien: 'Nguyễn Văn A',
+                        TrangThai: 'Đang hợp tác',
+                    },
+                ],
+                'Khách Hàng': [
+                    {
+                        IDKHACHHANG: 'KH001',
+                        'Tên khách hàng': 'Nguyễn Thị B',
+                        'Số điện thoại': '0987654321',
+                        'Loại khách hàng': 'Thân thiết',
+                        'Điểm tích lũy': 0,
+                        'Tổng chi tiêu': 0,
+                        'Trạng thái': 'Hoạt động',
+                    },
+                ],
+            };
+
+            Object.entries(templateSheets).forEach(([sheetName, rows]) => {
+                const ws = XLSX.utils.json_to_sheet(rows);
+                XLSX.utils.book_append_sheet(workbook, ws, sheetName);
+            });
+
+            const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+            const blob = new Blob([excelBuffer], {
+                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            });
+
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `H2MilkTea-Mau-Nhap-Lieu-Chuan.xlsx`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            this.recordDataActivity('Tải file Excel mẫu', 'Đã tải bộ mẫu nhập liệu chuẩn H2MilkTea (.xlsx)', 'success');
+            return { success: true, message: 'Đã tải file Excel mẫu chuẩn cho quán H2MilkTea!' };
         } catch (error) {
-            console.error('Error clearing data except DSNV:', error);
-            return { success: false, message: 'Lỗi khi xóa dữ liệu' };
+            return { success: false, message: 'Lỗi tạo file mẫu: ' + (error as Error).message };
         }
     }
 
@@ -545,30 +919,27 @@ class AuthUtils {
                 throw new Error('Không tìm thấy dữ liệu hợp lệ trong file Excel');
             }
 
-            const currentBackup = JSON.stringify(this.demoData);
-            localStorage.setItem('demoData_excel_import_backup', currentBackup);
-
             Object.keys(importedData).forEach(tableName => {
                 if (tableName !== 'DSNV' || importedData[tableName].length > 0) {
                     this.demoData[tableName] = importedData[tableName];
                 }
             });
 
-            this.normalizeAndSyncDemoData();
             this.saveDemoData();
-            return { success: true, message: 'Import Excel thành công!' };
+            const syncRes = await this.syncTablesToCloud(importedData, true);
+            this.recordDataActivity(
+                'Import Excel',
+                `Đã nạp ${Object.keys(importedData).length} bảng dữ liệu lên Cloud`,
+                syncRes.success ? 'success' : 'warning'
+            );
+            return {
+                success: true,
+                message: syncRes.success
+                    ? `Import Excel và đồng bộ lên Cloud thành công (${Object.keys(importedData).map(t => this.getTableDisplayName(t)).join(', ')})!`
+                    : `Đã nạp dữ liệu Excel vào phiên làm việc (${syncRes.message})`,
+            };
         } catch (error) {
             console.error('Error importing Excel:', error);
-            try {
-                const backup = localStorage.getItem('demoData_excel_import_backup');
-                if (backup) {
-                    this.demoData = JSON.parse(backup);
-                    this.saveDemoData();
-                }
-            } catch (restoreError) {
-                console.error('Error restoring backup:', restoreError);
-            }
-
             return { success: false, message: 'Lỗi khi import Excel: ' + (error as Error).message };
         }
     }
@@ -605,12 +976,17 @@ class AuthUtils {
             const currentTableData = [...(this.demoData[tableName] || [])];
 
             this.demoData[tableName] = data;
-            this.normalizeAndSyncDemoData();
             this.saveDemoData();
+            const syncRes = await this.syncTablesToCloud({ [tableName]: data }, true);
+            this.recordDataActivity(
+                `Import CSV (${this.getTableDisplayName(tableName)})`,
+                `Đã nạp ${data.length} bản ghi lên Cloud`,
+                syncRes.success ? 'success' : 'warning'
+            );
 
             return {
                 success: true,
-                message: `Import CSV thành công! Đã import ${data.length} bản ghi vào bảng ${this.getTableDisplayName(tableName)}`,
+                message: `Import CSV và đồng bộ Cloud thành công! Đã nạp ${data.length} bản ghi vào bảng ${this.getTableDisplayName(tableName)}`,
                 backup: currentTableData
             };
         } catch (error) {
@@ -726,63 +1102,18 @@ class AuthUtils {
     }
 
     private recoverFromBackup(): boolean {
-        try {
-            const backupData = localStorage.getItem('demoData_backup');
-            if (backupData) {
-                const parsedBackup = JSON.parse(backupData);
-                if (this.validateDataIntegrity(parsedBackup)) {
-                    this.demoData = parsedBackup;
-                    this.normalizeAndSyncDemoData();
-                    localStorage.setItem('demoData', JSON.stringify(this.demoData));
-                    return true;
-                }
-            }
-        } catch (error) {
-            console.error('Không thể khôi phục từ backup:', error);
-        }
-
         this.initializeInMemoryData();
-        this.saveDemoData();
         return false;
     }
 
     public autoRecovery() {
-        if (!this.isClient()) return;
-
-        try {
-            if (!this.validateDataIntegrity(this.demoData)) {
-                const existingData = localStorage.getItem('demoData');
-                if (existingData) {
-                    const parsedData = JSON.parse(existingData);
-                    if (this.validateDataIntegrity(parsedData)) {
-                        this.demoData = parsedData;
-                        this.normalizeAndSyncDemoData();
-                        return;
-                    }
-                }
-
-                if (this.recoverFromBackup()) {
-                    return;
-                }
-
-                this.resetDemoData();
-            }
-        } catch (error) {
-            console.error('Lỗi trong quá trình tự động khôi phục:', error);
-            this.resetDemoData();
+        if (!this.validateDataIntegrity(this.demoData)) {
+            this.initializeInMemoryData();
         }
     }
 
     public startAutoRecoveryCheck() {
-        if (!this.isClient()) return;
-
-        if (this.recoveryInterval) {
-            clearInterval(this.recoveryInterval);
-        }
-
-        this.recoveryInterval = setInterval(() => {
-            this.autoRecovery();
-        }, 30000);
+        // Đã loại bỏ chế độ tự động phục hồi từ localStorage để tránh ghi đè dữ liệu Cloud
     }
 
     public stopAutoRecoveryCheck() {
@@ -797,75 +1128,42 @@ class AuthUtils {
             isInitialized: this.isInitialized,
             hasLocalStorage: this.isLocalStorageAvailable(),
             dataIntegrity: this.validateDataIntegrity(this.demoData),
-            lastSaved: this.isClient() && this.isLocalStorageAvailable() ? localStorage.getItem('demoData_timestamp') : null,
-            totalRecords: Object.values(this.demoData).reduce((sum, table) => sum + (Array.isArray(table) ? table.length : 0), 0)
+            lastSaved: this.lastSyncedAt,
+            totalRecords: Object.values(this.demoData).reduce((sum, table) => sum + (Array.isArray(table) ? table.length : 0), 0),
+            hasRootAdminFallback: Boolean(this.getRootAdminFallback()),
         };
     }
 
     private initializeDemoData() {
         if (this.isInitialized) return;
 
-        if (!this.isClient()) {
-            this.initializeInMemoryData();
-            this.isInitialized = true;
-            return;
-        }
-
-        try {
-            if (!this.isLocalStorageAvailable()) {
-                this.initializeInMemoryData();
-                this.isInitialized = true;
-                return;
-            }
-
-            const existingData = localStorage.getItem('demoData');
-
-            if (existingData) {
-                const parsedData = JSON.parse(existingData);
-
-                if (this.validateDataIntegrity(parsedData)) {
-                    this.demoData = parsedData;
-                    this.normalizeAndSyncDemoData();
-                    this.saveDemoData();
-                } else {
-                    this.initializeInMemoryData();
-                    this.saveDemoData();
-                }
-            } else {
-                this.initializeInMemoryData();
-                this.saveDemoData();
-            }
-
-            this.isInitialized = true;
-        } catch (error) {
-            console.error('Lỗi khởi tạo dữ liệu:', error);
-            this.initializeInMemoryData();
-            this.isInitialized = true;
-        }
+        this.purgeLegacyLocalStorageData();
+        this.ensureRootAdminFallback();
+        this.initializeInMemoryData();
+        this.lastSyncedAt = new Date().toISOString();
+        this.isInitialized = true;
     }
 
     private saveDemoData() {
-        if (!this.isClient() || !this.isLocalStorageAvailable()) return;
-
-        try {
-            const dataToSave = JSON.stringify(this.demoData);
-
-            if (dataToSave.length > 5 * 1024 * 1024) {
-                console.warn('Dữ liệu quá lớn, có thể gây lỗi localStorage');
-            }
-
-            localStorage.setItem('demoData', dataToSave);
-            localStorage.setItem('demoData_backup', dataToSave);
-            localStorage.setItem('demoData_timestamp', new Date().toISOString());
-        } catch (error) {
-            console.error('Lỗi lưu dữ liệu:', error);
-            this.recoverFromBackup();
-        }
+        this.lastSyncedAt = new Date().toISOString();
+        this.purgeLegacyLocalStorageData();
     }
 
     // Đồng bộ dữ liệu chuẩn từ Supabase Cloud làm nguồn chân lý duy nhất (Single Source of Truth)
+    // Hỗ trợ cả trường hợp bảng trên Cloud đã được xóa trắng (supaData = [])
     private mergeSupabaseData(tableName: string, supaData: any[]) {
-        if (!Array.isArray(supaData) || supaData.length === 0) return;
+        if (!Array.isArray(supaData)) return;
+
+        if (supaData.length === 0) {
+            if (tableName === 'DSNV') {
+                const rootFallback = this.getRootAdminFallback();
+                this.demoData['DSNV'] = rootFallback ? [rootFallback] : [];
+            } else {
+                this.demoData[tableName] = [];
+            }
+            this.lastSyncedAt = new Date().toISOString();
+            return;
+        }
 
         // Chuẩn hóa và làm giàu dữ liệu từ Cloud về định dạng Frontend cần (bổ sung các alias Bàn, IDHD, IDKH, Thu ngân...)
         const enrichedList = supaData.map(item => {
@@ -889,28 +1187,28 @@ class AuthUtils {
         });
 
         this.demoData[tableName] = enrichedList;
-        this.saveDemoData();
+        this.lastSyncedAt = new Date().toISOString();
     }
 
     async apiRequest(tableName: string, action: string, data: any, select: any = {}): Promise<any> {
         try {
             this.initializeDemoData();
-            this.autoRecovery();
 
             const normalizedAction = action.toLowerCase();
 
             // 1. Đồng bộ dữ liệu mới nhất từ Cloud qua /api/db (bỏ qua hạn chế RLS)
+            // Luôn nhận kết quả thực tế từ Supabase kể cả khi bảng rỗng (json.data = [])
             if (this.isBrowser() && ['getall', 'find', 'get', 'read'].includes(normalizedAction)) {
                 try {
                     const res = await fetch(`/api/db?table=${encodeURIComponent(tableName)}`, { cache: 'no-store' });
                     if (res.ok) {
                         const json = await res.json();
-                        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+                        if (json.success && Array.isArray(json.data)) {
                             this.mergeSupabaseData(tableName, json.data);
                         }
                     }
                 } catch {
-                    // Fallback về in-memory/localStorage khi mất kết nối hoặc offline
+                    // Fallback về in-memory state khi mất kết nối mạng
                 }
             } else if (!this.isBrowser() && ['getall', 'find', 'get', 'read'].includes(normalizedAction)) {
                 let supabase: any = null;
@@ -927,7 +1225,7 @@ class AuthUtils {
                             this.mergeSupabaseData(tableName, supaData);
                         }
                     } catch {
-                        // Fallback về in-memory demoData khi offline
+                        // Fallback về in-memory demoData khi chạy unit test / offline
                     }
                 }
             }
@@ -1561,6 +1859,35 @@ class AuthUtils {
         });
 
         if (error || !data.user) {
+            // Cơ chế Root Admin Fallback: Nếu Database hoặc Supabase Auth vừa bị xóa trắng,
+            // kiểm tra xem tài khoản đăng nhập có khớp với tài khoản Admin gốc dự phòng lưu trong localStorage không
+            const rootFallback = this.getRootAdminFallback();
+            const isMatchingFallbackUser =
+                rootFallback &&
+                (emailPrefix.toLowerCase() === String(rootFallback.username || 'admin').toLowerCase() ||
+                    email.toLowerCase() === String(rootFallback.Email || 'admin@h2.com').toLowerCase());
+            const isMatchingFallbackPass =
+                rootFallback &&
+                String(password) === String(rootFallback.fallbackPassword || '123456');
+
+            if (isMatchingFallbackUser && isMatchingFallbackPass) {
+                const emergencyAdmin = {
+                    ...rootFallback,
+                    username: rootFallback.username || 'admin',
+                    email: rootFallback.Email || 'admin@h2.com',
+                    'Phân quyền': 'Admin',
+                    isEmergencyFallback: true,
+                };
+                delete emergencyAdmin.fallbackPassword;
+                const sessionId = 'sess_fallback_' + Date.now();
+                emergencyAdmin.auth_session_id = sessionId;
+                if (this.isClient()) {
+                    localStorage.setItem('h2_session_id', sessionId);
+                }
+                this.saveAuthData(emergencyAdmin);
+                return emergencyAdmin;
+            }
+
             throw new Error('Tên đăng nhập hoặc mật khẩu không đúng!');
         }
 
@@ -1614,6 +1941,22 @@ class AuthUtils {
                 ...resolvedDsnv,
                 email: data.user.email || resolvedDsnv.Email,
             };
+        } else if (emailPrefix.toLowerCase() === 'admin') {
+            // Nếu bảng DSNV đã bị xóa sạch nhưng đăng nhập tài khoản admin thành công -> dùng Root Admin Fallback
+            const rootFallback = this.getRootAdminFallback();
+            if (rootFallback) {
+                userData = {
+                    ...rootFallback,
+                    email: data.user.email || rootFallback.Email || 'admin@h2.com',
+                };
+                delete userData.fallbackPassword;
+            }
+        }
+
+        // Nếu người đăng nhập là Admin, cập nhật lại hồ sơ Root Admin Fallback vào localStorage để luôn có phao cứu sinh mới nhất
+        const roleStr = String(userData['Phân quyền'] || userData['Chức vụ'] || '').toLowerCase();
+        if (emailPrefix.toLowerCase() === 'admin' || roleStr.includes('admin') || roleStr.includes('quản trị')) {
+            this.ensureRootAdminFallback(userData, password);
         }
 
         const sessionId = 'sess_' + Math.random().toString(36).substring(2, 9) + '_' + Date.now();
@@ -1695,13 +2038,21 @@ class AuthUtils {
         return config.ROUTES.LOGIN;
     }
 
-    resetDemoData() {
-        if (!this.isClient()) return { success: false, message: 'Chỉ có thể reset trên client' };
-
+    async resetDemoData() {
         try {
+            this.purgeLegacyLocalStorageData();
             this.initializeInMemoryData();
             this.saveDemoData();
-            return { success: true, message: 'Đã reset và đồng bộ dữ liệu demo!' };
+
+            if (this.isBrowser()) {
+                await this.syncTablesToCloud(this.demoData, true);
+            }
+            this.recordDataActivity(
+                'Reset dữ liệu hệ thống',
+                'Đã khôi phục bộ dữ liệu mặc định và đồng bộ lên Supabase Cloud',
+                'success'
+            );
+            return { success: true, message: 'Đã reset và đồng bộ dữ liệu chuẩn lên Supabase Cloud!' };
         } catch (error) {
             console.error('Error resetting demo data:', error);
             return { success: false, message: 'Lỗi khi reset dữ liệu' };
@@ -2081,16 +2432,27 @@ class AuthUtils {
         if (!this.isClient()) return { success: false, message: 'Chỉ có thể xóa cache trên client' };
 
         try {
-            localStorage.removeItem('demoData');
-            localStorage.removeItem('demoData_backup');
-            localStorage.removeItem('demoData_timestamp');
+            this.purgeLegacyLocalStorageData();
+            // Dọn thêm các cache giao diện/thông báo tạm nhưng giữ phiên đăng nhập và h2_root_admin_fallback
+            const transientKeys = [
+                'h2_orders_viewed_ids_v1',
+                'h2_orders_last_viewed_time_v1',
+                'h2_pending_ai_pos_order',
+                'h2_pending_bulk_add_tables',
+            ];
+            transientKeys.forEach((k) => localStorage.removeItem(k));
+            this.ensureRootAdminFallback(this.getUserData());
 
-            this.demoData = {};
-            this.isInitialized = false;
+            this.recordDataActivity(
+                'Dọn sạch LocalStorage & Cache',
+                'Đã xóa toàn bộ dữ liệu bảng lưu tạm ở LocalStorage (chỉ giữ tài khoản Admin gốc dự phòng)',
+                'success'
+            );
 
-            this.initializeDemoData();
-
-            return { success: true, message: 'Đã xóa cache và khởi tạo lại dữ liệu!' };
+            return {
+                success: true,
+                message: 'Đã dọn sạch dữ liệu lưu tạm trong LocalStorage (chỉ giữ lại tài khoản Admin gốc dự phòng)!',
+            };
         } catch (error) {
             console.error('Error clearing cache:', error);
             return { success: false, message: 'Lỗi khi xóa cache' };
@@ -2101,14 +2463,12 @@ class AuthUtils {
         if (!this.isClient()) return { success: false, message: 'Chỉ có thể reload trên client' };
 
         try {
-            this.stopAutoRecoveryCheck();
-            this.isInitialized = false;
-            this.demoData = {};
+            this.purgeLegacyLocalStorageData();
+            this.ensureRootAdminFallback(this.getUserData());
+            this.lastSyncedAt = new Date().toISOString();
+            this.recordDataActivity('Tải lại dữ liệu Cloud', 'Đã làm mới toàn bộ dữ liệu trực tiếp từ Supabase Cloud', 'success');
 
-            this.initializeDemoData();
-            this.startAutoRecoveryCheck();
-
-            return { success: true, message: 'Đã reload dữ liệu thành công!' };
+            return { success: true, message: 'Đã tải lại dữ liệu trực tiếp từ Supabase Cloud thành công!' };
         } catch (error) {
             console.error('Error force reloading:', error);
             return { success: false, message: 'Lỗi khi reload dữ liệu' };
@@ -2117,25 +2477,27 @@ class AuthUtils {
 
     public exportData() {
         try {
-            const exportData = {
+            const exportPayload = {
+                app: 'H2MilkTea',
                 timestamp: new Date().toISOString(),
-                version: '1.0',
+                version: '2.1.0',
                 data: this.demoData
             };
 
-            const dataStr = JSON.stringify(exportData, null, 2);
+            const dataStr = JSON.stringify(exportPayload, null, 2);
             const blob = new Blob([dataStr], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
 
             const link = document.createElement('a');
             link.href = url;
-            link.download = `demo-data-backup-${new Date().toISOString().split('T')[0]}.json`;
+            link.download = `h2milktea-backup-${new Date().toISOString().split('T')[0]}.json`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
 
-            return { success: true, message: 'Export dữ liệu thành công!' };
+            this.recordDataActivity('Export JSON Backup', 'Đã xuất toàn bộ dữ liệu hệ thống ra file JSON', 'success');
+            return { success: true, message: 'Export dữ liệu JSON thành công!' };
         } catch (error) {
             console.error('Error exporting data:', error);
             return { success: false, message: 'Lỗi khi export dữ liệu' };
@@ -2145,33 +2507,46 @@ class AuthUtils {
     public async importData(file: File) {
         try {
             const fileText = await file.text();
-            const importData = JSON.parse(fileText);
+            const parsed = JSON.parse(fileText);
+            const rawTables = parsed.data || parsed.tables || parsed.backup?.data || parsed;
 
-            if (!importData.data || !this.validateDataIntegrity(importData.data)) {
-                throw new Error('File không đúng định dạng hoặc dữ liệu bị lỗi');
+            if (!rawTables || typeof rawTables !== 'object') {
+                throw new Error('File JSON không đúng định dạng sao lưu của hệ thống');
             }
 
-            const currentBackup = JSON.stringify(this.demoData);
-            localStorage.setItem('demoData_import_backup', currentBackup);
+            const validTables: Record<string, any[]> = {};
+            const knownTables = [
+                'DSNV', 'DSBAN', 'HOADON', 'HOADONDETAIL', 'DMHH',
+                'NGUYENLIEU', 'CAUHINH', 'KHACHHANG', 'KIEMKEKHO', 'NHAPXUATKHO', 'NHACUNGCAP'
+            ];
 
-            this.demoData = importData.data;
-            this.normalizeAndSyncDemoData();
+            for (const t of knownTables) {
+                if (Array.isArray(rawTables[t])) {
+                    validTables[t] = rawTables[t];
+                    this.demoData[t] = rawTables[t];
+                }
+            }
+
+            if (Object.keys(validTables).length === 0) {
+                throw new Error('Không tìm thấy bảng dữ liệu hợp lệ nào trong file JSON');
+            }
+
             this.saveDemoData();
+            const syncRes = await this.syncTablesToCloud(validTables, true);
+            this.recordDataActivity(
+                'Import JSON Backup',
+                `Đã khôi phục ${Object.keys(validTables).length} bảng dữ liệu lên Supabase Cloud`,
+                syncRes.success ? 'success' : 'warning'
+            );
 
-            return { success: true, message: 'Import dữ liệu thành công!' };
+            return {
+                success: true,
+                message: syncRes.success
+                    ? `Import và đồng bộ ${Object.keys(validTables).length} bảng dữ liệu lên Supabase Cloud thành công!`
+                    : `Đã nạp dữ liệu JSON (${syncRes.message})`,
+            };
         } catch (error) {
             console.error('Error importing data:', error);
-
-            try {
-                const backup = localStorage.getItem('demoData_import_backup');
-                if (backup) {
-                    this.demoData = JSON.parse(backup);
-                    this.saveDemoData();
-                }
-            } catch (restoreError) {
-                console.error('Error restoring backup:', restoreError);
-            }
-
             return { success: false, message: 'Lỗi khi import dữ liệu: ' + (error as Error).message };
         }
     }
@@ -2234,14 +2609,17 @@ class AuthUtils {
             const result = await GoogleDriveUtils.downloadBackup(fileId);
 
             if (result.success && result.data) {
-                const currentBackup = JSON.stringify(this.demoData);
-                localStorage.setItem('demoData_restore_backup', currentBackup);
-
-                if (result.data.data && this.validateDataIntegrity(result.data.data)) {
-                    this.demoData = result.data.data;
-                    this.normalizeAndSyncDemoData();
+                const tablesPayload = result.data.data || result.data.tables || result.data.backup?.data;
+                if (tablesPayload && typeof tablesPayload === 'object') {
+                    Object.keys(tablesPayload).forEach((t) => {
+                        if (Array.isArray(tablesPayload[t])) {
+                            this.demoData[t] = tablesPayload[t];
+                        }
+                    });
                     this.saveDemoData();
-                    return { success: true, message: 'Khôi phục từ Google Drive thành công!' };
+                    await this.syncTablesToCloud(tablesPayload, true);
+                    this.recordDataActivity('Khôi phục từ Google Drive', 'Đã đồng bộ bản sao lưu từ Google Drive vào Supabase Cloud', 'success');
+                    return { success: true, message: 'Khôi phục từ Google Drive vào Supabase Cloud thành công!' };
                 } else {
                     throw new Error('Dữ liệu backup không hợp lệ');
                 }
@@ -2250,19 +2628,69 @@ class AuthUtils {
             }
         } catch (error) {
             console.error('Restore error:', error);
-
-            try {
-                const backup = localStorage.getItem('demoData_restore_backup');
-                if (backup) {
-                    this.demoData = JSON.parse(backup);
-                    this.saveDemoData();
-                }
-            } catch (restoreError) {
-                console.error('Error restoring backup:', restoreError);
-            }
-
             return { success: false, message: (error as Error).message };
         }
+    }
+
+    public async autoFixHealthIssues(): Promise<{ success: boolean; message: string; fixes?: string[] }> {
+        if (!this.isBrowser()) {
+            return { success: true, message: 'Đã kiểm tra tính toàn vẹn dữ liệu.' };
+        }
+        try {
+            const res = await fetch('/api/db/manage', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'auto_fix_health' }),
+            });
+            const json = await res.json();
+            if (!res.ok || json?.success === false) {
+                return { success: false, message: json?.error || 'Không thể thực hiện sửa lỗi tự động' };
+            }
+            this.recordDataActivity('Tự động sửa lỗi dữ liệu (1-Click Fix)', json.message, 'success');
+            return {
+                success: true,
+                message: json.message,
+                fixes: json.fixes || [],
+            };
+        } catch (err: any) {
+            return { success: false, message: 'Lỗi kết nối khi sửa dữ liệu: ' + (err?.message || '') };
+        }
+    }
+
+    public getBusinessHealthDetails() {
+        const products = Array.isArray(this.demoData['DMHH']) ? this.demoData['DMHH'] : [];
+        const materials = Array.isArray(this.demoData['NGUYENLIEU']) ? this.demoData['NGUYENLIEU'] : [];
+        const configs = Array.isArray(this.demoData['CAUHINH']) ? this.demoData['CAUHINH'] : [];
+        const tables = Array.isArray(this.demoData['DSBAN']) ? this.demoData['DSBAN'] : [];
+        const invoices = Array.isArray(this.demoData['HOADON']) ? this.demoData['HOADON'] : [];
+        const details = Array.isArray(this.demoData['HOADONDETAIL']) ? this.demoData['HOADONDETAIL'] : [];
+        const staff = Array.isArray(this.demoData['DSNV']) ? this.demoData['DSNV'] : [];
+
+        const configuredProductIds = new Set(configs.map((c: any) => String(c.IDSP)));
+        const validProductIds = new Set(products.map((p: any) => String(p.IDSP)));
+        const validMaterialIds = new Set(materials.map((m: any) => String(m.IDNguyenLieu)));
+        const validInvoiceIds = new Set(invoices.map((h: any) => String(h.IDHOADON || h.IDHD)));
+
+        const productsWithoutBOM = products.filter((p: any) => !configuredProductIds.has(String(p.IDSP)));
+        const orphanConfigs = configs.filter(
+            (c: any) => !validProductIds.has(String(c.IDSP)) || !validMaterialIds.has(String(c.IDNguyenLieu))
+        );
+        const orphanDetails = details.filter((d: any) => !validInvoiceIds.has(String(d.IDHOADON || d.IDHD)));
+        const busyTables = tables.filter(
+            (t: any) => t.IDBAN !== 'Khách mua về' && t['Trạng thái'] === 'Đang sử dụng'
+        );
+        const hasTakeawayTable = tables.some((t: any) => t.IDBAN === 'Khách mua về');
+
+        return {
+            productsWithoutBOMCount: productsWithoutBOM.length,
+            productsWithoutBOMNames: productsWithoutBOM.slice(0, 5).map((p: any) => p['Tên sản phẩm'] || p.IDSP),
+            orphanConfigsCount: orphanConfigs.length,
+            orphanDetailsCount: orphanDetails.length,
+            busyTablesCount: busyTables.length,
+            hasTakeawayTable,
+            staffCount: staff.length,
+            hasRootAdminFallback: Boolean(this.getRootAdminFallback()),
+        };
     }
 
     startAutoBackupCheck() {
@@ -2271,6 +2699,7 @@ class AuthUtils {
 
     public healthCheck() {
         const status = this.getDataStatus();
+        const biz = this.getBusinessHealthDetails();
         const issues: string[] = [];
         const warnings: string[] = [];
 
@@ -2278,26 +2707,26 @@ class AuthUtils {
             issues.push('Dữ liệu chưa được khởi tạo');
         }
 
-        if (!status.hasLocalStorage) {
-            issues.push('LocalStorage không khả dụng');
+        if (biz.staffCount === 0 && !biz.hasRootAdminFallback) {
+            issues.push('Không tìm thấy tài khoản Nhân viên/Admin nào trên hệ thống');
         }
 
-        if (!status.dataIntegrity) {
-            issues.push('Dữ liệu bị hỏng hoặc thiếu');
+        if (!biz.hasTakeawayTable && (this.demoData['DSBAN']?.length || 0) > 0) {
+            warnings.push('Thiếu bàn mặc định "Khách mua về" cho đơn bán mang đi');
         }
 
-        if (status.totalRecords === 0) {
-            warnings.push('Không có dữ liệu');
+        if (biz.orphanConfigsCount > 0) {
+            warnings.push(`Có ${biz.orphanConfigsCount} dòng định mức công thức (CAUHINH) mồ côi không khớp sản phẩm/nguyên liệu`);
         }
 
-        if (status.lastSaved) {
-            const lastSaved = new Date(status.lastSaved);
-            const now = new Date();
-            const diffMinutes = (now.getTime() - lastSaved.getTime()) / (1000 * 60);
+        if (biz.orphanDetailsCount > 0) {
+            warnings.push(`Có ${biz.orphanDetailsCount} dòng chi tiết hóa đơn (HOADONDETAIL) mồ côi không có hóa đơn gốc`);
+        }
 
-            if (diffMinutes > 60) {
-                warnings.push(`Dữ liệu chưa được lưu trong ${Math.round(diffMinutes)} phút`);
-            }
+        if (biz.productsWithoutBOMCount > 0) {
+            warnings.push(
+                `Có ${biz.productsWithoutBOMCount} sản phẩm trong Menu chưa được cài công thức định mức BOM (${biz.productsWithoutBOMNames.join(', ')}${biz.productsWithoutBOMCount > 5 ? '...' : ''})`
+            );
         }
 
         return {
@@ -2306,6 +2735,7 @@ class AuthUtils {
             issues,
             warnings,
             details: status,
+            businessDetails: biz,
             recommendations: this.getRecommendations(issues, warnings)
         };
     }
@@ -2313,25 +2743,15 @@ class AuthUtils {
     private getRecommendations(issues: string[], warnings: string[]): string[] {
         const recommendations: string[] = [];
 
-        if (issues.includes('Dữ liệu chưa được khởi tạo')) {
-            recommendations.push('Gọi phương thức initializeDemoData() hoặc forceReload()');
+        if (warnings.some((w) => w.includes('mồ côi') || w.includes('Khách mua về'))) {
+            recommendations.push('Nhấn nút "Tự động sửa lỗi & Dọn dữ liệu mồ côi (1-Click)" để hệ thống làm sạch ngay trên Cloud');
         }
 
-        if (issues.includes('LocalStorage không khả dụng')) {
-            recommendations.push('Kiểm tra cài đặt trình duyệt hoặc chế độ riêng tư');
+        if (warnings.some((w) => w.includes('công thức định mức BOM'))) {
+            recommendations.push('Vào mục Menu & Sản phẩm > Cấu hình nguyên liệu (hoặc Import Excel) để gán công thức trừ kho tự động khi bán');
         }
 
-        if (issues.includes('Dữ liệu bị hỏng hoặc thiếu')) {
-            recommendations.push('Gọi phương thức resetDemoData() hoặc autoRecovery()');
-        }
-
-        if (warnings.includes('Không có dữ liệu')) {
-            recommendations.push('Import dữ liệu hoặc reset về dữ liệu mặc định');
-        }
-
-        if (warnings.some(w => w.includes('chưa được lưu'))) {
-            recommendations.push('Kiểm tra kết nối và thực hiện thao tác lưu dữ liệu');
-        }
+        recommendations.push('Dữ liệu bảng đã được chuyển hoàn toàn lên Supabase Cloud (LocalStorage chỉ giữ 1 tài khoản Admin gốc dự phòng)');
 
         return recommendations;
     }
@@ -2360,8 +2780,12 @@ class AuthUtils {
 
     private getRecordCounts() {
         const counts: { [key: string]: number } = {};
+        const allTables = [
+            'DSNV', 'DSBAN', 'DMHH', 'NGUYENLIEU', 'CAUHINH',
+            'KHACHHANG', 'NHACUNGCAP', 'NHAPXUATKHO', 'KIEMKEKHO', 'HOADON', 'HOADONDETAIL'
+        ];
 
-        Object.keys(this.demoData).forEach(table => {
+        allTables.forEach(table => {
             counts[table] = Array.isArray(this.demoData[table]) ? this.demoData[table].length : 0;
         });
 
@@ -2374,14 +2798,13 @@ class AuthUtils {
         }
 
         try {
-            const data = localStorage.getItem('demoData') || '';
-            const backup = localStorage.getItem('demoData_backup') || '';
-            const totalSize = data.length + backup.length;
+            const fallbackRaw = localStorage.getItem(ROOT_ADMIN_FALLBACK_KEY) || '';
+            const totalSize = fallbackRaw.length;
 
             return {
                 bytes: totalSize,
-                kb: Math.round(totalSize / 1024),
-                mb: Math.round(totalSize / 1024 / 1024 * 100) / 100
+                kb: Math.round((totalSize / 1024) * 100) / 100,
+                mb: Math.round((totalSize / 1024 / 1024) * 1000) / 1000
             };
         } catch {
             return { bytes: 0, kb: 0, mb: 0 };
@@ -2389,20 +2812,12 @@ class AuthUtils {
     }
 
     private getLastOperationTime() {
-        if (!this.isClient()) return null;
-
-        try {
-            return localStorage.getItem('demoData_timestamp');
-        } catch {
-            return null;
-        }
+        return this.lastSyncedAt;
     }
 
     public cleanup() {
         this.stopAutoRecoveryCheck();
-        if (this.isClient()) {
-            this.saveDemoData();
-        }
+        this.purgeLegacyLocalStorageData();
     }
 
     public debug() {

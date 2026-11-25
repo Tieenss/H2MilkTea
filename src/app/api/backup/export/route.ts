@@ -8,11 +8,17 @@ export async function GET() {
   try {
     const supabase = createAdminSupabaseClient() || createBrowserClient();
 
-    // Các bảng cốt lõi của hệ thống H2 MilkTea
+    // Đầy đủ 11 bảng nghiệp vụ cốt lõi + các bảng vận hành POS của hệ thống H2 MilkTea
     const tables = [
-      'DMHH',
-      'DSBAN',
       'DSNV',
+      'DSBAN',
+      'DMHH',
+      'NGUYENLIEU',
+      'CAUHINH',
+      'KHACHHANG',
+      'NHACUNGCAP',
+      'NHAPXUATKHO',
+      'KIEMKEKHO',
       'HOADON',
       'HOADONDETAIL',
       'pos_orders',
@@ -31,8 +37,17 @@ export async function GET() {
           exportedData[table] = [];
           tableCounts[table] = 0;
         } else {
-          exportedData[table] = data || [];
-          tableCounts[table] = data?.length || 0;
+          let rows = data || [];
+          // Bảo mật: Không xuất mật khẩu thô của nhân viên ra file backup JSON
+          if (table === 'DSNV' && Array.isArray(rows)) {
+            rows = rows.map((r: any) => {
+              const safe = { ...r };
+              delete safe.password;
+              return safe;
+            });
+          }
+          exportedData[table] = rows;
+          tableCounts[table] = rows.length;
         }
       } catch (err) {
         console.warn(`Error querying table ${table}:`, err);
@@ -43,7 +58,7 @@ export async function GET() {
 
     const payload = {
       app: 'H2MilkTea',
-      version: '2.0.0',
+      version: '2.1.0',
       exportedAt: new Date().toISOString(),
       summary: tableCounts,
       data: exportedData,
@@ -51,7 +66,7 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      message: 'Xuất dữ liệu hệ thống thành công!',
+      message: 'Xuất dữ liệu hệ thống từ Supabase Cloud thành công!',
       backup: payload,
     });
   } catch (error: any) {
