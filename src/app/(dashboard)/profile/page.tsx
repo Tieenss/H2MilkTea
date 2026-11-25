@@ -514,41 +514,46 @@ const ProfilePage: React.FC = () => {
         }
 
         if (passwordData.newPassword !== passwordData.confirmPassword) {
-            toast.error('Mật khẩu mới không khớp');
-            return;
-        }
-
-        if (passwordData.currentPassword !== userData.password) {
-            toast.error('Mật khẩu hiện tại không đúng');
+            toast.error('Mật khẩu mới nhập 2 lần không khớp nhau');
             return;
         }
 
         try {
             setIsChangingPassword(true);
 
+            const res = await fetch('/api/auth/change-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    username: userData.username,
+                    currentPassword: passwordData.currentPassword,
+                    newPassword: passwordData.newPassword,
+                    confirmPassword: passwordData.confirmPassword,
+                }),
+            });
+
+            const json = await res.json();
+            if (!res.ok || !json.success) {
+                throw new Error(json.error || 'Đổi mật khẩu thất bại');
+            }
+
             const updatedUser = {
                 ...userData,
-                password: passwordData.newPassword
+                password: passwordData.newPassword,
             };
 
-            const result = await authUtils.updateNhanVien(userData.username, updatedUser);
-
-            if (!Array.isArray(result) && result.success) {
-                authUtils.saveAuthData(updatedUser);
-                setUserData(updatedUser);
-                toast.success('Đổi mật khẩu thành công');
-                setChangePassword(false);
-                setPasswordData({
-                    currentPassword: '',
-                    newPassword: '',
-                    confirmPassword: '',
-                });
-            } else {
-                throw new Error((!Array.isArray(result) && result.message) || 'Đổi mật khẩu thất bại');
-            }
+            authUtils.saveAuthData(updatedUser);
+            setUserData(updatedUser);
+            toast.success('Đổi mật khẩu thành công');
+            setChangePassword(false);
+            setPasswordData({
+                currentPassword: '',
+                newPassword: '',
+                confirmPassword: '',
+            });
         } catch (error: any) {
             console.error('Password change error:', error);
-            toast.error('Đổi mật khẩu thất bại: ' + (error.message || 'Lỗi không xác định'));
+            toast.error(error.message || 'Đổi mật khẩu thất bại');
         } finally {
             setIsChangingPassword(false);
         }

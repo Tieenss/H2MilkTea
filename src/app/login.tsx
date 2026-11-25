@@ -24,7 +24,13 @@ import {
     CreditCard,
     Users,
     Globe,
-    TrendingUp
+    TrendingUp,
+    Mail,
+    Phone,
+    KeyRound,
+    ArrowLeft,
+    CheckCircle2,
+    RefreshCw
 } from 'lucide-react';
 
 const LoginPage = () => {
@@ -37,6 +43,154 @@ const LoginPage = () => {
         username: '',
         password: ''
     });
+
+    // State cho luồng Quên mật khẩu (3 bước: request -> verify_otp -> reset_password)
+    const [forgotMode, setForgotMode] = useState(false);
+    const [forgotStep, setForgotStep] = useState<'request' | 'otp' | 'reset'>('request');
+    const [otpMethod, setOtpMethod] = useState<'phone' | 'email'>('email');
+    const [forgotContact, setForgotContact] = useState('');
+    const [forgotUsername, setForgotUsername] = useState('');
+    const [resolvedUsername, setResolvedUsername] = useState('');
+    const [destinationMasked, setDestinationMasked] = useState('');
+    const [otpCode, setOtpCode] = useState('');
+    const [simulatedOtpPreview, setSimulatedOtpPreview] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [confirmNewPassword, setConfirmNewPassword] = useState('');
+    const [showNewPassword, setShowNewPassword] = useState(false);
+    const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false);
+    const [forgotLoading, setForgotLoading] = useState(false);
+
+    const openForgotPassword = () => {
+        setForgotMode(true);
+        setForgotStep('request');
+        setForgotUsername(formData.username || '');
+        setForgotContact('');
+        setOtpCode('');
+        setSimulatedOtpPreview('');
+        setNewPassword('');
+        setConfirmNewPassword('');
+    };
+
+    const closeForgotPassword = () => {
+        setForgotMode(false);
+        setForgotStep('request');
+        setOtpCode('');
+        setSimulatedOtpPreview('');
+        setNewPassword('');
+        setConfirmNewPassword('');
+    };
+
+    const handleSendOtp = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!forgotContact.trim()) {
+            toast.error(
+                otpMethod === 'email'
+                    ? 'Vui lòng nhập Gmail / Email đã đăng ký!'
+                    : 'Vui lòng nhập Số điện thoại đã đăng ký!'
+            );
+            return;
+        }
+        setForgotLoading(true);
+        try {
+            const res = await fetch('/api/auth/forgot-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'send_otp',
+                    method: otpMethod,
+                    contact: forgotContact.trim(),
+                    username: forgotUsername.trim() || undefined,
+                }),
+            });
+            const json = await res.json();
+            if (!res.ok || !json.success) {
+                throw new Error(json.error || 'Không thể gửi mã OTP!');
+            }
+            setResolvedUsername(json.username);
+            setDestinationMasked(json.destinationMasked || forgotContact.trim());
+            setSimulatedOtpPreview(json.otpPreview || '');
+            setForgotStep('otp');
+            toast.success(json.message || 'Đã gửi mã xác nhận OTP!');
+        } catch (err: any) {
+            toast.error(err.message || 'Lỗi khi gửi mã OTP!');
+        } finally {
+            setForgotLoading(false);
+        }
+    };
+
+    const handleVerifyOtp = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!otpCode.trim() || otpCode.trim().length < 6) {
+            toast.error('Vui lòng nhập đủ 6 chữ số mã OTP!');
+            return;
+        }
+        setForgotLoading(true);
+        try {
+            const res = await fetch('/api/auth/forgot-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'verify_otp',
+                    username: resolvedUsername,
+                    otp: otpCode.trim(),
+                }),
+            });
+            const json = await res.json();
+            if (!res.ok || !json.success) {
+                throw new Error(json.error || 'Mã OTP không chính xác!');
+            }
+            setForgotStep('reset');
+            toast.success('Xác thực OTP thành công! Vui lòng nhập mật khẩu mới.');
+        } catch (err: any) {
+            toast.error(err.message || 'Xác thực OTP thất bại!');
+        } finally {
+            setForgotLoading(false);
+        }
+    };
+
+    const handleResetPassword = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newPassword || !confirmNewPassword) {
+            toast.error('Vui lòng nhập đầy đủ 2 lần mật khẩu mới!');
+            return;
+        }
+        if (newPassword.length < 6) {
+            toast.error('Mật khẩu mới phải có ít nhất 6 ký tự!');
+            return;
+        }
+        if (newPassword !== confirmNewPassword) {
+            toast.error('Mật khẩu mới nhập 2 lần không khớp nhau!');
+            return;
+        }
+        setForgotLoading(true);
+        try {
+            const res = await fetch('/api/auth/forgot-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'reset_password',
+                    username: resolvedUsername,
+                    otp: otpCode.trim(),
+                    newPassword,
+                    confirmPassword: confirmNewPassword,
+                }),
+            });
+            const json = await res.json();
+            if (!res.ok || !json.success) {
+                throw new Error(json.error || 'Đổi mật khẩu thất bại!');
+            }
+            toast.success('Đổi mật khẩu mới thành công! Vui lòng đăng nhập lại.');
+            setFormData({
+                username: resolvedUsername,
+                password: '',
+            });
+            closeForgotPassword();
+        } catch (err: any) {
+            toast.error(err.message || 'Lỗi khi đặt lại mật khẩu!');
+        } finally {
+            setForgotLoading(false);
+        }
+    };
 
     useEffect(() => {
         setMounted(true);
@@ -281,114 +435,380 @@ const LoginPage = () => {
                             <Card className="bg-white/95 backdrop-blur-xl shadow-2xl rounded-3xl border border-white/20 overflow-hidden">
                                 <CardContent className="p-6 sm:p-8">
                                     
-                                    {/* Header text on Card */}
-                                    <div className="mb-6 text-center">
-                                        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Đăng nhập tài khoản</h2>
-                                        <p className="text-xs sm:text-sm text-gray-500 mt-1">Truy cập vào hệ thống làm việc của bạn</p>
-                                    </div>
-
-                                    {/* Return URL Alert */}
-                                    {searchParams?.get('returnUrl') && (
-                                        <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-cyan-50 border-l-4 border-blue-500 rounded-lg">
-                                            <div className="flex items-center">
-                                                <Shield className="w-5 h-5 mr-3 text-blue-600 flex-shrink-0" />
-                                                <p className="text-sm font-medium text-blue-800">
-                                                    Yêu cầu xác thực để truy cập chức năng
-                                                </p>
+                                    {!forgotMode ? (
+                                        <>
+                                            {/* Header text on Card */}
+                                            <div className="mb-6 text-center">
+                                                <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Đăng nhập tài khoản</h2>
+                                                <p className="text-xs sm:text-sm text-gray-500 mt-1">Truy cập vào hệ thống làm việc của bạn</p>
                                             </div>
-                                        </div>
-                                    )}
 
-                                    <form onSubmit={handleSubmit} className="space-y-5">
-                                        {/* Username Field */}
-                                        <div className="space-y-2">
-                                            <Label className="text-sm font-bold text-gray-700 flex items-center">
-                                                <User className="w-4 h-4 mr-2 text-blue-600" />
-                                                Tên đăng nhập
-                                            </Label>
-                                            <div className="relative">
-                                                <Input
-                                                    name="username"
-                                                    type="text"
-                                                    required
-                                                    autoFocus
-                                                    placeholder="Nhập tên đăng nhập"
-                                                    className="pl-4 pr-4 py-3 sm:py-4 text-base bg-white border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-                                                    value={formData.username}
-                                                    onChange={handleChange}
-                                                />
-                                            </div>
-                                        </div>
-
-                                        {/* Password Field */}
-                                        <div className="space-y-2">
-                                            <Label className="text-sm font-bold text-gray-700 flex items-center">
-                                                <Lock className="w-4 h-4 mr-2 text-blue-600" />
-                                                Mật khẩu
-                                            </Label>
-                                            <div className="relative">
-                                                <Input
-                                                    name="password"
-                                                    type={showPassword ? 'text' : 'password'}
-                                                    required
-                                                    placeholder="Nhập mật khẩu"
-                                                    className="pl-4 pr-12 py-3 sm:py-4 text-base bg-white border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-                                                    value={formData.password}
-                                                    onChange={handleChange}
-                                                />
-                                                <button
-                                                    type="button"
-                                                    className="absolute inset-y-0 right-0 pr-4 flex items-center"
-                                                    onClick={() => setShowPassword(!showPassword)}
-                                                    tabIndex={-1}
-                                                >
-                                                    {showPassword ? (
-                                                        <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600 transition-colors" />
-                                                    ) : (
-                                                        <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600 transition-colors" />
-                                                    )}
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        {/* Remember Me */}
-                                        <div className="flex items-center justify-between pt-1">
-                                            <div className="flex items-center">
-                                                <input
-                                                    id="remember-me"
-                                                    name="remember-me"
-                                                    type="checkbox"
-                                                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
-                                                />
-                                                <label htmlFor="remember-me" className="ml-2 text-xs sm:text-sm text-gray-700 font-medium cursor-pointer">
-                                                    Ghi nhớ đăng nhập
-                                                </label>
-                                            </div>
-                                            <button type="button" className="text-xs sm:text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors">
-                                                Quên mật khẩu?
-                                            </button>
-                                        </div>
-
-                                        {/* Submit Button */}
-                                        <Button
-                                            type="submit"
-                                            disabled={loading}
-                                            className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white rounded-xl py-3.5 sm:py-4 text-base font-bold transition-all duration-200 shadow-xl hover:shadow-2xl transform hover:scale-[1.01]"
-                                        >
-                                            {loading ? (
-                                                <div className="flex items-center justify-center">
-                                                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-3"></div>
-                                                    Đang xử lý...
-                                                </div>
-                                            ) : (
-                                                <div className="flex items-center justify-center">
-                                                    <Shield className="w-5 h-5 mr-2 sm:mr-3" />
-                                                    Đăng nhập hệ thống
-                                                    <ArrowRight className="ml-2 sm:ml-3 w-5 h-5" />
+                                            {/* Return URL Alert */}
+                                            {searchParams?.get('returnUrl') && (
+                                                <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-cyan-50 border-l-4 border-blue-500 rounded-lg">
+                                                    <div className="flex items-center">
+                                                        <Shield className="w-5 h-5 mr-3 text-blue-600 flex-shrink-0" />
+                                                        <p className="text-sm font-medium text-blue-800">
+                                                            Yêu cầu xác thực để truy cập chức năng
+                                                        </p>
+                                                    </div>
                                                 </div>
                                             )}
-                                        </Button>
-                                    </form>
+
+                                            <form onSubmit={handleSubmit} className="space-y-5">
+                                                {/* Username Field */}
+                                                <div className="space-y-2">
+                                                    <Label className="text-sm font-bold text-gray-700 flex items-center">
+                                                        <User className="w-4 h-4 mr-2 text-blue-600" />
+                                                        Tên đăng nhập
+                                                    </Label>
+                                                    <div className="relative">
+                                                        <Input
+                                                            name="username"
+                                                            type="text"
+                                                            required
+                                                            autoFocus
+                                                            placeholder="Nhập tên đăng nhập"
+                                                            className="pl-4 pr-4 py-3 sm:py-4 text-base bg-white border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                                                            value={formData.username}
+                                                            onChange={handleChange}
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                {/* Password Field */}
+                                                <div className="space-y-2">
+                                                    <Label className="text-sm font-bold text-gray-700 flex items-center">
+                                                        <Lock className="w-4 h-4 mr-2 text-blue-600" />
+                                                        Mật khẩu
+                                                    </Label>
+                                                    <div className="relative">
+                                                        <Input
+                                                            name="password"
+                                                            type={showPassword ? 'text' : 'password'}
+                                                            required
+                                                            placeholder="Nhập mật khẩu"
+                                                            className="pl-4 pr-12 py-3 sm:py-4 text-base bg-white border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                                                            value={formData.password}
+                                                            onChange={handleChange}
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            className="absolute inset-y-0 right-0 pr-4 flex items-center"
+                                                            onClick={() => setShowPassword(!showPassword)}
+                                                            tabIndex={-1}
+                                                        >
+                                                            {showPassword ? (
+                                                                <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600 transition-colors" />
+                                                            ) : (
+                                                                <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600 transition-colors" />
+                                                            )}
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Remember Me */}
+                                                <div className="flex items-center justify-between pt-1">
+                                                    <div className="flex items-center">
+                                                        <input
+                                                            id="remember-me"
+                                                            name="remember-me"
+                                                            type="checkbox"
+                                                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
+                                                        />
+                                                        <label htmlFor="remember-me" className="ml-2 text-xs sm:text-sm text-gray-700 font-medium cursor-pointer">
+                                                            Ghi nhớ đăng nhập
+                                                        </label>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={openForgotPassword}
+                                                        className="text-xs sm:text-sm text-blue-600 hover:text-blue-800 font-semibold transition-colors cursor-pointer"
+                                                    >
+                                                        Quên mật khẩu?
+                                                    </button>
+                                                </div>
+
+                                                {/* Submit Button */}
+                                                <Button
+                                                    type="submit"
+                                                    disabled={loading}
+                                                    className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white rounded-xl py-3.5 sm:py-4 text-base font-bold transition-all duration-200 shadow-xl hover:shadow-2xl transform hover:scale-[1.01]"
+                                                >
+                                                    {loading ? (
+                                                        <div className="flex items-center justify-center">
+                                                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mr-3"></div>
+                                                            Đang xử lý...
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center justify-center">
+                                                            <Shield className="w-5 h-5 mr-2 sm:mr-3" />
+                                                            Đăng nhập hệ thống
+                                                            <ArrowRight className="ml-2 sm:ml-3 w-5 h-5" />
+                                                        </div>
+                                                    )}
+                                                </Button>
+                                            </form>
+                                        </>
+                                    ) : (
+                                        <div className="space-y-5">
+                                            {/* Header Quên mật khẩu */}
+                                            <div className="flex items-center justify-between">
+                                                <button
+                                                    type="button"
+                                                    onClick={closeForgotPassword}
+                                                    className="inline-flex items-center text-xs sm:text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors"
+                                                >
+                                                    <ArrowLeft className="w-4 h-4 mr-1" />
+                                                    Quay lại đăng nhập
+                                                </button>
+                                                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">
+                                                    {forgotStep === 'request'
+                                                        ? 'Bước 1/3: Nhận OTP'
+                                                        : forgotStep === 'otp'
+                                                        ? 'Bước 2/3: Xác nhận OTP'
+                                                        : 'Bước 3/3: Mật khẩu mới'}
+                                                </span>
+                                            </div>
+
+                                            <div className="text-center">
+                                                <h2 className="text-xl sm:text-2xl font-bold text-gray-800">
+                                                    {forgotStep === 'request'
+                                                        ? 'Quên mật khẩu'
+                                                        : forgotStep === 'otp'
+                                                        ? 'Nhập mã xác nhận OTP'
+                                                        : 'Thiết lập mật khẩu mới'}
+                                                </h2>
+                                                <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                                                    {forgotStep === 'request'
+                                                        ? 'Chọn phương thức nhận mã OTP qua Gmail hoặc Số điện thoại đăng ký'
+                                                        : forgotStep === 'otp'
+                                                        ? `Mã xác nhận 6 số đã được gửi tới ${destinationMasked}`
+                                                        : `Đặt lại mật khẩu cho tài khoản: ${resolvedUsername}`}
+                                                </p>
+                                            </div>
+
+                                            {/* BƯỚC 1: CHỌN GỬI OTP QUA GMAIL HOẶC SĐT */}
+                                            {forgotStep === 'request' && (
+                                                <form onSubmit={handleSendOtp} className="space-y-4">
+                                                    <div className="grid grid-cols-2 gap-2 p-1 bg-gray-100 rounded-xl">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setOtpMethod('email');
+                                                                setForgotContact('');
+                                                            }}
+                                                            className={`flex items-center justify-center py-2.5 px-3 rounded-lg text-xs sm:text-sm font-bold transition-all ${
+                                                                otpMethod === 'email'
+                                                                    ? 'bg-white text-blue-600 shadow-sm'
+                                                                    : 'text-gray-600 hover:text-gray-900'
+                                                            }`}
+                                                        >
+                                                            <Mail className="w-4 h-4 mr-1.5" />
+                                                            Qua Gmail
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setOtpMethod('phone');
+                                                                setForgotContact('');
+                                                            }}
+                                                            className={`flex items-center justify-center py-2.5 px-3 rounded-lg text-xs sm:text-sm font-bold transition-all ${
+                                                                otpMethod === 'phone'
+                                                                    ? 'bg-white text-blue-600 shadow-sm'
+                                                                    : 'text-gray-600 hover:text-gray-900'
+                                                            }`}
+                                                        >
+                                                            <Phone className="w-4 h-4 mr-1.5" />
+                                                            Qua Số điện thoại
+                                                        </button>
+                                                    </div>
+
+                                                    <div className="space-y-1.5">
+                                                        <Label className="text-xs sm:text-sm font-bold text-gray-700 flex items-center">
+                                                            <User className="w-4 h-4 mr-1.5 text-blue-600" />
+                                                            Tên đăng nhập (không bắt buộc)
+                                                        </Label>
+                                                        <Input
+                                                            type="text"
+                                                            placeholder="VD: admin, thungan, bep..."
+                                                            className="py-2.5 text-sm bg-white border-2 border-gray-200 rounded-xl focus:border-blue-500"
+                                                            value={forgotUsername}
+                                                            onChange={(e) => setForgotUsername(e.target.value)}
+                                                        />
+                                                    </div>
+
+                                                    <div className="space-y-1.5">
+                                                        <Label className="text-xs sm:text-sm font-bold text-gray-700 flex items-center">
+                                                            {otpMethod === 'email' ? (
+                                                                <>
+                                                                    <Mail className="w-4 h-4 mr-1.5 text-blue-600" />
+                                                                    Địa chỉ Gmail / Email đăng ký <span className="text-red-500 ml-1">*</span>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Phone className="w-4 h-4 mr-1.5 text-blue-600" />
+                                                                    Số điện thoại đăng ký <span className="text-red-500 ml-1">*</span>
+                                                                </>
+                                                            )}
+                                                        </Label>
+                                                        <Input
+                                                            type={otpMethod === 'email' ? 'email' : 'tel'}
+                                                            required
+                                                            autoFocus
+                                                            placeholder={
+                                                                otpMethod === 'email'
+                                                                    ? 'Nhập Gmail đã đăng ký (VD: admin@gmail.com)'
+                                                                    : 'Nhập SĐT đã đăng ký (VD: 0901234567)'
+                                                            }
+                                                            className="py-3 text-base bg-white border-2 border-gray-300 rounded-xl focus:border-blue-500"
+                                                            value={forgotContact}
+                                                            onChange={(e) => setForgotContact(e.target.value)}
+                                                        />
+                                                    </div>
+
+                                                    <Button
+                                                        type="submit"
+                                                        disabled={forgotLoading}
+                                                        className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white rounded-xl py-3.5 text-base font-bold shadow-lg"
+                                                    >
+                                                        {forgotLoading ? 'Đang gửi mã OTP...' : 'Gửi mã xác nhận OTP'}
+                                                    </Button>
+                                                </form>
+                                            )}
+
+                                            {/* BƯỚC 2: NHẬP MÃ XÁC NHẬN OTP */}
+                                            {forgotStep === 'otp' && (
+                                                <form onSubmit={handleVerifyOtp} className="space-y-4">
+                                                    {simulatedOtpPreview && (
+                                                        <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs sm:text-sm text-emerald-900">
+                                                            <div className="font-bold flex items-center text-emerald-800">
+                                                                <CheckCircle2 className="w-4 h-4 mr-1.5 text-emerald-600" />
+                                                                Tin nhắn hệ thống ({otpMethod === 'email' ? 'Gmail' : 'SMS'}):
+                                                            </div>
+                                                            <p className="mt-1">
+                                                                Mã OTP khôi phục mật khẩu cho tài khoản <b>{resolvedUsername}</b> là:{' '}
+                                                                <span className="font-mono text-base font-extrabold px-2 py-0.5 bg-white border border-emerald-300 rounded text-emerald-700">
+                                                                    {simulatedOtpPreview}
+                                                                </span>
+                                                            </p>
+                                                        </div>
+                                                    )}
+
+                                                    <div className="space-y-2">
+                                                        <Label className="text-sm font-bold text-gray-700 flex items-center">
+                                                            <KeyRound className="w-4 h-4 mr-2 text-blue-600" />
+                                                            Mã xác nhận OTP (6 chữ số)
+                                                        </Label>
+                                                        <Input
+                                                            type="text"
+                                                            inputMode="numeric"
+                                                            maxLength={6}
+                                                            required
+                                                            autoFocus
+                                                            placeholder="Nhập 6 số OTP"
+                                                            className="py-3 text-center tracking-[0.4em] font-mono text-lg font-bold bg-white border-2 border-gray-300 rounded-xl focus:border-blue-500"
+                                                            value={otpCode}
+                                                            onChange={(e) => setOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
+                                                        />
+                                                    </div>
+
+                                                    <div className="flex items-center justify-between text-xs text-gray-500">
+                                                        <span>Hiệu lực trong 5 phút</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleSendOtp}
+                                                            disabled={forgotLoading}
+                                                            className="inline-flex items-center text-blue-600 hover:text-blue-800 font-semibold"
+                                                        >
+                                                            <RefreshCw className="w-3.5 h-3.5 mr-1" />
+                                                            Gửi lại mã OTP
+                                                        </button>
+                                                    </div>
+
+                                                    <Button
+                                                        type="submit"
+                                                        disabled={forgotLoading}
+                                                        className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white rounded-xl py-3.5 text-base font-bold shadow-lg"
+                                                    >
+                                                        {forgotLoading ? 'Đang kiểm tra...' : 'Xác nhận mã OTP'}
+                                                    </Button>
+                                                </form>
+                                            )}
+
+                                            {/* BƯỚC 3: NHẬP MẬT KHẨU MỚI 2 LẦN */}
+                                            {forgotStep === 'reset' && (
+                                                <form onSubmit={handleResetPassword} className="space-y-4">
+                                                    <div className="space-y-1.5">
+                                                        <Label className="text-sm font-bold text-gray-700 flex items-center">
+                                                            <Lock className="w-4 h-4 mr-2 text-blue-600" />
+                                                            Mật khẩu mới <span className="text-red-500 ml-1">*</span>
+                                                        </Label>
+                                                        <div className="relative">
+                                                            <Input
+                                                                type={showNewPassword ? 'text' : 'password'}
+                                                                required
+                                                                autoFocus
+                                                                placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)"
+                                                                className="pl-4 pr-10 py-3 text-base bg-white border-2 border-gray-300 rounded-xl focus:border-blue-500"
+                                                                value={newPassword}
+                                                                onChange={(e) => setNewPassword(e.target.value)}
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                                                                onClick={() => setShowNewPassword(!showNewPassword)}
+                                                                tabIndex={-1}
+                                                            >
+                                                                {showNewPassword ? (
+                                                                    <EyeOff className="h-5 w-5 text-gray-400" />
+                                                                ) : (
+                                                                    <Eye className="h-5 w-5 text-gray-400" />
+                                                                )}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="space-y-1.5">
+                                                        <Label className="text-sm font-bold text-gray-700 flex items-center">
+                                                            <Lock className="w-4 h-4 mr-2 text-blue-600" />
+                                                            Nhập lại mật khẩu mới <span className="text-red-500 ml-1">*</span>
+                                                        </Label>
+                                                        <div className="relative">
+                                                            <Input
+                                                                type={showConfirmNewPassword ? 'text' : 'password'}
+                                                                required
+                                                                placeholder="Nhập lại mật khẩu mới"
+                                                                className="pl-4 pr-10 py-3 text-base bg-white border-2 border-gray-300 rounded-xl focus:border-blue-500"
+                                                                value={confirmNewPassword}
+                                                                onChange={(e) => setConfirmNewPassword(e.target.value)}
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                                                                onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
+                                                                tabIndex={-1}
+                                                            >
+                                                                {showConfirmNewPassword ? (
+                                                                    <EyeOff className="h-5 w-5 text-gray-400" />
+                                                                ) : (
+                                                                    <Eye className="h-5 w-5 text-gray-400" />
+                                                                )}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    <Button
+                                                        type="submit"
+                                                        disabled={forgotLoading}
+                                                        className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white rounded-xl py-3.5 text-base font-bold shadow-lg"
+                                                    >
+                                                        {forgotLoading ? 'Đang đổi mật khẩu...' : 'Xác nhận đổi mật khẩu'}
+                                                    </Button>
+                                                </form>
+                                            )}
+                                        </div>
+                                    )}
 
                                     {/* Footer */}
                                     <div className="mt-6 sm:mt-8 text-center space-y-2">
