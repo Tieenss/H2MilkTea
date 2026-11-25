@@ -2,29 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { createAdminSupabaseClient } from '@/lib/supabase/server';
-import { syncPasswordToSupabaseAuth } from '../change-password/route';
+import {
+  syncPasswordToSupabaseAuth,
+  memoryOtpStore,
+  type OtpRecord,
+} from '@/lib/supabase/passwordSync';
 import dsnvFallback from '@/data/DSNV.json';
 
 export const dynamic = 'force-dynamic';
 
 const OTP_SETTINGS_KEY = 'auth_password_reset_otps';
 const OTP_TTL_MS = 5 * 60 * 1000; // 5 phút
-
-export interface OtpRecord {
-  username: string;
-  email: string;
-  phone: string;
-  method: 'email' | 'phone';
-  contact: string;
-  otp: string;
-  usedSupabaseOtp?: boolean;
-  verified: boolean;
-  expiresAt: number;
-  createdAt: number;
-}
-
-// Bộ nhớ đệm trong RAM phòng trường hợp chạy local/test
-export const memoryOtpStore = new Map<string, OtpRecord>();
 
 function normalizePhone(phone?: string | null): string {
   if (!phone) return '';

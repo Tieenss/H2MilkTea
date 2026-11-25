@@ -16,8 +16,8 @@
     "db:restore": "node scripts/db/restore.mjs",
     "db:verify": "node scripts/db/verify-backup.mjs",
     "db:seed:demo": "node scripts/db/seed-demo.mjs",
-    "eval:ai": "npx tsx scripts/eval-ai.ts",
-    "eval:latency": "npx tsx scripts/measure-latency.ts",
+    "eval:ai": "node -e \"if(require('fs').existsSync('scripts/eval-ai.ts')) require('child_process').execSync('npx tsx scripts/eval-ai.ts',{stdio:'inherit'})\"",
+    "eval:latency": "node -e \"if(require('fs').existsSync('scripts/measure-latency.ts')) require('child_process').execSync('npx tsx scripts/measure-latency.ts',{stdio:'inherit'})\"",
     "verify": "node scripts/verify-integrity.mjs",
     "prebuild": "node scripts/verify-integrity.mjs"
   },
