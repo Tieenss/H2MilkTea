@@ -52,8 +52,8 @@ const LoginPage = () => {
     const [forgotUsername, setForgotUsername] = useState('');
     const [resolvedUsername, setResolvedUsername] = useState('');
     const [destinationMasked, setDestinationMasked] = useState('');
+    const [deliveryMessage, setDeliveryMessage] = useState('');
     const [otpCode, setOtpCode] = useState('');
-    const [simulatedOtpPreview, setSimulatedOtpPreview] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [confirmNewPassword, setConfirmNewPassword] = useState('');
     const [showNewPassword, setShowNewPassword] = useState(false);
@@ -66,7 +66,7 @@ const LoginPage = () => {
         setForgotUsername(formData.username || '');
         setForgotContact('');
         setOtpCode('');
-        setSimulatedOtpPreview('');
+        setDeliveryMessage('');
         setNewPassword('');
         setConfirmNewPassword('');
     };
@@ -75,7 +75,7 @@ const LoginPage = () => {
         setForgotMode(false);
         setForgotStep('request');
         setOtpCode('');
-        setSimulatedOtpPreview('');
+        setDeliveryMessage('');
         setNewPassword('');
         setConfirmNewPassword('');
     };
@@ -108,7 +108,7 @@ const LoginPage = () => {
             }
             setResolvedUsername(json.username);
             setDestinationMasked(json.destinationMasked || forgotContact.trim());
-            setSimulatedOtpPreview(json.otpPreview || '');
+            setDeliveryMessage(json.message || '');
             setForgotStep('otp');
             toast.success(json.message || 'Đã gửi mã xác nhận OTP!');
         } catch (err: any) {
@@ -680,36 +680,29 @@ const LoginPage = () => {
                                             {/* BƯỚC 2: NHẬP MÃ XÁC NHẬN OTP */}
                                             {forgotStep === 'otp' && (
                                                 <form onSubmit={handleVerifyOtp} className="space-y-4">
-                                                    {simulatedOtpPreview && (
-                                                        <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs sm:text-sm text-emerald-900">
-                                                            <div className="font-bold flex items-center text-emerald-800">
-                                                                <CheckCircle2 className="w-4 h-4 mr-1.5 text-emerald-600" />
-                                                                Tin nhắn hệ thống ({otpMethod === 'email' ? 'Gmail' : 'SMS'}):
-                                                            </div>
-                                                            <p className="mt-1">
-                                                                Mã OTP khôi phục mật khẩu cho tài khoản <b>{resolvedUsername}</b> là:{' '}
-                                                                <span className="font-mono text-base font-extrabold px-2 py-0.5 bg-white border border-emerald-300 rounded text-emerald-700">
-                                                                    {simulatedOtpPreview}
-                                                                </span>
-                                                            </p>
+                                                    <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl text-xs sm:text-sm text-blue-900">
+                                                        <div className="font-bold flex items-center text-blue-800">
+                                                            <CheckCircle2 className="w-4 h-4 mr-1.5 text-blue-600 flex-shrink-0" />
+                                                            Đã gửi mã xác thực bảo mật:
                                                         </div>
-                                                    )}
+                                                        <p className="mt-1 leading-relaxed">
+                                                            {deliveryMessage || `Mã OTP 6 chữ số đã được gửi tới ${destinationMasked}. Vui lòng kiểm tra hộp thư đến (hoặc mục Thư rác/Spam) và tin nhắn điện thoại của bạn.`}
+                                                        </p>
+                                                    </div>
 
                                                     <div className="space-y-2">
                                                         <Label className="text-sm font-bold text-gray-700 flex items-center">
                                                             <KeyRound className="w-4 h-4 mr-2 text-blue-600" />
-                                                            Mã xác nhận OTP (6 chữ số)
+                                                            Mã xác nhận OTP (6 số) hoặc Link xác thực trong Email
                                                         </Label>
                                                         <Input
                                                             type="text"
-                                                            inputMode="numeric"
-                                                            maxLength={6}
                                                             required
                                                             autoFocus
-                                                            placeholder="Nhập 6 số OTP"
-                                                            className="py-3 text-center tracking-[0.4em] font-mono text-lg font-bold bg-white border-2 border-gray-300 rounded-xl focus:border-blue-500"
+                                                            placeholder="Nhập 6 số OTP (hoặc dán Link xác nhận từ Email)"
+                                                            className="py-3 text-center font-mono text-base font-bold bg-white border-2 border-gray-300 rounded-xl focus:border-blue-500"
                                                             value={otpCode}
-                                                            onChange={(e) => setOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
+                                                            onChange={(e) => setOtpCode(e.target.value.trim())}
                                                         />
                                                     </div>
 

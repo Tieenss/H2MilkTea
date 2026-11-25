@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
-import { POST as forgotPasswordPOST } from '@/app/api/auth/forgot-password/route';
+import { POST as forgotPasswordPOST, memoryOtpStore } from '@/app/api/auth/forgot-password/route';
 import { POST as changePasswordPOST } from '@/app/api/auth/change-password/route';
 
 const mockUpdateUserById = vi.fn().mockResolvedValue({ data: { user: { id: 'u1' } }, error: null });
@@ -89,9 +89,13 @@ describe('Luồng Quên mật khẩu (OTP Email/SĐT) & Đổi mật khẩu khi 
     expect(res1.status).toBe(200);
     expect(json1.success).toBe(true);
     expect(json1.username).toBe('thungan');
-    expect(json1.otpPreview).toMatch(/^\d{6}$/);
+    // Đảm bảo API tuyệt đối không trả mã OTP về client
+    expect(json1.otpPreview).toBeUndefined();
 
-    const otp = json1.otpPreview;
+    const storedRecord = memoryOtpStore.get('thungan');
+    expect(storedRecord).toBeDefined();
+    const otp = storedRecord!.otp;
+    expect(otp).toMatch(/^\d{6}$/);
 
     // Bước 2: Nhập sai OTP -> bị chặn
     const reqWrongOtp = new NextRequest('http://localhost:3000/api/auth/forgot-password', {
