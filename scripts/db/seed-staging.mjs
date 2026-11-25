@@ -52,11 +52,27 @@ async function runSeed() {
   const testStaffAccounts = [
     {
       username: 'admin',
+      email: 'admin@h2.com',
+      password: 'Password123!',
+      fullName: 'Quản trị viên (Admin)',
+      role: 'Admin',
+      position: 'Quản lý'
+    },
+    {
+      username: 'admin',
       email: 'admin@gmail.com',
       password: 'Password123!',
       fullName: 'Quản trị viên (Admin)',
       role: 'Admin',
       position: 'Quản lý'
+    },
+    {
+      username: 'maillo',
+      email: 'maillo@h2.com',
+      password: 'Password123!',
+      fullName: 'Trần Tiến',
+      role: 'Admin',
+      position: 'RND'
     },
     {
       username: 'maillo',
@@ -156,9 +172,10 @@ async function runSeed() {
 
       // Nếu là DSNV, bổ sung thêm các account test
       if (table === 'DSNV') {
-        const existingEmails = new Set(records.map(r => r.Email || r.email));
+        const existingUsernames = new Set(records.map(r => r.username));
         for (const st of testStaffAccounts) {
-          if (!existingEmails.has(st.email)) {
+          if (!existingUsernames.has(st.username)) {
+            existingUsernames.add(st.username);
             records.push({
               _RowNumber: String(records.length + 2),
               username: st.username,
