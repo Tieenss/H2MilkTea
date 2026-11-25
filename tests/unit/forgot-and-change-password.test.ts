@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
-import { POST as forgotPasswordPOST, memoryOtpStore } from '@/app/api/auth/forgot-password/route';
+import { POST as forgotPasswordPOST } from '@/app/api/auth/forgot-password/route';
 import { POST as changePasswordPOST } from '@/app/api/auth/change-password/route';
+import { memoryOtpStore } from '@/lib/supabase/passwordSync';
 
 const mockUpdateUserById = vi.fn().mockResolvedValue({ data: { user: { id: 'u1' } }, error: null });
 const mockCreateUser = vi.fn().mockResolvedValue({ data: { user: { id: 'u2' } }, error: null });
