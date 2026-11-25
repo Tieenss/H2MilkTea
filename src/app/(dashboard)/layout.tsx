@@ -11,7 +11,6 @@ import { cn } from '@/lib/utils';
 import { TodayOrdersProvider } from '@/context/TodayOrdersContext';
 import { GlobalPosSyncProvider } from '@/components/GlobalPosSyncProvider';
 import { GlobalAssistant } from '@/components/GlobalAssistant';
-import { QABugReporter } from '@/components/QABugReporter';
 import { useSingleActiveSession } from '@/hooks/useSingleActiveSession';
 
 export default function DashboardLayout({
@@ -140,8 +139,6 @@ export default function DashboardLayout({
       <ScrollToTop />
       {/* Trợ lý AI toàn hệ thống nhận diện ngữ cảnh từng trang (Mục #16) */}
       <GlobalAssistant />
-      {/* Công cụ Bắt lỗi & Checklist Kiểm thử QA trực tiếp trên từng màn hình */}
-      <QABugReporter />
       </GlobalPosSyncProvider>
     </TodayOrdersProvider>
   );

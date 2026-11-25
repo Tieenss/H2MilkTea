@@ -1,7 +1,6 @@
 'use client';
 
 import { CartProvider } from './context/CartContext';
-import { QABugReporter } from '@/components/QABugReporter';
 
 export default function OrderLayout({
   children,
@@ -13,7 +12,6 @@ export default function OrderLayout({
       <div className="min-h-screen bg-gradient-to-b from-orange-50 via-white to-orange-50/30">
         {children}
       </div>
-      <QABugReporter />
     </CartProvider>
   );
 }

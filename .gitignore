@@ -49,3 +49,8 @@ supabase/.temp/
 
 # local runtime data & logs
 /data/
+
+# thesis documents & temporary files
+*.docx
+*.pdf
+.agents/mcp_config.json
