@@ -82,7 +82,11 @@ export const ClearCacheProgressModal: React.FC<ClearCacheProgressModalProps> = (
 
         try {
           if (typeof window !== 'undefined') {
+            const rootAdminFallback = window.localStorage?.getItem('h2_root_admin_fallback');
             window.localStorage?.clear();
+            if (rootAdminFallback) {
+              window.localStorage?.setItem('h2_root_admin_fallback', rootAdminFallback);
+            }
             window.sessionStorage?.clear();
           }
         } catch (e) {

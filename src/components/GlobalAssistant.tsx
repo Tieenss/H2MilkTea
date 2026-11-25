@@ -50,22 +50,10 @@ async function fetchLiveTableData(
       }
     }
   } catch {
-    // Fallback to runtime localStorage cache when offline or API unavailable
+    // Cloud API unavailable
   }
 
-  try {
-    const localDataStr = typeof window !== 'undefined' ? localStorage.getItem('demoData') : null;
-    if (localDataStr) {
-      const parsed = JSON.parse(localDataStr);
-      if (Array.isArray(parsed?.[tableName])) {
-        return { rows: parsed[tableName], source: 'local' };
-      }
-    }
-  } catch {
-    // Ignore localStorage parse error
-  }
-
-  return { rows: [], source: 'local' };
+  return { rows: [], source: 'api' };
 }
 
 export interface AssistantOrderItem {

@@ -483,16 +483,6 @@ class GoogleDriveUtils {
 
         const backupPayload = dl.data.tables ? dl.data : dl.data.backup || dl.data;
 
-        if (typeof window !== 'undefined' && backupPayload.localStorageData) {
-          Object.entries(backupPayload.localStorageData).forEach(([k, v]) => {
-            if (typeof v === 'string') {
-              localStorage.setItem(k, v);
-            } else if (v !== undefined && v !== null) {
-              localStorage.setItem(k, JSON.stringify(v));
-            }
-          });
-        }
-
         const tablesPayload = backupPayload.tables || backupPayload.data;
         if (tablesPayload) {
           await fetch('/api/backup/restore', {

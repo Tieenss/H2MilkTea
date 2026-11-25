@@ -26,13 +26,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { 
-  Database, 
-  Upload, 
-  Download, 
-  RefreshCw, 
-  Trash2, 
-  BarChart3,
+import {
+  Database,
+  Upload,
+  Download,
+  RefreshCw,
+  Trash2,
   AlertTriangle,
   CheckCircle2,
   Info,
@@ -43,18 +42,28 @@ import {
   Users,
   Package,
   ShoppingCart,
-    FileSpreadsheet, // New icon for Excel
-  File, // New icon for CSV
+  FileSpreadsheet,
+  File,
   Eraser,
   FileText,
   Settings,
   Zap,
   ChevronDown,
   ChevronUp,
-  Cloud
+  Cloud,
+  ShieldCheck,
+  Search,
+  Wrench,
+  Sparkles,
+  CheckSquare,
+  Square,
+  Truck,
+  ClipboardCheck,
+  ArrowLeftRight,
+  UserCheck,
+  Bot,
 } from 'lucide-react';
-import AuthUtils from '@/utils/authUtils';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@radix-ui/react-select';
+import AuthUtils, { DataActivityLogItem } from '@/utils/authUtils';
 import GoogleDriveSync from '@/components/GoogleDriveSync';
 import SyncStatusCard from '@/components/SyncStatusCard';
 import { Switch } from '@/components/ui/switch';
@@ -67,6 +76,18 @@ interface DataStatus {
   dataIntegrity: boolean;
   lastSaved: string | null;
   totalRecords: number;
+  hasRootAdminFallback?: boolean;
+}
+
+interface BusinessHealthDetails {
+  productsWithoutBOMCount: number;
+  productsWithoutBOMNames: string[];
+  orphanConfigsCount: number;
+  orphanDetailsCount: number;
+  busyTablesCount: number;
+  hasTakeawayTable: boolean;
+  staffCount: number;
+  hasRootAdminFallback: boolean;
 }
 
 interface HealthCheck {
@@ -75,6 +96,7 @@ interface HealthCheck {
   issues: string[];
   warnings: string[];
   details: DataStatus;
+  businessDetails?: BusinessHealthDetails;
   recommendations: string[];
 }
 
@@ -93,11 +115,136 @@ interface PerformanceMetrics {
   lastOperationTime: string | null;
 }
 
+interface ClearTargetOption {
+  id: string;
+  label: string;
+  description: string;
+  tables: string[];
+  group: 'transactions' | 'catalog' | 'inventory';
+  badgeColor: string;
+  dangerous?: boolean;
+}
+
+const ALL_CORE_TABLES = [
+  'DSNV',
+  'DSBAN',
+  'DMHH',
+  'NGUYENLIEU',
+  'CAUHINH',
+  'KHACHHANG',
+  'NHACUNGCAP',
+  'NHAPXUATKHO',
+  'KIEMKEKHO',
+  'HOADON',
+  'HOADONDETAIL',
+];
+
+const CLEAR_TARGET_OPTIONS: ClearTargetOption[] = [
+  {
+    id: 'orders_invoices',
+    label: 'Đơn hàng & Hóa đơn bán hàng',
+    description: 'Xóa toàn bộ hóa đơn (HOADON) và chi tiết món đã bán (HOADONDETAIL)',
+    tables: ['HOADON', 'HOADONDETAIL'],
+    group: 'transactions',
+    badgeColor: 'bg-rose-100 text-rose-700 border-rose-200',
+  },
+  {
+    id: 'pos_live_orders',
+    label: 'Đơn QR, Bếp KDS & Giỏ hàng tạm tại bàn',
+    description: 'Xóa đơn chờ bếp/QR (pos_orders), giỏ hàng đang mở (pos_cart_drafts) và hàng đợi lệnh in',
+    tables: ['pos_orders', 'pos_cart_drafts'],
+    group: 'transactions',
+    badgeColor: 'bg-orange-100 text-orange-700 border-orange-200',
+  },
+  {
+    id: 'customers',
+    label: 'Khách hàng & Điểm tích lũy',
+    description: 'Xóa danh sách khách hàng thử nghiệm và lịch sử công nợ/tích điểm (KHACHHANG)',
+    tables: ['KHACHHANG'],
+    group: 'transactions',
+    badgeColor: 'bg-amber-100 text-amber-700 border-amber-200',
+  },
+  {
+    id: 'ai_logs',
+    label: 'Lịch sử Chatbot AI & Nhật ký hội thoại',
+    description: 'Dọn sạch log kiểm toán và hội thoại thử nghiệm của trợ lý AI (ai_audit_logs)',
+    tables: ['ai_audit_logs'],
+    group: 'transactions',
+    badgeColor: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+  },
+  {
+    id: 'products',
+    label: 'Sản phẩm / Menu đã nhập',
+    description: 'Xóa danh mục đồ uống, topping và món ăn trong thực đơn (DMHH)',
+    tables: ['DMHH'],
+    group: 'catalog',
+    badgeColor: 'bg-purple-100 text-purple-700 border-purple-200',
+  },
+  {
+    id: 'bom_recipes',
+    label: 'Định mức công thức pha chế (BOM)',
+    description: 'Xóa bảng cấu hình định lượng nguyên liệu cho từng sản phẩm (CAUHINH)',
+    tables: ['CAUHINH'],
+    group: 'catalog',
+    badgeColor: 'bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200',
+  },
+  {
+    id: 'tables',
+    label: 'Danh sách Bàn & Khu vực',
+    description: 'Xóa tất cả các bàn đã tạo (DSBAN - tự động giữ lại mục mặc định "Khách mua về")',
+    tables: ['DSBAN'],
+    group: 'catalog',
+    badgeColor: 'bg-blue-100 text-blue-700 border-blue-200',
+  },
+  {
+    id: 'inventory_tx',
+    label: 'Phiếu Nhập / Xuất kho',
+    description: 'Xóa lịch sử giao dịch nhập hàng và xuất kho tự động (NHAPXUATKHO)',
+    tables: ['NHAPXUATKHO'],
+    group: 'inventory',
+    badgeColor: 'bg-cyan-100 text-cyan-700 border-cyan-200',
+  },
+  {
+    id: 'stocktake',
+    label: 'Phiếu Kiểm kê kho',
+    description: 'Xóa lịch sử các đợt kiểm kê kho định kỳ/đột xuất (KIEMKEKHO)',
+    tables: ['KIEMKEKHO'],
+    group: 'inventory',
+    badgeColor: 'bg-teal-100 text-teal-700 border-teal-200',
+  },
+  {
+    id: 'materials',
+    label: 'Danh mục Nguyên liệu kho',
+    description: 'Xóa toàn bộ nguyên vật liệu đã khai báo trong kho (NGUYENLIEU)',
+    tables: ['NGUYENLIEU'],
+    group: 'inventory',
+    badgeColor: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  },
+  {
+    id: 'suppliers',
+    label: 'Danh sách Nhà cung cấp',
+    description: 'Xóa danh bạ đối tác và nhà cung cấp nguyên vật liệu (NHACUNGCAP)',
+    tables: ['NHACUNGCAP'],
+    group: 'inventory',
+    badgeColor: 'bg-slate-100 text-slate-700 border-slate-200',
+  },
+  {
+    id: 'staff',
+    label: 'Tài khoản Nhân viên (Giữ lại Admin gốc)',
+    description: 'Xóa các nhân viên phụ, luôn bảo vệ tài khoản Admin đang đăng nhập & Admin gốc dự phòng',
+    tables: ['DSNV'],
+    group: 'inventory',
+    badgeColor: 'bg-red-100 text-red-700 border-red-300',
+    dangerous: true,
+  },
+];
+
 const SettingDataPage = () => {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const excelInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
+
   // States
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'warning' | 'info'; text: string } | null>(null);
@@ -106,9 +253,25 @@ const SettingDataPage = () => {
   const [performance, setPerformance] = useState<PerformanceMetrics | null>(null);
   const [tableData, setTableData] = useState<{ [key: string]: any[] }>({});
   const [selectedTable, setSelectedTable] = useState<string>('');
+  const [tableSearchQuery, setTableSearchQuery] = useState<string>('');
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
-    const [selectedTableForCSV, setSelectedTableForCSV] = useState<string>('');
-  
+  const [selectedTableForCSV, setSelectedTableForCSV] = useState<string>('DMHH');
+  const [activityLogs, setActivityLogs] = useState<DataActivityLogItem[]>([]);
+
+  // Selective Clear Modal State
+  const [selectiveClearOpen, setSelectiveClearOpen] = useState(false);
+  const [selectedClearIds, setSelectedClearIds] = useState<string[]>([
+    'orders_invoices',
+    'pos_live_orders',
+    'inventory_tx',
+    'stocktake',
+    'customers',
+    'ai_logs',
+  ]);
+  const [resetTableStatusOpt, setResetTableStatusOpt] = useState(true);
+  const [resetMaterialStockOpt, setResetMaterialStockOpt] = useState(false);
+  const [autoBackupBeforeClear, setAutoBackupBeforeClear] = useState(true);
+
   // Google Drive status state
   const [googleDriveStatus, setGoogleDriveStatus] = useState<{
     connected: boolean;
@@ -119,7 +282,7 @@ const SettingDataPage = () => {
     connected: false,
     autoBackup: false,
     lastSync: null,
-    needsSync: false
+    needsSync: false,
   });
 
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -131,94 +294,90 @@ const SettingDataPage = () => {
     open: false,
     title: '',
     content: '',
-    action: () => {}
+    action: () => {},
   });
-  // State for expandable sections
+
   const [expandedSections, setExpandedSections] = useState<{
     issues: boolean;
     warnings: boolean;
     recommendations: boolean;
   }>({
-    issues: false,
-    warnings: false,
-    recommendations: false
+    issues: true,
+    warnings: true,
+    recommendations: true,
   });
 
-  // Check authentication
   useEffect(() => {
     if (!AuthUtils.isAuthenticated()) {
       router.push('/');
       return;
     }
+    AuthUtils.purgeLegacyLocalStorageData();
+    AuthUtils.ensureRootAdminFallback(AuthUtils.getUserData());
     loadData();
   }, []);
 
-  // Update Google Drive status
   useEffect(() => {
     const updateGoogleDriveStatus = () => {
       const authInfo = GoogleDriveUtils.getAuthInfo();
       const isConnected = GoogleDriveUtils.isSignedIn();
       const needsSync = GoogleDriveUtils.shouldAutoSync();
-      
+
       setGoogleDriveStatus({
         connected: isConnected,
         autoBackup: authInfo?.autoSyncEnabled || false,
         lastSync: authInfo?.lastSync || null,
-        needsSync: Boolean(needsSync && authInfo?.autoSyncEnabled)
+        needsSync: Boolean(needsSync && authInfo?.autoSyncEnabled),
       });
     };
 
-    // Update immediately
     updateGoogleDriveStatus();
-
-    // Update every 30 seconds
     const interval = setInterval(updateGoogleDriveStatus, 30000);
-
     return () => clearInterval(interval);
   }, []);
 
-  const handleSyncComplete = (success: boolean, message: string) => {
-    setMessage({ 
-      type: success ? 'success' : 'error', 
-      text: message 
+  const handleSyncComplete = (success: boolean, msg: string) => {
+    setMessage({
+      type: success ? 'success' : 'error',
+      text: msg,
     });
-    
+
     if (success) {
-      loadData(); // Reload data after sync
+      loadData();
     }
   };
-  // Load all data
+
+  // Tải đồng thời toàn bộ 11 bảng từ Supabase Cloud
   const loadData = async () => {
     try {
       setLoading(true);
-      
-      // Get status
+      AuthUtils.purgeLegacyLocalStorageData();
+
+      const tableDataMap: { [key: string]: any[] } = {};
+      await Promise.all(
+        ALL_CORE_TABLES.map(async (table) => {
+          try {
+            const data = await AuthUtils.apiRequest(table, 'getall', {});
+            tableDataMap[table] = Array.isArray(data) ? data : data?.data || [];
+          } catch (error) {
+            console.error(`Error loading ${table}:`, error);
+            tableDataMap[table] = [];
+          }
+        })
+      );
+
+      setTableData(tableDataMap);
+
       const status = AuthUtils.getDataStatus();
       setDataStatus(status);
 
-      // Get health check
       const health = AuthUtils.healthCheck();
       setHealthCheck(health);
 
-      // Get performance metrics
       const perf = AuthUtils.getPerformanceMetrics();
       setPerformance(perf);
 
-      // Load all table data
-      const tables = ['DSNV', 'DSBAN', 'HOADON', 'HOADONDETAIL', 'DMHH', 'NGUYENLIEU', 'CAUHINH'];
-      const tableDataMap: { [key: string]: any[] } = {};
-
-      for (const table of tables) {
-        try {
-          const data = await AuthUtils.apiRequest(table, 'getall', {});
-          tableDataMap[table] = Array.isArray(data) ? data : data?.data || [];
-        } catch (error) {
-          console.error(`Error loading ${table}:`, error);
-          tableDataMap[table] = [];
-        }
-      }
-
-      setTableData(tableDataMap);
+      setActivityLogs(AuthUtils.getDataActivityLogs());
     } catch (error) {
       console.error('Error loading data:', error);
       setMessage({ type: 'error', text: 'Lỗi tải dữ liệu: ' + (error as Error).message });
@@ -226,20 +385,177 @@ const SettingDataPage = () => {
       setLoading(false);
     }
   };
- const handleClearDataExceptDSNV = async () => {
+
+  // Áp dụng các Preset chọn nhanh trong Modal Dọn dẹp dữ liệu
+  const applyClearPreset = (preset: 'golive' | 'transactions_only' | 'catalog_inventory' | 'all_except_staff') => {
+    if (preset === 'golive') {
+      // Chuẩn bị vận hành thực tế tại quán H2MilkTea: xóa đơn rác, phiếu kho test, khách test; giữ Menu, BOM, Bàn, Nhân viên, NCC
+      setSelectedClearIds(['orders_invoices', 'pos_live_orders', 'inventory_tx', 'stocktake', 'customers', 'ai_logs']);
+      setResetTableStatusOpt(true);
+      setResetMaterialStockOpt(true);
+    } else if (preset === 'transactions_only') {
+      setSelectedClearIds(['orders_invoices', 'pos_live_orders']);
+      setResetTableStatusOpt(true);
+      setResetMaterialStockOpt(false);
+    } else if (preset === 'catalog_inventory') {
+      setSelectedClearIds(['products', 'bom_recipes', 'materials', 'inventory_tx', 'stocktake', 'suppliers']);
+      setResetTableStatusOpt(false);
+      setResetMaterialStockOpt(false);
+    } else if (preset === 'all_except_staff') {
+      setSelectedClearIds(
+        CLEAR_TARGET_OPTIONS.filter((opt) => opt.id !== 'staff').map((opt) => opt.id)
+      );
+      setResetTableStatusOpt(true);
+      setResetMaterialStockOpt(false);
+    }
+  };
+
+  const toggleClearOption = (id: string) => {
+    setSelectedClearIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const getOptionRecordCount = (opt: ClearTargetOption): number => {
+    return opt.tables.reduce((sum, t) => sum + (Array.isArray(tableData[t]) ? tableData[t].length : 0), 0);
+  };
+
+  // Thực thi xóa các phần đã tick chọn trên Supabase Cloud
+  const handleExecuteSelectiveClear = async () => {
     try {
       setLoading(true);
-      const result = AuthUtils.clearDataExceptDSNV();
+
+      if (autoBackupBeforeClear) {
+        AuthUtils.exportData();
+      }
+
+      const tablesToClear = Array.from(
+        new Set(
+          CLEAR_TARGET_OPTIONS.filter((opt) => selectedClearIds.includes(opt.id)).flatMap((opt) => opt.tables)
+        )
+      );
+
+      const result = await AuthUtils.clearSelectedData(tablesToClear, {
+        resetTableStatus: resetTableStatusOpt,
+        resetMaterialStock: resetMaterialStockOpt,
+        clearPrintQueue: selectedClearIds.includes('pos_live_orders') || selectedClearIds.includes('orders_invoices'),
+      });
+
       if (result.success) {
         setMessage({ type: 'success', text: result.message });
+        toast.success(result.message);
+        setSelectiveClearOpen(false);
         await loadData();
       } else {
         setMessage({ type: 'error', text: result.message });
+        toast.error(result.message);
       }
     } catch (error) {
-      setMessage({ type: 'error', text: 'Lỗi clear data: ' + (error as Error).message });
+      const errMsg = 'Lỗi dọn dẹp dữ liệu: ' + (error as Error).message;
+      setMessage({ type: 'error', text: errMsg });
+      toast.error(errMsg);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Xóa nhanh 1 bảng cụ thể từ tab Dữ Liệu Bảng
+  const handleClearSingleTable = async (tableName: string) => {
+    try {
+      setLoading(true);
+      const result = await AuthUtils.clearSelectedData([tableName], {
+        resetTableStatus: tableName === 'HOADON',
+      });
+      if (result.success) {
+        toast.success(`Đã làm trống bảng ${getTableDisplayName(tableName)} trên Cloud!`);
+        setMessage({ type: 'success', text: `Đã làm trống bảng ${getTableDisplayName(tableName)}!` });
+        await loadData();
+      } else {
+        toast.error(result.message);
+        setMessage({ type: 'error', text: result.message });
+      }
+    } catch (error) {
+      toast.error('Lỗi khi xóa bảng: ' + (error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Xóa trực tiếp 1 bản ghi rác trong Modal Xem Chi Tiết Bảng
+  const handleDeleteSingleRecord = async (tableName: string, row: any) => {
+    const pkMap: Record<string, string> = {
+      DSNV: 'username',
+      DSBAN: 'IDBAN',
+      HOADON: 'IDHOADON',
+      HOADONDETAIL: 'IDHOADONDETAIL',
+      DMHH: 'IDSP',
+      NGUYENLIEU: 'IDNguyenLieu',
+      CAUHINH: 'IDCauHinh',
+      KHACHHANG: 'IDKHACHHANG',
+      KIEMKEKHO: 'IDKiemKe',
+      NHAPXUATKHO: 'IDGiaoDich',
+      NHACUNGCAP: 'IDNhaCungCap',
+    };
+    const pk = pkMap[tableName] || 'id';
+    const targetId = row[pk] || row.IDHD || row.IDKH;
+    if (!targetId) {
+      toast.error('Không xác định được mã bản ghi để xóa');
+      return;
+    }
+
+    if (tableName === 'DSNV' && String(targetId).toLowerCase() === 'admin') {
+      toast.error('Không thể xóa tài khoản Admin gốc của hệ thống!');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const res = await AuthUtils.apiRequest(tableName, 'delete', {
+        [pk]: targetId,
+        forceHardDelete: true,
+      });
+      if (res && res.success === false) {
+        toast.error(res.message || 'Không thể xóa bản ghi');
+      } else {
+        toast.success(`Đã xóa bản ghi ${targetId}!`);
+        await loadData();
+      }
+    } catch (err) {
+      toast.error('Lỗi xóa bản ghi: ' + (err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Tự động sửa lỗi sức khỏe dữ liệu 1-Click
+  const handleAutoFixHealth = async () => {
+    try {
+      setLoading(true);
+      const res = await AuthUtils.autoFixHealthIssues();
+      if (res.success) {
+        toast.success(res.message);
+        setMessage({ type: 'success', text: res.message });
+        await loadData();
+      } else {
+        toast.error(res.message);
+        setMessage({ type: 'error', text: res.message });
+      }
+    } catch (err) {
+      toast.error('Lỗi sửa dữ liệu: ' + (err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Tải file Excel mẫu chuẩn cho quán H2MilkTea
+  const handleDownloadTemplate = () => {
+    const res = AuthUtils.downloadExcelTemplate();
+    if (res.success) {
+      toast.success(res.message);
+      setMessage({ type: 'success', text: res.message });
+      setActivityLogs(AuthUtils.getDataActivityLogs());
+    } else {
+      toast.error(res.message);
     }
   };
 
@@ -250,6 +566,7 @@ const SettingDataPage = () => {
       const result = AuthUtils.exportToExcel();
       if (result.success) {
         setMessage({ type: 'success', text: result.message });
+        toast.success(result.message);
       } else {
         setMessage({ type: 'error', text: result.message });
       }
@@ -267,6 +584,7 @@ const SettingDataPage = () => {
       const result = AuthUtils.exportToCSV(tableName);
       if (result.success) {
         setMessage({ type: 'success', text: result.message });
+        toast.success(result.message);
       } else {
         setMessage({ type: 'error', text: result.message });
       }
@@ -287,9 +605,11 @@ const SettingDataPage = () => {
       const result = await AuthUtils.importFromExcel(file);
       if (result.success) {
         setMessage({ type: 'success', text: result.message });
+        toast.success(result.message);
         await loadData();
       } else {
         setMessage({ type: 'error', text: result.message });
+        toast.error(result.message);
       }
     } catch (error) {
       setMessage({ type: 'error', text: 'Lỗi import Excel: ' + (error as Error).message });
@@ -311,9 +631,11 @@ const SettingDataPage = () => {
       const result = await AuthUtils.importFromCSV(file, selectedTableForCSV);
       if (result.success) {
         setMessage({ type: 'success', text: result.message });
+        toast.success(result.message);
         await loadData();
       } else {
         setMessage({ type: 'error', text: result.message });
+        toast.error(result.message);
       }
     } catch (error) {
       setMessage({ type: 'error', text: 'Lỗi import CSV: ' + (error as Error).message });
@@ -325,23 +647,22 @@ const SettingDataPage = () => {
     }
   };
 
-  // ... existing helper functions ...
-
-  // Get available tables for CSV import
   const getAvailableTablesForCSV = () => {
-    return Object.keys(tableData).map(tableName => ({
+    return ALL_CORE_TABLES.map((tableName) => ({
       value: tableName,
-      label: getTableDisplayName(tableName)
+      label: `${getTableDisplayName(tableName)} (${tableName})`,
     }));
   };
 
-  // Export data
+  // Export JSON
   const handleExport = async () => {
     try {
       setLoading(true);
       const result = AuthUtils.exportData();
       if (result.success) {
         setMessage({ type: 'success', text: result.message });
+        toast.success(result.message);
+        setActivityLogs(AuthUtils.getDataActivityLogs());
       } else {
         setMessage({ type: 'error', text: result.message });
       }
@@ -352,7 +673,7 @@ const SettingDataPage = () => {
     }
   };
 
-  // Import data
+  // Import JSON
   const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -362,9 +683,11 @@ const SettingDataPage = () => {
       const result = await AuthUtils.importData(file);
       if (result.success) {
         setMessage({ type: 'success', text: result.message });
-        await loadData(); // Reload data after import
+        toast.success(result.message);
+        await loadData();
       } else {
         setMessage({ type: 'error', text: result.message });
+        toast.error(result.message);
       }
     } catch (error) {
       setMessage({ type: 'error', text: 'Lỗi import: ' + (error as Error).message });
@@ -380,9 +703,10 @@ const SettingDataPage = () => {
   const handleReset = async () => {
     try {
       setLoading(true);
-      const result = AuthUtils.resetDemoData();
+      const result = await AuthUtils.resetDemoData();
       if (result.success) {
         setMessage({ type: 'success', text: result.message });
+        toast.success(result.message);
         await loadData();
       } else {
         setMessage({ type: 'error', text: result.message });
@@ -394,13 +718,14 @@ const SettingDataPage = () => {
     }
   };
 
-  // Clear cache
+  // Clear local cache (keep root admin fallback)
   const handleClearCache = async () => {
     try {
       setLoading(true);
       const result = AuthUtils.clearCache();
       if (result.success) {
         setMessage({ type: 'success', text: result.message });
+        toast.success(result.message);
         await loadData();
       } else {
         setMessage({ type: 'error', text: result.message });
@@ -416,7 +741,7 @@ const SettingDataPage = () => {
   const handleSeedSynchronizedData = async () => {
     try {
       setLoading(true);
-      const result = AuthUtils.seedSynchronizedTestDatabase();
+      const result = await AuthUtils.seedSynchronizedTestDatabase();
       if (result?.success) {
         setMessage({ type: 'success', text: result.message });
         toast.success(result.message);
@@ -435,13 +760,14 @@ const SettingDataPage = () => {
     }
   };
 
-  // Force reload
+  // Force reload from Cloud
   const handleForceReload = async () => {
     try {
       setLoading(true);
       const result = AuthUtils.forceReload();
       if (result.success) {
         setMessage({ type: 'success', text: result.message });
+        toast.success(result.message);
         await loadData();
       } else {
         setMessage({ type: 'error', text: result.message });
@@ -453,21 +779,19 @@ const SettingDataPage = () => {
     }
   };
 
-  // View table data
   const handleViewTable = (tableName: string) => {
     setSelectedTable(tableName);
+    setTableSearchQuery('');
     setViewDialogOpen(true);
   };
 
-  // Toggle expandable section
   const toggleSection = (section: keyof typeof expandedSections) => {
-    setExpandedSections(prev => ({
+    setExpandedSections((prev) => ({
       ...prev,
-      [section]: !prev[section]
+      [section]: !prev[section],
     }));
   };
 
-  // Format file size
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 B';
     const k = 1024;
@@ -476,33 +800,48 @@ const SettingDataPage = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  // Get table icon
   const getTableIcon = (tableName: string) => {
     const icons: { [key: string]: JSX.Element } = {
-      'DSNV': <Users className="h-4 w-4" />,
-      'DSBAN': <Package className="h-4 w-4" />,
-      'HOADON': <ShoppingCart className="h-4 w-4" />,
-      'HOADONDETAIL': <FileText className="h-4 w-4" />,
-      'DMHH': <Package className="h-4 w-4" />,
-      'NGUYENLIEU': <Package className="h-4 w-4" />,
-      'CAUHINH': <Settings className="h-4 w-4" />
+      DSNV: <Users className="h-4 w-4 text-purple-600" />,
+      DSBAN: <Package className="h-4 w-4 text-blue-600" />,
+      HOADON: <ShoppingCart className="h-4 w-4 text-rose-600" />,
+      HOADONDETAIL: <FileText className="h-4 w-4 text-orange-600" />,
+      DMHH: <Package className="h-4 w-4 text-indigo-600" />,
+      NGUYENLIEU: <Package className="h-4 w-4 text-emerald-600" />,
+      CAUHINH: <Settings className="h-4 w-4 text-fuchsia-600" />,
+      KHACHHANG: <UserCheck className="h-4 w-4 text-amber-600" />,
+      NHACUNGCAP: <Truck className="h-4 w-4 text-slate-600" />,
+      NHAPXUATKHO: <ArrowLeftRight className="h-4 w-4 text-cyan-600" />,
+      KIEMKEKHO: <ClipboardCheck className="h-4 w-4 text-teal-600" />,
     };
-    return icons[tableName] || <Database className="h-4 w-4" />;
+    return icons[tableName] || <Database className="h-4 w-4 text-purple-600" />;
   };
 
-  // Get table display name
   const getTableDisplayName = (tableName: string) => {
     const names: { [key: string]: string } = {
-      'DSNV': 'Nhân Viên',
-      'DSBAN': 'Bàn',
-      'HOADON': 'Hóa Đơn',
-      'HOADONDETAIL': 'Chi Tiết Hóa Đơn',
-      'DMHH': 'Sản Phẩm',
-      'NGUYENLIEU': 'Nguyên Liệu',
-      'CAUHINH': 'Cấu Hình'
+      DSNV: 'Nhân Viên',
+      DSBAN: 'Bàn & Khu Vực',
+      HOADON: 'Hóa Đơn',
+      HOADONDETAIL: 'Chi Tiết Hóa Đơn',
+      DMHH: 'Sản Phẩm (Menu)',
+      NGUYENLIEU: 'Nguyên Liệu Kho',
+      CAUHINH: 'Định Mức Công Thức (BOM)',
+      KHACHHANG: 'Khách Hàng',
+      NHACUNGCAP: 'Nhà Cung Cấp',
+      NHAPXUATKHO: 'Phiếu Nhập Xuất Kho',
+      KIEMKEKHO: 'Phiếu Kiểm Kê Kho',
     };
     return names[tableName] || tableName;
   };
+
+  const filteredSelectedTableRows = React.useMemo(() => {
+    const rows = tableData[selectedTable] || [];
+    if (!tableSearchQuery.trim()) return rows;
+    const q = tableSearchQuery.toLowerCase().trim();
+    return rows.filter((r) =>
+      Object.values(r).some((val) => String(val ?? '').toLowerCase().includes(q))
+    );
+  }, [tableData, selectedTable, tableSearchQuery]);
 
   if (loading && !dataStatus) {
     return (
@@ -515,32 +854,50 @@ const SettingDataPage = () => {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-purple-900">Quản Lý Dữ Liệu</h1>
-          <p className="text-gray-600">Quản lý và theo dõi dữ liệu hệ thống</p>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-3xl font-bold text-purple-900 dark:text-purple-200">Trung Tâm Quản Trị Dữ Liệu</h1>
+            <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white">
+              <Cloud className="h-3 w-3 mr-1" />
+              Supabase Cloud
+            </Badge>
+          </div>
+          <p className="text-gray-600 dark:text-slate-400 text-sm mt-1">
+            Đồng bộ thời gian thực 100% trên Cloud • Không lưu dữ liệu bảng ở LocalStorage (chỉ giữ 1 Admin gốc dự phòng)
+          </p>
         </div>
-        <div className="flex gap-2">
-          <Button 
-            onClick={loadData} 
+        <div className="flex flex-wrap gap-2">
+          <Button
+            onClick={() => setSelectiveClearOpen(true)}
             disabled={loading}
-            variant="outline"
+            variant="destructive"
+            className="bg-rose-600 hover:bg-rose-700 shadow-sm"
           >
+            <Eraser className="h-4 w-4 mr-2" />
+            Dọn Dữ Liệu Tùy Chọn (Go-Live)
+          </Button>
+          <Button onClick={loadData} disabled={loading} variant="outline">
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Làm mới
+            Làm mới từ Cloud
           </Button>
         </div>
       </div>
 
       {/* Message Alert */}
       {message && (
-        <Alert className={`border-l-4 ${
-          message.type === 'success' ? 'border-l-green-500 bg-green-50' :
-          message.type === 'error' ? 'border-l-red-500 bg-red-50' :
-          message.type === 'warning' ? 'border-l-yellow-500 bg-yellow-50' :
-          'border-l-blue-500 bg-blue-50'
-        }`}>
-          <AlertDescription>{message.text}</AlertDescription>
+        <Alert
+          className={`border-l-4 ${
+            message.type === 'success'
+              ? 'border-l-green-500 bg-green-50 text-green-900'
+              : message.type === 'error'
+              ? 'border-l-red-500 bg-red-50 text-red-900'
+              : message.type === 'warning'
+              ? 'border-l-yellow-500 bg-yellow-50 text-yellow-900'
+              : 'border-l-blue-500 bg-blue-50 text-blue-900'
+          }`}
+        >
+          <AlertDescription className="font-medium">{message.text}</AlertDescription>
         </Alert>
       )}
 
@@ -556,10 +913,10 @@ const SettingDataPage = () => {
               {healthCheck?.healthy ? (
                 <span className="text-green-600">Tốt</span>
               ) : (
-                <span className="text-red-600">Lỗi</span>
+                <span className="text-red-600">Cần chú ý</span>
               )}
             </div>
-            <div className="flex items-center gap-1 text-xs">
+            <div className="flex items-center gap-1 text-xs mt-1">
               {healthCheck?.healthy ? (
                 <CheckCircle2 className="h-3 w-3 text-green-600" />
               ) : (
@@ -574,59 +931,59 @@ const SettingDataPage = () => {
 
         <Card className="border-l-4 border-l-purple-500">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tổng Bản Ghi</CardTitle>
+            <CardTitle className="text-sm font-medium">Tổng Bản Ghi Cloud (11 Bảng)</CardTitle>
             <Database className="h-4 w-4 text-purple-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-900">
+            <div className="text-2xl font-bold text-purple-900 dark:text-purple-200">
               {dataStatus?.totalRecords || 0}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Dữ liệu trong hệ thống
+            <p className="text-xs text-muted-foreground mt-1">
+              Đồng bộ trực tiếp từ Supabase DB
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-purple-400">
+        <Card className="border-l-4 border-l-emerald-500">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Bộ Nhớ Sử Dụng</CardTitle>
-            <HardDrive className="h-4 w-4 text-purple-400" />
+            <CardTitle className="text-sm font-medium">Chế Độ Lưu Trữ & Dự Phòng</CardTitle>
+            <ShieldCheck className="h-4 w-4 text-emerald-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-900">
-              {performance?.memoryUsage.mb.toFixed(2)} MB
+            <div className="text-lg font-bold text-emerald-700 dark:text-emerald-400">
+              Cloud-Only (0 MB Local DB)
             </div>
-            <p className="text-xs text-muted-foreground">
-              Cache: {performance?.cacheSize.mb.toFixed(2)} MB
+            <p className="text-xs text-muted-foreground mt-1">
+              Admin gốc dự phòng: {dataStatus?.hasRootAdminFallback ? 'Đã bảo vệ (admin)' : 'Đang khởi tạo'}
             </p>
           </CardContent>
         </Card>
 
         <Card className="border-l-4 border-l-purple-300">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Lần Cập Nhật Cuối</CardTitle>
-            <Clock className="h-4 w-4 text-purple-300" />
+            <CardTitle className="text-sm font-medium">Lần Đồng Bộ Cuối</CardTitle>
+            <Clock className="h-4 w-4 text-purple-400" />
           </CardHeader>
           <CardContent>
-            <div className="text-sm font-bold text-purple-900">
-              {dataStatus?.lastSaved ? new Date(dataStatus.lastSaved).toLocaleString('vi-VN') : 'Chưa có'}
+            <div className="text-sm font-bold text-purple-900 dark:text-purple-200">
+              {dataStatus?.lastSaved ? new Date(dataStatus.lastSaved).toLocaleString('vi-VN') : 'Vừa đồng bộ'}
             </div>
-            <p className="text-xs text-muted-foreground">
-              LocalStorage: {dataStatus?.hasLocalStorage ? 'Có' : 'Không'}
+            <p className="text-xs text-muted-foreground mt-1">
+              Dung lượng RAM phiên: {performance?.memoryUsage.mb.toFixed(2)} MB
             </p>
           </CardContent>
         </Card>
       </div>
 
       {/* Main Content */}
-      <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 h-auto p-1.5 gap-1.5 bg-gray-100 rounded-xl">
-          <TabsTrigger value="overview">Tổng Quan</TabsTrigger>
+      <Tabs defaultValue="management" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 h-auto p-1.5 gap-1.5 bg-gray-100 dark:bg-slate-800 rounded-xl">
+          <TabsTrigger value="overview">Tổng Quan (11 Bảng)</TabsTrigger>
           <TabsTrigger value="tables">Dữ Liệu Bảng</TabsTrigger>
-          <TabsTrigger value="management">Quản Lý</TabsTrigger>
+          <TabsTrigger value="management">Quản Lý & Dọn Dẹp</TabsTrigger>
           <TabsTrigger value="cloud">Google Drive</TabsTrigger>
-          <TabsTrigger value="sync">Đồng Bộ</TabsTrigger>
-          <TabsTrigger value="health">Sức Khỏe</TabsTrigger>
+          <TabsTrigger value="sync">Đồng Bộ & Nhật Ký</TabsTrigger>
+          <TabsTrigger value="health">Sức Khỏe Dữ Liệu</TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
@@ -634,144 +991,133 @@ const SettingDataPage = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
-                <CardTitle className="text-purple-900">Thống Kê Dữ Liệu</CardTitle>
+                <CardTitle className="text-purple-900 dark:text-purple-200">Thống Kê Đầy Đủ 11 Bảng Nghiệp Vụ</CardTitle>
                 <CardDescription>
-                  Phân bố dữ liệu theo từng bảng
+                  Phân bố dữ liệu trực tiếp trên Supabase Cloud theo từng phân hệ
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {Object.entries(performance?.recordCounts || {}).map(([tableName, count]) => (
-                    <div key={tableName} className="flex items-center justify-between p-3 rounded-lg bg-purple-50 dark:bg-purple-950/40 border border-transparent dark:border-purple-800/40">
-                      <div className="flex items-center gap-3">
-                        {getTableIcon(tableName)}
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-white">{getTableDisplayName(tableName)}</p>
-                          <p className="text-sm text-gray-600 dark:text-slate-400">{tableName}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {ALL_CORE_TABLES.map((tableName) => {
+                    const count = tableData[tableName]?.length ?? performance?.recordCounts?.[tableName] ?? 0;
+                    return (
+                      <div
+                        key={tableName}
+                        onClick={() => handleViewTable(tableName)}
+                        className="cursor-pointer flex items-center justify-between p-3 rounded-lg bg-purple-50/80 hover:bg-purple-100/80 dark:bg-purple-950/40 border border-purple-100 dark:border-purple-800/40 transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {getTableIcon(tableName)}
+                          <div className="truncate">
+                            <p className="font-medium text-sm text-gray-900 dark:text-white truncate">
+                              {getTableDisplayName(tableName)}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-slate-400">{tableName}</p>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0 pl-2">
+                          <p className="font-bold text-purple-900 dark:text-purple-300">{count}</p>
+                          <p className="text-[11px] text-gray-500">bản ghi</p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold text-purple-900 dark:text-purple-300">{count}</p>
-                        <p className="text-sm text-gray-600 dark:text-slate-400">bản ghi</p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-purple-900">Hiệu Suất Hệ Thống</CardTitle>
+                <CardTitle className="text-purple-900 dark:text-purple-200">Kiến Trúc Lưu Trữ & An Toàn Hệ Thống</CardTitle>
                 <CardDescription>
-                  Thông tin chi tiết về hiệu suất
+                  Trạng thái vận hành thực tế chuẩn bị cho quán H2MilkTea
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm font-medium">Bộ nhớ sử dụng</span>
-                      <span className="text-sm">{formatFileSize(performance?.memoryUsage.bytes || 0)}</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div 
-                        className="bg-purple-600 h-2 rounded-full" 
-                        style={{ width: `${Math.min((performance?.memoryUsage.mb || 0) / 10 * 100, 100)}%` }}
-                      ></div>
-                    </div>
+              <CardContent className="space-y-5">
+                <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 space-y-2">
+                  <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-semibold text-sm">
+                    <ShieldCheck className="h-5 w-5 text-emerald-600" />
+                    Đã loại bỏ lưu trữ dữ liệu bảng trong LocalStorage
                   </div>
+                  <p className="text-xs text-emerald-700 dark:text-emerald-400 leading-relaxed">
+                    Mọi thao tác thêm/sửa/xóa hoặc dọn dẹp dữ liệu đều thực thi trực tiếp trên <strong>Supabase Cloud Database</strong>.
+                    Dữ liệu rác cũ không bao giờ tự khôi phục lại từ trình duyệt.
+                  </p>
+                  <div className="pt-1 flex flex-wrap gap-2">
+                    <Badge variant="outline" className="bg-white text-emerald-700 border-emerald-300 text-xs">
+                      Phao cứu sinh: Tài khoản Admin gốc (`admin`) luôn được bảo vệ
+                    </Badge>
+                  </div>
+                </div>
 
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm font-medium">Cache size</span>
-                      <span className="text-sm">{formatFileSize(performance?.cacheSize.bytes || 0)}</span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div 
-                        className="bg-purple-500 h-2 rounded-full" 
-                        style={{ width: `${Math.min((performance?.cacheSize.mb || 0) / 10 * 100, 100)}%` }}
-                      ></div>
-                    </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="font-medium">Bộ nhớ đệm RAM phiên hiện tại</span>
+                    <span>{formatFileSize(performance?.memoryUsage.bytes || 0)}</span>
                   </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-purple-600 h-2 rounded-full"
+                      style={{ width: `${Math.min(((performance?.memoryUsage.mb || 0) / 5) * 100, 100)}%` }}
+                    ></div>
+                  </div>
+                </div>
 
-                  <div className="grid grid-cols-2 gap-4 pt-4 border-t">
-                    <div className="text-center">
-                      <p className="text-sm text-gray-600">Khởi tạo</p>
-                      <Badge variant={dataStatus?.isInitialized ? "default" : "destructive"}>
-                        {dataStatus?.isInitialized ? "Hoàn tất" : "Chưa xong"}
-                      </Badge>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-sm text-gray-600">Tính toàn vẹn</p>
-                      <Badge variant={dataStatus?.dataIntegrity ? "default" : "destructive"}>
-                        {dataStatus?.dataIntegrity ? "Tốt" : "Lỗi"}
-                      </Badge>
-                    </div>
-                  </div>
+                <div className="grid grid-cols-2 gap-3 pt-2 border-t">
+                  <Button
+                    variant="outline"
+                    className="w-full border-purple-200 text-purple-800 hover:bg-purple-50"
+                    onClick={handleDownloadTemplate}
+                  >
+                    <FileSpreadsheet className="h-4 w-4 mr-2 text-green-600" />
+                    Tải Excel Mẫu Nhập Quán
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    className="w-full bg-rose-600 hover:bg-rose-700"
+                    onClick={() => setSelectiveClearOpen(true)}
+                  >
+                    <Eraser className="h-4 w-4 mr-2" />
+                    Chọn Mục Để Xóa
+                  </Button>
                 </div>
               </CardContent>
             </Card>
           </div>
         </TabsContent>
-  <TabsContent value="cloud" className="space-y-4">
+
+        {/* Google Drive Tab */}
+        <TabsContent value="cloud" className="space-y-4">
           <GoogleDriveSync onSyncComplete={handleSyncComplete} />
         </TabsContent>
 
-        {/* Sync Configuration Tab */}
+        {/* Sync & Activity History Tab */}
         <TabsContent value="sync" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Sync Settings */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-blue-900 flex items-center gap-2">
                   <RefreshCw className="h-5 w-5" />
-                  Cấu Hình Đồng Bộ
+                  Cấu Hình Đồng Bộ Cloud & Google Drive
                 </CardTitle>
                 <CardDescription>
-                  Thiết lập tần suất và cách thức đồng bộ dữ liệu với Google Drive
+                  Thiết lập tự động sao lưu dữ liệu Cloud lên Google Drive cá nhân
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <Label className="text-sm font-medium">Tự động đồng bộ</Label>
-                      <p className="text-xs text-gray-500">Tự động backup dữ liệu theo lịch trình</p>
+                      <Label className="text-sm font-medium">Tự động sao lưu Google Drive</Label>
+                      <p className="text-xs text-gray-500">Tự động xuất toàn bộ 11 bảng từ Supabase lên Google Drive theo lịch</p>
                     </div>
-                    <Switch 
-                      checked={googleDriveStatus.autoBackup} 
+                    <Switch
+                      checked={googleDriveStatus.autoBackup}
                       onCheckedChange={(checked) => {
                         GoogleDriveUtils.setAutoSync(checked);
-                        setGoogleDriveStatus(prev => ({ ...prev, autoBackup: checked }));
+                        setGoogleDriveStatus((prev) => ({ ...prev, autoBackup: checked }));
                       }}
                     />
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label className="text-sm font-medium">Đồng bộ khi có thay đổi</Label>
-                      <p className="text-xs text-gray-500">Tự động sync khi dữ liệu được cập nhật</p>
-                    </div>
-                                         <Switch 
-                       checked={false} 
-                       onCheckedChange={() => {
-                         toast('Tính năng đang được phát triển');
-                       }}
-                     />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label className="text-sm font-medium">Thông báo đồng bộ</Label>
-                      <p className="text-xs text-gray-500">Hiển thị thông báo khi đồng bộ hoàn tất</p>
-                    </div>
-                                         <Switch 
-                       checked={true} 
-                       onCheckedChange={() => {
-                         toast('Tính năng đang được phát triển');
-                       }}
-                     />
                   </div>
                 </div>
 
@@ -783,21 +1129,22 @@ const SettingDataPage = () => {
                     className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold"
                   >
                     <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                    🔄 Đồng bộ dữ liệu mẫu 60 ngày
+                    🔄 Đồng bộ dữ liệu mẫu 60 ngày lên Cloud
                   </Button>
 
-                  <Button 
+                  <Button
                     onClick={async () => {
                       try {
                         setLoading(true);
                         const success = await GoogleDriveUtils.syncLatestData();
                         if (success) {
-                          setMessage({ type: 'success', text: 'Đã đồng bộ dữ liệu mới nhất từ Google Drive!' });
-                          loadData(); // Reload data để cập nhật UI
+                          AuthUtils.recordDataActivity('Đồng bộ từ Google Drive', 'Đã khôi phục bản sao lưu mới nhất từ Drive vào Supabase Cloud', 'success');
+                          setMessage({ type: 'success', text: 'Đã đồng bộ dữ liệu mới nhất từ Google Drive vào Supabase Cloud!' });
+                          await loadData();
                         } else {
                           setMessage({ type: 'error', text: 'Không thể đồng bộ dữ liệu từ Google Drive' });
                         }
-                      } catch (error) {
+                      } catch {
                         setMessage({ type: 'error', text: 'Có lỗi xảy ra khi đồng bộ dữ liệu' });
                       } finally {
                         setLoading(false);
@@ -807,112 +1154,141 @@ const SettingDataPage = () => {
                     className="w-full bg-blue-600 hover:bg-blue-700"
                   >
                     <Download className="h-4 w-4 mr-2" />
-                    {loading ? 'Đang đồng bộ...' : 'Đồng bộ dữ liệu mới nhất'}
+                    {loading ? 'Đang đồng bộ...' : 'Đồng bộ bản mới nhất từ Google Drive'}
                   </Button>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Sync Status Card */}
-            <SyncStatusCard onSyncComplete={(success) => {
-              if (success) {
-                loadData(); // Reload data after successful sync
-              }
-            }} />
+            <SyncStatusCard
+              onSyncComplete={(success) => {
+                if (success) {
+                  loadData();
+                }
+              }}
+            />
           </div>
 
-          {/* Sync History */}
+          {/* Real Data Activity Logs */}
           <Card>
             <CardHeader>
               <CardTitle className="text-blue-900 flex items-center gap-2">
                 <FileText className="h-5 w-5" />
-                Lịch Sử Đồng Bộ
+                Nhật Ký Thao Tác Dữ Liệu Thực Tế
               </CardTitle>
               <CardDescription>
-                Theo dõi các lần đồng bộ gần đây
+                Ghi nhận các thao tác dọn dẹp dữ liệu, import, export và đồng bộ trong phiên làm việc
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-green-50 border border-green-200">
-                  <div className="flex items-center gap-3">
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    <div>
-                      <p className="text-sm font-medium text-green-700">Đồng bộ thành công</p>
-                      <p className="text-xs text-green-600">Backup dữ liệu hệ thống</p>
+              {activityLogs.length > 0 ? (
+                <div className="space-y-2.5">
+                  {activityLogs.map((log) => (
+                    <div
+                      key={log.id}
+                      className={`flex items-center justify-between p-3 rounded-lg border ${
+                        log.status === 'success'
+                          ? 'bg-green-50/70 border-green-200'
+                          : log.status === 'warning'
+                          ? 'bg-amber-50/70 border-amber-200'
+                          : 'bg-red-50/70 border-red-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <CheckCircle2
+                          className={`h-4 w-4 shrink-0 ${
+                            log.status === 'success'
+                              ? 'text-green-600'
+                              : log.status === 'warning'
+                              ? 'text-amber-600'
+                              : 'text-red-600'
+                          }`}
+                        />
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">{log.action}</p>
+                          <p className="text-xs text-gray-600">{log.detail}</p>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0 pl-3">
+                        <p className="text-xs font-medium text-gray-600">
+                          {new Date(log.timestamp).toLocaleTimeString('vi-VN')}
+                        </p>
+                        <p className="text-[11px] text-gray-500">
+                          {new Date(log.timestamp).toLocaleDateString('vi-VN')}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-green-600">Hôm nay, 14:30</p>
-                    <p className="text-xs text-green-500">2.5 MB</p>
-                  </div>
+                  ))}
                 </div>
-
-                <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50 border border-blue-200">
-                  <div className="flex items-center gap-3">
-                    <Download className="h-4 w-4 text-blue-500" />
-                    <div>
-                      <p className="text-sm font-medium text-blue-700">Khôi phục dữ liệu</p>
-                      <p className="text-xs text-blue-600">Tải dữ liệu từ Google Drive</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-blue-600">Hôm qua, 09:15</p>
-                    <p className="text-xs text-blue-500">2.3 MB</p>
-                  </div>
+              ) : (
+                <div className="text-center py-6 text-sm text-gray-500">
+                  Chưa có thao tác thay đổi dữ liệu nào trong phiên này.
                 </div>
-
-                <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-200">
-                  <div className="flex items-center gap-3">
-                    <RefreshCw className="h-4 w-4 text-gray-500" />
-                    <div>
-                      <p className="text-sm font-medium text-gray-700">Đồng bộ tự động</p>
-                      <p className="text-xs text-gray-600">Backup theo lịch trình</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-gray-600">2 ngày trước, 00:00</p>
-                    <p className="text-xs text-gray-500">2.1 MB</p>
-                  </div>
-                </div>
-              </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
-         {/* Updated Management Tab */}
+
+        {/* Management Tab */}
         <TabsContent value="management" className="space-y-4">
-          <Card className="border-indigo-200 bg-gradient-to-r from-indigo-50/90 to-purple-50/90">
-            <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-bold text-indigo-950">Khởi tạo & Đồng bộ dữ liệu mẫu kiểm thử (60 ngày)</h3>
-                <p className="text-xs text-indigo-700">
-                  Tạo đầy đủ hóa đơn, chi tiết bán hàng, BOM nguyên liệu và dữ liệu kho đồng bộ trong 60 ngày gần nhất.
-                </p>
-              </div>
-              <Button
-                type="button"
-                onClick={handleSeedSynchronizedData}
-                disabled={loading}
-                className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold shrink-0"
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                🔄 Đồng bộ dữ liệu mẫu 60 ngày
-              </Button>
-            </CardContent>
-          </Card>
+          {/* Quick Banner: Selective Go-Live Cleaner & 60-day Demo Seeder */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card className="border-rose-200 bg-gradient-to-r from-rose-50/90 to-orange-50/90">
+              <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-rose-950">Dọn Dẹp Dữ Liệu Rác Chuẩn Bị Vận Hành Quán (Go-Live)</h3>
+                    <Badge className="bg-rose-600 text-white text-[10px]">Mới</Badge>
+                  </div>
+                  <p className="text-xs text-rose-800 mt-0.5">
+                    Tick chọn từng phần muốn xóa (Đơn hàng, Bàn, Sản phẩm đã nhập, Kho...) và xóa triệt để trên Supabase Cloud.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  onClick={() => setSelectiveClearOpen(true)}
+                  disabled={loading}
+                  className="bg-rose-600 hover:bg-rose-700 text-white font-semibold shrink-0"
+                >
+                  <Eraser className="h-4 w-4 mr-2" />
+                  Chọn Mục Để Xóa...
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="border-indigo-200 bg-gradient-to-r from-indigo-50/90 to-purple-50/90">
+              <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-bold text-indigo-950">Khởi tạo & Đồng bộ dữ liệu mẫu kiểm thử (60 ngày)</h3>
+                  <p className="text-xs text-indigo-700 mt-0.5">
+                    Tạo đầy đủ hóa đơn, chi tiết bán hàng, BOM nguyên liệu và dữ liệu kho đồng bộ lên Cloud trong 60 ngày gần nhất.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  onClick={handleSeedSynchronizedData}
+                  disabled={loading}
+                  className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold shrink-0"
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                  🔄 Đồng bộ mẫu 60 ngày
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Import/Export JSON */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-purple-900">Import/Export JSON</CardTitle>
+                <CardTitle className="text-purple-900">Import/Export JSON (Toàn Hệ Thống)</CardTitle>
                 <CardDescription>
-                  Sao lưu và khôi phục dữ liệu hệ thống dạng JSON
+                  Sao lưu và khôi phục trọn bộ 11 bảng dữ liệu dạng file JSON chuẩn
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="import-file">Import dữ liệu từ file JSON</Label>
+                  <Label htmlFor="import-file">Khôi phục dữ liệu từ file JSON (Đồng bộ lên Cloud)</Label>
                   <div className="flex gap-2">
                     <Input
                       id="import-file"
@@ -922,8 +1298,8 @@ const SettingDataPage = () => {
                       onChange={handleImport}
                       disabled={loading}
                     />
-                    <Button 
-                      onClick={() => fileInputRef.current?.click()} 
+                    <Button
+                      onClick={() => fileInputRef.current?.click()}
                       disabled={loading}
                       variant="outline"
                     >
@@ -933,13 +1309,13 @@ const SettingDataPage = () => {
                   </div>
                 </div>
 
-                <Button 
-                  onClick={handleExport} 
+                <Button
+                  onClick={handleExport}
                   disabled={loading}
                   className="w-full bg-purple-600 hover:bg-purple-700"
                 >
                   <Download className="h-4 w-4 mr-2" />
-                  Export JSON
+                  Export Toàn Bộ JSON
                 </Button>
               </CardContent>
             </Card>
@@ -947,14 +1323,28 @@ const SettingDataPage = () => {
             {/* Import/Export Excel */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-purple-900">Import/Export Excel</CardTitle>
-                <CardDescription>
-                  Làm việc với file Excel (.xlsx)
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-purple-900">Import/Export Excel (.xlsx)</CardTitle>
+                    <CardDescription>
+                      Nhập nhanh Menu Sản phẩm, Nguyên liệu, BOM, Bàn từ file Excel
+                    </CardDescription>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDownloadTemplate}
+                    className="border-green-300 text-green-700 hover:bg-green-50"
+                  >
+                    <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+                    Tải File Mẫu Quán
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="import-excel">Import từ file Excel</Label>
+                  <Label htmlFor="import-excel">Import từ file Excel (Đồng bộ thẳng lên Cloud)</Label>
                   <div className="flex gap-2">
                     <Input
                       id="import-excel"
@@ -964,8 +1354,8 @@ const SettingDataPage = () => {
                       onChange={handleImportExcel}
                       disabled={loading}
                     />
-                    <Button 
-                      onClick={() => excelInputRef.current?.click()} 
+                    <Button
+                      onClick={() => excelInputRef.current?.click()}
                       disabled={loading}
                       variant="outline"
                     >
@@ -975,13 +1365,13 @@ const SettingDataPage = () => {
                   </div>
                 </div>
 
-                <Button 
-                  onClick={handleExportExcel} 
+                <Button
+                  onClick={handleExportExcel}
                   disabled={loading}
                   className="w-full bg-green-600 hover:bg-green-700"
                 >
                   <FileSpreadsheet className="h-4 w-4 mr-2" />
-                  Export Excel
+                  Export Toàn Bộ Ra Excel (11 Sheet)
                 </Button>
               </CardContent>
             </Card>
@@ -989,30 +1379,30 @@ const SettingDataPage = () => {
             {/* Import/Export CSV */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-purple-900">Import/Export CSV</CardTitle>
+                <CardTitle className="text-purple-900">Import/Export CSV Theo Từng Bảng</CardTitle>
                 <CardDescription>
-                  Làm việc với file CSV
+                  Nhập hoặc xuất từng bảng dữ liệu riêng lẻ định dạng CSV (UTF-8)
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Chọn bảng cho CSV Import</Label>
-                  <Select value={selectedTableForCSV} onValueChange={setSelectedTableForCSV}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Chọn bảng..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {getAvailableTablesForCSV().map((table) => (
-                        <SelectItem key={table.value} value={table.value}>
-                          {table.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="csv-table-select">Chọn bảng dữ liệu làm việc</Label>
+                  <select
+                    id="csv-table-select"
+                    value={selectedTableForCSV}
+                    onChange={(e) => setSelectedTableForCSV(e.target.value)}
+                    className="w-full h-10 px-3 py-2 rounded-md border border-gray-300 bg-white dark:bg-slate-900 dark:border-slate-700 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    {getAvailableTablesForCSV().map((table) => (
+                      <option key={table.value} value={table.value}>
+                        {table.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="import-csv">Import từ file CSV</Label>
+                  <Label htmlFor="import-csv">Import từ file CSV vào bảng đã chọn</Label>
                   <div className="flex gap-2">
                     <Input
                       id="import-csv"
@@ -1022,8 +1412,8 @@ const SettingDataPage = () => {
                       onChange={handleImportCSV}
                       disabled={loading || !selectedTableForCSV}
                     />
-                    <Button 
-                      onClick={() => csvInputRef.current?.click()} 
+                    <Button
+                      onClick={() => csvInputRef.current?.click()}
                       disabled={loading || !selectedTableForCSV}
                       variant="outline"
                     >
@@ -1034,20 +1424,20 @@ const SettingDataPage = () => {
                 </div>
 
                 <div className="flex gap-2">
-                  <Button 
-                    onClick={() => handleExportCSV()} 
+                  <Button
+                    onClick={() => handleExportCSV()}
                     disabled={loading}
                     className="flex-1 bg-blue-600 hover:bg-blue-700"
                   >
                     <File className="h-4 w-4 mr-2" />
-                    Export All CSV
+                    Export Tất Cả CSV
                   </Button>
-                  <Button 
-                    onClick={() => selectedTableForCSV && handleExportCSV(selectedTableForCSV)} 
+                  <Button
+                    onClick={() => selectedTableForCSV && handleExportCSV(selectedTableForCSV)}
                     disabled={loading || !selectedTableForCSV}
                     variant="outline"
                   >
-                    Export Selected
+                    Export Bảng Này
                   </Button>
                 </div>
               </CardContent>
@@ -1056,259 +1446,544 @@ const SettingDataPage = () => {
             {/* System Operations */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-purple-900">Thao Tác Hệ Thống</CardTitle>
+                <CardTitle className="text-purple-900">Thao Tác Hệ Thống & Làm Sạch</CardTitle>
                 <CardDescription>
-                  Các thao tác quản lý dữ liệu và cache
+                  Quản trị dữ liệu Cloud, dọn dẹp theo danh mục và khôi phục mặc định
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <Button 
-                  onClick={handleForceReload} 
+              <CardContent className="space-y-3">
+                <Button
+                  onClick={handleForceReload}
                   disabled={loading}
                   variant="outline"
                   className="w-full"
                 >
-                  <Zap className="h-4 w-4 mr-2" />
-                  Force Reload
+                  <Zap className="h-4 w-4 mr-2 text-amber-500" />
+                  Tải Lại Dữ Liệu Trực Tiếp Từ Cloud (Force Reload)
                 </Button>
 
-                <Button 
-                  onClick={handleClearCache} 
+                <Button
+                  onClick={handleClearCache}
                   disabled={loading}
                   variant="outline"
                   className="w-full"
                 >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Xóa Cache
+                  <RefreshCw className="h-4 w-4 mr-2 text-blue-600" />
+                  Dọn Sạch LocalStorage Tạm (Giữ Admin Gốc Dự Phòng)
                 </Button>
 
-                <Button 
-                  onClick={() => setConfirmDialog({
-                    open: true,
-                    title: 'Xóa Dữ Liệu Hệ Thống',
-                    content: 'Bạn có chắc chắn muốn xóa tất cả dữ liệu hệ thống (giữ nguyên danh sách nhân viên)? Thao tác này sẽ xóa hết hóa đơn, chi tiết hóa đơn và reset các bảng khác về trạng thái ban đầu.',
-                    action: handleClearDataExceptDSNV
-                  })}
+                <Button
+                  onClick={() => setSelectiveClearOpen(true)}
                   disabled={loading}
                   variant="destructive"
-                  className="w-full"
+                  className="w-full bg-rose-600 hover:bg-rose-700"
                 >
                   <Eraser className="h-4 w-4 mr-2" />
-                  Clear Data (Giữ Nhân Viên)
+                  Clear Data Tùy Chọn (Tick Chọn Mục Cần Xóa / Giữ Nhân Viên)
                 </Button>
 
-                <Button 
-                  onClick={() => setConfirmDialog({
-                    open: true,
-                    title: 'Reset Tất Cả Dữ Liệu',
-                    content: 'Bạn có chắc chắn muốn reset tất cả dữ liệu về trạng thái ban đầu? Thao tác này không thể hoàn tác.',
-                    action: handleReset
-                  })}
+                <Button
+                  onClick={() =>
+                    setConfirmDialog({
+                      open: true,
+                      title: 'Khôi Phục Bộ Dữ Liệu Mẫu Mặc Định Lên Cloud',
+                      content:
+                        'Thao tác này sẽ nạp lại bộ dữ liệu mẫu mặc định ban đầu cho toàn bộ 11 bảng lên Supabase Cloud. Bạn có chắc chắn muốn thực hiện?',
+                      action: handleReset,
+                    })
+                  }
                   disabled={loading}
                   variant="destructive"
                   className="w-full"
                 >
                   <Trash2 className="h-4 w-4 mr-2" />
-                  Reset Tất Cả
+                  Reset Về Dữ Liệu Mẫu Ban Đầu
                 </Button>
               </CardContent>
             </Card>
           </div>
         </TabsContent>
 
-      
-       <TabsContent value="tables" className="space-y-4">
+        {/* Tables Tab */}
+        <TabsContent value="tables" className="space-y-4">
           <div className="grid grid-cols-1 gap-4">
-            {Object.entries(tableData).map(([tableName, data]) => (
-              <Card key={tableName}>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      {getTableIcon(tableName)}
-                      <CardTitle className="text-purple-900">{getTableDisplayName(tableName)}</CardTitle>
-                      <Badge variant="outline">{data.length} bản ghi</Badge>
+            {ALL_CORE_TABLES.map((tableName) => {
+              const data = tableData[tableName] || [];
+              return (
+                <Card key={tableName}>
+                  <CardHeader className="pb-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        {getTableIcon(tableName)}
+                        <CardTitle className="text-purple-900 dark:text-purple-200 text-lg">
+                          {getTableDisplayName(tableName)}
+                        </CardTitle>
+                        <Badge variant="outline" className="font-semibold">
+                          {data.length} bản ghi
+                        </Badge>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleExportCSV(tableName)}
+                          disabled={loading || data.length === 0}
+                        >
+                          <File className="h-3.5 w-3.5 mr-1.5" />
+                          Xuất CSV
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleViewTable(tableName)}
+                        >
+                          <Eye className="h-3.5 w-3.5 mr-1.5" />
+                          Xem & Xóa Dòng Lẻ
+                        </Button>
+                        {tableName !== 'DSNV' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-rose-600 border-rose-200 hover:bg-rose-50"
+                            disabled={loading || data.length === 0}
+                            onClick={() =>
+                              setConfirmDialog({
+                                open: true,
+                                title: `Làm trống bảng ${getTableDisplayName(tableName)}`,
+                                content: `Bạn có chắc chắn muốn xóa toàn bộ ${data.length} bản ghi trong bảng ${getTableDisplayName(tableName)} (${tableName}) trên Supabase Cloud?`,
+                                action: () => handleClearSingleTable(tableName),
+                              })
+                            }
+                          >
+                            <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                            Làm trống bảng
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => handleExportCSV(tableName)}
-                        disabled={loading}
-                      >
-                        <File className="h-4 w-4 mr-2" />
-                        CSV
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => handleViewTable(tableName)}
-                      >
-                        <Eye className="h-4 w-4 mr-2" />
-                        Xem chi tiết
-                      </Button>
+                    <CardDescription>
+                      Mã bảng Cloud: <code>{tableName}</code>
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-xs text-gray-600 dark:text-slate-400">
+                      {data.length > 0 ? (
+                        <p className="truncate">
+                          <strong>Các cột dữ liệu:</strong> {Object.keys(data[0]).join(', ')}
+                        </p>
+                      ) : (
+                        <p className="text-amber-600 font-medium">Bảng hiện đang trống (0 bản ghi)</p>
+                      )}
                     </div>
-                  </div>
-                  <CardDescription>
-                    Bảng {tableName} - {getTableDisplayName(tableName)}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-sm text-gray-600">
-                    {data.length > 0 ? (
-                      <p>Dữ liệu mẫu: {Object.keys(data[0]).join(', ')}</p>
-                    ) : (
-                      <p className="text-red-500">Không có dữ liệu</p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         </TabsContent>
 
         {/* Health Tab */}
         <TabsContent value="health" className="space-y-4">
-          <div className="grid grid-cols-1 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-purple-900">Kiểm Tra  Hệ Thống</CardTitle>
-                <CardDescription>
-                  Tình trạng chi tiết của hệ thống và các khuyến nghị
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
-                  {/* Overall Status */}
-                  <div className="flex items-center gap-4 p-4 rounded-lg bg-purple-50">
-                    {healthCheck?.healthy ? (
-                      <CheckCircle2 className="h-8 w-8 text-green-600" />
-                    ) : (
-                      <AlertTriangle className="h-8 w-8 text-red-600" />
-                    )}
-                    <div>
-                      <h3 className="font-bold text-lg">
-                        Trạng thái: {healthCheck?.healthy ? 'Tốt' : 'Có vấn đề'}
-                      </h3>
-                      <p className="text-gray-600">
-                        {healthCheck?.issues.length || 0} lỗi nghiêm trọng, {healthCheck?.warnings.length || 0} cảnh báo
-                      </p>
-                    </div>
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-purple-900 dark:text-purple-200">
+                    Kiểm Tra Sức Khỏe & Tính Toàn Vẹn Nghiệp Vụ
+                  </CardTitle>
+                  <CardDescription>
+                    Rà soát dữ liệu mồ côi, bàn bị kẹt trạng thái và định mức công thức pha chế BOM
+                  </CardDescription>
+                </div>
+                <Button
+                  onClick={handleAutoFixHealth}
+                  disabled={loading}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
+                >
+                  <Wrench className="h-4 w-4 mr-2" />
+                  Tự Động Sửa Lỗi & Dọn Dữ Liệu Mồ Côi (1-Click)
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Overall Status */}
+              <div className="flex items-center gap-4 p-4 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-100">
+                {healthCheck?.healthy ? (
+                  <CheckCircle2 className="h-9 w-9 text-green-600 shrink-0" />
+                ) : (
+                  <AlertTriangle className="h-9 w-9 text-red-600 shrink-0" />
+                )}
+                <div>
+                  <h3 className="font-bold text-lg">
+                    Trạng thái tổng thể: {healthCheck?.healthy ? 'Tốt - Sẵn sàng vận hành' : 'Phát hiện vấn đề cần xử lý'}
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    {healthCheck?.issues.length || 0} lỗi nghiêm trọng • {healthCheck?.warnings.length || 0} cảnh báo nghiệp vụ
+                  </p>
+                </div>
+              </div>
+
+              {/* Business Health Metrics Grid */}
+              {healthCheck?.businessDetails && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="p-3.5 rounded-lg border bg-white dark:bg-slate-900">
+                    <p className="text-xs text-gray-500">Sản phẩm thiếu công thức BOM</p>
+                    <p className="text-xl font-bold text-purple-900 mt-1">
+                      {healthCheck.businessDetails.productsWithoutBOMCount} món
+                    </p>
                   </div>
+                  <div className="p-3.5 rounded-lg border bg-white dark:bg-slate-900">
+                    <p className="text-xs text-gray-500">Cấu hình BOM / Chi tiết đơn mồ côi</p>
+                    <p className="text-xl font-bold text-amber-600 mt-1">
+                      {healthCheck.businessDetails.orphanConfigsCount + healthCheck.businessDetails.orphanDetailsCount} dòng
+                    </p>
+                  </div>
+                  <div className="p-3.5 rounded-lg border bg-white dark:bg-slate-900">
+                    <p className="text-xs text-gray-500">Bàn đang ở trạng thái Đang sử dụng</p>
+                    <p className="text-xl font-bold text-blue-600 mt-1">
+                      {healthCheck.businessDetails.busyTablesCount} bàn
+                    </p>
+                  </div>
+                  <div className="p-3.5 rounded-lg border bg-white dark:bg-slate-900">
+                    <p className="text-xs text-gray-500">Tài khoản Admin gốc dự phòng</p>
+                    <p className="text-xl font-bold text-emerald-600 mt-1">
+                      {healthCheck.businessDetails.hasRootAdminFallback ? 'An toàn' : 'Chưa có'}
+                    </p>
+                  </div>
+                </div>
+              )}
 
-                  {/* Issues */}
-                  {healthCheck?.issues && healthCheck.issues.length > 0 && (
-                    <div className="border rounded-lg">
-                      <button
-                        className="w-full flex items-center justify-between p-4 text-red-600 hover:bg-red-50"
-                        onClick={() => toggleSection('issues')}
-                      >
-                        <div className="flex items-center gap-2">
-                          <AlertTriangle className="h-4 w-4" />
-                          Lỗi Nghiêm Trọng ({healthCheck.issues.length})
-                        </div>
-                        {expandedSections.issues ? (
-                          <ChevronUp className="h-4 w-4" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4" />
-                        )}
-                      </button>
-                      {expandedSections.issues && (
-                        <div className="p-4 space-y-2">
-                          {healthCheck.issues.map((issue, index) => (
-                            <div key={index} className="flex items-center gap-2 p-2 bg-red-50 rounded">
-                              <AlertTriangle className="h-4 w-4 text-red-600" />
-                              <span>{issue}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+              {/* Issues */}
+              {healthCheck?.issues && healthCheck.issues.length > 0 && (
+                <div className="border rounded-lg">
+                  <button
+                    className="w-full flex items-center justify-between p-4 text-red-600 hover:bg-red-50"
+                    onClick={() => toggleSection('issues')}
+                  >
+                    <div className="flex items-center gap-2 font-semibold">
+                      <AlertTriangle className="h-4 w-4" />
+                      Lỗi Nghiêm Trọng ({healthCheck.issues.length})
                     </div>
-                  )}
-
-                  {/* Warnings */}
-                  {healthCheck?.warnings && healthCheck.warnings.length > 0 && (
-                    <div className="border rounded-lg">
-                      <button
-                        className="w-full flex items-center justify-between p-4 text-yellow-600 hover:bg-yellow-50"
-                        onClick={() => toggleSection('warnings')}
-                      >
-                        <div className="flex items-center gap-2">
-                          <AlertTriangle className="h-4 w-4" />
-                          Cảnh Báo ({healthCheck.warnings.length})
+                    {expandedSections.issues ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </button>
+                  {expandedSections.issues && (
+                    <div className="p-4 space-y-2">
+                      {healthCheck.issues.map((issue, index) => (
+                        <div key={index} className="flex items-center gap-2 p-2.5 bg-red-50 rounded text-sm">
+                          <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />
+                          <span>{issue}</span>
                         </div>
-                        {expandedSections.warnings ? (
-                          <ChevronUp className="h-4 w-4" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4" />
-                        )}
-                      </button>
-                      {expandedSections.warnings && (
-                        <div className="p-4 space-y-2">
-                          {healthCheck.warnings.map((warning, index) => (
-                            <div key={index} className="flex items-center gap-2 p-2 bg-yellow-50 rounded">
-                              <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                              <span>{warning}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Recommendations */}
-                  {healthCheck?.recommendations && healthCheck.recommendations.length > 0 && (
-                    <div className="border rounded-lg">
-                      <button
-                        className="w-full flex items-center justify-between p-4 text-blue-600 hover:bg-blue-50"
-                        onClick={() => toggleSection('recommendations')}
-                      >
-                        <div className="flex items-center gap-2">
-                          <Info className="h-4 w-4" />
-                          Khuyến Nghị ({healthCheck.recommendations.length})
-                        </div>
-                        {expandedSections.recommendations ? (
-                          <ChevronUp className="h-4 w-4" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4" />
-                        )}
-                      </button>
-                      {expandedSections.recommendations && (
-                        <div className="p-4 space-y-2">
-                          {healthCheck.recommendations.map((rec, index) => (
-                            <div key={index} className="flex items-center gap-2 p-2 bg-blue-50 rounded">
-                              <Info className="h-4 w-4 text-blue-600" />
-                              <span>{rec}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                      ))}
                     </div>
                   )}
                 </div>
-              </CardContent>
-            </Card>
-          </div>
+              )}
+
+              {/* Warnings */}
+              {healthCheck?.warnings && healthCheck.warnings.length > 0 && (
+                <div className="border rounded-lg">
+                  <button
+                    className="w-full flex items-center justify-between p-4 text-amber-700 hover:bg-amber-50"
+                    onClick={() => toggleSection('warnings')}
+                  >
+                    <div className="flex items-center gap-2 font-semibold">
+                      <AlertTriangle className="h-4 w-4" />
+                      Cảnh Báo Nghiệp Vụ ({healthCheck.warnings.length})
+                    </div>
+                    {expandedSections.warnings ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </button>
+                  {expandedSections.warnings && (
+                    <div className="p-4 space-y-2">
+                      {healthCheck.warnings.map((warning, index) => (
+                        <div key={index} className="flex items-center gap-2 p-2.5 bg-amber-50 rounded text-sm text-amber-900">
+                          <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                          <span>{warning}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Recommendations */}
+              {healthCheck?.recommendations && healthCheck.recommendations.length > 0 && (
+                <div className="border rounded-lg">
+                  <button
+                    className="w-full flex items-center justify-between p-4 text-blue-700 hover:bg-blue-50"
+                    onClick={() => toggleSection('recommendations')}
+                  >
+                    <div className="flex items-center gap-2 font-semibold">
+                      <Info className="h-4 w-4" />
+                      Khuyến Nghị Vận Hành ({healthCheck.recommendations.length})
+                    </div>
+                    {expandedSections.recommendations ? (
+                      <ChevronUp className="h-4 w-4" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4" />
+                    )}
+                  </button>
+                  {expandedSections.recommendations && (
+                    <div className="p-4 space-y-2">
+                      {healthCheck.recommendations.map((rec, index) => (
+                        <div key={index} className="flex items-center gap-2 p-2.5 bg-blue-50 rounded text-sm text-blue-900">
+                          <Info className="h-4 w-4 text-blue-600 shrink-0" />
+                          <span>{rec}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 
-      {/* View Table Dialog */}
-      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-        <DialogContent className="max-w-6xl max-h-[80vh] overflow-hidden">
+      {/* ============================================================================
+          MODAL DỌN DẸP DỮ LIỆU TÙY CHỌN (SELECTIVE DATA CLEANER / GO-LIVE WIZARD)
+         ============================================================================ */}
+      <Dialog open={selectiveClearOpen} onOpenChange={setSelectiveClearOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {getTableIcon(selectedTable)}
-              Chi tiết bảng: {getTableDisplayName(selectedTable)}
+            <DialogTitle className="flex items-center gap-2 text-xl text-rose-700">
+              <Eraser className="h-6 w-6" />
+              Dọn Dẹp Dữ Liệu Tùy Chọn (Chuẩn Bị Dữ Liệu Chuẩn Cho Quán H2MilkTea)
             </DialogTitle>
             <DialogDescription>
-              Bảng {selectedTable} có {tableData[selectedTable]?.length || 0} bản ghi
+              Tick chọn chính xác các phần dữ liệu rác cần xóa. Thao tác này sẽ xóa trực tiếp trên{' '}
+              <strong>Supabase Cloud Database</strong> và dọn sạch bộ nhớ trình duyệt.
             </DialogDescription>
           </DialogHeader>
-          
-          <div className="overflow-auto max-h-[60vh]">
-            {tableData[selectedTable] && tableData[selectedTable].length > 0 ? (
+
+          <div className="space-y-5 py-2">
+            {/* Quick Presets */}
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                1. Chọn Nhanh Kịch Bản Dọn Dẹp (Presets)
+              </Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => applyClearPreset('golive')}
+                  className="text-left p-3 rounded-xl border-2 border-emerald-500 bg-emerald-50/70 hover:bg-emerald-100/70 transition-all"
+                >
+                  <div className="font-bold text-xs text-emerald-900 flex items-center justify-between">
+                    <span>🎯 Chuẩn bị mở quán (Go-Live)</span>
+                    <Badge className="bg-emerald-600 text-white text-[10px]">Khuyên dùng</Badge>
+                  </div>
+                  <p className="text-[11px] text-emerald-800 mt-1">
+                    Xóa đơn hàng, lịch sử kho, khách test. Giữ lại Menu, BOM, Bàn (reset Trống) & Nhân viên.
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => applyClearPreset('transactions_only')}
+                  className="text-left p-3 rounded-xl border border-gray-200 hover:border-purple-400 hover:bg-purple-50/50 transition-all"
+                >
+                  <div className="font-bold text-xs text-gray-900">🧾 Chỉ xóa Đơn hàng & Doanh thu</div>
+                  <p className="text-[11px] text-gray-600 mt-1">
+                    Chỉ xóa Hóa đơn, Chi tiết bán hàng, Đơn QR/KDS và trả tất cả bàn về Trống.
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => applyClearPreset('catalog_inventory')}
+                  className="text-left p-3 rounded-xl border border-gray-200 hover:border-purple-400 hover:bg-purple-50/50 transition-all"
+                >
+                  <div className="font-bold text-xs text-gray-900">📦 Làm mới Menu & Kho</div>
+                  <p className="text-[11px] text-gray-600 mt-1">
+                    Xóa Sản phẩm đã nhập, Công thức BOM, Nguyên liệu, Phiếu kho & Nhà cung cấp để nhập lại.
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => applyClearPreset('all_except_staff')}
+                  className="text-left p-3 rounded-xl border border-rose-200 bg-rose-50/40 hover:bg-rose-100/50 transition-all"
+                >
+                  <div className="font-bold text-xs text-rose-900">🗑️ Xóa tất cả (Giữ Nhân Viên)</div>
+                  <p className="text-[11px] text-rose-700 mt-1">
+                    Xóa trắng mọi bảng dữ liệu trên Cloud, chỉ giữ lại danh sách Nhân viên.
+                  </p>
+                </button>
+              </div>
+            </div>
+
+            {/* Detailed Checkboxes */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                  2. Tick Chọn Chi Tiết Các Phần Muốn Xóa ({selectedClearIds.length} mục đã chọn)
+                </Label>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() =>
+                      setSelectedClearIds(CLEAR_TARGET_OPTIONS.filter((o) => !o.dangerous).map((o) => o.id))
+                    }
+                  >
+                    Chọn tất cả (Trừ Nhân viên)
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs text-gray-500"
+                    onClick={() => setSelectedClearIds([])}
+                  >
+                    Bỏ chọn hết
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                {CLEAR_TARGET_OPTIONS.map((opt) => {
+                  const isChecked = selectedClearIds.includes(opt.id);
+                  const count = getOptionRecordCount(opt);
+                  return (
+                    <div
+                      key={opt.id}
+                      onClick={() => toggleClearOption(opt.id)}
+                      className={`cursor-pointer p-3 rounded-xl border transition-all flex items-start gap-3 ${
+                        isChecked
+                          ? opt.dangerous
+                            ? 'border-red-500 bg-red-50/70'
+                            : 'border-rose-500 bg-rose-50/50'
+                          : 'border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="mt-0.5 text-rose-600 shrink-0">
+                        {isChecked ? <CheckSquare className="h-5 w-5" /> : <Square className="h-5 w-5 text-gray-400" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-semibold text-sm text-gray-900">{opt.label}</span>
+                          <Badge variant="outline" className={`text-[11px] shrink-0 ${opt.badgeColor}`}>
+                            {opt.tables.includes('pos_orders') || opt.tables.includes('ai_audit_logs')
+                              ? 'Cloud'
+                              : `${count} bản ghi`}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-gray-600 mt-0.5">{opt.description}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Smart Sub-Options & Safety Net */}
+            <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-3">
+              <Label className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                3. Tùy Chọn Chuẩn Hóa & Bảo Toàn An Toàn
+              </Label>
+
+              <div className="space-y-2.5 text-sm">
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={resetTableStatusOpt}
+                    onChange={(e) => setResetTableStatusOpt(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-purple-600"
+                  />
+                  <span>
+                    <strong>Đặt lại trạng thái toàn bộ Bàn về &quot;Trống&quot;</strong> (nếu bạn không xóa danh sách Bàn)
+                  </span>
+                </label>
+
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={resetMaterialStockOpt}
+                    onChange={(e) => setResetMaterialStockOpt(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-purple-600"
+                  />
+                  <span>
+                    <strong>Đưa tồn kho Nguyên liệu về 0</strong> (giữ danh mục nguyên liệu để quán kiểm kho đầu kỳ mới)
+                  </span>
+                </label>
+
+                <label className="flex items-center gap-2.5 cursor-pointer text-emerald-800 font-medium">
+                  <input
+                    type="checkbox"
+                    checked={autoBackupBeforeClear}
+                    onChange={(e) => setAutoBackupBeforeClear(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-emerald-600"
+                  />
+                  <span>
+                    📦 <strong>Tự động tải 1 bản Backup (.json) về máy trước khi xóa</strong> (khuyên dùng để khôi phục nếu cần)
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setSelectiveClearOpen(false)} disabled={loading}>
+              Hủy bỏ
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleExecuteSelectiveClear}
+              disabled={
+                loading ||
+                (selectedClearIds.length === 0 && !resetTableStatusOpt && !resetMaterialStockOpt)
+              }
+              className="bg-rose-600 hover:bg-rose-700"
+            >
+              {loading ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Đang xóa trên Cloud...
+                </>
+              ) : (
+                <>
+                  <Eraser className="h-4 w-4 mr-2" />
+                  Xác Nhận Dọn Dẹp ({selectedClearIds.length} hạng mục)
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Table Dialog (With Search & Single Row Delete) */}
+      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+        <DialogContent className="max-w-6xl max-h-[85vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pr-6">
+              <div>
+                <DialogTitle className="flex items-center gap-2">
+                  {getTableIcon(selectedTable)}
+                  Chi tiết bảng: {getTableDisplayName(selectedTable)} ({selectedTable})
+                </DialogTitle>
+                <DialogDescription>
+                  Tổng cộng {tableData[selectedTable]?.length || 0} bản ghi trên Supabase Cloud
+                </DialogDescription>
+              </div>
+              <div className="relative w-full sm:w-72">
+                <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <Input
+                  placeholder="Tìm kiếm nhanh trong bảng..."
+                  value={tableSearchQuery}
+                  onChange={(e) => setTableSearchQuery(e.target.value)}
+                  className="pl-9 h-9 text-sm"
+                />
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="overflow-auto flex-1 max-h-[60vh] border rounded-lg">
+            {filteredSelectedTableRows.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-16 text-center">Xóa</TableHead>
                     {Object.keys(tableData[selectedTable][0]).map((key) => (
                       <TableHead key={key} className="whitespace-nowrap">
                         {key}
@@ -1317,11 +1992,23 @@ const SettingDataPage = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {tableData[selectedTable].slice(0, 50).map((row, index) => (
+                  {filteredSelectedTableRows.slice(0, 100).map((row, index) => (
                     <TableRow key={index}>
+                      <TableCell className="text-center">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-rose-600 hover:bg-rose-50"
+                          disabled={loading}
+                          onClick={() => handleDeleteSingleRecord(selectedTable, row)}
+                          title="Xóa bản ghi này trên Cloud"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </TableCell>
                       {Object.values(row).map((value, cellIndex) => (
-                        <TableCell key={cellIndex} className="max-w-xs truncate">
-                          {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                        <TableCell key={cellIndex} className="max-w-xs truncate text-xs">
+                          {typeof value === 'object' ? JSON.stringify(value) : String(value ?? '')}
                         </TableCell>
                       ))}
                     </TableRow>
@@ -1330,14 +2017,14 @@ const SettingDataPage = () => {
               </Table>
             ) : (
               <div className="flex items-center justify-center h-32">
-                <p className="text-gray-500">Không có dữ liệu</p>
+                <p className="text-gray-500">Không tìm thấy dữ liệu phù hợp</p>
               </div>
             )}
           </div>
 
-          {tableData[selectedTable] && tableData[selectedTable].length > 50 && (
-            <div className="text-sm text-gray-500 text-center">
-              Hiển thị 50/{tableData[selectedTable].length} bản ghi đầu tiên
+          {filteredSelectedTableRows.length > 100 && (
+            <div className="text-xs text-gray-500 text-center">
+              Hiển thị 100/{filteredSelectedTableRows.length} bản ghi phù hợp
             </div>
           )}
 
@@ -1350,30 +2037,28 @@ const SettingDataPage = () => {
       </Dialog>
 
       {/* Confirm Dialog */}
-      <Dialog open={confirmDialog.open} onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, open }))}>
+      <Dialog open={confirmDialog.open} onOpenChange={(open) => setConfirmDialog((prev) => ({ ...prev, open }))}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-red-600" />
               {confirmDialog.title}
             </DialogTitle>
-            <DialogDescription>
-              {confirmDialog.content}
-            </DialogDescription>
+            <DialogDescription>{confirmDialog.content}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
+            <Button
+              variant="outline"
+              onClick={() => setConfirmDialog((prev) => ({ ...prev, open: false }))}
               disabled={loading}
             >
               Hủy
             </Button>
-            <Button 
-              variant="destructive" 
+            <Button
+              variant="destructive"
               onClick={() => {
                 confirmDialog.action();
-                setConfirmDialog(prev => ({ ...prev, open: false }));
+                setConfirmDialog((prev) => ({ ...prev, open: false }));
               }}
               disabled={loading}
             >
@@ -1382,15 +2067,6 @@ const SettingDataPage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".json"
-        onChange={handleImport}
-        className="hidden"
-      />
     </div>
   );
 };
